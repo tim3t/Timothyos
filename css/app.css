@@ -62,6 +62,10 @@ button:disabled { cursor: not-allowed; }
 .tnum { font-variant-numeric: tabular-nums; }
 
 /* ---------- Frame ---------- */
+/* The elbow, its inner curve and the top bar are one arm: they always share a color.
+   On the Bridge the whole arm lights up, like a selected nav button. */
+.app { --arm: var(--chrome-a); }
+.app.on-bridge { --arm: var(--fg); }
 .app {
   height: 100%;
   display: grid;
@@ -71,7 +75,7 @@ button:disabled { cursor: not-allowed; }
 }
 .elbow {
   grid-area: 1 / 1;
-  background: var(--chrome-a);
+  background: var(--arm);
   border-top-left-radius: 72px 56px;
   min-height: 108px;
   display: flex;
@@ -87,7 +91,6 @@ button:disabled { cursor: not-allowed; }
   line-height: 1.05;
 }
 button.elbow { border: 0; flex-direction: column; }
-.elbow[aria-current="page"] { background: var(--fg); }
 .elbow:not([aria-current]):active { filter: brightness(1.15); }
 .navbridge { display: none !important; }
 .top { grid-area: 1 / 2; position: relative; display: flex; flex-direction: column; min-width: 0; }
@@ -96,11 +99,11 @@ button.elbow { border: 0; flex-direction: column; }
   position: absolute;
   left: 0; top: 26px;
   width: 32px; height: 32px;
-  background: radial-gradient(circle at 100% 100%, transparent 31.5px, var(--chrome-a) 32px);
+  background: radial-gradient(circle at 100% 100%, transparent 31.5px, var(--arm) 32px);
 }
 .topbar {
   height: 26px;
-  background: var(--chrome-a);
+  background: var(--arm);
   border-radius: 0 13px 13px 0;
   display: flex;
   align-items: stretch;
@@ -110,7 +113,7 @@ button.elbow { border: 0; flex-direction: column; }
 }
 .topbar span {
   background: var(--bg);
-  color: var(--chrome-a);
+  color: var(--arm);
   font-family: var(--display);
   font-size: 14px;
   letter-spacing: .14em;

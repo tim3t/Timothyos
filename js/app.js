@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.9.0";
+  var VERSION = "1.9.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -486,6 +486,7 @@
       t.textContent = weekLabel(rw0);
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
+    $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
       if (b.dataset.screen === state.screen) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });

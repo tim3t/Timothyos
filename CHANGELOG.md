@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.9.1 · 2026-10-06
+- Fix: on the Bridge, the lit BRIDGE corner met the mauve top bar with a visible seam. The corner, its curve and the top bar are one piece again: the whole arm lights up on the Bridge and returns to mauve elsewhere.
+
 ## 1.9.0 · 2026-10-06 (needs bridge 1.5.0 + Weekly Reviews connected)
 - **REVIEW unlocked:** a weekly look back, then a reflection saved to Notion.
   - **Time:** hours per calendar with the change from the week before, busiest day, open hours 07:00 to 21:00, work events. Ignored events are left out.
