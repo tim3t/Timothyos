@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1 · 2026-10-06
+- Fix: Google's servers occasionally answer a bridge request with a 404 or an error page even though the script ran. The app now retries those automatically (up to twice). Every bridge action is safe to repeat, so retries never duplicate events or tasks.
+- Captures hit by those errors stay queued instead of being marked NOT SAVED.
+- Clearer message if the error persists after retrying.
+
 ## 1.5.0 · 2026-10-06 (needs bridge 1.2.0 + Notion link)
 - **Plan Day:** pick up to three priorities from your Notion Master Task List. Suggestions are grouped: carried over, overdue, due in 7 days, high priority or in progress, plus all other open tasks. Shows the day's events, first meeting and longest open stretch. Add a new task right from the sheet.
 - **Priorities panel** on Today: tap to mark ✅ Done in Notion, tap again to reopen. Plan any future day from its Today view.

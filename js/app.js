@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.5.0";
+  var VERSION = "1.5.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -128,7 +128,29 @@
   if (state.sync.status === "syncing") state.sync.status = "idle";
 
   /* ---------- Bridge API ---------- */
-  function api(params, conn) {
+  /* Google answers in two steps (script, then a result page). The second step
+     occasionally returns a 404 or an HTML error page even though the script ran
+     fine. Those are retried. Every bridge action is safe to repeat: reads, and
+     writes that carry a unique ID or set a field to a fixed value. */
+  var RETRY_DELAYS = [700, 1800];
+  function transient(err) {
+    var code = err && err.code;
+    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "");
+  }
+  function withRetry(run) {
+    var attempt = 0;
+    function go() {
+      return run().catch(function (err) {
+        if (!transient(err) || attempt >= RETRY_DELAYS.length) throw err;
+        var wait = RETRY_DELAYS[attempt++];
+        return new Promise(function (res) { setTimeout(res, wait); }).then(go);
+      });
+    }
+    return go();
+  }
+  function api(params, conn) { return withRetry(function () { return apiOnce(params, conn); }); }
+  function apiPost(body) { return withRetry(function () { return apiPostOnce(body); }); }
+  function apiOnce(params, conn) {
     conn = conn || state.conn;
     var u = new URL(conn.url);
     u.searchParams.set("key", conn.key);
@@ -141,7 +163,7 @@
       .finally(function () { if (timer) clearTimeout(timer); });
   }
   /* Writes go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
-  function apiPost(body) {
+  function apiPostOnce(body) {
     var conn = state.conn;
     var ctrl = typeof AbortController === "function" ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
@@ -163,7 +185,8 @@
     var code = err && (err.code || err.message);
     if (code === "unauthorized") return "The access key doesn't match. Copy it again from the Apps Script log (run setup).";
     if (code === "server_error") return "The script hit an error: " + (err.detail || "unknown") + ".";
-    if (code === "bad_json") return "The script didn't send calendar data. Use the web app URL that ends in /exec.";
+    if (code === "bad_json") return "Google sent an error page instead of data, even after retrying. Usually temporary. If it persists, check that the URL ends in /exec.";
+    if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
     if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs.";
     if (/^http_/.test(code || "")) return "The script answered with " + code.replace("http_", "HTTP ") + ". Check the deployment.";
     if (isNetworkError(err)) return "Couldn't reach the script. Check your connection, that the URL ends in /exec, and that access is set to Anyone.";
@@ -599,7 +622,7 @@
 
   /* ---------- Capture ---------- */
   var WRITABLE = ["personal"];              /* Work is never offered */
-  var RETRYABLE = { bad_json: 1, server_error: 1, bad_response: 1 };
+  var RETRYABLE = { bad_json: 1, server_error: 1, bad_response: 1, http_404: 1 };
   var DURS = [["0.25", "15 MIN"], ["0.5", "30 MIN"], ["1", "1 HR"], ["2", "2 HR"], ["all", "ALL DAY"]];
   var capPrefs = lsGet(LS_CAPPREFS) || { dur: "1" };
   var cap = null;
