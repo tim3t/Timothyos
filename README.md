@@ -150,6 +150,8 @@ The app opens on the **Bridge**: one screen above the calendars, one full-width 
 | 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load |
 | 🟢 GREEN | None of the above |
 
+**Details:** each panel shows its essentials. Tap **+** beside a panel title for the rest (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open.
+
 **One-time settings** (all in **SYSTEMS → BRIDGE**, saved on this iPad only):
 - **Location** for weather: tap **USE THIS IPAD'S LOCATION**, or type latitude and longitude. It's rounded to about 1 km.
 - **Bearings:** your guiding words, one per line. The Bridge shows one each day; tap it to see the next.

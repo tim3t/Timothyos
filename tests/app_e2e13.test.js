@@ -61,6 +61,14 @@ function weather() {
   assert.ok(alerts.includes('Frost tonight'));
   assert.strictEqual(alerts.indexOf('Overdue, High priority'), 0, 'red items first');
 
+  // details sit behind + beside each title: hidden at first, shown on tap, remembered
+  assert.ok(await p.isHidden('.ov-load'), 'readouts hidden until +');
+  assert.strictEqual(await p.locator('.ov-more').count(), 6);
+  assert.ok((await p.textContent('[data-panel="prio"] .ov-sub')).includes('3 TASKS DUE OR OVERDUE, NOT PICKED'));
+  for (const k of ['now', 'prio', 'env']) { await p.click('[data-more="' + k + '"]'); await p.waitForTimeout(150); }
+  assert.ok(await p.isVisible('.ov-load')); assert.strictEqual(await p.getAttribute('[data-more="now"]', 'aria-expanded'), 'true');
+  await p.reload(); await p.waitForTimeout(1500);
+  assert.ok(await p.isVisible('.ov-load'), 'open panels remembered');
   const now = (await p.innerText('.ov-now')).replace(/\s+/g, ' ').trim();
   console.log('now:', now, '| next:', (await p.innerText('.ov-next')).replace(/\s+/g, ' '));
   assert.ok(now.startsWith('FREE 50M until 08:30'));

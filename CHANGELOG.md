@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1 · 2026-10-06
+- **Calmer Bridge:** one type scale (hero 40, count 28, title 19, body 17, secondary 15, label 13) with one letter spacing per role. Visible text styles on the Bridge went from 28 to 15.
+- **Details behind +:** each panel title has a + that shows its secondary readouts (booked and open hours, wind, rain, sunrise and sunset, hive and frost notes, the due and overdue list, the Horizon legend, Key Dates buttons, the Balance note). Your choice is remembered per panel.
+- **More room:** wider spacing between sections and under the condition banner; smaller buttons inside panels; Horizon bars use their space better.
+
 ## 2.0.0 · 2026-10-06 (needs bridge 1.6.0 + ANTHROPIC_API_KEY)
 - **ASK is live:** the ship's computer, powered by Claude.
   - Type or dictate questions. Each one carries a snapshot of what the app shows; Claude can look further through the bridge.

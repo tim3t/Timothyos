@@ -60,6 +60,7 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 - **Weather** is fetched from the iPad straight to Open-Meteo (`loadWeather()`), only when a location is set in Systems. Coordinates are rounded to 2 decimals.
 - **Device-only data** (never sent to the bridge, never in the repo): `tos.place.v1`, `tos.bearings.v1`, `tos.log.v1`. Bearings have no defaults on purpose: they are Timothy's own words and the repo is public.
 - `render()` keeps focus and caret in a text field across re-renders (the Bridge re-renders every minute).
+- **Visual rules:** use the type scale tokens in `css/app.css` (`--t-hero` 40, `--t-count` 28, `--t-title` 19, `--t-body` 17, `--t-sub` 15, `--t-label` 13, `--ls-label`). Each panel shows essentials; secondary readouts get class `ov-extra` and appear when its + (`moreBtn(key)`, state in `tos.bopen.v1`) is open. Don't add new font sizes.
 
 ## Weekly Review
 
