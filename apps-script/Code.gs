@@ -1,5 +1,5 @@
 /**
- * TimothyOS bridge, v1.5
+ * TimothyOS bridge, v1.6
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
@@ -7,6 +7,9 @@
  *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
  *    finished recently (for the Bridge's Balance panel). Reads a week's
  *    finished and picked tasks, and saves your Weekly Review (one page per week).
+ *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
+ *    Claude only reads; every change it suggests waits for your tap in the app.
+ *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
  *    Nothing else in Notion is touched.
  *
  * The work calendar can never be written to. Nothing is ever deleted.
@@ -39,12 +42,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.5.0';
+var VERSION = '1.6.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
-  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews'] : []);
+  var props = PropertiesService.getScriptProperties();
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -63,7 +67,8 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (!keyMatches_(p.key)) return json_({ ok: false, error: 'unauthorized' });
-    if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_() });
+    if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
+    if (p.action === 'aispend') return json_({ ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null });
     if (p.action === 'events') return json_(events_(Number(p.from), Number(p.to)));
     if (p.action === 'tasks') return json_(tasks_(String(p.day || '')));
     if (p.action === 'dates') return json_(dates_());
@@ -88,6 +93,7 @@ function doPost(e) {
     if (body.action === 'addtask') return json_(addTask_(body.task || {}));
     if (body.action === 'adddate') return json_(addDate_(body.date || {}));
     if (body.action === 'savereview') return json_(saveReview_(body.review || {}));
+    if (body.action === 'ask') return json_(ask_(body));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -123,6 +129,8 @@ function setup() {
   console.log('Notion key dates: ' + (kd.ok ? 'OK (' + kd.name + ', ' + kd.count + ' dates)' : 'NOT READY: ' + (kd.error || n.error) + (kd.help ? '. ' + kd.help : '')));
   var wr = n.reviews || {};
   console.log('Notion weekly reviews: ' + (wr.ok ? 'OK (' + wr.name + ', ' + wr.count + ' reviews)' : 'NOT READY: ' + (wr.error || n.error) + (wr.help ? '. ' + wr.help : '')));
+  var ai = aiKey_() ? aiSpend_() : null;
+  console.log('Ask Claude: ' + (ai ? 'OK. This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
 }
@@ -408,7 +416,7 @@ function done_(days) {
 }
 
 // ---- Weekly Review ------------------------------------------------------------
-var REVIEW_TEXT = { wentWell: 'Went Well', drained: 'Drained Me', nextFocus: 'Next Focus', bearing: 'Bearing', intents: 'Intents', byArea: 'Done By Area' };
+var REVIEW_TEXT = { wentWell: 'Went Well', drained: 'Drained Me', nextFocus: 'Next Focus', bearing: 'Bearing', intents: 'Intents', byArea: 'Done By Area', summary: 'Claude Summary' };
 var REVIEW_NUM = { hoursWork: 'Hours Work', hoursPersonal: 'Hours Personal', hoursFarm: 'Hours Farm', hoursHobbies: 'Hours Hobbies', tasksDone: 'Tasks Done', picked: 'Priorities Picked', pickedDone: 'Priorities Done' };
 var YMD = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 function addDaysYmd_(ymd, n) { var d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -422,7 +430,6 @@ function toReview_(pg) {
   var p = pg.properties || {}, out = { id: pg.id, url: pg.url, saved: pg.last_edited_time || null, week: day_(p['Week Start']), title: plain_(p.Week && p.Week.title) };
   Object.keys(REVIEW_TEXT).forEach(function (k) { out[k] = plain_(p[REVIEW_TEXT[k]] && p[REVIEW_TEXT[k]].rich_text); });
   Object.keys(REVIEW_NUM).forEach(function (k) { out[k] = p[REVIEW_NUM[k]] && typeof p[REVIEW_NUM[k]].number === 'number' ? p[REVIEW_NUM[k]].number : null; });
-  out.summary = plain_(p['Claude Summary'] && p['Claude Summary'].rich_text);
   return out;
 }
 function findReview_(ds, week) {
@@ -464,7 +471,7 @@ function week_(week, from, to) {
   return out;
 }
 
-/** Save the review for one week: updates that week's page, or creates it. Safe to repeat. */
+/** Save the review for one week: updates that week's page, or creates it. Only fields that are sent change. Safe to repeat. */
 function saveReview_(r) {
   var week = String(r.week || '');
   if (!YMD.test(week)) return { ok: false, error: 'bad_request' };
@@ -472,8 +479,9 @@ function saveReview_(r) {
     Week: { title: rt_(String(r.title || week).trim().slice(0, 120) || week) },
     'Week Start': { date: { start: week } }
   };
-  Object.keys(REVIEW_TEXT).forEach(function (k) { props[REVIEW_TEXT[k]] = { rich_text: rt_(String(r[k] == null ? '' : r[k]).trim().slice(0, 6000)) }; });
+  Object.keys(REVIEW_TEXT).forEach(function (k) { if (r[k] !== undefined) props[REVIEW_TEXT[k]] = { rich_text: rt_(String(r[k] == null ? '' : r[k]).trim().slice(0, 6000)) }; });
   Object.keys(REVIEW_NUM).forEach(function (k) {
+    if (r[k] === undefined) return;
     var v = Number(r[k]);
     props[REVIEW_NUM[k]] = { number: r[k] === null || r[k] === undefined || r[k] === '' || !isFinite(v) ? null : Math.round(v * 10) / 10 };
   });
@@ -612,4 +620,219 @@ function addDate_(date) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---- Ask Claude ---------------------------------------------------------------
+// The in-app assistant. Claude reads through the same functions the app uses and
+// never changes anything itself: every change comes back as a proposal that
+// Timothy confirms in the app. No web, no work-calendar writes, no code.
+// The API key lives in Script Properties (ANTHROPIC_API_KEY), never in this file.
+var AI = {
+  FAST: 'claude-haiku-4-5',    // everyday questions
+  DEEP: 'claude-sonnet-5-5',   // THINK HARDER and weekly summaries
+  BUDGET_USD: 8,               // monthly pause point; override with Script Property AI_BUDGET_USD
+  MAX_STEPS: 6                 // model calls per question, at most
+};
+// US$ per million tokens: input, output, cache write (5 min), cache read.
+var AI_PRICES = {
+  'claude-haiku-4-5': [1, 5, 1.25, 0.10],
+  'claude-sonnet-5-5': [2, 10, 2.5, 0.20],
+  'claude-sonnet-5': [2, 10, 2.5, 0.20]
+};
+var AI_PRICE_OTHER = [5, 25, 6.25, 0.50];   // anything unexpected is counted at a high rate
+
+var AI_RULES = [
+  "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
+  "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
+  "Facts: use only the snapshot below and your tools. Never invent events, tasks, dates or numbers. If something isn't in the data, say so. Times are local.",
+  "You can read his Work and Personal calendars, his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
+  "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar, or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
+  "The Work calendar is read-only: never propose anything for it. A reminder is a short Personal calendar event at the reminder time; his devices alert him.",
+  "Use exact task ids from the snapshot or get_tasks. Use Life Area, priority and key date type names exactly as listed in the snapshot."
+].join('\n');
+
+function aiKey_() { return PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'); }
+function aiBudget_() { var b = Number(PropertiesService.getScriptProperties().getProperty('AI_BUDGET_USD')); return isFinite(b) && b > 0 ? b : AI.BUDGET_USD; }
+function aiMonth_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM'); }
+/** This month's spend, kept in Script Properties: { month, usd, calls }. */
+function aiSpend_() {
+  var s = {};
+  try { s = JSON.parse(PropertiesService.getScriptProperties().getProperty('AI_SPEND') || '{}'); } catch (e) { s = {}; }
+  if (s.month !== aiMonth_()) s = { month: aiMonth_(), usd: 0, calls: 0 };
+  return { month: s.month, usd: Math.round((s.usd || 0) * 10000) / 10000, calls: s.calls || 0, budget: aiBudget_() };
+}
+function aiCost_(model, u) {
+  var p = AI_PRICES[model] || AI_PRICE_OTHER;
+  u = u || {};
+  return ((u.input_tokens || 0) * p[0] + (u.output_tokens || 0) * p[1] + (u.cache_creation_input_tokens || 0) * p[2] + (u.cache_read_input_tokens || 0) * p[3]) / 1e6;
+}
+function aiAddSpend_(usd) {
+  var s = aiSpend_();
+  s.usd += usd; s.calls += 1;
+  PropertiesService.getScriptProperties().setProperty('AI_SPEND', JSON.stringify({ month: s.month, usd: s.usd, calls: s.calls }));
+  return s;
+}
+
+/** One request to the Messages API (raw HTTP: Apps Script has no SDK). */
+function claude_(payload, betas) {
+  var headers = { 'x-api-key': aiKey_(), 'anthropic-version': '2023-06-01' };
+  if (betas && betas.length) headers['anthropic-beta'] = betas.join(',');
+  var res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+    method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify(payload), muteHttpExceptions: true
+  });
+  var code = res.getResponseCode(), body = {};
+  try { body = JSON.parse(res.getContentText() || '{}'); } catch (x) { body = {}; }
+  if (code >= 300) {
+    var msg = (body.error && body.error.message) || ('HTTP ' + code), e = new Error(msg);
+    var details = (body.error && body.error.details) || {};
+    if (code === 401 || code === 403) e.ai = 'ai_unauthorized';
+    else if (/credit balance/i.test(msg)) e.ai = 'ai_no_credit';
+    else if (details.error_code === 'enforced_spend_limit_reached' || /specified (workspace )?API usage limits|usage limits/i.test(msg)) e.ai = 'ai_console_limit';
+    else if (code === 429 || code === 529 || code >= 500) e.ai = 'ai_busy';
+    else e.ai = 'ai_error';
+    throw e;
+  }
+  return body;
+}
+
+var AI_TOOLS = [
+  { name: 'get_events', description: 'Work and Personal calendar events between two dates (inclusive, at most 62 days). Ignored booking blocks are already left out.',
+    input_schema: { type: 'object', properties: { from: { type: 'string', description: 'yyyy-mm-dd' }, to: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['from', 'to'], additionalProperties: false } },
+  { name: 'get_tasks', description: "Tasks picked for a day (its priorities) and every open task in the Master Task List, with ids, status, priority, Life Area and due date.",
+    input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['day'], additionalProperties: false } },
+  { name: 'get_key_dates', description: 'Every key date (deadlines, windows, birthdays, anniversaries, events, reminders). Yearly ones repeat every year.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'get_week', description: 'One week (Monday start): tasks finished, priorities picked, and the saved weekly review if there is one.',
+    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'Monday, yyyy-mm-dd' } }, required: ['week_start'], additionalProperties: false } },
+  { name: 'propose_add_task', description: 'Propose a new To Do task in the Master Task List. Optionally pick it as a priority for a day.',
+    input_schema: { type: 'object', properties: { title: { type: 'string' }, life_area: { type: 'string' }, priority: { type: 'string' }, focus_day: { type: 'string', description: 'yyyy-mm-dd, to pick it for that day' } }, required: ['title'], additionalProperties: false } },
+  { name: 'propose_set_focus', description: 'Propose picking an existing task as a priority for a day, or unpicking it (day "none").',
+    input_schema: { type: 'object', properties: { task_id: { type: 'string' }, task_title: { type: 'string' }, day: { type: 'string', description: 'yyyy-mm-dd, or "none" to unpick' } }, required: ['task_id', 'task_title', 'day'], additionalProperties: false } },
+  { name: 'propose_set_status', description: 'Propose changing a task status.',
+    input_schema: { type: 'object', properties: { task_id: { type: 'string' }, task_title: { type: 'string' }, status: { type: 'string', enum: TASK_STATUSES } }, required: ['task_id', 'task_title', 'status'], additionalProperties: false } },
+  { name: 'propose_add_key_date', description: 'Propose a new key date. Add an end date for a window; yearly for birthdays, anniversaries and seasons.',
+    input_schema: { type: 'object', properties: { title: { type: 'string' }, start: { type: 'string', description: 'yyyy-mm-dd' }, end: { type: 'string', description: 'yyyy-mm-dd, for windows' }, life_area: { type: 'string' }, type: { type: 'string' }, yearly: { type: 'boolean' } }, required: ['title', 'start'], additionalProperties: false } },
+  { name: 'propose_add_event', description: 'Propose an event or reminder on the Personal calendar (never Work). Give a date and start time, or all_day.',
+    input_schema: { type: 'object', properties: { title: { type: 'string' }, date: { type: 'string', description: 'yyyy-mm-dd' }, start_time: { type: 'string', description: 'HH:MM, 24-hour' }, minutes: { type: 'integer', description: 'length, default 30' }, all_day: { type: 'boolean' } }, required: ['title', 'date'], additionalProperties: false } },
+  { name: 'propose_review_draft', description: "Propose text for a week's review fields. Timothy reviews them on the Review screen before saving.",
+    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'Monday, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
+];
+
+function aiDay_(s) { return YMD.test(String(s || '')); }
+function aiLine_(ev, tz) {
+  if (ev.allDay) return ev.start + ' all day · ' + (ev.area === 'work' ? 'Work' : 'Personal') + ' · ' + ev.title;
+  return Utilities.formatDate(new Date(ev.start), tz, 'EEE yyyy-MM-dd HH:mm') + '-' + Utilities.formatDate(new Date(ev.end), tz, 'HH:mm') + ' · ' + (ev.area === 'work' ? 'Work' : 'Personal') + ' · ' + ev.title;
+}
+function aiTaskLine_(t) {
+  return '[' + t.id + '] ' + t.title + ' · ' + [t.status, t.priority, t.area, t.due ? 'due ' + t.due : '', t.focus ? 'picked ' + t.focus : ''].filter(String).join(' · ');
+}
+
+/** Run one tool call. Reads return data; propose_ tools return a proposal for the app. */
+function aiTool_(name, input, ctx) {
+  var tz = Session.getScriptTimeZone();
+  if (name === 'get_events') {
+    if (!aiDay_(input.from) || !aiDay_(input.to) || input.to < input.from) return { error: 'Dates must be yyyy-mm-dd, with to on or after from.' };
+    var f = Utilities.parseDate(input.from, tz, 'yyyy-MM-dd').getTime(), t = Utilities.parseDate(addDaysYmd_(input.to, 1), tz, 'yyyy-MM-dd').getTime();
+    var ev = events_(f, t);
+    if (!ev.ok) return { error: 'Range too long: at most 62 days.' };
+    var ign = (ctx.ignore || []).map(function (p) { return String(p).toLowerCase(); });
+    var lines = ev.events.filter(function (e) { var tl = String(e.title).toLowerCase(); return !ign.some(function (p) { return p && tl.indexOf(p) > -1; }); })
+      .sort(function (a, b) { return String(a.start).localeCompare(String(b.start)); }).slice(0, 200).map(function (e) { return aiLine_(e, tz); });
+    return { text: lines.length ? lines.join('\n') : 'No events in that range.' };
+  }
+  if (name === 'get_tasks') {
+    if (!aiDay_(input.day)) return { error: 'day must be yyyy-mm-dd.' };
+    var tk = tasks_(input.day);
+    return { text: 'PICKED FOR ' + input.day + ':\n' + (tk.focus.map(aiTaskLine_).join('\n') || 'none') + '\nOPEN TASKS:\n' + (tk.open.slice(0, 120).map(aiTaskLine_).join('\n') || 'none') };
+  }
+  if (name === 'get_key_dates') {
+    var kd = dates_();
+    return { text: kd.dates.map(function (d) { return d.start + (d.end ? ' to ' + d.end : '') + ' · ' + d.title + ' · ' + [d.type, d.area, d.yearly ? 'yearly' : ''].filter(String).join(' · '); }).join('\n') || 'No key dates.' };
+  }
+  if (name === 'get_week') {
+    if (!aiDay_(input.week_start)) return { error: 'week_start must be a Monday, yyyy-mm-dd.' };
+    var w0 = Utilities.parseDate(input.week_start, tz, 'yyyy-MM-dd'), w1 = Utilities.parseDate(addDaysYmd_(input.week_start, 7), tz, 'yyyy-MM-dd');
+    var wk = week_(input.week_start, w0.toISOString(), w1.toISOString());
+    if (!wk.ok) return { error: 'Could not read that week.' };
+    var r = wk.review;
+    return { text: 'FINISHED:\n' + (wk.done.map(function (x) { return '- ' + x.title + ' · ' + (x.area || 'no area'); }).join('\n') || 'none') +
+      '\nPICKED:\n' + (wk.picked.map(function (x) { return '- ' + x.title + ' · ' + x.status + (x.focus ? ' · for ' + x.focus : ''); }).join('\n') || 'none') +
+      '\nSAVED REVIEW: ' + (r ? ['Went well: ' + r.wentWell, 'Drained me: ' + r.drained, 'Next focus: ' + r.nextFocus, 'Bearing: ' + r.bearing, 'Summary: ' + r.summary].join('\n') : 'none') };
+  }
+  if (name.indexOf('propose_') === 0) {
+    var bad = aiCheck_(name, input);
+    if (bad) return { error: bad };
+    ctx.proposals.push({ kind: name.replace('propose_', ''), input: input });
+    return { text: 'Shown to Timothy as proposal ' + ctx.proposals.length + '. Nothing changes until he taps CONFIRM.' };
+  }
+  return { error: 'Unknown tool ' + name };
+}
+function aiCheck_(name, i) {
+  var str = function (v, max) { return typeof v === 'string' && v.trim() && v.length <= max; };
+  if (name === 'propose_add_task') return !str(i.title, 200) ? 'title is required (200 characters at most).' : i.focus_day && !aiDay_(i.focus_day) ? 'focus_day must be yyyy-mm-dd.' : '';
+  if (name === 'propose_set_focus') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : i.day !== 'none' && !aiDay_(i.day) ? 'day must be yyyy-mm-dd, or "none" to unpick.' : '';
+  if (name === 'propose_set_status') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : TASK_STATUSES.indexOf(i.status) === -1 ? 'Unknown status.' : '';
+  if (name === 'propose_add_key_date') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.start) ? 'start must be yyyy-mm-dd.' : i.end && (!aiDay_(i.end) || i.end < i.start) ? 'end must be yyyy-mm-dd, on or after start.' : '';
+  if (name === 'propose_add_event') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.date) ? 'date must be yyyy-mm-dd.' : !i.all_day && !/^\d{2}:\d{2}$/.test(String(i.start_time || '')) ? 'Give start_time as HH:MM, or all_day.' : '';
+  if (name === 'propose_review_draft') return !aiDay_(i.week_start) ? 'week_start must be yyyy-mm-dd.' : '';
+  return '';
+}
+
+/**
+ * Answer one message. body: { cid, mode: 'fast'|'deep'|'summary', messages: [{ role, text }],
+ * context: snapshot text from the app, ignore: [title phrases] }.
+ * Returns { reply, proposals, model, cost, spend }. Safe to repeat: replies are kept by cid for 10 minutes.
+ */
+function ask_(body) {
+  if (!aiKey_()) return { ok: false, error: 'ai_not_configured' };
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(String(body.cid || ''))) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), seen = cache.get('ask:' + body.cid);
+  if (seen) return JSON.parse(seen);
+  var mode = body.mode === 'deep' || body.mode === 'summary' ? body.mode : 'fast';
+  var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-20).filter(function (m) {
+    return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
+  }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
+  if (!turns.length || turns[turns.length - 1].role !== 'user') return { ok: false, error: 'bad_request' };
+  while (turns.length && turns[0].role !== 'user') turns.shift();
+
+  var spend = aiSpend_();
+  if (spend.usd >= spend.budget) return { ok: false, error: 'ai_budget', spend: spend };
+
+  var model = mode === 'fast' ? AI.FAST : AI.DEEP;
+  var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." : '') },
+    { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
+  var payload = { model: model, max_tokens: mode === 'fast' ? 2000 : 8000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
+  if (mode !== 'summary') payload.tools = AI_TOOLS;
+  var betas = [];
+  if (model === AI.DEEP) { payload.output_config = { effort: 'medium' }; payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+
+  var ctx = { ignore: Array.isArray(body.ignore) ? body.ignore.slice(0, 30) : [], proposals: [] }, cost = 0, res, served = model;
+  for (var step = 0; step < AI.MAX_STEPS; step++) {
+    if (step > 0 && aiSpend_().usd >= aiSpend_().budget) break;
+    try {
+      res = claude_(payload, betas);
+    } catch (e) {
+      if (!e.ai) throw e;
+      return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
+    }
+    served = res.model || model;
+    var c = aiCost_(served, res.usage);
+    cost += c;
+    spend = aiAddSpend_(c);
+    payload.messages.push({ role: 'assistant', content: res.content });
+    if (res.stop_reason !== 'tool_use') break;
+    var results = res.content.filter(function (b) { return b.type === 'tool_use'; }).map(function (b) {
+      var out;
+      try { out = aiTool_(b.name, b.input || {}, ctx); } catch (err) { out = { error: (err && err.notion) ? 'Notion is unavailable right now (' + err.notion + ').' : 'That lookup failed.' }; }
+      return out.error ? { type: 'tool_result', tool_use_id: b.id, content: out.error, is_error: true } : { type: 'tool_result', tool_use_id: b.id, content: out.text };
+    });
+    payload.messages.push({ role: 'user', content: results });
+  }
+  var text = (res && res.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n\n').trim();
+  if (res && res.stop_reason === 'refusal') text = "That's outside what I can help with here.";
+  else if (res && res.stop_reason === 'tool_use') text = (text ? text + '\n\n' : '') + "(Stopped after " + AI.MAX_STEPS + " steps. Ask again more narrowly.)";
+  else if (res && res.stop_reason === 'max_tokens') text += '\n\n(Answer cut short.)';
+  var out = { ok: true, version: VERSION, reply: text || '(No answer.)', proposals: ctx.proposals, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
+  try { cache.put('ask:' + body.cid, JSON.stringify(out), 600); } catch (x) { /* too large to cache */ }
+  return out;
 }

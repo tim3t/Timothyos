@@ -20,7 +20,7 @@ Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Goo
      Both live under 🏠 Timothy's Life Hub (page 31893ad51450814c8a3be31c1f26aed8).
 ```
 
-Current versions: **app 1.9.0**, **bridge 1.5.0**.
+Current versions: **app 2.0.0**, **bridge 1.6.0**.
 
 ### Bridge actions
 
@@ -31,15 +31,17 @@ Current versions: **app 1.9.0**, **bridge 1.5.0**.
 | GET | `tasks` `day` (yyyy-mm-dd) | `focus` (Focus Date = day) + `open` tasks + Life Area options | |
 | GET | `dates` | all key dates + Life Area and Type options | app computes yearly repeats and countdowns |
 | GET | `week` `week` (Monday yyyy-mm-dd) `from` `to` (local midnights, ISO) | tasks finished (last edit in range), tasks picked (Focus Date in week), saved review | `reviewsError` set if Weekly Reviews isn't connected; the rest still returns |
+| GET | `aispend` | this month's Ask spend `{month, usd, calls, budget}` | |
 | GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
 | POST | `create` `item{cid,area,title,allDay,start,end}` | new event, **Personal only** | `WRITABLE` allow-list; Work can never be written |
 | POST | `focus` `id` `day\|null` | sets Focus Date | page must belong to the Master Task List |
 | POST | `status` `id` `status` | sets Status (allow-listed values) | same ownership check |
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
 | POST | `adddate` `date{cid,title,start,end,area,type,yearly}` | new key date | |
-| POST | `savereview` `review{week,title,wentWell,drained,nextFocus,bearing,intents,byArea,hoursWork,hoursPersonal,hoursFarm,hoursHobbies,tasksDone,picked,pickedDone}` | create or update that week's page | upsert on Week Start, so repeats are safe |
+| POST | `savereview` `review{week,title,wentWell,drained,nextFocus,bearing,summary,intents,byArea,hoursWork,hoursPersonal,hoursFarm,hoursHobbies,tasksDone,picked,pickedDone}` | create or update that week's page | upsert on Week Start; only fields sent are written |
+| POST | `ask` `{cid, mode: fast\|deep\|summary, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews` (the last four appear once `NOTION_TOKEN` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews` (once `NOTION_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
@@ -62,6 +64,10 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 ## Weekly Review
 
 `renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.
+
+## Ask Claude
+
+Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no SDK). Models: `claude-haiku-4-5` (fast; no thinking or effort params) and `claude-sonnet-5-5` (deep and summary; effort `medium`, server-side `fallbacks: "default"` with beta `server-side-fallback-2026-07-01`, thinking blocks passed back unchanged). Tools: `get_events`, `get_tasks`, `get_key_dates`, `get_week` (read) and `propose_*` (collected, never executed). Spend is computed from `usage` with `AI_PRICES` and kept in Script Property `AI_SPEND`; `AI_BUDGET_USD` (default 8) stops calls. App: `briefing()` builds the snapshot (ignored events already left out); `runProposal()` performs confirmed changes through the existing actions (addtask, focus, status, the capture queue for key dates and events, review drafts). Never add a web tool, a Work-calendar write, or any tool that writes without CONFIRM. Tests: `bridge_ask.test.js` (scripted API), `mock_v16.py` + `app_e2e17`.
 
 ## Life areas and colors
 
@@ -96,7 +102,5 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 ## Roadmap (standby modules)
 
 - **Notes in Capture** (Notion).
-- **Ask Claude**: open decision between hand-off to the Claude app, hybrid, or a full panel. API usage is billed separately from his Claude subscription, and he expects heavy use.
-- **Weekly Review**: hours by life area + three reflection fields.
 - **Farm + Bees and Hobbies calendars**: separate Google calendars, add as toggles and Capture destinations.
-- Later: Home Assistant; moving hosting to his NAS after a hosting review.
+- Later: Home Assistant; moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.

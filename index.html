@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=1.9.1">
+<link rel="stylesheet" href="css/app.css?v=2.0.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 1.9</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 2.0</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -34,7 +34,7 @@
       </div>
       <div class="actions" aria-label="Coming later">
         <button class="btn plan" type="button" id="planBtn" disabled>PLAN DAY</button>
-        <button class="btn ask" type="button" disabled title="Standby: arrives in a later stage">ASK<small>STANDBY</small></button>
+        <button class="btn ask" type="button" id="askBtn" disabled>ASK</button>
         <button class="btn capture" type="button" id="capBtn">CAPTURE</button>
       </div>
     </div>
@@ -104,6 +104,28 @@
   <div class="sheet plansheet" id="planSheet" role="dialog" aria-modal="true" aria-label="Plan Day" style="--c: var(--chrome-c)"></div>
 </div>
 
+<div class="scrim capscrim" id="askScrim" hidden>
+  <div class="sheet asksheet" id="askSheet" role="dialog" aria-modal="true" aria-label="Ask" style="--c: var(--chrome-a)">
+    <div class="sbar"><span>ASK<span class="long"> · SHIP'S COMPUTER</span></span><span id="askMeter"></span></div>
+    <div class="sbody">
+      <div class="asklog" id="askLog" aria-live="polite"></div>
+      <textarea id="askText" rows="2" maxlength="2000" enterkeyhint="send" placeholder="Ask about your days, tasks and dates. Tap the keyboard mic to speak."></textarea>
+      <div class="err" id="askErr" role="alert"></div>
+    </div>
+    <div class="sfoot capfoot">
+      <span class="btnrow">
+        <button type="button" class="chip" id="askDeep" aria-pressed="false">THINK HARDER</button>
+        <button type="button" class="chip" id="askNew">NEW CHAT</button>
+        <button type="button" class="chip" id="askOpen">OPEN IN CLAUDE</button>
+      </span>
+      <span class="btnrow">
+        <button type="button" class="btn ghost" id="askClose">CLOSE</button>
+        <button type="button" class="btn capture" id="askSend">SEND</button>
+      </span>
+    </div>
+  </div>
+</div>
+
 <div class="scrim" id="detailScrim" hidden>
   <div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
 </div>
@@ -111,6 +133,6 @@
 <button class="update" id="updateBtn" type="button" hidden>UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=1.9.1"></script>
+<script src="js/app.js?v=2.0.0"></script>
 </body>
 </html>

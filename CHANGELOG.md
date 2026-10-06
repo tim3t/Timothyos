@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0 · 2026-10-06 (needs bridge 1.6.0 + ANTHROPIC_API_KEY)
+- **ASK is live:** the ship's computer, powered by Claude.
+  - Type or dictate questions. Each one carries a snapshot of what the app shows; Claude can look further through the bridge.
+  - **Changes need your CONFIRM:** add a task, pick or unpick a priority, change a status, add a key date, add a Personal calendar event or reminder, draft a weekly review. The Work calendar is never offered.
+  - **Haiku 4.5** by default; **THINK HARDER** uses **Sonnet 5.5**.
+  - Each answer shows its cost; the month so far shows in the sheet and in **SYSTEMS → ASK CLAUDE**.
+  - **OPEN IN CLAUDE** copies the snapshot and opens the Claude app for long conversations.
+- **Review:** **WRITE SUMMARY** drafts the week's Claude Summary (Sonnet 5.5); it saves with the review.
+- Bridge 1.6.0: `ask` (tool loop with read tools and proposals only), `aispend`, a monthly budget that stops calls (`AI_BUDGET_USD`, default $8), and review saves that change only the fields sent.
+- Fix: the Systems screen no longer scrolls sideways on a phone.
+
 ## 1.9.1 · 2026-10-06
 - Fix: on the Bridge, the lit BRIDGE corner met the mauve top bar with a visible seam. The corner, its curve and the top bar are one piece again: the whole arm lights up on the Bridge and returns to mauve elsewhere.
 

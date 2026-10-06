@@ -178,6 +178,26 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 - **Writing is kept on the iPad as you type.** **SAVE TO NOTION** writes it; saving again updates the same page.
 - **◀ ▶** browse earlier weeks and their saved reviews. **CLAUDE SUMMARY** waits for Ask Claude.
 
+## Ask Claude (bridge 1.6)
+
+**ASK** opens the ship's computer: questions about your days, tasks and dates, answered by Claude through your API account (prepaid, separate from Claude Pro).
+
+**One-time setup**
+1. **Console safeguards** at platform.claude.com: prepaid credit, **auto-reload off**, and **Settings → Billing → Spend limits** set to your monthly ceiling.
+2. **Update the bridge to 1.6:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+3. **Add the key:** Project Settings (gear) → **Script Properties** → **Add script property**: name `ANTHROPIC_API_KEY`, value your API key. Never paste it anywhere else.
+4. Optional: add `AI_BUDGET_USD` to change the pause point (default **8**, so Ask pauses before a $10 Console limit).
+5. Run **setup**. The log should show `Ask Claude: OK. This month $0.00 of $8.00` and `Bridge version 1.6.0`.
+6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**. **ASK** lights up.
+
+**How it works**
+- Each question goes with a snapshot of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your log line and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the bridge.
+- **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add a Personal calendar event or reminder, draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
+- **Models:** Haiku 4.5 by default (about 1 to 2¢ a question). **THINK HARDER** uses Sonnet 5.5 (about 3 to 5¢). **WRITE SUMMARY** on Review uses Sonnet 5.5.
+- **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far. At the budget the bridge stops calling Claude until the 1st.
+- **OPEN IN CLAUDE** copies the snapshot and opens the Claude app (your Pro plan) for longer conversations. If Claude opens empty, paste.
+- The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
+
 ## Daily use
 
 | Do | How |
@@ -193,6 +213,7 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
+| Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |
 | Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
 | Leave out booking blocks (e.g. weekend out-of-office) | Tap the event → **IGNORE THIS TITLE**. Edit or undo in **SYSTEMS → CALENDARS → IGNORED EVENTS** |
 | Change or delete a key date | Tap it → **OPEN IN NOTION** |
@@ -225,6 +246,9 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
+| ASK says SETUP | Follow **Ask Claude (bridge 1.6)** above |
+| "Ask is paused" | The monthly budget is used. It resumes on the 1st, or raise `AI_BUDGET_USD` |
+| "Claude Console credit is used up" | Add credit at platform.claude.com (keep auto-reload off) |
 | Review says it needs bridge 1.5 | Follow **Weekly Review (bridge 1.5)** above |
 | "Weekly Reviews isn't connected" | 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge |
 | Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
@@ -241,6 +265,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 - In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
+- **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own monthly budget.
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Captain's Log are stored on the iPad and never go to the bridge or this repository.
 
 ## Project layout
