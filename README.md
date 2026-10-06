@@ -66,11 +66,11 @@ If the work calendar says **PROBLEM: not_found**, finish step 5 of Handshake 1, 
 
 1. On github.com, open this repository → **Settings → Pages**.
 2. **Source: Deploy from a branch**. Branch **main**, folder **/ (root)**. **Save**.
-3. After a minute or two the app is live at **https://tim3t.github.io/timothyos/**.
+3. After a minute or two the app is live at **https://tim3t.github.io/Timothyos/**.
 
 ### Handshake 5 · Install on the iPad
 
-1. In Safari, open **https://tim3t.github.io/timothyos/**.
+1. In Safari, open **https://tim3t.github.io/Timothyos/**.
 2. **Share → Add to Home Screen → Add**.
 3. Open **TimothyOS from the home screen** (not from Safari. The home screen app keeps its own storage).
 4. Paste the **Web app URL** and the **Access key** → **LINK**.
