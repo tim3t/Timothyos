@@ -116,7 +116,7 @@ Plan Day reads your **🎯 Master Task List** and writes only three things to it
 4. The log should show `Notion: OK (🎯 Master Task List, N open tasks)`.
 5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
 
-**5. In TimothyOS:** **SYSTEMS → REFRESH NOW**. **☀ PLAN DAY** lights up and the Priorities panel fills in.
+**5. In TimothyOS:** **SYSTEMS → REFRESH NOW**. **PLAN DAY** lights up and the Priorities panel fills in.
 
 ## Key Dates (bridge 1.3)
 
@@ -168,16 +168,16 @@ Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't rec
 | Do | How |
 |---|---|
 | See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
-| Move between days, weeks, months | ◀ ▶ next to the title. **TODAY** jumps back |
+| Move between days, weeks, months | The arrows next to the title. **TODAY** jumps back |
 | Open a day from Week or Month | Tap the day |
 | See event details | Tap the event |
-| Add an event | **▶ CAPTURE**, or tap an empty spot on the Day or Week timeline |
+| Add an event | **CAPTURE**, or tap an empty spot on the Day or Week timeline |
 | Hide or show a calendar | Tap **Work** or **Personal** on Today |
-| Plan your day | **☀ PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
-| Plan tomorrow | Go to tomorrow on Today (▶), then **☀ PLAN** in the Priorities panel |
+| Plan your day | **PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
+| Plan tomorrow | Go to tomorrow on Today (right arrow), then **PLAN** in the Priorities panel |
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
-| Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **↻ YEARLY** for birthdays and seasons |
+| Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
 | Change or delete a key date | Tap it → **OPEN IN NOTION** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
@@ -188,7 +188,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 
 ## Updating
 
-- **App:** new versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **▲ UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on.
+- **App:** new versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on.
 - **Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push. It updates the version in all five places, which is what makes iPads fetch the new files and show the banner.
 - **Bridge:** paste the new `Code.gs`, save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. The URL stays the same. UI changes never need this.
 

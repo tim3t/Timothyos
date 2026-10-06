@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.2 · 2026-10-06
+- No emoji in the interface. Buttons read PLAN DAY, ASK, CAPTURE, SAVE, UPDATE READY; the day arrows are drawn shapes.
+- Notion labels show as plain text (High, Work & Calling, Deadline). Notion itself is unchanged, and the app still sends the original values back.
+- Plain marks remain where they carry meaning: ◆ key dates, ▲ ▼ ✕ on condition items, ✓ on checkboxes.
+
 ## 1.7.1 · 2026-10-06
 - Fix: the iPad status bar (clock, battery) could cover the top line of the app. The app now leaves clear space below it, keeps a solid strip behind it, and no longer stretches when pulled down.
 - **SYSTEMS → APP → TOP SPACING:** Standard, More or Most, if the top still looks crowded. Also shows the status bar height the iPad reports.

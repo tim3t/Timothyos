@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.7.1";
+  var VERSION = "1.7.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -87,6 +87,10 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  /* Notion labels carry emoji ("🔴 High", "🎯 Work & Calling"). Show them as plain text;
+     the original value is still what gets sent back to Notion. */
+  var EMOJI = /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{25A0}-\u{27BF}\u{2B00}-\u{2BFF}\u{3030}\u{303D}\u{3297}\u{3299}\u{00A9}\u{00AE}\u{203C}\u{2049}\u{2122}\u{2139}\u{FE0F}\u{200D}\u{20E3}]/gu;
+  function bare(s) { return String(s == null ? "" : s).replace(EMOJI, "").replace(/\s+/g, " ").trim(); }
   function cssNum(name, fallback) {
     var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
     return isFinite(v) ? v : fallback;
@@ -360,7 +364,7 @@
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
     $("planBtn").disabled = !linked || !canPlan();
-    $("planBtn").innerHTML = "☀ PLAN DAY" + (linked && !canPlan() ? "<small>SETUP</small>" : "");
+    $("planBtn").innerHTML = "PLAN DAY" + (linked && !canPlan() ? "<small>SETUP</small>" : "");
     if (!linked && state.screen !== "systems") { e.textContent = "FIRST RUN"; t.textContent = "LINK CALENDARS"; }
     else if (state.screen === "bridge") {
       e.textContent = "BRIDGE · " + hm(now) + (hiddenNote() ? " · " + hiddenNote() : "");
@@ -598,7 +602,7 @@
       '<div><label for="connUrl">WEB APP URL</label><input type="url" id="connUrl" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
       '<div><label for="connKey">ACCESS KEY</label><input type="text" id="connKey" placeholder="64 characters from the setup log" autocapitalize="off" autocorrect="off" spellcheck="false"></div>' +
       '<div class="err" id="connErr" role="alert"></div>' +
-      '<div class="btnrow"><button type="submit" class="btn capture" id="connBtn">LINK ▶</button></div></form></div>';
+      '<div class="btnrow"><button type="submit" class="btn capture" id="connBtn">LINK</button></div></form></div>';
     $("content").innerHTML = html;
   }
   function submitConnect() {
@@ -623,7 +627,7 @@
     }).catch(function (e) {
       err.textContent = describe(e);
       btn.disabled = false;
-      btn.textContent = "LINK ▶";
+      btn.textContent = "LINK";
     });
   }
 
@@ -835,7 +839,7 @@
     $("capKdRow").hidden = !isDate; $("capUntilRow").hidden = !isDate;
     $("capYearly").setAttribute("aria-pressed", String(!!cap.yearly));
     $("capText").placeholder = isDate ? "What's the date? e.g. First frost risk" : "What goes in? e.g. Pick up bee feeder";
-    $("capFootText").textContent = isDate ? "Saves to 🗓️ Key Dates in Notion." : "Saves to your Personal Google Calendar. Work is read-only.";
+    $("capFootText").textContent = isDate ? "Saves to Key Dates in Notion." : "Saves to your Personal Google Calendar. Work is read-only.";
     if (!isDate && !canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
     if (!isDate && state.hidden.personal) notes.push("Personal is hidden. New events save, but stay hidden until you tap Personal on Today.");
     $("capNote").hidden = !notes.length;
@@ -976,7 +980,7 @@
     });
   }
   function kdRow(o, ref) {
-    var d = o.d, meta = [d.type, d.area, d.yearly ? "↻ YEARLY" : ""].filter(Boolean).map(esc).join(" · ");
+    var d = o.d, meta = [bare(d.type), bare(d.area), d.yearly ? "YEARLY" : ""].filter(Boolean).map(esc).join(" · ");
     return '<button type="button" class="kd a-' + taskArea(d.area) + '" data-kd="' + esc(o.id) + '"><span class="st"></span>' +
       '<span class="dt tnum">' + rangeLabel(o) + '</span><span class="tt"><b>' + esc(d.title) + "</b>" + (meta ? "<small>" + meta + "</small>" : "") + "</span>" +
       '<span class="pill tnum' + (soon(o, ref) ? " soon" : "") + '">' + countdown(o, ref) + "</span></button>";
@@ -998,7 +1002,7 @@
     loadDates(false);
     var html = '<div class="kdscreen">';
     if (!canDates()) {
-      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs bridge 1.3 and the 🗓️ Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
+      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs bridge 1.3 and the Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
       return;
     }
     var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
@@ -1026,9 +1030,9 @@
     var when = o.e !== o.s ? dLabel(parseYmd(o.s)) + " TO " + dLabel(parseYmd(o.e)) : dLabel(parseYmd(o.s));
     $("detailSheet").className = "sheet a-" + taskArea(d.area);
     $("detailSheet").style.setProperty("--c", "var(--" + taskArea(d.area) + ")");
-    $("detailSheet").innerHTML = '<div class="sbar"><span>◆ KEY DATE</span><span>' + esc(d.type || "") + "</span></div>" +
+    $("detailSheet").innerHTML = '<div class="sbar"><span>◆ KEY DATE</span><span>' + esc(bare(d.type)) + "</span></div>" +
       '<div class="sbody"><h3 id="detailTitle">' + esc(d.title) + '</h3><div class="tnum">' + esc(when) + " · " + countdown(o, ref) + "</div>" +
-      '<div class="muted">' + [d.area, d.yearly ? "↻ Repeats every year" : ""].filter(Boolean).map(esc).join(" · ") + "</div>" +
+      '<div class="muted">' + [bare(d.area), d.yearly ? "Repeats every year" : ""].filter(Boolean).map(esc).join(" · ") + "</div>" +
       (d.notes ? "<div>" + esc(d.notes) + "</div>" : "") +
       '</div><div class="sfoot btnrow">' + (d.url ? '<a class="btn ghost" href="' + esc(d.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
       '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
@@ -1038,8 +1042,8 @@
   function fillDateSelects() {
     var areas = (state.dates && state.dates.areas.length ? state.dates.areas : (state.tasks[ymd(new Date())] || {}).areas) || [];
     var types = (state.dates && state.dates.types) || [];
-    $("capLifeArea").innerHTML = '<option value="">Life Area</option>' + areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("");
-    $("capKdType").innerHTML = '<option value="">Type</option>' + types.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("");
+    $("capLifeArea").innerHTML = '<option value="">Life Area</option>' + areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(bare(a)) + "</option>"; }).join("");
+    $("capKdType").innerHTML = '<option value="">Type</option>' + types.map(function (a) { return '<option value="' + esc(a) + '">' + esc(bare(a)) + "</option>"; }).join("");
     if (capPrefs.kdArea && areas.indexOf(capPrefs.kdArea) > -1) $("capLifeArea").value = capPrefs.kdArea;
     if (capPrefs.kdType && types.indexOf(capPrefs.kdType) > -1) $("capKdType").value = capPrefs.kdType;
   }
@@ -1067,7 +1071,7 @@
     return "DUE " + dLabel(parseYmd(due));
   }
   function taskMeta(t, day) {
-    return [t.priority, t.status === INPROG || t.status === BLOCKED ? t.status : "", t.area, dueLabel(t.due, day)].filter(Boolean).map(esc).join(" · ");
+    return [bare(t.priority), t.status === INPROG || t.status === BLOCKED ? bare(t.status) : "", bare(t.area), dueLabel(t.due, day)].filter(Boolean).map(esc).join(" · ");
   }
   function rankTasks(list) {
     return list.slice().sort(function (a, b) {
@@ -1132,7 +1136,7 @@
         '<span class="box">' + (isDone ? "✓" : "") + '</span><span class="pt"><b>' + esc(t.title) + "</b><small>" + taskMeta(t, day) + "</small></span></button>";
     });
     if (!past) {
-      html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn plan" data-act="plan" data-day="' + day + '">☀ ' +
+      html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn plan" data-act="plan" data-day="' + day + '">' +
         (focus.length ? "CHANGE PICKS" : "PLAN " + (isToday ? "TODAY" : dLabel(parseYmd(day)))) + "</button></div>";
     }
     if (state.tasksErr) html += '<div class="err">' + esc(state.tasksErr.msg) + "</div>";
@@ -1153,7 +1157,7 @@
     apiPost({ action: "status", id: id, status: next }).then(function () {
       delete state.taskBusy[id];
       saveTasks();
-      toast(next === DONE ? "Done. Marked ✅ in Notion." : "Reopened in Notion.");
+      toast(next === DONE ? "Done. Marked Done in Notion." : "Reopened in Notion.");
       render(true);
     }).catch(function (err) {
       delete state.taskBusy[id];
@@ -1171,7 +1175,7 @@
     } else if (state.tasksErr) {
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small class="errtxt">' + esc(state.tasksErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>';
     } else {
-      html += '<div class="calrow a-personal"><span class="st"></span><span><b>🎯 Master Task List</b><small>' +
+      html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small>' +
         (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
         '</small></span><span class="pill ok">OK</span></div>';
     }
@@ -1185,11 +1189,11 @@
     }
     if (canDates()) {
       html += state.datesErr
-        ? '<div class="calrow a-farm"><span class="st"></span><span><b>🗓️ Key Dates</b><small class="errtxt">' + esc(state.datesErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
-        : '<div class="calrow a-farm"><span class="st"></span><span><b>🗓️ Key Dates</b><small>' + (state.dates ? state.dates.dates.length + " key dates · synced " + esc(stamp(state.dates.fetched)) : "Not loaded yet") +
+        ? '<div class="calrow a-farm"><span class="st"></span><span><b>Key Dates</b><small class="errtxt">' + esc(state.datesErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
+        : '<div class="calrow a-farm"><span class="st"></span><span><b>Key Dates</b><small>' + (state.dates ? state.dates.dates.length + " key dates · synced " + esc(stamp(state.dates.fetched)) : "Not loaded yet") +
           '</small></span><span class="pill ok">OK</span></div>';
     } else if (canPlan()) {
-      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>🗓️ Key Dates</b><small>Needs bridge 1.3. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
+      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs bridge 1.3. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
     }
     return html + "</section>";
   }
@@ -1245,7 +1249,7 @@
   function planRow(t, day) {
     var on = !!plan.picks[t.id], isDone = t.status === DONE;
     return '<button type="button" class="cand a-' + taskArea(t.area) + (isDone ? " isdone" : "") + '" data-pick="' + esc(t.id) + '" aria-pressed="' + on + '">' +
-      '<span class="st"></span><span class="ct"><b>' + esc(t.title) + "</b><small>" + (isDone ? "✅ DONE · " : "") + taskMeta(t, day) + "</small></span>" +
+      '<span class="st"></span><span class="ct"><b>' + esc(t.title) + "</b><small>" + (isDone ? "DONE · " : "") + taskMeta(t, day) + "</small></span>" +
       '<span class="box">' + (on ? "✓" : "") + "</span></button>";
   }
   function renderPlan() {
@@ -1280,15 +1284,15 @@
       if (!groups.length && !rest.length) html += '<div class="empty">No open tasks in your Master Task List. Add one below.</div>';
       html += '<div class="pgroup">ADD A NEW TASK FOR THIS DAY</div><div class="newtask">' +
         '<input type="text" id="planNew" maxlength="200" placeholder="New task" enterkeyhint="done">' +
-        '<select id="planArea" aria-label="Life Area"><option value="">Life Area</option>' + data.areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("") + "</select>" +
-        '<select id="planPri" aria-label="Priority"><option value="">Priority</option>' + data.priorities.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("") + "</select>" +
+        '<select id="planArea" aria-label="Life Area"><option value="">Life Area</option>' + data.areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(bare(a)) + "</option>"; }).join("") + "</select>" +
+        '<select id="planPri" aria-label="Priority"><option value="">Priority</option>' + data.priorities.map(function (a) { return '<option value="' + esc(a) + '">' + esc(bare(a)) + "</option>"; }).join("") + "</select>" +
         '<button type="button" class="btn" id="planAdd">ADD</button></div>';
     }
     html += '<div class="err" id="planErr" role="alert">' + esc(plan.err) + "</div></div>" +
       '<div class="sfoot capfoot"><span class="muted">Saved to Notion as Focus Date. Check them off on Today.</span><span class="btnrow">' +
       '<button type="button" class="btn ghost" id="planCancel">CANCEL</button>' +
       '<button type="button" class="btn capture" id="planSave"' + (!data || plan.saving || navigator.onLine === false ? " disabled" : "") + ">" +
-      (plan.saving ? esc(plan.saving) : navigator.onLine === false ? "OFFLINE" : "SET PRIORITIES ▶") + "</button></span></div>";
+      (plan.saving ? esc(plan.saving) : navigator.onLine === false ? "OFFLINE" : "SET PRIORITIES") + "</button></span></div>";
     var sheet = $("planSheet"), top = sheet.scrollTop;
     sheet.innerHTML = html;
     sheet.scrollTop = top;
@@ -1418,7 +1422,7 @@
       if (lo.length) items.push({ lvl: "warn", ic: "▲", txt: lo.length === 1 ? "1 task overdue" : lo.length + " tasks overdue", sub: titles(lo), act: "plan", go: "PLAN DAY" });
       var dueNow = rankTasks(data.open.filter(function (t) { return t.due === today && !picked[t.id] && t.status !== DONE; }));
       if (dueNow.length) items.push({ lvl: "warn", ic: "▲", txt: "Due today, not in your picks", sub: titles(dueNow), act: "plan", go: "PLAN DAY" });
-      if (!data.focus.length && now.getHours() >= PICK_BY_HOUR) items.push({ lvl: "warn", ic: "☀", txt: "No priorities picked yet", sub: "Plan Day takes a minute.", act: "plan", go: "PLAN DAY" });
+      if (!data.focus.length && now.getHours() >= PICK_BY_HOUR) items.push({ lvl: "warn", ic: "▲", txt: "No priorities picked yet", sub: "Plan Day takes a minute.", act: "plan", go: "PLAN DAY" });
     }
     if (hasData(bridgeRange())) {
       clashes(list, now).slice(0, 2).forEach(function (c) {
@@ -1432,13 +1436,13 @@
       });
     }
     var fr = frost(now);
-    if (fr && fr.low <= 32) items.push({ lvl: "warn", ic: "❄", txt: "Frost tonight", sub: "Low " + Math.round(fr.low) + "°F around " + fr.at, act: "none", go: "" });
+    if (fr && fr.low <= 32) items.push({ lvl: "warn", ic: "▼", txt: "Frost tonight", sub: "Low " + Math.round(fr.low) + "°F around " + fr.at, act: "none", go: "" });
     var st = state.sync;
     if (state.conn && (st.status === "error" || st.status === "offline") && (!st.at || Date.now() - st.at > STALE_SYNC_MS)) {
       items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", go: "SYSTEMS" });
     }
     var stuck = state.queue.filter(function (q) { return q.failed || (q.attempts || 0) >= 2; });
-    if (stuck.length) items.push({ lvl: "warn", ic: "▶", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", go: "SYSTEMS" });
+    if (stuck.length) items.push({ lvl: "warn", ic: "▲", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", go: "SYSTEMS" });
     if (canPlan() && state.tasksErr && !data) items.push({ lvl: "warn", ic: "◌", txt: "Task list didn't load", sub: esc(state.tasksErr.msg), act: "systems", go: "SYSTEMS" });
     items.sort(function (a, b) { return (a.lvl === "bad" ? 0 : 1) - (b.lvl === "bad" ? 0 : 1); });
     return items;
@@ -1457,7 +1461,7 @@
       body = items.map(function (i) {
         var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"';
         return '<button type="button" class="ov-alert ' + i.lvl + '"' + attrs + '><span class="ic">' + i.ic + "</span><span class=\"tx\"><b>" + i.txt + "</b><small>" + i.sub + "</small></span>" +
-          (i.go ? '<span class="go">' + i.go + " ▶</span>" : "") + "</button>";
+          (i.go ? '<span class="go">' + i.go + "</span>" : "") + "</button>";
       }).join("");
     }
     var n = items.length;
@@ -1518,7 +1522,7 @@
     if (!list.length) return '<div class="ov-sub">DUE + OVERDUE</div><div class="empty">Nothing due outside your picks.</div>';
     return '<div class="ov-sub">DUE + OVERDUE · NOT IN YOUR PICKS</div>' + list.slice(0, 4).map(function (t) {
       return '<button type="button" class="ov-due a-' + taskArea(t.area) + '" data-act="plan" data-day="' + today + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" +
-        [t.priority, t.area].filter(Boolean).map(esc).join(" · ") + '</small></span><span class="pill ' + (t.due < today ? "bad" : "warn") + '">' + dueLabel(t.due, today) + "</span></button>";
+        [bare(t.priority), bare(t.area)].filter(Boolean).map(esc).join(" · ") + '</small></span><span class="pill ' + (t.due < today ? "bad" : "warn") + '">' + dueLabel(t.due, today) + "</span></button>";
     }).join("") + (list.length > 4 ? '<div class="muted ov-more">+' + (list.length - 4) + " more in Plan Day</div>" : "");
   }
 
@@ -1557,7 +1561,7 @@
       var running = o.s < today, n = running ? daysBetween(today, o.e) : daysBetween(today, o.s);
       var unit = running ? "D LEFT" : n === 0 ? "TODAY" : n === 1 ? "DAY" : "DAYS";
       html += '<button type="button" class="ov-kd a-' + taskArea(o.d.area) + (!running && n <= KD_WARN_DAYS ? " soon" : "") + '" data-kd="' + esc(o.id) + '"><span class="kn tnum">' + (n === 0 && !running ? "◆" : n) +
-        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.type ? " · " + esc(o.d.type) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
+        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.type ? " · " + esc(bare(o.d.type)) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
     });
     return html + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button><button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
   }

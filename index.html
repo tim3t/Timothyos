@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=1.7.1">
+<link rel="stylesheet" href="css/app.css?v=1.7.2">
 </head>
 <body>
 <div class="app" id="app">
@@ -27,15 +27,15 @@
           <h1 id="title">TIMOTHYOS</h1>
         </div>
         <div class="pager" id="pager" hidden>
-          <button class="chip" type="button" id="prevBtn" aria-label="Previous">◀</button>
+          <button class="chip" type="button" id="prevBtn" aria-label="Previous"><span class="tri l"></span></button>
           <button class="chip" type="button" id="todayBtn">TODAY</button>
-          <button class="chip" type="button" id="nextBtn" aria-label="Next">▶</button>
+          <button class="chip" type="button" id="nextBtn" aria-label="Next"><span class="tri r"></span></button>
         </div>
       </div>
       <div class="actions" aria-label="Coming later">
-        <button class="btn plan" type="button" id="planBtn" disabled>☀ PLAN DAY</button>
-        <button class="btn ask" type="button" disabled title="Standby: arrives in a later stage">◆ ASK<small>STANDBY</small></button>
-        <button class="btn capture" type="button" id="capBtn">▶ CAPTURE</button>
+        <button class="btn plan" type="button" id="planBtn" disabled>PLAN DAY</button>
+        <button class="btn ask" type="button" disabled title="Standby: arrives in a later stage">ASK<small>STANDBY</small></button>
+        <button class="btn capture" type="button" id="capBtn">CAPTURE</button>
       </div>
     </div>
   </header>
@@ -73,7 +73,7 @@
       <div class="frow" id="capKdRow" hidden><span>AREA</span><div class="chips">
         <select id="capLifeArea" aria-label="Life Area"></select>
         <select id="capKdType" aria-label="Type"></select>
-        <button type="button" class="chip" id="capYearly" aria-pressed="false">↻ YEARLY</button>
+        <button type="button" class="chip" id="capYearly" aria-pressed="false">YEARLY</button>
       </div></div>
       <div class="frow"><span>DAY</span><div class="chips">
         <button type="button" class="chip" data-capday="today">TODAY</button>
@@ -94,7 +94,7 @@
       <span class="muted" id="capFootText">Saves to your Personal Google Calendar. Work is read-only.</span>
       <span class="btnrow">
         <button type="button" class="btn ghost" id="capCancel">CANCEL</button>
-        <button type="submit" class="btn capture" id="capSave">SAVE ▶</button>
+        <button type="submit" class="btn capture" id="capSave">SAVE</button>
       </span>
     </div>
   </form>
@@ -108,9 +108,9 @@
   <div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
 </div>
 
-<button class="update" id="updateBtn" type="button" hidden>▲ UPDATE READY · TAP TO LOAD</button>
+<button class="update" id="updateBtn" type="button" hidden>UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=1.7.1"></script>
+<script src="js/app.js?v=1.7.2"></script>
 </body>
 </html>

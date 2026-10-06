@@ -88,6 +88,15 @@ function weather() {
   assert.ok(bal[2].startsWith('FARM') && bal[2].includes('0 DONE') && bal[2].includes('QUIET 12 D'));
   assert.ok(bal[3].startsWith('HOBBIES') && bal[3].includes('NONE IN 30 D'));
   await p.screenshot({ path: D + 'bridge-ipad.png', fullPage: true });
+  // no emoji anywhere in the interface (Notion labels are shown as plain text; ✓ and ✕ are text marks)
+  const emojiIn = () => p.evaluate(() => (document.body.innerText.match(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{2712}\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu) || []).join(''));
+  assert.strictEqual(await emojiIn(), '', 'bridge shows no emoji');
+  await p.click('#planBtn'); await p.waitForTimeout(600);
+  assert.strictEqual(await emojiIn(), '', 'plan day shows no emoji');
+  await p.click('#planCancel');
+  await p.click('[data-screen="dates"].nav'); await p.waitForTimeout(400);
+  assert.strictEqual(await emojiIn(), '', 'dates screen shows no emoji');
+  await p.click('.elbow'); await p.waitForTimeout(400);
 
   // --- Captain's Log survives a re-render while typing, and a reload
   await p.click('#logIntent'); await p.keyboard.type('Finish the deck, then the hives');

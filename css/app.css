@@ -130,6 +130,9 @@ button.elbow { border: 0; flex-direction: column; }
 .titlegroup { display: flex; align-items: flex-end; gap: 12px 18px; flex-wrap: wrap; }
 .pager { display: flex; gap: 6px; padding-bottom: 2px; }
 .pager .chip { min-width: 52px; padding: 0 14px; }
+.tri { display: inline-block; width: 0; height: 0; border-block: 9px solid transparent; vertical-align: middle; }
+.tri.l { border-right: 13px solid currentColor; }
+.tri.r { border-left: 13px solid currentColor; }
 .eyebrow { font-family: var(--display); color: var(--chrome-b); letter-spacing: .18em; font-size: 15px; }
 h1 {
   margin: 0;
