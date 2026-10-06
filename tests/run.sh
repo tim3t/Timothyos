@@ -36,6 +36,7 @@ python3 mock_v11.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.1: + capture      
 python3 mock_v12.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.2: + Notion tasks      :8093
 python3 mock_v13.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.3: + Key Dates         :8094
 python3 mock_v14.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.4: + done (Balance)    :8095
+python3 mock_v15.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.5: + Weekly Review     :8096
 sleep 1.5
 
 run app_e2e.test.js       # linking, Day/Week/Month, detail, offline cache, phone width
@@ -48,6 +49,7 @@ run app_e2e12.test.js     # lost replies: already-saved items clear without dupl
 run app_e2e13.test.js     # Bridge overview: condition, panels, weather, balance, log, settings
 run app_e2e14.test.js     # sync: dropped and background-cut requests retried, quiet outages, pacing
 run app_e2e15.test.js     # ignored events: weekend blocks left out of views and totals
+run app_e2e16.test.js     # Weekly Review: Sunday reminder, screen, drafts, save/update in Notion
 
 echo
 [ $fail -eq 0 ] && echo "ALL PASSED" || echo "SOME TESTS FAILED"

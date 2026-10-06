@@ -10,6 +10,12 @@ const pages = [
   mk('b'.repeat(32), 'Send Q4 deck', '🔄 In Progress', '🟡 Medium', '🎯 Work & Calling', '2026-10-08', null),
   mk('c'.repeat(32), 'Renew registration', '✅ Done', '🟢 Low', '🏡 Home & Property', '2026-10-01', '2026-10-06'),
 ];
+const DB3 = '459bcacdc38d4bad9f58b4579fa9f4fd', DS3 = 'ds-3333', rpages = [];
+let reviewsShared = true;
+const stored = pr => { const o = {}; Object.keys(pr).forEach(k => { const v = pr[k];
+  if (v.title) o[k] = { title: v.title.map(x => ({ plain_text: x.text.content })) };
+  else if (v.rich_text) o[k] = { rich_text: v.rich_text.map(x => ({ plain_text: x.text.content })) };
+  else o[k] = v; }); return o; };
 const foreign = mk('d'.repeat(32), 'Private journal', null, null, null, null, null, 'other-ds');
 let calls = [];
 function notionMock(url, opts) {
@@ -19,6 +25,13 @@ function notionMock(url, opts) {
   if (opts.headers.Authorization !== 'Bearer ntn_test') return res(401, { message: 'API token is invalid.' });
   if (m === 'get' && path === '/databases/' + DB) return res(200, { data_sources: [{ id: DS, name: 'Master Task List' }] });
   if (m === 'get' && path === '/databases/' + DB2) return res(200, { data_sources: [{ id: DS2 }] });
+  if (path.indexOf(DB3) > -1 || path.indexOf(DS3) > -1 || (opts.payload && opts.payload.indexOf(DS3) > -1)) { if (!reviewsShared) return res(404, { message: 'Could not find database' }); }
+  if (m === 'get' && path === '/databases/' + DB3) return res(200, { data_sources: [{ id: DS3 }] });
+  if (m === 'get' && path === '/data_sources/' + DS3) return res(200, { title: [{ plain_text: '🧭 Weekly Reviews' }], properties: {} });
+  if (m === 'post' && path === '/data_sources/' + DS3 + '/query') { const f = JSON.parse(opts.payload).filter; return res(200, { results: f ? rpages.filter(p => (p.properties['Week Start'].date || {}).start === f.date.equals) : rpages, has_more: false }); }
+  if (m === 'post' && path === '/pages' && JSON.parse(opts.payload).parent.data_source_id === DS3) { const pg = { id: 'r'.repeat(31) + rpages.length, url: 'u', last_edited_time: '2026-10-11T20:00:00.000Z', parent: { data_source_id: DS3 }, properties: stored(JSON.parse(opts.payload).properties) }; rpages.push(pg); return res(200, pg); }
+  const rm = path.match(/^\/pages\/(r+\d+)$/);
+  if (rm && m === 'patch') { const pg = rpages.find(p => p.id === rm[1]); Object.assign(pg.properties, stored(JSON.parse(opts.payload).properties)); return res(200, pg); }
   if (m === 'get' && path === '/data_sources/' + DS2) return res(200, { title: [{ plain_text: '🗓️ Key Dates' }], properties: { 'Life Area': { select: { options: [{ name: '🌿 SkyGarden Farm' }, { name: '👨‍👩‍👧‍👦 Family' }] } }, Type: { select: { options: [{ name: '⏰ Deadline' }, { name: '🎂 Birthday' }, { name: '🌦️ Window' }] } } } });
   if (m === 'post' && path === '/data_sources/' + DS2 + '/query') return res(200, { results: dpages, has_more: false });
   if (m === 'post' && path === '/pages' && JSON.parse(opts.payload).parent.data_source_id === DS2) { const pr = JSON.parse(opts.payload).properties; const pg = { id: 'g'.repeat(31) + dpages.length, url: 'u', parent: { data_source_id: DS2 }, properties: Object.assign({ Notes: { rich_text: (pr.Notes || {}).rich_text || [] } }, pr, { Name: { title: [{ plain_text: pr.Name.title[0].text.content }] } }) }; if (pr.Notes) pg.properties.Notes = { rich_text: [{ plain_text: pr.Notes.rich_text[0].text.content }] }; dpages.push(pg); return res(200, pg); }
@@ -27,8 +40,12 @@ function notionMock(url, opts) {
     const f = JSON.parse(opts.payload).filter; let r = pages;
     if (f.property === 'Focus Date') r = pages.filter(p => (p.properties['Focus Date'].date || {}).start === f.date.equals);
     if (f.property === 'Status') r = pages.filter(p => (p.properties.Status.select || {}).name !== f.select.does_not_equal);
-    if (f.and) { const st = f.and.find(x => x.property === 'Status').select.equals, since = f.and.find(x => x.timestamp === 'last_edited_time').last_edited_time.on_or_after;
-      r = pages.filter(p => (p.properties.Status.select || {}).name === st && p.last_edited_time >= since); }
+    if (f.and) r = pages.filter(p => f.and.every(c => {
+      if (c.property === 'Status') return (p.properties.Status.select || {}).name === c.select.equals;
+      if (c.timestamp) { const v = c.last_edited_time, t = Date.parse(p.last_edited_time); return (!v.on_or_after || t >= Date.parse(v.on_or_after)) && (!v.before || t < Date.parse(v.before)); }
+      if (c.property === 'Focus Date') { const d = (p.properties['Focus Date'].date || {}).start; return !!d && (!c.date.on_or_after || d >= c.date.on_or_after) && (!c.date.before || d < c.date.before); }
+      return true;
+    }));
     return res(200, { results: r, has_more: false });
   }
   const pm = path.match(/^\/pages\/(.+)$/);
@@ -98,5 +115,36 @@ assert.strictEqual(dn.ok, true);
 assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
 assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
 assert.ok(dn.done.length >= 1);
-assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'tasks', 'dates', 'done']);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'tasks', 'dates', 'done', 'reviews']);
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
+
+console.log('--- weekly review ---');
+pages.push(mk('i'.repeat(32), 'Picked and finished', '✅ Done', '🔴 High', '🎯 Work & Calling', null, '2026-10-07', DS, '2026-10-07T18:00:00.000Z'));
+pages.push(mk('j'.repeat(32), 'Picked, slipped', '⬜ To Do', '🟡 Medium', '🌿 SkyGarden Farm', null, '2026-10-09', DS, '2026-10-01T18:00:00.000Z'));
+pages.push(mk('k'.repeat(32), 'Done Sunday night, local time', '✅ Done', null, '🏥 Health', null, null, DS, '2026-10-12T03:30:00.000Z'));
+pages.push(mk('l'.repeat(32), 'Done next Monday', '✅ Done', null, '🏥 Health', null, null, DS, '2026-10-12T06:00:00.000Z'));
+const W = { action: 'week', key, week: '2026-10-05', from: '2026-10-05T00:00:00-05:00', to: '2026-10-12T00:00:00-05:00' };
+const wk = get(W);
+console.log('week: done', wk.done.map(t => t.title), '| picked', wk.picked.map(t => t.title + '/' + t.status), '| review', wk.review);
+assert.ok(wk.ok);
+assert.ok(wk.done.some(t => t.title === 'Done Sunday night, local time'), 'Sunday 22:30 local counts in the week');
+assert.ok(!wk.done.some(t => t.title === 'Done next Monday'));
+assert.deepStrictEqual(wk.picked.map(t => t.title).sort(), ['Picked and finished', 'Picked, slipped', 'Renew registration', 'Sugar syrup, Hive 2']);
+assert.strictEqual(wk.review, null);
+assert.strictEqual(get(Object.assign({}, W, { from: 'yesterday' })).error, 'bad_request');
+const R = { week: '2026-10-05', title: 'Week 41 · 05 to 11 Oct', wentWell: 'Shipped the deck', drained: 'Too many evening calls', nextFocus: 'Hive winter prep', bearing: '', intents: 'MON One line\nTUE Another', byArea: 'Work & Calling 2 · Health 1', hoursWork: 31.25, hoursPersonal: 6, hoursFarm: null, hoursHobbies: null, tasksDone: 3, picked: 2, pickedDone: 1 };
+const s1 = post({ key, action: 'savereview', review: R });
+console.log('save:', JSON.stringify(s1).slice(0, 200));
+assert.ok(s1.ok && s1.created);
+assert.strictEqual(s1.review.hoursWork, 31.3); assert.strictEqual(s1.review.hoursFarm, null); assert.strictEqual(s1.review.intents, 'MON One line\nTUE Another');
+const s2 = post({ key, action: 'savereview', review: Object.assign({}, R, { nextFocus: 'Hive winter prep, then rest' }) });
+assert.ok(s2.ok && !s2.created, 'second save updates the same page'); assert.strictEqual(rpages.length, 1);
+assert.strictEqual(get(W).review.nextFocus, 'Hive winter prep, then rest', 'week returns the saved review (cache refreshed)');
+assert.strictEqual(post({ key, action: 'savereview', review: { week: 'oops' } }).error, 'bad_request');
+assert.strictEqual(post({ action: 'savereview', review: R }).error, 'unauthorized');
+assert.ok(get({ action: 'ping', key }).capabilities.includes('reviews'));
+reviewsShared = false; ctx.PropertiesService.getScriptProperties().deleteProperty('NOTION_REVIEWS_SOURCE'); cache['rgen'] = 'x';
+const ns = get(W);
+console.log('reviews not connected -> week still works:', ns.ok, ns.reviewsError, '| save:', post({ key, action: 'savereview', review: R }).error);
+assert.ok(ns.ok && ns.reviewsError === 'notion_not_shared');
+console.log('setup log with reviews:'); reviewsShared = true; ctx.setup();

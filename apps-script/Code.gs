@@ -1,11 +1,12 @@
 /**
- * TimothyOS bridge, v1.4
+ * TimothyOS bridge, v1.5
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
  *  - Notion: reads your Master Task List for Plan Day; sets Focus Date, marks
  *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
- *    finished recently (for the Bridge's Balance panel).
+ *    finished recently (for the Bridge's Balance panel). Reads a week's
+ *    finished and picked tasks, and saves your Weekly Review (one page per week).
  *    Nothing else in Notion is touched.
  *
  * The work calendar can never be written to. Nothing is ever deleted.
@@ -31,16 +32,19 @@ var CONFIG = {
   NOTION_TASKS_DATABASE: '6c4a440d571e49e0b4076c18d5712c1f',
 
   // Your Notion Key Dates database.
-  NOTION_DATES_DATABASE: '8184db37aacb4d96943b2067558b92ab'
+  NOTION_DATES_DATABASE: '8184db37aacb4d96943b2067558b92ab',
+
+  // Your Notion Weekly Reviews database.
+  NOTION_REVIEWS_DATABASE: '459bcacdc38d4bad9f58b4579fa9f4fd'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.4.0';
+var VERSION = '1.5.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
-  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done'] : []);
+  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -64,6 +68,7 @@ function doGet(e) {
     if (p.action === 'tasks') return json_(tasks_(String(p.day || '')));
     if (p.action === 'dates') return json_(dates_());
     if (p.action === 'done') return json_(done_(p.days));
+    if (p.action === 'week') return json_(week_(String(p.week || ''), String(p.from || ''), String(p.to || '')));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -82,6 +87,7 @@ function doPost(e) {
     if (body.action === 'status') return json_(setStatus_(body.id, body.status));
     if (body.action === 'addtask') return json_(addTask_(body.task || {}));
     if (body.action === 'adddate') return json_(addDate_(body.date || {}));
+    if (body.action === 'savereview') return json_(saveReview_(body.review || {}));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -115,6 +121,8 @@ function setup() {
   console.log('Notion tasks: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
   var kd = n.dates || {};
   console.log('Notion key dates: ' + (kd.ok ? 'OK (' + kd.name + ', ' + kd.count + ' dates)' : 'NOT READY: ' + (kd.error || n.error) + (kd.help ? '. ' + kd.help : '')));
+  var wr = n.reviews || {};
+  console.log('Notion weekly reviews: ' + (wr.ok ? 'OK (' + wr.name + ', ' + wr.count + ' reviews)' : 'NOT READY: ' + (wr.error || n.error) + (wr.help ? '. ' + wr.help : '')));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
 }
@@ -282,6 +290,7 @@ function sourceFor_(dbIdRaw, memo) {
 }
 function tasksSource_() { return sourceFor_(CONFIG.NOTION_TASKS_DATABASE, 'NOTION_TASKS_SOURCE'); }
 function datesSource_() { return sourceFor_(CONFIG.NOTION_DATES_DATABASE, 'NOTION_DATES_SOURCE'); }
+function reviewsSource_() { return sourceFor_(CONFIG.NOTION_REVIEWS_DATABASE, 'NOTION_REVIEWS_SOURCE'); }
 
 function notionStatus_() {
   if (!PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
@@ -291,9 +300,9 @@ function notionStatus_() {
     var ds = tasksSource_();
     var src = notion_('get', '/data_sources/' + ds);
     var open = queryAll_(ds, { property: 'Status', select: { does_not_equal: '✅ Done' } }, 1).length;
-    return { ok: true, name: plain_(src.title), open: open, dates: datesStatus_() };
+    return { ok: true, name: plain_(src.title), open: open, dates: datesStatus_(), reviews: reviewsStatus_() };
   } catch (e) {
-    return { ok: false, error: e.notion || 'notion_error', help: e.notion === 'notion_not_shared' ? 'Connect the TimothyOS integration to the Master Task List (... > Connections)' : String(e.message), dates: datesStatus_() };
+    return { ok: false, error: e.notion || 'notion_error', help: e.notion === 'notion_not_shared' ? 'Connect the TimothyOS integration to the Master Task List (... > Connections)' : String(e.message), dates: datesStatus_(), reviews: reviewsStatus_() };
   }
 }
 function datesStatus_() {
@@ -303,6 +312,16 @@ function datesStatus_() {
     return { ok: true, name: plain_(src.title), count: queryAll_(ds, null, 1).length };
   } catch (e) {
     return { ok: false, error: e.notion || 'notion_error', help: e.notion === 'notion_not_shared' ? 'Connect the TimothyOS integration to Key Dates (... > Connections)' : String(e.message) };
+  }
+}
+
+function reviewsStatus_() {
+  try {
+    var ds = reviewsSource_();
+    var src = notion_('get', '/data_sources/' + ds);
+    return { ok: true, name: plain_(src.title), count: queryAll_(ds, null, 1).length };
+  } catch (e) {
+    return { ok: false, error: e.notion || 'notion_error', help: e.notion === 'notion_not_shared' ? 'Connect the TimothyOS integration to Weekly Reviews (... > Connections)' : String(e.message) };
   }
 }
 
@@ -386,6 +405,89 @@ function done_(days) {
   var out = { ok: true, version: VERSION, days: days, done: done };
   try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
   return out;
+}
+
+// ---- Weekly Review ------------------------------------------------------------
+var REVIEW_TEXT = { wentWell: 'Went Well', drained: 'Drained Me', nextFocus: 'Next Focus', bearing: 'Bearing', intents: 'Intents', byArea: 'Done By Area' };
+var REVIEW_NUM = { hoursWork: 'Hours Work', hoursPersonal: 'Hours Personal', hoursFarm: 'Hours Farm', hoursHobbies: 'Hours Hobbies', tasksDone: 'Tasks Done', picked: 'Priorities Picked', pickedDone: 'Priorities Done' };
+var YMD = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+function addDaysYmd_(ymd, n) { var d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+/** Rich text in Notion's 2000-character pieces. */
+function rt_(text) {
+  var out = [];
+  for (var i = 0; i < text.length && out.length < 3; i += 2000) out.push({ text: { content: text.slice(i, i + 2000) } });
+  return out;
+}
+function toReview_(pg) {
+  var p = pg.properties || {}, out = { id: pg.id, url: pg.url, saved: pg.last_edited_time || null, week: day_(p['Week Start']), title: plain_(p.Week && p.Week.title) };
+  Object.keys(REVIEW_TEXT).forEach(function (k) { out[k] = plain_(p[REVIEW_TEXT[k]] && p[REVIEW_TEXT[k]].rich_text); });
+  Object.keys(REVIEW_NUM).forEach(function (k) { out[k] = p[REVIEW_NUM[k]] && typeof p[REVIEW_NUM[k]].number === 'number' ? p[REVIEW_NUM[k]].number : null; });
+  out.summary = plain_(p['Claude Summary'] && p['Claude Summary'].rich_text);
+  return out;
+}
+function findReview_(ds, week) {
+  return queryAll_(ds, { property: 'Week Start', date: { equals: week } }, 1)[0] || null;
+}
+
+/**
+ * One week for the Review screen. week = its Monday (yyyy-mm-dd); from and to =
+ * that Monday and the next at local midnight (ISO), so "finished this week"
+ * follows the iPad's time zone. Returns tasks finished (by last edit), tasks
+ * picked (Focus Date in the week), and the saved review if there is one.
+ */
+function week_(week, from, to) {
+  if (!YMD.test(week) || !ISO.test(from) || !ISO.test(to) || !(Date.parse(to) > Date.parse(from))) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache();
+  var key = 'week:' + (cache.get('tgen') || '0') + ':' + (cache.get('rgen') || '0') + ':' + week + ':' + from;
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var ds = tasksSource_(), next = addDaysYmd_(week, 7);
+  var done = queryAll_(ds, { and: [
+    { property: 'Status', select: { equals: '✅ Done' } },
+    { timestamp: 'last_edited_time', last_edited_time: { on_or_after: from } },
+    { timestamp: 'last_edited_time', last_edited_time: { before: to } }
+  ] }, 3).map(function (pg) { var t = toTask_(pg); t.at = pg.last_edited_time || null; return t; });
+  var picked = queryAll_(ds, { and: [
+    { property: 'Focus Date', date: { on_or_after: week } },
+    { property: 'Focus Date', date: { before: next } }
+  ] }, 2).map(toTask_);
+  var review = null, reviewsError = null;
+  try {
+    var pg = findReview_(reviewsSource_(), week);
+    if (pg) review = toReview_(pg);
+  } catch (e) {
+    if (!e.notion) throw e;
+    reviewsError = e.notion;
+  }
+  var out = { ok: true, version: VERSION, week: week, done: done, picked: picked, review: review, reviewsError: reviewsError };
+  try { cache.put(key, JSON.stringify(out), 60); } catch (x) { /* too large to cache */ }
+  return out;
+}
+
+/** Save the review for one week: updates that week's page, or creates it. Safe to repeat. */
+function saveReview_(r) {
+  var week = String(r.week || '');
+  if (!YMD.test(week)) return { ok: false, error: 'bad_request' };
+  var props = {
+    Week: { title: rt_(String(r.title || week).trim().slice(0, 120) || week) },
+    'Week Start': { date: { start: week } }
+  };
+  Object.keys(REVIEW_TEXT).forEach(function (k) { props[REVIEW_TEXT[k]] = { rich_text: rt_(String(r[k] == null ? '' : r[k]).trim().slice(0, 6000)) }; });
+  Object.keys(REVIEW_NUM).forEach(function (k) {
+    var v = Number(r[k]);
+    props[REVIEW_NUM[k]] = { number: r[k] === null || r[k] === undefined || r[k] === '' || !isFinite(v) ? null : Math.round(v * 10) / 10 };
+  });
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = reviewsSource_(), found = findReview_(ds, week), pg;
+    if (found) pg = notion_('patch', '/pages/' + found.id, { properties: props });
+    else pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    CacheService.getScriptCache().put('rgen', String(Date.now()), 21600);
+    return { ok: true, version: VERSION, created: !found, review: toReview_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /** Only pages inside the Master Task List may be changed. */

@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D17, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D19, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -15,11 +15,12 @@ Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Goo
   ├─ CalendarApp: Work (read-only, shared to personal) + Personal (default calendar)
   └─ UrlFetchApp → Notion API (Notion-Version 2025-09-03)
        ├─ 🎯 Master Task List  db 6c4a440d571e49e0b4076c18d5712c1f  ds 2198e74a-792a-4301-b4a5-9b16249af496
-       └─ 🗓️ Key Dates         db 8184db37aacb4d96943b2067558b92ab  ds fd94b232-b63a-4e6a-bc8c-dad020821e32
+       ├─ 🗓️ Key Dates         db 8184db37aacb4d96943b2067558b92ab  ds fd94b232-b63a-4e6a-bc8c-dad020821e32
+       └─ 🧭 Weekly Reviews    db 459bcacdc38d4bad9f58b4579fa9f4fd  ds 02a65d24-fe78-4dda-bb27-69eededf9f95
      Both live under 🏠 Timothy's Life Hub (page 31893ad51450814c8a3be31c1f26aed8).
 ```
 
-Current versions: **app 1.7.0**, **bridge 1.4.0**.
+Current versions: **app 1.9.0**, **bridge 1.5.0**.
 
 ### Bridge actions
 
@@ -29,14 +30,16 @@ Current versions: **app 1.7.0**, **bridge 1.4.0**.
 | GET | `events` `from` `to` (epoch ms, ≤ 62 days) | Work + Personal events | declined personal events hidden; untitled = `Busy` |
 | GET | `tasks` `day` (yyyy-mm-dd) | `focus` (Focus Date = day) + `open` tasks + Life Area options | |
 | GET | `dates` | all key dates + Life Area and Type options | app computes yearly repeats and countdowns |
+| GET | `week` `week` (Monday yyyy-mm-dd) `from` `to` (local midnights, ISO) | tasks finished (last edit in range), tasks picked (Focus Date in week), saved review | `reviewsError` set if Weekly Reviews isn't connected; the rest still returns |
 | GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
 | POST | `create` `item{cid,area,title,allDay,start,end}` | new event, **Personal only** | `WRITABLE` allow-list; Work can never be written |
 | POST | `focus` `id` `day\|null` | sets Focus Date | page must belong to the Master Task List |
 | POST | `status` `id` `status` | sets Status (allow-listed values) | same ownership check |
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
 | POST | `adddate` `date{cid,title,start,end,area,type,yearly}` | new key date | |
+| POST | `savereview` `review{week,title,wentWell,drained,nextFocus,bearing,intents,byArea,hoursWork,hoursPersonal,hoursFarm,hoursHobbies,tasksDone,picked,pickedDone}` | create or update that week's page | upsert on Week Start, so repeats are safe |
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done` (the last three appear once `NOTION_TOKEN` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews` (the last four appear once `NOTION_TOKEN` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
@@ -55,6 +58,10 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done` (the last 
 - **Weather** is fetched from the iPad straight to Open-Meteo (`loadWeather()`), only when a location is set in Systems. Coordinates are rounded to 2 decimals.
 - **Device-only data** (never sent to the bridge, never in the repo): `tos.place.v1`, `tos.bearings.v1`, `tos.log.v1`. Bearings have no defaults on purpose: they are Timothy's own words and the repo is public.
 - `render()` keeps focus and caret in a text field across re-renders (the Bridge re-renders every minute).
+
+## Weekly Review
+
+`renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.
 
 ## Life areas and colors
 

@@ -163,6 +163,21 @@ The app opens on the **Bridge**: one screen above the calendars, one full-width 
 
 Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't record the day a task was finished, so the date of its last edit stands in. Only the Life Area and that date leave Notion, never titles.
 
+## Weekly Review (bridge 1.5)
+
+Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life Hub: one page per week with your reflection, the week's numbers and your Captain's Log lines.
+
+1. **Connect the integration:** open **🧭 Weekly Reviews** as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
+2. **Update the bridge to 1.5:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion weekly reviews: OK (🧭 Weekly Reviews, 0 reviews)` and end with `Bridge version 1.5.0`.
+3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
+4. In TimothyOS: **SYSTEMS → REFRESH NOW**, then open **REVIEW**.
+
+**How it works**
+- **Due** from Sunday 14:00 to Tuesday night. The Bridge shows **Weekly review due** until you save it.
+- **The screen, top to bottom:** Time (hours per calendar, change from the week before, busiest day, open hours) · Output (tasks finished per Life Area) · Priorities kept · Intent log (your Captain's Log lines) · Next week (heavy days, key dates, tasks due) · Reflection (Went well, Drained me, Next focus, Bearing).
+- **Writing is kept on the iPad as you type.** **SAVE TO NOTION** writes it; saving again updates the same page.
+- **◀ ▶** browse earlier weeks and their saved reviews. **CLAUDE SUMMARY** waits for Ask Claude.
+
 ## Daily use
 
 | Do | How |
@@ -178,6 +193,7 @@ Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't rec
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
+| Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
 | Leave out booking blocks (e.g. weekend out-of-office) | Tap the event → **IGNORE THIS TITLE**. Edit or undo in **SYSTEMS → CALENDARS → IGNORED EVENTS** |
 | Change or delete a key date | Tap it → **OPEN IN NOTION** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
@@ -209,6 +225,8 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
+| Review says it needs bridge 1.5 | Follow **Weekly Review (bridge 1.5)** above |
+| "Weekly Reviews isn't connected" | 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge |
 | Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
 | Top line hidden under the clock and battery | **SYSTEMS → APP → TOP SPACING → MORE** (or **MOST**) |
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
@@ -220,7 +238,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 - The repository is public and holds **no secrets**.
 - The **access key** lives in two places only: the script's properties and the iPad app's storage.
 - The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes events.
-- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. It never deletes anything. The Notion key lives only in Script Properties.
+- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Captain's Log are stored on the iPad and never go to the bridge or this repository.

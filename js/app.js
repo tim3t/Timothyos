@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.8.0";
+  var VERSION = "1.9.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -19,6 +19,9 @@
   var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
   var LS_LOG = "tos.log.v1";           /* Captain's Log: one intent line per day, last 30 days */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
+  var LS_WEEKS = "tos.weeks.v1";       /* Review: last few weeks fetched (finished + picked tasks, saved review) */
+  var LS_RSAVED = "tos.rsaved.v1";     /* Review: weeks saved to Notion, for the Bridge reminder */
+  var LS_RDRAFT = "tos.rdraft.v1";     /* Review: unsaved writing, per week */
   var LS_IGNORE = "tos.ignore.v1";     /* event titles left out everywhere, e.g. blocks that only exist to stop bookings */
   var LS_TOPGAP = "tos.topgap.v1";     /* extra space below the iPad status bar, in px */
   var TOP_GAPS = [[14, "STANDARD"], [30, "MORE"], [48, "MOST"]];
@@ -39,8 +42,7 @@
   var STANDBY_AREAS = ["farm", "hobby"];
   var STANDBY_MODULES = [
     ["NOTES IN CAPTURE", "Quick notes, with a later Notion stage."],
-    ["ASK CLAUDE", "Questions about your days and projects."],
-    ["WEEKLY REVIEW", "Hours by life area and a short reflection."]
+    ["ASK CLAUDE", "Questions about your days and projects."]
   ];
   var DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   var DOWL = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -116,6 +118,7 @@
 
   /* ---------- State ---------- */
   var cached = lsGet(LS_CACHE) || {};
+  var savedWeeks = lsGet(LS_RSAVED) || {};
   var state = {
     screen: lsGet(LS_START) === "today" ? "today" : "bridge",
     anchor: sod(new Date()),
@@ -139,6 +142,10 @@
     wxErr: null,
     wxInflight: false,
     wmShift: 0,
+    weeks: lsGet(LS_WEEKS) || {},          /* { "2026-10-05": { fetched, done, picked, review, reviewsError } } */
+    weekErr: null,
+    weekInflight: {},
+    reviewSaving: false,
     flushing: false,
     dayScale: null,
     weekScale: null,
@@ -271,6 +278,7 @@
   function viewRange() {
     var a = state.anchor;
     if (state.screen === "bridge") return bridgeRange();
+    if (state.screen === "review") { var rw = sow(a); return { from: addDays(rw, -7), to: addDays(rw, 14) }; }
     if (state.screen === "month") { var g = sow(som(a)); return { from: g, to: addDays(g, 42) }; }
     var w = sow(a);
     return { from: w, to: addDays(w, 7) };
@@ -451,6 +459,7 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge";
+    if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
     $("planBtn").disabled = !linked || !canPlan();
@@ -471,6 +480,10 @@
     } else if (state.screen === "month") {
       e.textContent = "MONTH" + (hiddenNote() ? " · " + hiddenNote() : "");
       t.textContent = MONL[a.getMonth()] + " " + a.getFullYear();
+    } else if (state.screen === "review") {
+      var rw0 = sow(a), thisW = sow(now).getTime() === rw0.getTime(), lastW = addDays(sow(now), -7).getTime() === rw0.getTime();
+      e.textContent = "REVIEW · " + (thisW ? "THIS WEEK" : lastW ? "LAST WEEK" : rw0 > now ? "AHEAD" : "PAST WEEK") + (reviewSaved(ymd(rw0)) ? " · SAVED" : "");
+      t.textContent = weekLabel(rw0);
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
@@ -1299,6 +1312,14 @@
     } else if (canPlan()) {
       html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs bridge 1.4. Steps are in the README under Bridge 1.4.</small></span><span class="pill">SETUP</span></div>';
     }
+    if (canReviews()) {
+      var lw = state.weeks[ymd(sow(new Date()))] || state.weeks[ymd(addDays(sow(new Date()), -7))];
+      html += lw && lw.reviewsError
+        ? '<div class="calrow a-personal"><span class="st"></span><span><b>Weekly Reviews</b><small class="errtxt">' + (lw.reviewsError === "notion_not_shared" ? "Not connected. In Notion: Weekly Reviews → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: lw.reviewsError }))) + '</small></span><span class="pill bad">SETUP</span></div>'
+        : '<div class="calrow a-personal"><span class="st"></span><span><b>Weekly Reviews</b><small>' + Object.keys(savedWeeks).length + " saved from this iPad · open REVIEW to write this week's</small></span><span class=\"pill ok\">OK</span></div>";
+    } else if (canPlan()) {
+      html += '<div class="calrow a-personal" style="opacity:.6"><span class="st"></span><span><b>Weekly Reviews</b><small>Needs bridge 1.5. Steps are in the README under Bridge 1.5.</small></span><span class="pill">SETUP</span></div>';
+    }
     if (canDates()) {
       html += state.datesErr
         ? '<div class="calrow a-farm"><span class="st"></span><span><b>Key Dates</b><small class="errtxt">' + esc(state.datesErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
@@ -1547,6 +1568,8 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    var rdue = reviewDue(now);
+    if (rdue && canReviews() && !reviewSaved(ymd(rdue))) items.push({ lvl: "warn", ic: "◆", txt: "Weekly review due", sub: weekLabel(rdue) + " · about 5 minutes", act: "review", go: "REVIEW" });
     var fr = frost(now);
     if (fr && fr.low <= 32) items.push({ lvl: "warn", ic: "▼", txt: "Frost tonight", sub: "Low " + Math.round(fr.low) + "°F around " + fr.at, act: "none", go: "" });
     var st = state.sync;
@@ -1849,6 +1872,240 @@
     loadDates(false);
     loadDone(false);
     loadWeather(false);
+    var rdue = reviewDue(now);
+    if (rdue && canReviews() && !reviewSaved(ymd(rdue))) loadWeek(rdue, false);
+  }
+
+  /* ---------- Weekly Review ---------- */
+  /* Once a week (due Sunday 14:00 to Tuesday night): how the week went, then a
+     short reflection saved to the Weekly Reviews database in Notion, one page
+     per week, together with the week's numbers and Captain's Log lines. */
+  var WEEK_FRESH_MS = 2 * 60 * 1000;
+  var REVIEW_FIELDS = [
+    ["wentWell", "WENT WELL", "What worked, what you're glad about"],
+    ["drained", "DRAINED ME", "What cost more than it gave"],
+    ["nextFocus", "NEXT FOCUS", "The one or two things that matter most next week"],
+    ["bearing", "BEARING", "Where did I hold my bearing? (optional)"]
+  ];
+  function canReviews() { return state.caps.indexOf("reviews") > -1; }
+  /* The week a review is due for: from Sunday 14:00 it's this week; on Monday and Tuesday, last week. */
+  function reviewDue(now) {
+    var d = now.getDay();
+    if (d === 0 && now.getHours() >= 14) return sow(now);
+    if (d === 1 || d === 2) return addDays(sow(now), -7);
+    return null;
+  }
+  function reviewSaved(wk) {
+    var w = state.weeks[wk];
+    return !!((w && w.review) || savedWeeks[wk]);
+  }
+  function defaultReviewWeek() {
+    var now = new Date(), due = reviewDue(now);
+    return due && !reviewSaved(ymd(due)) ? due : sow(now);
+  }
+  function weekLabel(w0) {
+    var w1 = addDays(w0, 6);
+    return "WEEK " + isoWeek(w0) + " · " + p2(w0.getDate()) + (w0.getMonth() !== w1.getMonth() ? " " + MON[w0.getMonth()] : "") + " TO " + p2(w1.getDate()) + " " + MON[w1.getMonth()];
+  }
+  function loadWeek(w0, force) {
+    var wk = ymd(w0), have = state.weeks[wk];
+    if (!state.conn || !canReviews() || state.weekInflight[wk]) return;
+    if (!force && have && Date.now() - have.fetched < WEEK_FRESH_MS) return;
+    if (!force && state.weekErr && state.weekErr.wk === wk && Date.now() - state.weekErr.at < FRESH_MS) return;
+    state.weekInflight[wk] = true;
+    api({ action: "week", week: wk, from: w0.toISOString(), to: addDays(w0, 7).toISOString() }).then(function (j) {
+      state.weeks[wk] = { fetched: Date.now(), done: j.done || [], picked: j.picked || [], review: j.review || null, reviewsError: j.reviewsError || null };
+      if (j.review) savedWeeks[wk] = Date.parse(j.review.saved) || Date.now();
+      state.weekErr = null;
+      saveWeeks();
+    }).catch(function (err) {
+      state.weekErr = { wk: wk, at: Date.now(), msg: describeTasks(err) };
+    }).then(function () {
+      delete state.weekInflight[wk];
+      if (state.screen === "review" || state.screen === "bridge") render(true);
+    });
+  }
+  function saveWeeks() {
+    var keep = {};
+    Object.keys(state.weeks).sort().slice(-6).forEach(function (k) { keep[k] = state.weeks[k]; });
+    state.weeks = keep;
+    lsSet(LS_WEEKS, keep);
+    var sw = {};
+    Object.keys(savedWeeks).sort().slice(-20).forEach(function (k) { sw[k] = savedWeeks[k]; });
+    savedWeeks = sw;
+    lsSet(LS_RSAVED, sw);
+  }
+  function drafts() { return lsGet(LS_RDRAFT) || {}; }
+  function saveDraft(wk, field, value) {
+    var d = drafts();
+    d[wk] = d[wk] || {};
+    d[wk][field] = value;
+    var keep = {};
+    Object.keys(d).sort().slice(-4).forEach(function (k) { keep[k] = d[k]; });
+    lsSet(LS_RDRAFT, keep);
+  }
+  /* The numbers for one week, from the calendars (ignored events left out) and the bridge. */
+  function weekStats(w0) {
+    var now = new Date(), list = eventsFor(viewRange()), cur = sow(now).getTime() === w0.getTime();
+    var hours = function (start, area) {
+      var tot = 0;
+      for (var i = 0; i < 7; i++) {
+        var d = addDays(start, i);
+        if (d > now) break;
+        var timed = dayEvents(list, d).timed.filter(function (e) { return !area || e.area === area; });
+        tot += unionHours(timed, d, 0, sameDay(d, now) ? posInDay(now, sod(now)) : 24);
+      }
+      return tot;
+    };
+    var st = { cur: cur, work: hours(w0, "work"), personal: hours(w0, "personal"), prevWork: hours(addDays(w0, -7), "work"), prevPersonal: hours(addDays(w0, -7), "personal") };
+    var busiest = null, open = 0, meetings = 0;
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(w0, i), timed = dayEvents(list, d).timed, tot = unionHours(timed, d, 0, 24);
+      if (!busiest || tot > busiest.h) busiest = { d: d, h: tot };
+      open += (FOCUS_END - FOCUS_START) - unionHours(timed, d, FOCUS_START, FOCUS_END);
+      meetings += timed.filter(function (e) { return e.area === "work" && sod(e._s).getTime() === d.getTime(); }).length;
+    }
+    st.busiest = busiest; st.open = open; st.meetings = meetings;
+    var w = state.weeks[ymd(w0)];
+    if (w) {
+      st.done = w.done.length;
+      var by = {};
+      w.done.forEach(function (t) { var k = t.area || ""; by[k] = (by[k] || 0) + 1; });
+      st.byArea = Object.keys(by).sort(function (a, b) { return by[b] - by[a] || a.localeCompare(b); }).map(function (k) { return { area: k, n: by[k] }; });
+      st.picked = w.picked.length;
+      st.pickedDone = w.picked.filter(function (t) { return t.status === DONE; }).length;
+    }
+    return st;
+  }
+  /* "Week 41 · 05 to 11 Oct", the page title in Notion. */
+  function reviewTitle(w0) {
+    var w1 = addDays(w0, 6), m = function (d) { return MON[d.getMonth()].charAt(0) + MON[d.getMonth()].slice(1).toLowerCase(); };
+    return "Week " + isoWeek(w0) + " · " + p2(w0.getDate()) + (w0.getMonth() !== w1.getMonth() ? " " + m(w0) : "") + " to " + p2(w1.getDate()) + " " + m(w1);
+  }
+  function delta(a, b) { var d = Math.round((a - b) * 10) / 10; return d === 0 ? "±0" : (d > 0 ? "+" : "") + d; }
+  function intents(w0) {
+    var log = lsGet(LS_LOG) || {};
+    return [0, 1, 2, 3, 4, 5, 6].map(function (i) { var d = addDays(w0, i); return { d: d, text: log[ymd(d)] || "" }; });
+  }
+
+  function renderReview() {
+    var w0 = sow(state.anchor), wk = ymd(w0), now = new Date(), r = viewRange(), loaded = hasData(r);
+    if (w0 > now) { $("content").innerHTML = '<div class="rv">' + phead("NOT YET", "") + '<div class="empty">This week hasn\'t started. Tap the left arrow or TODAY.</div></div>'; return; }
+    var st = weekStats(w0), w = state.weeks[wk], html = '<div class="rv">';
+
+    /* time */
+    html += "<section>" + phead("TIME", st.cur ? "SO FAR THIS WEEK" : "VS THE WEEK BEFORE");
+    if (!loaded) html += '<div class="empty">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar for this week isn't loaded yet.") + "</div>";
+    else {
+      var maxH = Math.max(10, st.work, st.personal);
+      [["work", st.work, st.prevWork], ["personal", st.personal, st.prevPersonal]].forEach(function (x) {
+        html += '<div class="rv-row a-' + x[0] + '"><span class="bn">' + AREAS[x[0]].name + '</span><span class="track"><span style="width:' + Math.round(x[1] / maxH * 100) + '%"></span></span>' +
+          '<span class="bv tnum">' + hrsLabel(x[1]) + "</span>" + (st.cur ? "<span></span>" : '<span class="dl tnum">' + delta(x[1], x[2]) + "</span>") + "</div>";
+      });
+      STANDBY_AREAS.forEach(function (k) {
+        html += '<div class="rv-row a-' + k + ' off"><span class="bn">' + AREAS[k].name + '</span><span class="muted">No calendar yet</span><span></span><span></span></div>';
+      });
+      html += '<div class="ov-facts tnum"><span>BUSIEST <b>' + (st.busiest && st.busiest.h ? DOW[st.busiest.d.getDay()] + " " + hrsLabel(st.busiest.h) : "NONE") + "</b></span><span>OPEN 07:00 TO 21:00 <b>" + hrsLabel(st.open) +
+        " OF 98H</b></span><span>WORK EVENTS <b>" + st.meetings + "</b></span>" + (ignoreList.length ? "<span>IGNORED EVENTS LEFT OUT</span>" : "") + "</div>";
+    }
+    html += "</section>";
+
+    /* output + priorities kept (bridge 1.5) */
+    if (!canReviews()) {
+      html += "<section>" + phead("OUTPUT", "") + stubBox(state.conn ? "Finished tasks, priorities kept and saving reviews need bridge 1.5. Steps are in the README under <b>Bridge 1.5</b>." : "Link calendars first.") + "</section>";
+    } else if (!w) {
+      html += "<section>" + phead("OUTPUT", "") + '<div class="empty">' + (state.weekErr && state.weekErr.wk === wk ? esc(state.weekErr.msg) : "Loading the week from Notion…") + "</div></section>";
+    } else {
+      var maxN = Math.max(3, st.byArea.length ? st.byArea[0].n : 0);
+      html += "<section>" + phead("OUTPUT", st.done + (st.done === 1 ? " TASK" : " TASKS") + " FINISHED");
+      if (!st.done) html += '<div class="empty">No tasks marked done this week.</div>';
+      st.byArea.forEach(function (x) {
+        html += '<div class="rv-row a-' + taskArea(x.area) + '"><span class="bn">' + esc(bare(x.area) || "No area") + '</span><span class="track"><span style="width:' + Math.round(x.n / maxN * 100) + '%"></span></span><span class="bv tnum">' + x.n + "</span><span></span></div>";
+      });
+      if (st.done) html += '<div class="rv-list">' + w.done.slice(0, 12).map(function (t) { return '<span class="a-' + taskArea(t.area) + '">' + esc(t.title) + "</span>"; }).join("") +
+        (w.done.length > 12 ? '<span class="muted">+' + (w.done.length - 12) + " more</span>" : "") + "</div>";
+      html += "</section>";
+      var slipped = w.picked.filter(function (t) { return t.status !== DONE; });
+      html += "<section>" + phead("PRIORITIES KEPT", st.picked ? st.pickedDone + " OF " + st.picked + " · " + Math.round(st.pickedDone / st.picked * 100) + "%" : "");
+      if (!st.picked) html += '<div class="empty">No priorities were picked this week.</div>';
+      else html += '<div class="rv-kept"><span class="kn tnum">' + st.pickedDone + '<small>DONE</small></span><span class="kn tnum">' + slipped.length + '<small>NOT DONE</small></span><span class="kn tnum">' + st.picked + "<small>PICKED</small></span></div>";
+      if (slipped.length) html += '<div class="ov-sub">STILL OPEN</div>' + slipped.map(function (t) {
+        return '<div class="ov-due a-' + taskArea(t.area) + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" + [bare(t.status), bare(t.area), t.focus ? "PICKED FOR " + dLabel(parseYmd(t.focus)) : ""].filter(Boolean).map(esc).join(" · ") + "</small></span><span></span></div>";
+      }).join("");
+      html += "</section>";
+    }
+
+    /* intent log */
+    var ins = intents(w0), written = ins.filter(function (x) { return x.text; }).length;
+    html += "<section>" + phead("INTENT LOG", written + " OF 7 DAYS") + '<div class="rv-log">' + ins.map(function (x) {
+      return '<span class="dt tnum">' + DOW[x.d.getDay()] + " " + p2(x.d.getDate()) + "</span><span" + (x.text ? "" : ' class="muted"') + ">" + (x.text ? esc(x.text) : "No entry") + "</span>";
+    }).join("") + '</div><small class="muted">From the Captain\'s Log on the Bridge. Saving the review keeps these lines in Notion.</small></section>';
+
+    /* next week */
+    var n0 = addDays(w0, 7), today = ymd(now), tdata = canPlan() ? state.tasks[today] : null, nl = [];
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(n0, i), h = unionHours(dayEvents(eventsFor(r), d).timed, d, 0, 24);
+      if (h >= HEAVY_HOURS) nl.push(DOW[d.getDay()] + " " + hrsLabel(h));
+    }
+    var kds = canDates() && state.dates ? occurrences(ymd(n0), ymd(addDays(n0, 6))) : [];
+    var due = tdata ? rankTasks(tdata.open.filter(function (t) { return t.due && t.due >= ymd(n0) && t.due <= ymd(addDays(n0, 6)); })) : [];
+    html += "<section>" + phead("NEXT WEEK", weekLabel(n0).replace(/^WEEK \d+ · /, "")) +
+      '<div class="ov-facts"><span>HEAVY DAYS <b>' + (nl.length ? nl.join(" · ") : "NONE") + "</b></span></div>";
+    kds.forEach(function (o) { html += kdRow(o, today); });
+    if (due.length) html += '<div class="ov-sub">DUE NEXT WEEK</div>' + due.slice(0, 6).map(function (t) {
+      return '<div class="ov-due a-' + taskArea(t.area) + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" + taskMeta(t, today) + "</small></span><span></span></div>";
+    }).join("");
+    if (!kds.length && !due.length) html += '<div class="empty">No key dates or due tasks next week.</div>';
+    html += "</section>";
+
+    /* reflection + save */
+    var saved = w && w.review, draft = drafts()[wk] || {};
+    html += "<section>" + phead("REFLECTION", saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET");
+    REVIEW_FIELDS.forEach(function (f) {
+      var v = draft[f[0]] !== undefined ? draft[f[0]] : saved ? saved[f[0]] || "" : "";
+      html += '<label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + '</label><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
+    });
+    var bad = w && w.reviewsError;
+    html += '<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ask" disabled>CLAUDE SUMMARY<small>STANDBY</small></button>' +
+      '<button type="button" class="btn capture" data-act="savereview"' + (!canReviews() || state.reviewSaving || navigator.onLine === false || bad ? " disabled" : "") + ">" +
+      (state.reviewSaving ? "SAVING…" : navigator.onLine === false ? "OFFLINE" : saved ? "UPDATE IN NOTION" : "SAVE TO NOTION") + "</button>" +
+      (saved && saved.url ? '<a class="btn ghost" href="' + esc(saved.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
+    if (bad) html += '<div class="err">' + (bad === "notion_not_shared" ? "Weekly Reviews isn't connected to the TimothyOS integration. In Notion: 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: bad }))) + "</div>";
+    html += '<small class="muted">Your writing is kept on this iPad as you type, so nothing is lost before you save.</small></section></div>';
+    $("content").innerHTML = html;
+    loadWeek(w0, false);
+    loadTasks(today, false);
+    loadDates(false);
+  }
+  function submitReview() {
+    var w0 = sow(state.anchor), wk = ymd(w0), st = weekStats(w0), d = drafts()[wk] || {}, w = state.weeks[wk], saved = w && w.review;
+    var field = function (k) { var el = $("rv-" + k); return el ? el.value.trim() : (d[k] !== undefined ? d[k] : saved ? saved[k] || "" : ""); };
+    var review = {
+      week: wk,
+      title: reviewTitle(w0),
+      wentWell: field("wentWell"), drained: field("drained"), nextFocus: field("nextFocus"), bearing: field("bearing"),
+      intents: intents(w0).filter(function (x) { return x.text; }).map(function (x) { return DOW[x.d.getDay()] + " " + p2(x.d.getDate()) + " · " + x.text; }).join("\n"),
+      hoursWork: hasData(viewRange()) ? Math.round(st.work * 10) / 10 : null,
+      hoursPersonal: hasData(viewRange()) ? Math.round(st.personal * 10) / 10 : null,
+      hoursFarm: null, hoursHobbies: null,
+      tasksDone: w ? st.done : null, picked: w ? st.picked : null, pickedDone: w ? st.pickedDone : null,
+      byArea: w ? st.byArea.map(function (x) { return (bare(x.area) || "No area") + " " + x.n; }).join(" · ") : ""
+    };
+    state.reviewSaving = true;
+    render(true);
+    apiPost({ action: "savereview", review: review }).then(function (j) {
+      state.weeks[wk] = state.weeks[wk] || { fetched: 0, done: [], picked: [], review: null };
+      state.weeks[wk].review = j.review;
+      savedWeeks[wk] = Date.now();
+      var all = drafts(); delete all[wk]; lsSet(LS_RDRAFT, all);
+      saveWeeks();
+      toast(j.created ? "Review saved to Notion" : "Review updated in Notion");
+    }).catch(function (err) {
+      toast("Not saved: " + describeTasks(err) + " Your writing is kept on this iPad.");
+    }).then(function () {
+      state.reviewSaving = false;
+      render(true);
+    });
   }
 
   /* --- Systems: Bridge settings --- */
@@ -1916,7 +2173,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: renderReview, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     if (typing && $(typing.id)) {
       var el = $(typing.id);
       el.value = typing.value;
@@ -1930,6 +2187,7 @@
   }
   function go(screen, anchor) {
     state.screen = screen;
+    if (!anchor && screen === "review") anchor = defaultReviewWeek();
     if (anchor) state.anchor = sod(anchor);
     render(false);
     $("content").scrollTop = 0;
@@ -1938,7 +2196,7 @@
   function page(dir) {
     var a = state.anchor;
     if (state.screen === "today") state.anchor = addDays(a, dir);
-    else if (state.screen === "week") state.anchor = addDays(a, 7 * dir);
+    else if (state.screen === "week" || state.screen === "review") state.anchor = addDays(a, 7 * dir);
     else state.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1);
     render(false);
     refresh(false);
@@ -1950,7 +2208,7 @@
   $("status").addEventListener("click", function () { go("systems"); });
   $("prevBtn").addEventListener("click", function () { page(-1); });
   $("nextBtn").addEventListener("click", function () { page(1); });
-  $("todayBtn").addEventListener("click", function () { go(state.screen, new Date()); });
+  $("todayBtn").addEventListener("click", function () { go(state.screen, state.screen === "review" ? sow(new Date()) : new Date()); });
 
   $("content").addEventListener("click", function (e) {
     var b = e.target.closest("button");
@@ -1968,6 +2226,8 @@
     else if (b.dataset.topgap) { lsSet(LS_TOPGAP, +b.dataset.topgap); applyTopGap(); render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
+    else if (b.dataset.act === "review") go("review");
+    else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));
       toast(ignoreList.length ? ignoreList.length + (ignoreList.length === 1 ? " title ignored" : " titles ignored") + " · " + ignoredCount() + " events left out" : "Nothing ignored");
@@ -2001,7 +2261,10 @@
   $("content").addEventListener("submit", function (e) {
     if (e.target.id === "connForm") { e.preventDefault(); submitConnect(); }
   });
-  $("content").addEventListener("input", function (e) { if (e.target.id === "logIntent") saveLog(e.target.value.trim()); });
+  $("content").addEventListener("input", function (e) {
+    if (e.target.id === "logIntent") saveLog(e.target.value.trim());
+    else if (e.target.dataset.rv && state.screen === "review") saveDraft(ymd(sow(state.anchor)), e.target.dataset.rv, e.target.value);
+  });
   $("content").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur(); });
   $("detailScrim").addEventListener("click", function (e) {
     var b = e.target.closest("button");

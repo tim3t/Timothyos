@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.0 · 2026-10-06 (needs bridge 1.5.0 + Weekly Reviews connected)
+- **REVIEW unlocked:** a weekly look back, then a reflection saved to Notion.
+  - **Time:** hours per calendar with the change from the week before, busiest day, open hours 07:00 to 21:00, work events. Ignored events are left out.
+  - **Output:** tasks finished, by Life Area (all of them, as plain labels), plus the list.
+  - **Priorities kept:** picked, done and still open.
+  - **Intent log:** the week's Captain's Log lines.
+  - **Next week:** heavy days, key dates, tasks coming due.
+  - **Reflection:** Went well, Drained me, Next focus, Bearing. Kept on the iPad as you type; **SAVE TO NOTION** writes one page per week (saving again updates it).
+  - **◀ ▶** browse earlier weeks.
+- **Bridge:** **Weekly review due** from Sunday 14:00 to Tuesday night, until saved.
+- New Notion database **🧭 Weekly Reviews** (in the Life Hub).
+- Bridge 1.5.0: `week` (finished and picked tasks for a week, plus its saved review) and `savereview` (create or update that week's page).
+
 ## 1.8.0 · 2026-10-06
 - **Ignored events:** events that only exist to block bookings (such as a weekend-long out-of-office block on the work calendar) can be left out of everything: Day, Week, Month, the Bridge (Now / Next, Horizon hours and heavy days, clashes, Balance hours), Life Area counts and Plan Day.
   - Quickest: tap the event, then **IGNORE THIS TITLE**.

@@ -669,6 +669,25 @@ textarea {
 textarea:focus { border-color: var(--chrome-b); outline: none; }
 
 
+/* ---------- Weekly Review ---------- */
+.rv { display: grid; gap: 36px; max-width: 980px; }
+.rv-row { display: grid; grid-template-columns: 170px minmax(0, 1fr) 64px 56px; gap: 14px; align-items: center; min-height: 44px; }
+.rv-row .bn { font-family: var(--display); letter-spacing: .12em; font-size: 15px; color: var(--c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.rv-row .track { height: 14px; background: var(--panel); border-radius: 0 7px 7px 0; overflow: hidden; }
+.rv-row .track span { display: block; height: 100%; background: var(--c); border-radius: 0 7px 7px 0; }
+.rv-row .bv { font-family: var(--display); font-size: 18px; text-align: right; }
+.rv-row .dl { font-family: var(--display); font-size: 15px; color: var(--dim); text-align: right; }
+.rv-row.off { opacity: .45; }
+.rv-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.rv-list span { font-size: 15px; border-left: 4px solid var(--c, var(--line)); background: color-mix(in srgb, var(--c, var(--line)) 18%, var(--panel)); padding: 3px 10px; border-radius: 0 10px 10px 0; }
+.rv-list span.muted { border: 0; background: none; }
+.rv-kept { display: flex; gap: 36px; flex-wrap: wrap; }
+.rv-kept .kn { font-family: var(--display); font-weight: 600; font-size: 44px; line-height: 1; display: flex; flex-direction: column; }
+.rv-kept .kn small { font-size: 12px; letter-spacing: .2em; color: var(--dim); font-weight: 400; }
+.rv-kept .kn:first-child { color: var(--ok); }
+.rv-log { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 6px 14px; margin-bottom: 8px; }
+.rv-log .dt { font-family: var(--display); letter-spacing: .1em; color: var(--chrome-b); }
+
 /* ---------- Narrow screens (iPad portrait split view, phones) ---------- */
 @media (max-width: 860px) {
   html, body { height: auto; }
@@ -688,6 +707,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
   .navbridge { display: flex !important; }
   .ov-cond { grid-template-columns: minmax(0, 1fr); }
   .ov-cond .lvl { border-radius: 24px 24px 0 0; min-width: 0; font-size: 28px; padding: 10px 20px; }
+  .rv-row { grid-template-columns: 110px minmax(0, 1fr) 52px 44px; gap: 10px; }
   .ov-cond .list { border-left: 3px solid var(--lc); border-top: 0; border-radius: 0 0 24px 24px; }
   .ov-place { grid-template-columns: minmax(0, 1fr) auto; }
   .ov-place input { grid-column: 1 / -1; }
