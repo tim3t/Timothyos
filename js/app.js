@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.5.1";
+  var VERSION = "1.6.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -13,6 +13,7 @@
   var LS_QUEUE = "tos.queue.v1";       /* captures waiting to be saved */
   var LS_CAPPREFS = "tos.capprefs.v1";
   var LS_TASKS = "tos.tasks.v1";       /* Notion Master Task List, last few days fetched */
+  var LS_DATES = "tos.dates.v1";       /* Notion Key Dates */
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
@@ -27,9 +28,8 @@
   var LIVE = ["work", "personal"];
   var STANDBY_AREAS = ["farm", "hobby"];
   var STANDBY_MODULES = [
-    ["MORE CAPTURE TYPES", "Notes and key dates, with the next Notion stage."],
+    ["NOTES IN CAPTURE", "Quick notes, with a later Notion stage."],
     ["ASK CLAUDE", "Questions about your days and projects."],
-    ["KEY DATES", "Upcoming dates, stored in Notion."],
     ["WEEKLY REVIEW", "Hours by life area and a short reflection."]
   ];
   var DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -113,6 +113,9 @@
     tasksErr: null,
     tasksInflight: {},
     taskBusy: {},
+    dates: lsGet(LS_DATES),                /* { fetched, dates, areas, types } */
+    datesErr: null,
+    datesInflight: false,
     flushing: false,
     dayScale: null,
     weekScale: null,
@@ -324,7 +327,7 @@
       state.caps = j.capabilities || [];
       persist();
       setSync("ok");
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); }
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); }
       flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
     }).catch(function (err) {
@@ -337,7 +340,7 @@
   function renderHeader() {
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
-    $("pager").hidden = !linked || state.screen === "systems";
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
     $("planBtn").disabled = !linked || !canPlan();
@@ -354,7 +357,8 @@
     } else if (state.screen === "month") {
       e.textContent = "MONTH" + (hiddenNote() ? " · " + hiddenNote() : "");
       t.textContent = MONL[a.getMonth()] + " " + a.getFullYear();
-    } else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
+    } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
+    else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     document.querySelectorAll(".nav[data-screen]").forEach(function (b) {
       if (b.dataset.screen === state.screen) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
@@ -382,8 +386,11 @@
     var meta = !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") : allHidden ? "ALL CALENDARS HIDDEN" :
       (total ? total + (total === 1 ? " EVENT" : " EVENTS") : "OPEN DAY") + (hiddenNote() ? " · " + hiddenNote() : "");
     var html = '<div class="bridge"><section class="tlpanel">' + phead(isToday ? "TODAY TIMELINE" : "DAY TIMELINE", meta);
-    if (de.allDay.length) {
-      html += '<div class="allday">' + de.allDay.map(function (ev) {
+    var marks = kdMarks(ymd(day), true);
+    if (de.allDay.length || marks.length) {
+      html += '<div class="allday">' + marks.map(function (m) {
+        return '<button type="button" class="adchip kdchip a-' + taskArea(m.o.d.area) + '" data-kd="' + esc(m.o.id) + '">◆ ' + esc(m.o.d.title) + (m.tag ? " · " + m.tag : "") + "</button>";
+      }).join("") + de.allDay.map(function (ev) {
         state.index[ev.id] = ev;
         return '<button type="button" class="adchip a-' + ev.area + pendingCls(ev) + '" data-id="' + esc(ev.id) + '">ALL DAY · ' + esc(ev.title) + pendingTag(ev) + "</button>";
       }).join("") + "</div>";
@@ -425,12 +432,13 @@
     });
     html += "</div></div>";
     html += "<div>" + prioritiesPanel(ymd(day), isToday) + "</div>";
-    html += "<div>" + phead("KEY DATES", "") + stubBox("Upcoming dates from Notion, with countdowns.") + "</div>";
+    html += "<div>" + keyDatesPanel(ymd(day)) + "</div>";
     html += "</section></div>";
     $("content").innerHTML = html;
 
     state.dayScale = sc;
     loadTasks(ymd(day), false);
+    loadDates(false);
     var first = rows.length ? rows[0].s : 8;
     state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, Math.min(first, 18)) - 0.5));
   }
@@ -444,7 +452,9 @@
       var d = addDays(r.from, i), de = dayEvents(list, d);
       days.push({ d: d, de: de, rows: layout(de.timed, d, sc, 14) });
     }
-    var hasAllDay = days.some(function (x) { return x.de.allDay.length; });
+    days.forEach(function (x) { x.marks = kdMarks(ymd(x.d), false); });
+    var hasAllDay = days.some(function (x) { return x.de.allDay.length || x.marks.length; });
+    loadDates(false);
     var html = '<div class="wkpanel">' + phead(hiddenNote() ? "CALENDARS" : "ALL CALENDARS", !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") :
       hiddenNote() ? hiddenNote() + " · CHANGE ON TODAY" : "TAP A DAY TO OPEN IT") +
       '<div class="wkscroll"><div class="wk wkhead" id="wkhead"><div></div>';
@@ -455,7 +465,9 @@
     if (hasAllDay) {
       html += "<div></div>";
       days.forEach(function (x) {
-        html += '<div class="wkad">' + x.de.allDay.map(function (ev) { return '<span class="a-' + ev.area + '">' + esc(ev.title) + "</span>"; }).join("") + "</div>";
+        html += '<div class="wkad">' + x.marks.map(function (m) {
+          return '<button type="button" class="kdspan a-' + taskArea(m.o.d.area) + '" data-kd="' + esc(m.o.id) + '">◆ ' + esc(m.o.d.title) + (m.tag ? " · " + m.tag : "") + "</button>";
+        }).join("") + x.de.allDay.map(function (ev) { return '<span class="a-' + ev.area + '">' + esc(ev.title) + "</span>"; }).join("") + "</div>";
       });
     }
     html += '</div><div class="wkbody" id="tlwrap"><div class="wk"><div class="wkgut" style="height:' + sc.total + 'px">';
@@ -487,18 +499,19 @@
   /* ---------- Month ---------- */
   function renderMonth() {
     var r = viewRange(), list = visible(eventsFor(r)), now = new Date(), m = state.anchor.getMonth();
+    loadDates(false);
     var html = '<div class="mo">';
     ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].forEach(function (d) { html += '<div class="moh">' + d + "</div>"; });
     for (var c = 0; c < 42; c++) {
-      var d = addDays(r.from, c), de = dayEvents(list, d), all = de.allDay.concat(de.timed);
+      var d = addDays(r.from, c), de = dayEvents(list, d), all = de.allDay.concat(de.timed), marks = kdMarks(ymd(d), false);
+      var lines = marks.map(function (mk) { return '<span class="li kdli a-' + taskArea(mk.o.d.area) + '">◆ ' + esc(mk.o.d.title) + (mk.tag ? " · " + mk.tag : "") + "</span>"; })
+        .concat(all.map(function (ev) { return '<span class="li a-' + ev.area + pendingCls(ev) + '">' + (ev.allDay ? "" : '<span class="tnum">' + hm(ev._s) + "</span> ") + esc(ev.title) + "</span>"; }));
       var present = LIVE.filter(function (a) { return all.some(function (e) { return e.area === a; }); });
       html += '<button type="button" class="moc' + (d.getMonth() === m ? "" : " out") + (sameDay(d, now) ? " today" : "") + '" data-day="' + ymd(d) + '">' +
         '<span class="top1"><span class="n tnum">' + d.getDate() + '</span><span class="dots">' +
         present.map(function (a) { return '<i class="a-' + a + '"></i>'; }).join("") + "</span></span>" +
-        all.slice(0, 3).map(function (ev) {
-          return '<span class="li a-' + ev.area + pendingCls(ev) + '">' + (ev.allDay ? "" : '<span class="tnum">' + hm(ev._s) + "</span> ") + esc(ev.title) + "</span>";
-        }).join("") +
-        (all.length > 3 ? '<span class="more">+' + (all.length - 3) + " MORE</span>" : "") + "</button>";
+        lines.slice(0, 3).join("") +
+        (lines.length > 3 ? '<span class="more">+' + (lines.length - 3) + " MORE</span>" : "") + "</button>";
     }
     html += "</div>";
     $("content").innerHTML = html;
@@ -639,13 +652,14 @@
     return Array.prototype.map.call(a, function (b) { return p2(b.toString(16)); }).join("");
   }
   function whenLabel(q) {
+    if (q.kind === "date") return dLabel(parseYmd(q.start)) + (q.end ? " TO " + dLabel(parseYmd(q.end)) : "") + " · KEY DATE";
     if (q.allDay) return dLabel(parseYmd(q.start)) + " · ALL DAY";
     var s = new Date(q.start);
     return dLabel(s) + " " + hm(s);
   }
   /* Captures still on this iPad, drawn on the calendar as dashed blocks. */
   function pendingEvents() {
-    return state.queue.map(function (q) {
+    return state.queue.filter(function (q) { return q.kind !== "date"; }).map(function (q) {
       return { id: "pending:" + q.cid, cid: q.cid, area: q.area, title: q.title, allDay: !!q.allDay, start: q.start, end: q.end, location: "",
         pending: q.failed ? "failed" : q.attempts ? "queued" : "saving" };
     });
@@ -669,7 +683,7 @@
       bad_time: "The bridge only accepts times from 2 days ago to about a year ahead.",
       bad_request: "The bridge couldn't read this capture.",
       unauthorized: "The access key was rejected. Re-link in Systems.",
-      unknown_action: "The bridge needs the 1.1 update before it can save events.",
+      unknown_action: "The bridge needs an update before it can save this. See Systems.",
       retries: "Google kept failing after " + MAX_ATTEMPTS + " tries."
     }[code] || describe(err);
   }
@@ -677,19 +691,23 @@
   /* Send queued captures one at a time. Network trouble and temporary Google
      errors keep the item queued; anything else marks it NOT SAVED. */
   function flushQueue(announce) {
-    if (!state.conn || state.flushing || !canCreate()) return;
-    var next = queued()[0];
+    if (!state.conn || state.flushing) return;
+    var next = queued().filter(function (q) { return q.kind === "date" ? canDates() : canCreate(); })[0];
     if (!next) return;
     state.flushing = true;
-    apiPost({ action: "create", item: { cid: next.cid, area: next.area, title: next.title, allDay: !!next.allDay, start: next.start, end: next.end } })
+    var req = next.kind === "date"
+      ? { action: "adddate", date: { cid: next.cid, title: next.title, start: next.start, end: next.end || null, area: next.area || null, type: next.type || null, yearly: !!next.yearly } }
+      : { action: "create", item: { cid: next.cid, area: next.area, title: next.title, allDay: !!next.allDay, start: next.start, end: next.end } };
+    apiPost(req)
       .then(function (j) {
         state.flushing = false;
         state.queue = state.queue.filter(function (q) { return q.cid !== next.cid; });
         saveQueue();
         if (j.event) addConfirmed(j.event);
-        if (announce) toast("Saved to " + areaName(next.area) + " · " + whenLabel(next));
+        if (j.date) addKeyDate(j.date);
+        if (announce) toast(next.kind === "date" ? "Key date saved to Notion · " + whenLabel(next) : "Saved to " + areaName(next.area) + " · " + whenLabel(next));
         render(true);
-        if (queued().length) flushQueue(announce); else refresh(true);
+        if (queued().length) flushQueue(announce); else if (next.kind !== "date") refresh(true);
       })
       .catch(function (err) {
         state.flushing = false;
@@ -719,7 +737,7 @@
   function discardCapture(cid) {
     state.queue = state.queue.filter(function (q) { return q.cid !== cid; });
     saveQueue(); render(true);
-    toast("Discarded. Nothing was saved to Google.");
+    toast("Discarded. Nothing was saved.");
   }
 
   function captureSection() {
@@ -730,7 +748,7 @@
     }
     if (!state.queue.length) html += '<div class="empty">Nothing waiting. Every capture has been saved.</div>';
     state.queue.forEach(function (q) {
-      html += '<div class="calrow a-' + q.area + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
+      html += '<div class="calrow a-' + (q.kind === "date" ? taskArea(q.area) : q.area) + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
         (q.failed ? '<span class="errtxt">' + esc(q.lastError || "Not saved") + "</span>" : q.attempts ? "Queued, " + q.attempts + (q.attempts === 1 ? " try" : " tries") : "Saving") +
         '</small></span><span class="btnrow">' + (q.failed ? '<button type="button" class="chip" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
         '<button type="button" class="chip" data-qdiscard="' + esc(q.cid) + '">DISCARD</button></span></div>';
@@ -740,14 +758,16 @@
   }
 
   /* --- the sheet --- */
-  function openCapture(day, hour) {
+  function openCapture(day, hour, type) {
     if (!state.conn) return;
     var now = new Date(), d = sod(day || (state.screen === "today" ? state.anchor : now)), h;
     if (typeof hour === "number") h = hour;
     else if (sameDay(d, now)) h = Math.min(23.75, Math.ceil((now.getHours() + now.getMinutes() / 60) * 2) / 2);
     else h = 9;
-    cap = { day: d, hour: h, dur: capPrefs.dur || "1" };
+    cap = { day: d, hour: h, dur: capPrefs.dur || "1", type: type === "date" && canDates() ? "date" : "event", yearly: false };
     $("capText").value = "";
+    $("capUntil").value = "";
+    fillDateSelects();
     $("capErr").textContent = "";
     renderCapture();
     $("capScrim").hidden = false;
@@ -755,13 +775,22 @@
   }
   function closeCapture() { $("capScrim").hidden = true; cap = null; }
   function renderCapture() {
-    var now = new Date(), allDay = cap.dur === "all", notes = [];
-    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : "PERSONAL CALENDAR";
-    if (!canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
-    if (state.hidden.personal) notes.push("Personal is hidden. New events save, but stay hidden until you tap Personal on Today.");
+    var now = new Date(), allDay = cap.dur === "all", notes = [], isDate = cap.type === "date";
+    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : isDate ? "NOTION · KEY DATES" : "PERSONAL CALENDAR";
+    $("capForm").style.setProperty("--c", isDate ? "var(--chrome-b)" : "var(--personal)");
+    document.querySelectorAll("[data-ctype]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.ctype === cap.type)); });
+    $("capTypeDate").disabled = !canDates();
+    $("capTypeDate").innerHTML = "KEY DATE" + (canDates() ? "" : "<small>SETUP</small>");
+    $("capAreaRow").hidden = isDate; $("capTimeRow").hidden = isDate;
+    $("capKdRow").hidden = !isDate; $("capUntilRow").hidden = !isDate;
+    $("capYearly").setAttribute("aria-pressed", String(!!cap.yearly));
+    $("capText").placeholder = isDate ? "What's the date? e.g. First frost risk" : "What goes in? e.g. Pick up bee feeder";
+    $("capFootText").textContent = isDate ? "Saves to 🗓️ Key Dates in Notion." : "Saves to your Personal Google Calendar. Work is read-only.";
+    if (!isDate && !canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
+    if (!isDate && state.hidden.personal) notes.push("Personal is hidden. New events save, but stay hidden until you tap Personal on Today.");
     $("capNote").hidden = !notes.length;
     $("capNote").textContent = notes.join(" ");
-    $("capSave").disabled = !canCreate();
+    $("capSave").disabled = isDate ? !canDates() : !canCreate();
     var today = sod(now), tomorrow = addDays(today, 1);
     document.querySelectorAll("[data-capday]").forEach(function (b) {
       var target = b.dataset.capday === "today" ? today : tomorrow;
@@ -774,8 +803,18 @@
   }
   function submitCapture() {
     var title = $("capText").value.trim(), err = $("capErr");
-    if (!canCreate()) return;
     if (!title) { err.textContent = "Type what you want to add first."; $("capText").focus(); return; }
+    if (cap.type === "date") {
+      if (!canDates()) return;
+      var until = $("capUntil").value;
+      if (until && until < ymd(cap.day)) { err.textContent = "The end date is before the start date."; return; }
+      capPrefs.kdArea = $("capLifeArea").value; capPrefs.kdType = $("capKdType").value; lsSet(LS_CAPPREFS, capPrefs);
+      state.queue.push({ kind: "date", cid: newCid(), title: title.slice(0, 200), start: ymd(cap.day), end: until && until !== ymd(cap.day) ? until : null,
+        area: $("capLifeArea").value || null, type: $("capKdType").value || null, yearly: !!cap.yearly, created: Date.now(), attempts: 0 });
+      saveQueue(); closeCapture(); render(true); flushQueue(true);
+      return;
+    }
+    if (!canCreate()) return;
     var item = { cid: newCid(), area: WRITABLE[0], title: title.slice(0, 200), created: Date.now(), attempts: 0 };
     if (cap.dur === "all") {
       item.allDay = true; item.start = ymd(cap.day); item.end = ymd(addDays(cap.day, 1));
@@ -813,12 +852,146 @@
     if (e.target === $("capScrim")) { closeCapture(); return; }
     var b = e.target.closest("button");
     if (!b || b.disabled || !cap) return;
-    if (b.dataset.capday) { cap.day = b.dataset.capday === "today" ? sod(new Date()) : addDays(sod(new Date()), 1); renderCapture(); }
+    if (b.dataset.ctype) { cap.type = b.dataset.ctype; renderCapture(); $("capText").focus(); }
+    else if (b.id === "capYearly") { cap.yearly = !cap.yearly; renderCapture(); }
+    else if (b.dataset.capday) { cap.day = b.dataset.capday === "today" ? sod(new Date()) : addDays(sod(new Date()), 1); renderCapture(); }
     else if (b.dataset.dur) { cap.dur = b.dataset.dur; capPrefs.dur = cap.dur; lsSet(LS_CAPPREFS, capPrefs); renderCapture(); }
   });
   $("capDate").addEventListener("change", function () { if (cap && /^\d{4}-\d{2}-\d{2}$/.test(this.value)) { cap.day = parseYmd(this.value); renderCapture(); } });
   $("capTime").addEventListener("change", function () { if (cap) cap.hour = Number(this.value); });
+  $("capForm").addEventListener("input", function () { $("capErr").textContent = ""; });
+  $("capForm").addEventListener("change", function () { $("capErr").textContent = ""; });
 
+
+
+  /* ---------- Key Dates (Notion) ---------- */
+  var DATES_FRESH_MS = 5 * 60 * 1000;
+  function canDates() { return state.caps.indexOf("dates") > -1; }
+  function loadDates(force) {
+    if (!state.conn || !canDates() || state.datesInflight) return;
+    if (!force && state.dates && Date.now() - state.dates.fetched < DATES_FRESH_MS) return;
+    if (!force && state.datesErr && Date.now() - state.datesErr.at < FRESH_MS) return;
+    state.datesInflight = true;
+    api({ action: "dates" }).then(function (j) {
+      state.dates = { fetched: Date.now(), dates: j.dates || [], areas: j.areas || [], types: j.types || [] };
+      state.datesErr = null;
+      lsSet(LS_DATES, state.dates);
+    }).catch(function (err) {
+      state.datesErr = { at: Date.now(), msg: describeTasks(err) };
+    }).then(function () {
+      state.datesInflight = false;
+      if (["today", "week", "month", "dates", "systems"].indexOf(state.screen) > -1) render(true);
+    });
+  }
+  function addKeyDate(d) {
+    if (!state.dates) state.dates = { fetched: 0, dates: [], areas: [], types: [] };
+    if (!state.dates.dates.some(function (x) { return x.id === d.id; })) state.dates.dates.push(d);
+    lsSet(LS_DATES, state.dates);
+  }
+  function leap(y) { return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0; }
+  function shiftYear(s, by) {
+    var y = +s.slice(0, 4) + by, m = +s.slice(5, 7), d = +s.slice(8, 10);
+    if (m === 2 && d === 29 && !leap(y)) d = 28;
+    return y + "-" + p2(m) + "-" + p2(d);
+  }
+  function daysBetween(a, b) { return Math.round((parseYmd(b) - parseYmd(a)) / 86400000); }
+  /* Every occurrence overlapping [from, to] (yyyy-mm-dd, inclusive). Yearly dates repeat. */
+  function occurrences(from, to) {
+    var out = [], fy = +from.slice(0, 4), ty = +to.slice(0, 4);
+    ((state.dates && state.dates.dates) || []).forEach(function (d) {
+      var s = d.start, e = d.end || d.start;
+      var add = function (os, oe) { if (os <= to && oe >= from) { var o = { d: d, s: os, e: oe, id: d.id + "@" + os }; state.index["kd:" + o.id] = o; out.push(o); } };
+      if (!d.yearly) { add(s, e); return; }
+      for (var y = fy - 1; y <= ty; y++) add(shiftYear(s, y - +s.slice(0, 4)), shiftYear(e, y - +s.slice(0, 4)));
+    });
+    return out.sort(function (a, b) { return a.s.localeCompare(b.s) || a.d.title.localeCompare(b.d.title); });
+  }
+  function countdown(o, ref) {
+    if (o.s > ref) { var n = daysBetween(ref, o.s); return n === 1 ? "TOMORROW" : "IN " + n + " D"; }
+    if (o.s === ref) return o.e > ref ? "STARTS TODAY" : "TODAY";
+    if (o.e >= ref) return o.e === ref ? "ENDS TODAY" : daysBetween(ref, o.e) + " D LEFT";
+    return "PAST";
+  }
+  function soon(o, ref) { return o.s <= ref || daysBetween(ref, o.s) <= 7; }
+  function shortDay(s) { var d = parseYmd(s); return p2(d.getDate()) + " " + MON[d.getMonth()]; }
+  function rangeLabel(o) { return o.e !== o.s ? shortDay(o.s) + " TO " + shortDay(o.e) : shortDay(o.s); }
+  /* Key dates to mark on one day: single dates, window starts and ends (and, if asked, days inside a window). */
+  function kdMarks(day, inside) {
+    if (!canDates() || !state.dates) return [];
+    return occurrences(day, day).filter(function (o) { return o.s === day || o.e === day || inside; }).map(function (o) {
+      var tag = "";
+      if (o.e !== o.s) tag = o.s === day ? "STARTS" : o.e === day ? "ENDS" : "DAY " + (daysBetween(o.s, day) + 1) + " OF " + (daysBetween(o.s, o.e) + 1);
+      return { o: o, tag: tag };
+    });
+  }
+  function kdRow(o, ref) {
+    var d = o.d, meta = [d.type, d.area, d.yearly ? "↻ YEARLY" : ""].filter(Boolean).map(esc).join(" · ");
+    return '<button type="button" class="kd a-' + taskArea(d.area) + '" data-kd="' + esc(o.id) + '"><span class="st"></span>' +
+      '<span class="dt tnum">' + rangeLabel(o) + '</span><span class="tt"><b>' + esc(d.title) + "</b>" + (meta ? "<small>" + meta + "</small>" : "") + "</span>" +
+      '<span class="pill tnum' + (soon(o, ref) ? " soon" : "") + '">' + countdown(o, ref) + "</span></button>";
+  }
+  function keyDatesPanel(day) {
+    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs bridge 1.3 and the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
+    if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
+    var list = occurrences(day, ymd(addDays(parseYmd(day), 30)));
+    var html = phead("KEY DATES", "NEXT 30 DAYS");
+    if (!list.length) html += '<div class="empty">Nothing in the next 30 days.</div>';
+    list.slice(0, 5).forEach(function (o) { html += kdRow(o, day); });
+    if (list.length > 5) html += '<div class="muted" style="font-size:14px;margin-top:6px">+' + (list.length - 5) + " more in the next 30 days</div>";
+    html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button>' +
+      '<button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
+    if (state.datesErr) html += '<div class="err">' + esc(state.datesErr.msg) + "</div>";
+    return html;
+  }
+  function renderDatesScreen() {
+    loadDates(false);
+    var html = '<div class="kdscreen">';
+    if (!canDates()) {
+      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs bridge 1.3 and the 🗓️ Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
+      return;
+    }
+    var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
+    var areas = [["", "ALL"], ["work", "WORK"], ["personal", "PERSONAL"], ["farm", "FARM + BEES"], ["hobby", "HOBBIES"]];
+    html += '<div class="kdtools"><div class="chips">' + areas.map(function (a) {
+      return '<button type="button" class="chip' + (a[0] ? " a-" + a[0] : "") + '" data-kdf="' + a[0] + '" aria-pressed="' + ((f || "") === a[0]) + '">' + a[1] + "</button>";
+    }).join("") + '</div><button type="button" class="btn" data-act="adddate">+ ADD KEY DATE</button></div>';
+    if (!state.dates) { $("content").innerHTML = html + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div></div>"; return; }
+    var list = occurrences(today, end).filter(function (o) { return !f || taskArea(o.d.area) === f; });
+    var now = list.filter(function (o) { return o.s < today; }), later = list.filter(function (o) { return o.s >= today; });
+    if (now.length) html += '<div class="dgroup">' + phead("HAPPENING NOW", now.length + (now.length === 1 ? " WINDOW" : " WINDOWS")) + now.map(function (o) { return kdRow(o, today); }).join("") + "</div>";
+    var byMonth = {};
+    later.forEach(function (o) { var k = o.s.slice(0, 7); (byMonth[k] = byMonth[k] || []).push(o); });
+    Object.keys(byMonth).sort().forEach(function (k) {
+      var g = byMonth[k], d = parseYmd(k + "-01");
+      html += '<div class="dgroup">' + phead(MONL[d.getMonth()] + " " + d.getFullYear(), g.length + (g.length === 1 ? " DATE" : " DATES")) + g.map(function (o) { return kdRow(o, today); }).join("") + "</div>";
+    });
+    if (!list.length) html += '<div class="empty" style="margin-top:20px">' + (f ? "No key dates in this area for the next 12 months." : "No key dates yet. Tap + ADD KEY DATE, or add them in Notion.") + "</div>";
+    html += '<div class="muted" style="margin-top:22px;font-size:14px">Past dates stay in Notion. Edit or delete key dates there.</div>';
+    if (state.datesErr) html += '<div class="err">' + esc(state.datesErr.msg) + "</div>";
+    $("content").innerHTML = html + "</div>";
+  }
+  function openKeyDate(o) {
+    var d = o.d, ref = ymd(new Date());
+    var when = o.e !== o.s ? dLabel(parseYmd(o.s)) + " TO " + dLabel(parseYmd(o.e)) : dLabel(parseYmd(o.s));
+    $("detailSheet").className = "sheet a-" + taskArea(d.area);
+    $("detailSheet").style.setProperty("--c", "var(--" + taskArea(d.area) + ")");
+    $("detailSheet").innerHTML = '<div class="sbar"><span>◆ KEY DATE</span><span>' + esc(d.type || "") + "</span></div>" +
+      '<div class="sbody"><h3 id="detailTitle">' + esc(d.title) + '</h3><div class="tnum">' + esc(when) + " · " + countdown(o, ref) + "</div>" +
+      '<div class="muted">' + [d.area, d.yearly ? "↻ Repeats every year" : ""].filter(Boolean).map(esc).join(" · ") + "</div>" +
+      (d.notes ? "<div>" + esc(d.notes) + "</div>" : "") +
+      '</div><div class="sfoot btnrow">' + (d.url ? '<a class="btn ghost" href="' + esc(d.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
+      '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+    $("detailScrim").hidden = false;
+    $("detailClose").focus();
+  }
+  function fillDateSelects() {
+    var areas = (state.dates && state.dates.areas.length ? state.dates.areas : (state.tasks[ymd(new Date())] || {}).areas) || [];
+    var types = (state.dates && state.dates.types) || [];
+    $("capLifeArea").innerHTML = '<option value="">Life Area</option>' + areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("");
+    $("capKdType").innerHTML = '<option value="">Type</option>' + types.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("");
+    if (capPrefs.kdArea && areas.indexOf(capPrefs.kdArea) > -1) $("capLifeArea").value = capPrefs.kdArea;
+    if (capPrefs.kdType && types.indexOf(capPrefs.kdType) > -1) $("capKdType").value = capPrefs.kdType;
+  }
 
   /* ---------- Plan Day + Priorities (Notion Master Task List) ---------- */
   var DONE = "✅ Done", TODO = "⬜ To Do", INPROG = "🔄 In Progress", BLOCKED = "🚫 Blocked";
@@ -951,6 +1124,14 @@
         (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
         '</small></span><span class="pill ok">OK</span></div>';
     }
+    if (canDates()) {
+      html += state.datesErr
+        ? '<div class="calrow a-farm"><span class="st"></span><span><b>🗓️ Key Dates</b><small class="errtxt">' + esc(state.datesErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
+        : '<div class="calrow a-farm"><span class="st"></span><span><b>🗓️ Key Dates</b><small>' + (state.dates ? state.dates.dates.length + " key dates · synced " + esc(stamp(state.dates.fetched)) : "Not loaded yet") +
+          '</small></span><span class="pill ok">OK</span></div>';
+    } else if (canPlan()) {
+      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>🗓️ Key Dates</b><small>Needs bridge 1.3. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
+    }
     return html + "</section>";
   }
 
@@ -975,6 +1156,11 @@
       var t = all.filter(function (x) { return x.id === id; })[0];
       return t && t.status !== DONE;
     }).length;
+  }
+  function kdComing(day) {
+    if (!canDates() || !state.dates) return "";
+    var list = occurrences(day, ymd(addDays(parseYmd(day), 14))).slice(0, 3);
+    return list.length ? '<div class="dayline kdline">◆ COMING UP: ' + list.map(function (o) { return esc(o.d.title) + " " + countdown(o, day); }).join(" · ") + "</div>" : "";
   }
   function dayContext(day) {
     var d = parseYmd(day), r = { from: sow(d), to: addDays(sow(d), 7) };
@@ -1012,7 +1198,7 @@
     }
     var title = sameDay(parseYmd(day), new Date()) ? "PLAN TODAY · " + dLabel(parseYmd(day)) : "PLAN " + dLabel(parseYmd(day));
     html = '<div class="sbar"><span>' + title + '</span><span id="planCount">' + (data ? openPicks() + " OF 3 PICKED" : "") + "</span></div>" +
-      '<div class="sbody"><div class="dayline">' + dayContext(day) + "</div>";
+      '<div class="sbody"><div class="dayline">' + dayContext(day) + "</div>" + kdComing(day);
     if (!data) {
       html += '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
     } else {
@@ -1124,7 +1310,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ today: renderDay, week: renderWeek, month: renderMonth, systems: renderSystems })[state.screen]();
+    ({ today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     var w2 = $("tlwrap");
     if (w2) w2.scrollTop = keep !== null ? keep : state.scrollTarget || 0;
     var head = $("wkhead");
@@ -1159,7 +1345,11 @@
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
+    else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);
+    else if (b.dataset.act === "dates") go("dates");
+    else if (b.dataset.act === "adddate") openCapture(null, null, "date");
+    else if (b.dataset.kdf !== undefined) { state.kdFilter = b.dataset.kdf || null; render(false); }
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);

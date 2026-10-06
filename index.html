@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=1.5.1">
+<link rel="stylesheet" href="css/app.css?v=1.6.0">
 </head>
 <body>
 <div class="app" id="app">
   <div class="elbow" aria-hidden="true">BRIDGE</div>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 1.5</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 1.6</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -43,7 +43,7 @@
     <button class="nav" data-screen="today" style="--c: var(--chrome-b)" type="button">TODAY</button>
     <button class="nav" data-screen="week" style="--c: var(--chrome-a)" type="button">WEEK</button>
     <button class="nav" data-screen="month" style="--c: var(--chrome-b)" type="button">MONTH</button>
-    <button class="nav" style="--c: var(--chrome-c)" type="button" disabled><small>STANDBY</small>DATES</button>
+    <button class="nav" data-screen="dates" style="--c: var(--chrome-c)" type="button">DATES</button>
     <button class="nav" style="--c: var(--chrome-b)" type="button" disabled><small>STANDBY</small>REVIEW</button>
     <div class="fill" aria-hidden="true"></div>
     <button class="nav sys" data-screen="systems" style="--c: var(--chrome-c)" type="button">SYSTEMS</button>
@@ -59,29 +59,38 @@
       <div class="capnote" id="capNote" hidden></div>
       <input type="text" id="capText" maxlength="200" placeholder="What goes in? e.g. Pick up bee feeder" enterkeyhint="done" autocapitalize="sentences">
       <div class="frow"><span>TYPE</span><div class="chips">
-        <button type="button" class="chip on" aria-pressed="true" tabindex="-1">EVENT</button>
+        <button type="button" class="chip" data-ctype="event">EVENT</button>
         <button type="button" class="chip" disabled>NOTE<small>STANDBY</small></button>
         <button type="button" class="chip" disabled>PRIORITY<small>STANDBY</small></button>
-        <button type="button" class="chip" disabled>KEY DATE<small>STANDBY</small></button>
+        <button type="button" class="chip" data-ctype="date" id="capTypeDate">KEY DATE</button>
       </div></div>
-      <div class="frow"><span>AREA</span><div class="chips">
+      <div class="frow" id="capAreaRow"><span>AREA</span><div class="chips">
         <button type="button" class="chip on a-personal" aria-pressed="true" tabindex="-1">PERSONAL</button>
         <button type="button" class="chip a-farm" disabled>FARM + BEES<small>STANDBY</small></button>
         <button type="button" class="chip a-hobby" disabled>HOBBIES<small>STANDBY</small></button>
+      </div></div>
+      <div class="frow" id="capKdRow" hidden><span>AREA</span><div class="chips">
+        <select id="capLifeArea" aria-label="Life Area"></select>
+        <select id="capKdType" aria-label="Type"></select>
+        <button type="button" class="chip" id="capYearly" aria-pressed="false">↻ YEARLY</button>
       </div></div>
       <div class="frow"><span>DAY</span><div class="chips">
         <button type="button" class="chip" data-capday="today">TODAY</button>
         <button type="button" class="chip" data-capday="tomorrow">TOMORROW</button>
         <input type="date" id="capDate" aria-label="Pick a day">
       </div></div>
-      <div class="frow"><span>TIME</span><div class="chips">
+      <div class="frow" id="capUntilRow" hidden><span>UNTIL</span><div class="chips">
+        <input type="date" id="capUntil" aria-label="End date, for windows">
+        <span class="muted" style="font-size:14px">Optional, for windows like a planting season.</span>
+      </div></div>
+      <div class="frow" id="capTimeRow"><span>TIME</span><div class="chips">
         <select id="capTime" aria-label="Start time"></select>
         <span class="chips" id="capDurs"></span>
       </div></div>
       <div class="err" id="capErr" role="alert"></div>
     </div>
     <div class="sfoot capfoot">
-      <span class="muted">Saves to your Personal Google Calendar. Work is read-only.</span>
+      <span class="muted" id="capFootText">Saves to your Personal Google Calendar. Work is read-only.</span>
       <span class="btnrow">
         <button type="button" class="btn ghost" id="capCancel">CANCEL</button>
         <button type="submit" class="btn capture" id="capSave">SAVE ▶</button>
@@ -101,6 +110,6 @@
 <button class="update" id="updateBtn" type="button" hidden>▲ UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=1.5.1"></script>
+<script src="js/app.js?v=1.6.0"></script>
 </body>
 </html>

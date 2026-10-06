@@ -456,6 +456,25 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .newtask select { min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px; padding: 6px 12px; color: var(--fg); font-size: 15px; max-width: 190px; }
 .newtask .btn { min-height: 48px; }
 
+/* ---------- Key Dates ---------- */
+.kd {
+  display: grid; grid-template-columns: 8px 86px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  width: 100%; min-height: 56px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; padding: 4px 0;
+}
+.kd .st { align-self: stretch; background: var(--c); border-radius: 4px; margin-block: 8px; }
+.kd .dt { font-family: var(--display); font-size: 16px; letter-spacing: .04em; line-height: 1.1; }
+.kd .tt { display: flex; flex-direction: column; min-width: 0; }
+.kd .tt b { font-weight: 600; }
+.kd .tt small { color: var(--dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill.soon { background: color-mix(in srgb, var(--c, var(--warn)) 30%, var(--panel)); color: var(--fg); }
+.kdscreen { max-width: 900px; }
+.kdtools { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dgroup { margin-top: 22px; }
+.kdchip { border-left-style: solid; background: color-mix(in srgb, var(--c) 30%, var(--panel)); font-weight: 600; }
+.kdspan { border: 0; display: block; width: 100%; text-align: left; font-size: 12px; line-height: 1.2; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 40%, var(--panel)); padding: 1px 4px; border-radius: 0 6px 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.moc .li.kdli { font-weight: 600; border-left-width: 3px; background: color-mix(in srgb, var(--c) 22%, transparent); border-radius: 0 4px 4px 0; }
+.kdline { color: var(--chrome-a); }
+
 /* ---------- Captured items still on this iPad ---------- */
 .ev.pending, .wkb.pending, .adchip.pending { border-left-style: dashed; background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255, 255, 255, .07) 8px 16px); }
 .moc .li.pending { border-left-style: dashed; }
@@ -476,7 +495,7 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .frow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; }
 .frow > span { font-family: var(--display); letter-spacing: .14em; color: var(--dim); font-size: 15px; }
 #capText { font-size: 20px; min-height: 58px; }
-#capDate, #capTime {
+#capDate, #capTime, #capUntil, #capLifeArea, #capKdType {
   min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px;
   padding: 6px 14px; font-family: var(--display); font-size: 16px; letter-spacing: .08em; color: var(--fg);
 }
