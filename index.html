@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=1.3.0">
+<link rel="stylesheet" href="css/app.css?v=1.4.0">
 </head>
 <body>
 <div class="app" id="app">
   <div class="elbow" aria-hidden="true">BRIDGE</div>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 1.3</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 1.4</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -35,7 +35,7 @@
       <div class="actions" aria-label="Coming later">
         <button class="btn plan" type="button" disabled title="Standby: arrives with priorities">☀ PLAN DAY<small>STANDBY</small></button>
         <button class="btn ask" type="button" disabled title="Standby: arrives in a later stage">◆ ASK<small>STANDBY</small></button>
-        <button class="btn capture" type="button" disabled title="Standby: arrives when calendars become writable">▶ CAPTURE<small>STANDBY</small></button>
+        <button class="btn capture" type="button" id="capBtn">▶ CAPTURE</button>
       </div>
     </div>
   </header>
@@ -52,6 +52,44 @@
   <main class="content" id="content"></main>
 </div>
 
+<div class="scrim capscrim" id="capScrim" hidden>
+  <form class="sheet" id="capForm" autocomplete="off" novalidate aria-label="Quick capture" style="--c: var(--personal)">
+    <div class="sbar"><span>QUICK CAPTURE</span><span id="capMode">PERSONAL CALENDAR</span></div>
+    <div class="sbody">
+      <div class="capnote" id="capNote" hidden></div>
+      <input type="text" id="capText" maxlength="200" placeholder="What goes in? e.g. Pick up bee feeder" enterkeyhint="done" autocapitalize="sentences">
+      <div class="frow"><span>TYPE</span><div class="chips">
+        <button type="button" class="chip on" aria-pressed="true" tabindex="-1">EVENT</button>
+        <button type="button" class="chip" disabled>NOTE<small>STANDBY</small></button>
+        <button type="button" class="chip" disabled>PRIORITY<small>STANDBY</small></button>
+        <button type="button" class="chip" disabled>KEY DATE<small>STANDBY</small></button>
+      </div></div>
+      <div class="frow"><span>AREA</span><div class="chips">
+        <button type="button" class="chip on a-personal" aria-pressed="true" tabindex="-1">PERSONAL</button>
+        <button type="button" class="chip a-farm" disabled>FARM + BEES<small>STANDBY</small></button>
+        <button type="button" class="chip a-hobby" disabled>HOBBIES<small>STANDBY</small></button>
+      </div></div>
+      <div class="frow"><span>DAY</span><div class="chips">
+        <button type="button" class="chip" data-capday="today">TODAY</button>
+        <button type="button" class="chip" data-capday="tomorrow">TOMORROW</button>
+        <input type="date" id="capDate" aria-label="Pick a day">
+      </div></div>
+      <div class="frow"><span>TIME</span><div class="chips">
+        <select id="capTime" aria-label="Start time"></select>
+        <span class="chips" id="capDurs"></span>
+      </div></div>
+      <div class="err" id="capErr" role="alert"></div>
+    </div>
+    <div class="sfoot capfoot">
+      <span class="muted">Saves to your Personal Google Calendar. Work is read-only.</span>
+      <span class="btnrow">
+        <button type="button" class="btn ghost" id="capCancel">CANCEL</button>
+        <button type="submit" class="btn capture" id="capSave">SAVE ▶</button>
+      </span>
+    </div>
+  </form>
+</div>
+
 <div class="scrim" id="detailScrim" hidden>
   <div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
 </div>
@@ -59,6 +97,6 @@
 <button class="update" id="updateBtn" type="button" hidden>▲ UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=1.3.0"></script>
+<script src="js/app.js?v=1.4.0"></script>
 </body>
 </html>

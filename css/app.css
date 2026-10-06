@@ -232,6 +232,10 @@ h1 {
   letter-spacing: .1em;
 }
 .chip:not(:disabled):active { background: var(--panel-2); }
+.chip[aria-pressed="true"] { background: var(--c, var(--chrome-b)); border-color: var(--c, var(--chrome-b)); color: var(--ink); }
+.chip:disabled { opacity: .35; background-image: var(--hatch); display: inline-flex; flex-direction: column; justify-content: center; line-height: 1.05; }
+.chip small { font-size: 10px; letter-spacing: .2em; }
+.chip.on { pointer-events: none; }
 .a-work { --c: var(--work); }
 .a-farm { --c: var(--farm); }
 .a-hobby { --c: var(--hobby); }
@@ -422,6 +426,12 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .err { color: var(--bad); min-height: 1.3em; }
 .okmsg { color: var(--ok); min-height: 1.3em; }
 
+/* ---------- Captured items still on this iPad ---------- */
+.ev.pending, .wkb.pending, .adchip.pending { border-left-style: dashed; background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255, 255, 255, .07) 8px 16px); }
+.moc .li.pending { border-left-style: dashed; }
+.ev.failed, .wkb.failed, .adchip.failed { box-shadow: inset 0 0 0 2px var(--bad); }
+.errtxt { color: var(--bad); }
+
 /* ---------- Overlays ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(4, 4, 8, .72); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .sheet { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border-radius: 0 0 24px 24px; padding: 0 0 20px; }
@@ -430,6 +440,18 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .sheet .sbody { padding: 18px 22px 0; display: grid; gap: 14px; }
 .sheet h3 { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.15; }
 .sheet .sfoot { display: flex; justify-content: flex-end; padding: 16px 22px 0; }
+.capscrim { align-items: flex-start; padding-top: max(40px, 6vh); }
+.capscrim .sheet { width: min(720px, 100%); }
+.capnote { border: 2px dashed var(--warn); border-radius: 12px; padding: 10px 14px; color: var(--warn); }
+.frow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; }
+.frow > span { font-family: var(--display); letter-spacing: .14em; color: var(--dim); font-size: 15px; }
+#capText { font-size: 20px; min-height: 58px; }
+#capDate, #capTime {
+  min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px;
+  padding: 6px 14px; font-family: var(--display); font-size: 16px; letter-spacing: .08em; color: var(--fg);
+}
+.capfoot { justify-content: space-between !important; align-items: center; gap: 12px; flex-wrap: wrap; }
+.capfoot .muted { font-size: 15px; }
 .toast {
   position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   background: var(--fg); color: var(--ink); z-index: 30;
@@ -475,6 +497,7 @@ input:focus { border-color: var(--chrome-b); outline: none; }
   .moc { min-height: 64px; padding: 4px; }
   .moc .li, .moc .more { display: none; }
   .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .frow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .kv dd { margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

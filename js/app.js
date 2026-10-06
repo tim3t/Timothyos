@@ -1,14 +1,18 @@
-/* TimothyOS 1.0: calendar core.
+/* TimothyOS: calendar core + capture.
    Reads work + personal calendars through the Apps Script bridge and shows
-   them in Day, Week and Month views. Everything else is on standby. */
+   them in Day, Week and Month views. Capture adds events to Personal.
+   Everything else is on standby. */
 (function () {
   "use strict";
 
-  var VERSION = "1.3.0";
+  var VERSION = "1.4.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
   var LS_HIDDEN = "tos.hidden.v1";
+  var LS_QUEUE = "tos.queue.v1";       /* captures waiting to be saved */
+  var LS_CAPPREFS = "tos.capprefs.v1";
+  var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
   var KEEP_RANGES = 8;
@@ -22,7 +26,7 @@
   var LIVE = ["work", "personal"];
   var STANDBY_AREAS = ["farm", "hobby"];
   var STANDBY_MODULES = [
-    ["QUICK CAPTURE", "Add events and notes in seconds."],
+    ["MORE CAPTURE TYPES", "Notes, priorities and key dates, with the Notion link."],
     ["ASK CLAUDE", "Questions about your days and projects."],
     ["PLAN DAY", "Pick up to three priorities each morning."],
     ["PRIORITIES", "Daily priorities, stored in Notion."],
@@ -104,6 +108,11 @@
     ranges: cached.ranges || {},
     calendars: cached.calendars || [],
     bridgeVersion: cached.bridgeVersion || null,
+    caps: cached.caps || [],             /* bridge abilities, e.g. ["read", "create"] */
+    queue: lsGet(LS_QUEUE) || [],
+    flushing: false,
+    dayScale: null,
+    weekScale: null,
     sync: lsGet(LS_SYNC) || { status: "idle", at: null, error: null },
     hidden: lsGet(LS_HIDDEN) || {},   /* calendars toggled off on Today, e.g. { work: true } */
     inflight: {},
@@ -125,17 +134,26 @@
     var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
     /* Plain GET with no custom headers, so Apps Script answers without a CORS preflight. */
     return fetch(u.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
-      .then(function (r) {
-        if (!r.ok) { var e = new Error("http_" + r.status); e.code = "http_" + r.status; throw e; }
-        return r.text();
-      })
-      .then(function (txt) {
-        var j;
-        try { j = JSON.parse(txt); } catch (x) { var e1 = new Error("bad_json"); e1.code = "bad_json"; throw e1; }
-        if (!j || j.ok !== true) { var e2 = new Error((j && j.error) || "bad_response"); e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; throw e2; }
-        return j;
-      })
+      .then(readReply)
       .finally(function () { if (timer) clearTimeout(timer); });
+  }
+  /* Writes go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
+  function apiPost(body) {
+    var conn = state.conn;
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+    return fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+      .then(readReply)
+      .finally(function () { if (timer) clearTimeout(timer); });
+  }
+  function readReply(r) {
+    if (!r.ok) { var e = new Error("http_" + r.status); e.code = "http_" + r.status; throw e; }
+    return r.text().then(function (txt) {
+      var j;
+      try { j = JSON.parse(txt); } catch (x) { var e1 = new Error("bad_json"); e1.code = "bad_json"; throw e1; }
+      if (!j || j.ok !== true) { var e2 = new Error((j && j.error) || "bad_response"); e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; throw e2; }
+      return j;
+    });
   }
   function isNetworkError(err) { return !!err && (err.name === "TypeError" || err.name === "AbortError"); }
   function describe(err) {
@@ -157,7 +175,8 @@
     return { from: w, to: addDays(w, 7) };
   }
   function rkey(r) { return r.from.getTime() + "_" + r.to.getTime(); }
-  function eventsFor(r) {
+  function eventsFor(r) { return cachedEventsFor(r).concat(pendingEvents()); }
+  function cachedEventsFor(r) {
     var exact = state.ranges[rkey(r)];
     if (exact) return exact.events;
     var seen = {}, out = [], f = r.from.getTime(), t = r.to.getTime();
@@ -198,7 +217,13 @@
       if (h <= FOCUS_END) return FOCUS_START * slim + (h - FOCUS_START) * full;
       return FOCUS_START * slim + (FOCUS_END - FOCUS_START) * full + (h - FOCUS_END) * slim;
     }
-    return { y: y, total: y(24) };
+    function hourAt(px) {
+      var a = FOCUS_START * slim, b = a + (FOCUS_END - FOCUS_START) * full;
+      if (px <= a) return px / slim;
+      if (px <= b) return FOCUS_START + (px - a) / full;
+      return Math.min(24, FOCUS_END + (px - b) / slim);
+    }
+    return { y: y, total: y(24), hourAt: hourAt };
   }
   /* Faint shading behind the quieter hours. */
   function quietBands(sc, cls) {
@@ -257,7 +282,7 @@
   function persist() {
     var keys = Object.keys(state.ranges).sort(function (a, b) { return state.ranges[b].fetched - state.ranges[a].fetched; });
     keys.slice(KEEP_RANGES).forEach(function (k) { delete state.ranges[k]; });
-    lsSet(LS_CACHE, { ranges: state.ranges, calendars: state.calendars, bridgeVersion: state.bridgeVersion });
+    lsSet(LS_CACHE, { ranges: state.ranges, calendars: state.calendars, bridgeVersion: state.bridgeVersion, caps: state.caps });
   }
   function refresh(force) {
     if (!state.conn || (state.screen === "systems" && !force)) return;
@@ -270,9 +295,11 @@
       state.ranges[k] = { from: r.from.getTime(), to: r.to.getTime(), fetched: Date.now(), events: j.events || [] };
       state.calendars = j.calendars || state.calendars;
       if (j.version) state.bridgeVersion = j.version;
+      state.caps = j.capabilities || [];
       persist();
       setSync("ok");
       if (state.screen === "systems") toast("Synced");
+      flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
     }).catch(function (err) {
       setSync(isNetworkError(err) || navigator.onLine === false ? "offline" : "error", describe(err));
@@ -285,7 +312,8 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     $("pager").hidden = !linked || state.screen === "systems";
-    $("topNote").textContent = linked ? "CALENDAR CORE · READ-ONLY" : "CALENDAR CORE · NOT LINKED";
+    $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
+    $("capBtn").disabled = !linked;
     if (!linked && state.screen !== "systems") { e.textContent = "FIRST RUN"; t.textContent = "LINK CALENDARS"; }
     else if (state.screen === "today") {
       var diff = Math.round((sod(a) - sod(now)) / 86400000);
@@ -310,6 +338,9 @@
     else if (st.status === "offline") { cls = "offline"; line1 = "OFFLINE"; line2 = at ? "CACHED " + at : "NO DATA YET"; }
     else if (st.status === "error") { cls = "error"; line1 = "SYNC ERROR"; line2 = "SEE SYSTEMS"; }
     else { cls = "ok"; line1 = at ? "SYNCED" : "WAITING"; line2 = at; }
+    var waiting = queued().length, failed = state.queue.length - waiting;
+    if (state.conn && failed) { cls = "error"; line1 = "NOT SAVED"; line2 = failed + (failed === 1 ? " CAPTURE" : " CAPTURES"); }
+    else if (state.conn && waiting) line2 = waiting + " QUEUED";
     s.className = "status " + cls;
     s.innerHTML = '<b><span class="dot"></span>' + line1 + "</b><span>" + esc(line2) + "</span>";
   }
@@ -326,7 +357,7 @@
     if (de.allDay.length) {
       html += '<div class="allday">' + de.allDay.map(function (ev) {
         state.index[ev.id] = ev;
-        return '<button type="button" class="adchip a-' + ev.area + '" data-id="' + esc(ev.id) + '">ALL DAY · ' + esc(ev.title) + "</button>";
+        return '<button type="button" class="adchip a-' + ev.area + pendingCls(ev) + '" data-id="' + esc(ev.id) + '">ALL DAY · ' + esc(ev.title) + pendingTag(ev) + "</button>";
       }).join("") + "</div>";
     }
     html += '<div class="tlwrap" id="tlwrap"><div class="tl" style="height:' + sc.total + 'px">' + quietBands(sc, "quietband");
@@ -336,10 +367,10 @@
     rows.forEach(function (row) {
       var ev = row.ev, top = row.ys + 1, height = Math.max(24, row.ye - row.ys - 3);
       state.index[ev.id] = ev;
-      var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "");
+      var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "") + pendingCls(ev);
       html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height +
         "px;left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
-        '<span class="lbl"><span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + "</span></span></button>";
+        '<span class="lbl"><span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + pendingTag(ev) + "</span></span></button>";
     });
     var nowH = now.getHours() + now.getMinutes() / 60;
     if (isToday) html += '<div class="now" style="top:' + sc.y(nowH) + 'px"><span class="tnum">' + hm(now) + "</span></div>";
@@ -370,6 +401,7 @@
     html += "</section></div>";
     $("content").innerHTML = html;
 
+    state.dayScale = sc;
     var first = rows.length ? rows[0].s : 8;
     state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, Math.min(first, 18)) - 0.5));
   }
@@ -405,11 +437,11 @@
     var lines = "";
     for (var k = 1; k < 24; k++) lines += '<div class="wkline" style="top:' + sc.y(k) + 'px"></div>';
     days.forEach(function (x) {
-      html += '<div class="wkcol" style="height:' + sc.total + 'px">' + quietBands(sc, "wkband") + lines;
+      html += '<div class="wkcol" data-ymd="' + ymd(x.d) + '" style="height:' + sc.total + 'px">' + quietBands(sc, "wkband") + lines;
       x.rows.forEach(function (row) {
         var ev = row.ev, hgt = Math.max(14, row.ye - row.ys - 2);
         state.index[ev.id] = ev;
-        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
+        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + pendingCls(ev) + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
           '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
           ");width:calc((100% - 4px) / " + row.n + ' - 2px)">' + (hgt >= 26 ? '<span class="lbl">' + esc(ev.title) + "</span>" : "") + "</button>";
       });
@@ -418,6 +450,7 @@
     });
     html += "</div></div></div></div>";
     $("content").innerHTML = html;
+    state.weekScale = sc;
     var thisWeek = days.some(function (x) { return sameDay(x.d, now); });
     state.scrollTarget = Math.max(0, sc.y(thisWeek ? Math.min(nowH, 18) - 2 : FOCUS_START) - 8);
   }
@@ -434,7 +467,7 @@
         '<span class="top1"><span class="n tnum">' + d.getDate() + '</span><span class="dots">' +
         present.map(function (a) { return '<i class="a-' + a + '"></i>'; }).join("") + "</span></span>" +
         all.slice(0, 3).map(function (ev) {
-          return '<span class="li a-' + ev.area + '">' + (ev.allDay ? "" : '<span class="tnum">' + hm(ev._s) + "</span> ") + esc(ev.title) + "</span>";
+          return '<span class="li a-' + ev.area + pendingCls(ev) + '">' + (ev.allDay ? "" : '<span class="tnum">' + hm(ev._s) + "</span> ") + esc(ev.title) + "</span>";
         }).join("") +
         (all.length > 3 ? '<span class="more">+' + (all.length - 3) + " MORE</span>" : "") + "</button>";
     }
@@ -465,7 +498,7 @@
         : '<button type="button" class="btn capture" data-act="setup">LINK CALENDARS</button>') +
       "</div></section>";
 
-    html += "<section>" + phead("CALENDARS", "READ-ONLY");
+    html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · PERSONAL TAKES CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
       var cs = calStatus(k);
       html += '<div class="calrow a-' + k + '"><span class="st"></span><span><b>' + AREAS[k].name + "</b><small>" +
@@ -478,6 +511,7 @@
     });
     html += "</section>";
 
+    html += captureSection();
     html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
       STANDBY_MODULES.map(function (m) { return '<div class="stubbox"><span><b style="color:var(--fg)">' + m[0] + "</b><br>" + m[1] + "</span></div>"; }).join("") + "</div></section>";
 
@@ -514,6 +548,7 @@
       lsSet(LS_CONN, conn);
       state.calendars = j.calendars || [];
       state.bridgeVersion = j.version || null;
+      state.caps = j.capabilities || [];
       persist();
       var bad = state.calendars.filter(function (c) { return !c.ok; });
       toast(bad.length ? "Linked. One calendar needs attention, see Systems." : "Linked. Loading your calendars.");
@@ -537,15 +572,222 @@
     }
     $("detailSheet").className = "sheet a-" + ev.area;
     $("detailSheet").style.setProperty("--c", "var(--" + ev.area + ")");
-    $("detailSheet").innerHTML = '<div class="sbar"><span>' + AREAS[ev.area].name + "</span><span>READ-ONLY</span></div>" +
+    var q = ev.pending ? queueItem(ev.cid) : null;
+    $("detailSheet").innerHTML = '<div class="sbar"><span>' + AREAS[ev.area].name + "</span><span>" +
+      (q ? (q.failed ? "NOT SAVED" : "WAITING TO SAVE") : ev.area === "work" ? "READ-ONLY" : "VIEW ONLY") + "</span></div>" +
       '<div class="sbody"><h3 id="detailTitle">' + esc(ev.title) + '</h3><div class="tnum">' + esc(when) + "</div>" +
       (ev.location ? '<div class="muted">' + esc(ev.location) + "</div>" : "") +
       (ev.busy ? '<div class="muted">Details are hidden. This calendar is shared as free/busy only, or the event is private.</div>' : "") +
-      '</div><div class="sfoot"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+      (q ? '<div class="' + (q.failed ? "err" : "muted") + '">' + (q.failed ? esc(q.lastError || "Not saved.") :
+        "Captured on this iPad. It saves to your Personal calendar as soon as Google answers.") + "</div>" : "") +
+      '</div><div class="sfoot btnrow">' +
+      (q ? (q.failed ? '<button type="button" class="btn" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
+        '<button type="button" class="btn ghost" data-qdiscard="' + esc(q.cid) + '">DISCARD</button>' : "") +
+      '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
     $("detailScrim").hidden = false;
     $("detailClose").focus();
   }
   function closeDetail() { $("detailScrim").hidden = true; }
+
+
+  /* ---------- Capture ---------- */
+  var WRITABLE = ["personal"];              /* Work is never offered */
+  var RETRYABLE = { bad_json: 1, server_error: 1, bad_response: 1 };
+  var DURS = [["0.25", "15 MIN"], ["0.5", "30 MIN"], ["1", "1 HR"], ["2", "2 HR"], ["all", "ALL DAY"]];
+  var capPrefs = lsGet(LS_CAPPREFS) || { dur: "1" };
+  var cap = null;
+
+  function canCreate() { return state.caps.indexOf("create") > -1; }
+  function areaName(k) { return AREAS[k].name.charAt(0) + AREAS[k].name.slice(1).toLowerCase(); }
+  function queued() { return state.queue.filter(function (q) { return !q.failed; }); }
+  function queueItem(cid) { return state.queue.filter(function (q) { return q.cid === cid; })[0]; }
+  function saveQueue() { lsSet(LS_QUEUE, state.queue); }
+  function newCid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    var a = new Uint8Array(16);
+    (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach(function (v, i) { a[i] = Math.random() * 256; });
+    return Array.prototype.map.call(a, function (b) { return p2(b.toString(16)); }).join("");
+  }
+  function whenLabel(q) {
+    if (q.allDay) return dLabel(parseYmd(q.start)) + " · ALL DAY";
+    var s = new Date(q.start);
+    return dLabel(s) + " " + hm(s);
+  }
+  /* Captures still on this iPad, drawn on the calendar as dashed blocks. */
+  function pendingEvents() {
+    return state.queue.map(function (q) {
+      return { id: "pending:" + q.cid, cid: q.cid, area: q.area, title: q.title, allDay: !!q.allDay, start: q.start, end: q.end, location: "",
+        pending: q.failed ? "failed" : q.attempts ? "queued" : "saving" };
+    });
+  }
+  function pendingCls(ev) { return ev.pending ? " pending" + (ev.pending === "failed" ? " failed" : "") : ""; }
+  function pendingTag(ev) { return ev.pending ? " · " + { saving: "SAVING", queued: "QUEUED", failed: "NOT SAVED" }[ev.pending] : ""; }
+  /* Put a confirmed event into the cached ranges so it shows before the next sync. */
+  function addConfirmed(ev) {
+    var at = ev.allDay ? parseYmd(ev.start).getTime() : Date.parse(ev.start);
+    Object.keys(state.ranges).forEach(function (k) {
+      var r = state.ranges[k];
+      if (at >= r.from && at < r.to && !r.events.some(function (x) { return x.id === ev.id; })) r.events.push(ev);
+    });
+    persist();
+  }
+  function describeCapture(err) {
+    var code = err && (err.code || err.message);
+    return {
+      not_writable: "That calendar is read-only.",
+      bad_title: "The title is empty or longer than 200 characters.",
+      bad_time: "The bridge only accepts times from 2 days ago to about a year ahead.",
+      bad_request: "The bridge couldn't read this capture.",
+      unauthorized: "The access key was rejected. Re-link in Systems.",
+      unknown_action: "The bridge needs the 1.1 update before it can save events.",
+      retries: "Google kept failing after " + MAX_ATTEMPTS + " tries."
+    }[code] || describe(err);
+  }
+
+  /* Send queued captures one at a time. Network trouble and temporary Google
+     errors keep the item queued; anything else marks it NOT SAVED. */
+  function flushQueue(announce) {
+    if (!state.conn || state.flushing || !canCreate()) return;
+    var next = queued()[0];
+    if (!next) return;
+    state.flushing = true;
+    apiPost({ action: "create", item: { cid: next.cid, area: next.area, title: next.title, allDay: !!next.allDay, start: next.start, end: next.end } })
+      .then(function (j) {
+        state.flushing = false;
+        state.queue = state.queue.filter(function (q) { return q.cid !== next.cid; });
+        saveQueue();
+        if (j.event) addConfirmed(j.event);
+        if (announce) toast("Saved to " + areaName(next.area) + " · " + whenLabel(next));
+        render(true);
+        if (queued().length) flushQueue(announce); else refresh(true);
+      })
+      .catch(function (err) {
+        state.flushing = false;
+        var code = err && err.code;
+        next.attempts = (next.attempts || 0) + 1;
+        if ((isNetworkError(err) || RETRYABLE[code] || /^http_5/.test(code || "")) && next.attempts < MAX_ATTEMPTS) {
+          next.lastError = describe(err);
+          saveQueue();
+          if (announce) toast(isNetworkError(err) || navigator.onLine === false ? "Queued. It saves when you're back online." : "Google didn't answer. Queued to retry.");
+          render(true);
+          return;
+        }
+        next.failed = isNetworkError(err) || RETRYABLE[code] ? "retries" : code || "error";
+        next.lastError = describeCapture(next.failed === "retries" ? { code: "retries" } : err);
+        saveQueue();
+        toast("Not saved: " + next.lastError);
+        render(true);
+        flushQueue(false);
+      });
+  }
+  function retryCapture(cid) {
+    var q = queueItem(cid);
+    if (!q) return;
+    delete q.failed; q.attempts = 0; q.lastError = "";
+    saveQueue(); render(true); flushQueue(true);
+  }
+  function discardCapture(cid) {
+    state.queue = state.queue.filter(function (q) { return q.cid !== cid; });
+    saveQueue(); render(true);
+    toast("Discarded. Nothing was saved to Google.");
+  }
+
+  function captureSection() {
+    var html = "<section>" + phead("CAPTURE", canCreate() ? "SAVES TO PERSONAL" : "BRIDGE UPDATE NEEDED");
+    if (!canCreate()) {
+      html += '<div class="stubbox"><span class="pill">UPDATE</span><span>Your bridge is version ' + esc(state.bridgeVersion || "1.0") +
+        ". Capture needs bridge 1.1: paste the latest Code.gs, run <b>setup</b>, then deploy a new version. Steps are in the README.</span></div>";
+    }
+    if (!state.queue.length) html += '<div class="empty">Nothing waiting. Every capture has been saved.</div>';
+    state.queue.forEach(function (q) {
+      html += '<div class="calrow a-' + q.area + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
+        (q.failed ? '<span class="errtxt">' + esc(q.lastError || "Not saved") + "</span>" : q.attempts ? "Queued, " + q.attempts + (q.attempts === 1 ? " try" : " tries") : "Saving") +
+        '</small></span><span class="btnrow">' + (q.failed ? '<button type="button" class="chip" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
+        '<button type="button" class="chip" data-qdiscard="' + esc(q.cid) + '">DISCARD</button></span></div>';
+    });
+    if (queued().length && canCreate()) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="flush">SEND NOW</button></div>';
+    return html + "</section>";
+  }
+
+  /* --- the sheet --- */
+  function openCapture(day, hour) {
+    if (!state.conn) return;
+    var now = new Date(), d = sod(day || (state.screen === "today" ? state.anchor : now)), h;
+    if (typeof hour === "number") h = hour;
+    else if (sameDay(d, now)) h = Math.min(23.75, Math.ceil((now.getHours() + now.getMinutes() / 60) * 2) / 2);
+    else h = 9;
+    cap = { day: d, hour: h, dur: capPrefs.dur || "1" };
+    $("capText").value = "";
+    $("capErr").textContent = "";
+    renderCapture();
+    $("capScrim").hidden = false;
+    setTimeout(function () { $("capText").focus(); }, 60);
+  }
+  function closeCapture() { $("capScrim").hidden = true; cap = null; }
+  function renderCapture() {
+    var now = new Date(), allDay = cap.dur === "all", notes = [];
+    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : "PERSONAL CALENDAR";
+    if (!canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
+    if (state.hidden.personal) notes.push("Personal is hidden. New events save, but stay hidden until you tap Personal on Today.");
+    $("capNote").hidden = !notes.length;
+    $("capNote").textContent = notes.join(" ");
+    $("capSave").disabled = !canCreate();
+    var today = sod(now), tomorrow = addDays(today, 1);
+    document.querySelectorAll("[data-capday]").forEach(function (b) {
+      var target = b.dataset.capday === "today" ? today : tomorrow;
+      b.setAttribute("aria-pressed", String(sameDay(cap.day, target)));
+    });
+    $("capDate").value = ymd(cap.day);
+    $("capTime").value = String(cap.hour);
+    $("capTime").hidden = allDay;
+    document.querySelectorAll("[data-dur]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.dur === cap.dur)); });
+  }
+  function submitCapture() {
+    var title = $("capText").value.trim(), err = $("capErr");
+    if (!canCreate()) return;
+    if (!title) { err.textContent = "Type what you want to add first."; $("capText").focus(); return; }
+    var item = { cid: newCid(), area: WRITABLE[0], title: title.slice(0, 200), created: Date.now(), attempts: 0 };
+    if (cap.dur === "all") {
+      item.allDay = true; item.start = ymd(cap.day); item.end = ymd(addDays(cap.day, 1));
+    } else {
+      var s = new Date(cap.day);
+      s.setHours(Math.floor(cap.hour), Math.round((cap.hour % 1) * 60), 0, 0);
+      if (s.getTime() < Date.now() - 2 * 86400000) { err.textContent = "That's more than 2 days ago. Pick a later day."; return; }
+      item.allDay = false; item.start = s.toISOString(); item.end = new Date(s.getTime() + Number(cap.dur) * 3600000).toISOString();
+    }
+    state.queue.push(item);
+    saveQueue();
+    closeCapture();
+    render(true);
+    flushQueue(true);
+  }
+  /* Tap an empty spot on the Day or Week timeline to capture at that time. */
+  function tapToCapture(e) {
+    if (!state.conn) return;
+    var tl = e.target.closest(".tl"), col = e.target.closest(".wkcol"), host = tl || col, sc = tl ? state.dayScale : state.weekScale;
+    if (!host || !sc) return;
+    var y = e.clientY - host.getBoundingClientRect().top;
+    var hour = Math.max(0, Math.min(23.75, Math.floor(sc.hourAt(y) * 4) / 4));
+    openCapture(col ? parseYmd(col.dataset.ymd) : state.anchor, hour);
+  }
+  (function buildCaptureSheet() {
+    var t = "";
+    for (var q = 0; q < 96; q++) t += '<option value="' + q / 4 + '">' + p2(Math.floor(q / 4)) + ":" + p2((q % 4) * 15) + "</option>";
+    $("capTime").innerHTML = t;
+    $("capDurs").innerHTML = DURS.map(function (d) { return '<button type="button" class="chip" data-dur="' + d[0] + '">' + d[1] + "</button>"; }).join("");
+  })();
+  $("capBtn").addEventListener("click", function () { openCapture(); });
+  $("capCancel").addEventListener("click", closeCapture);
+  $("capForm").addEventListener("submit", function (e) { e.preventDefault(); submitCapture(); });
+  $("capScrim").addEventListener("click", function (e) {
+    if (e.target === $("capScrim")) { closeCapture(); return; }
+    var b = e.target.closest("button");
+    if (!b || b.disabled || !cap) return;
+    if (b.dataset.capday) { cap.day = b.dataset.capday === "today" ? sod(new Date()) : addDays(sod(new Date()), 1); renderCapture(); }
+    else if (b.dataset.dur) { cap.dur = b.dataset.dur; capPrefs.dur = cap.dur; lsSet(LS_CAPPREFS, capPrefs); renderCapture(); }
+  });
+  $("capDate").addEventListener("change", function () { if (cap && /^\d{4}-\d{2}-\d{2}$/.test(this.value)) { cap.day = parseYmd(this.value); renderCapture(); } });
+  $("capTime").addEventListener("change", function () { if (cap) cap.hour = Number(this.value); });
 
   /* ---------- Render + navigation ---------- */
   function render(keepScroll) {
@@ -587,18 +829,23 @@
 
   $("content").addEventListener("click", function (e) {
     var b = e.target.closest("button");
-    if (!b || b.disabled) return;
+    if (!b) { tapToCapture(e); return; }
+    if (b.disabled) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refresh(true);
+    else if (b.dataset.act === "flush") flushQueue(true);
+    else if (b.dataset.qretry) retryCapture(b.dataset.qretry);
+    else if (b.dataset.qdiscard) discardCapture(b.dataset.qdiscard);
     else if (b.dataset.act === "setup") go("today");
     else if (b.dataset.act === "disconnect") {
       if (Date.now() - state.disarmAt < 4000) {
         state.conn = null;
         state.ranges = {};
         state.calendars = [];
-        lsDel(LS_CONN); lsDel(LS_CACHE); lsDel(LS_SYNC);
+        state.caps = [];
+        lsDel(LS_CONN); lsDel(LS_CACHE); lsDel(LS_SYNC);   /* unsent captures stay queued for the next link */
         state.sync = { status: "idle", at: null, error: null };
         state.disarmAt = 0;
         toast("Unlinked. Calendar data removed from this device.");
@@ -614,9 +861,12 @@
     if (e.target.id === "connForm") { e.preventDefault(); submitConnect(); }
   });
   $("detailScrim").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (b && b.dataset.qretry) { closeDetail(); retryCapture(b.dataset.qretry); return; }
+    if (b && b.dataset.qdiscard) { closeDetail(); discardCapture(b.dataset.qdiscard); return; }
     if (e.target === $("detailScrim") || e.target.id === "detailClose") closeDetail();
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDetail(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDetail(); closeCapture(); } });
 
   /* ---------- Update notice ---------- */
   var UPDATE_CHECK_MS = 10 * 60 * 1000, lastUpdateCheck = 0;
@@ -653,11 +903,12 @@
     if (document.hidden) return;
     if ($("detailScrim").hidden && (state.screen === "today" || state.screen === "week") && state.conn) render(true);
     if (Date.now() - state.lastAuto > AUTO_MS) { state.lastAuto = Date.now(); refresh(true); }
+    flushQueue(false);
     checkForUpdate(false);
   }
   setInterval(tick, 60 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tick(); refresh(false); checkForUpdate(true); } });
-  window.addEventListener("online", function () { refresh(true); });
+  window.addEventListener("online", function () { refresh(true); flushQueue(true); });
 
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     navigator.serviceWorker.register("sw.js").catch(function () { /* app still works without offline cache */ });
@@ -666,5 +917,6 @@
   state.lastAuto = Date.now();
   render(false);
   refresh(false);
+  flushQueue(false);
   setTimeout(function () { checkForUpdate(true); }, 3000);
 })();

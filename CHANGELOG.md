@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 · 2026-10-06 (needs bridge 1.1.0)
+- **Capture:** add events to the Personal calendar from the ▶ CAPTURE button, or by tapping an empty spot on the Day or Week timeline. Pick today, tomorrow or any date, a start time, and a length (15 min to 2 hr, or all day).
+- Captures appear immediately as dashed blocks, save in the background, and wait in a queue when offline. Status block shows QUEUED and NOT SAVED counts.
+- Systems lists anything waiting, with Retry and Discard.
+- Bridge 1.1.0: adds a create-only write path limited to Personal, duplicate protection, and remembers the work calendar ID across code updates.
+- Temporary Google errors are retried instead of failing.
+
 ## 1.3.0 · 2026-10-06
 - Top-left corner reads BRIDGE. TimothyOS and the version stay in the top bar.
 - Tap the Work or Personal row on Today to hide or show that calendar. The choice applies to Day, Week and Month, is remembered between launches, and is labeled wherever a calendar is hidden.

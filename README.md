@@ -2,7 +2,7 @@
 
 A personal, LCARS-inspired life dashboard that runs full-screen on an iPad home screen.
 
-**v1.0 · Calendar Core:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. Read-only. Every other section is visible but on **STANDBY** until its stage is built.
+**Calendar Core + Capture:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
 
 ```
 iPad home screen app  (GitHub Pages, free, works offline)
@@ -79,6 +79,18 @@ The status block (bottom of the sidebar) turns green: **SYNCED**.
 
 ---
 
+## Bridge 1.1 update (turns on Capture)
+
+Capture needs bridge version 1.1. Do this once, from Safari (Request Desktop Website):
+
+1. Open the raw code: **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
+2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code.
+3. In the pasted code, put your work email back on the `WORK_CALENDAR_ID` line. This is the last time: from now on, `setup` saves it, so later updates keep it.
+4. Save (disk icon). Choose **setup** in the function menu, tap **Run**. If Google asks for permission again, approve it (the bridge can now add events to your calendar).
+5. Check the log: both calendars **OK**, and `Bridge version 1.1.0. Can write to: personal.` Your access key does **not** change.
+6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
+7. In TimothyOS: **SYSTEMS → REFRESH NOW**. The top bar changes to **CAPTURE ON**.
+
 ## Daily use
 
 | Do | How |
@@ -86,10 +98,14 @@ The status block (bottom of the sidebar) turns green: **SYNCED**.
 | Move between days, weeks, months | ◀ ▶ next to the title. **TODAY** jumps back |
 | Open a day from Week or Month | Tap the day |
 | See event details | Tap the event |
+| Add an event | **▶ CAPTURE**, or tap an empty spot on the Day or Week timeline |
+| Hide or show a calendar | Tap **Work** or **Personal** on Today |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
 The app syncs when opened, when you return to it, and every 5 minutes while open. With no connection it shows the last synced data and the status turns amber (**OFFLINE**).
+
+**Capture offline:** a capture made with no connection appears as a dashed block marked **QUEUED**, and the status block counts it. It saves automatically when you're back online. Each capture carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
 
 ## Updating
 
@@ -107,12 +123,14 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (see Updating) |
+| Capture says "bridge needs the 1.1 update" | Follow **Bridge 1.1 update** above |
+| A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
 
 ## Security model
 
 - The repository is public and holds **no secrets**.
 - The **access key** lives in two places only: the script's properties and the iPad app's storage.
-- The bridge is **read-only**. It never creates, edits or deletes events.
+- The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes anything.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
 
@@ -133,4 +151,4 @@ docs/DESIGN.md        full design and roadmap
 
 ## Standby modules (later stages)
 
-Quick Capture · Ask Claude · Plan Day · Priorities · Key Dates · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.
+Capture for notes, priorities and key dates · Ask Claude · Plan Day · Priorities · Key Dates · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.
