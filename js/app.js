@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.0.1";
+  var VERSION = "2.0.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -585,7 +585,7 @@
     var days = [];
     for (var i = 0; i < 7; i++) {
       var d = addDays(r.from, i), de = dayEvents(list, d);
-      days.push({ d: d, de: de, rows: layout(de.timed, d, sc, 14) });
+      days.push({ d: d, de: de, rows: layout(de.timed, d, sc, 20) });
     }
     days.forEach(function (x) { x.marks = kdMarks(ymd(x.d), false); });
     var hasAllDay = days.some(function (x) { return x.de.allDay.length || x.marks.length; });
@@ -615,11 +615,12 @@
     days.forEach(function (x) {
       html += '<div class="wkcol" data-ymd="' + ymd(x.d) + '" style="height:' + sc.total + 'px">' + quietBands(sc, "wkband") + lines;
       x.rows.forEach(function (row) {
-        var ev = row.ev, hgt = Math.max(14, row.ye - row.ys - 2);
+        /* every block carries its title: one line (cut with …) when short, wrapped with its start time when tall */
+        var ev = row.ev, hgt = Math.max(20, row.ye - row.ys - 2), tall = hgt >= 54;
         state.index[ev.id] = ev;
-        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + pendingCls(ev) + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
+        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + (tall ? " tall" : " one") + pendingCls(ev) + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
           '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
-          ");width:calc((100% - 4px) / " + row.n + ' - 2px)">' + (hgt >= 26 ? '<span class="lbl">' + esc(ev.title) + "</span>" : "") + "</button>";
+          ");width:calc((100% - 4px) / " + row.n + ' - 2px)"><span class="lbl">' + (tall ? '<span class="tm tnum">' + hm(ev._s) + "</span>" : "") + esc(ev.title) + "</span></button>";
       });
       if (sameDay(x.d, now)) html += '<div class="wknow" style="top:' + sc.y(nowH) + 'px"></div>';
       html += "</div>";

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.0.2 · 2026-10-06
+- **Week view, easier to read:** focus hours (07:00 to 21:00) are taller (72 px an hour), so a 30-minute meeting has room for its title. Every block now shows its title: short ones on one line ending in "…", longer ones wrapped with their start time on top. Slightly more padding inside blocks.
+
 ## 2.0.1 · 2026-10-06
 - **Calmer Bridge:** one type scale (hero 40, count 28, title 19, body 17, secondary 15, label 13) with one letter spacing per role. Visible text styles on the Bridge went from 28 to 15.
 - **Details behind +:** each panel title has a + that shows its secondary readouts (booked and open hours, wind, rain, sunrise and sunset, hive and frost notes, the due and overdue list, the Horizon legend, Key Dates buttons, the Balance note). Your choice is remembered per panel.

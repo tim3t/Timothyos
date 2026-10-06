@@ -29,7 +29,7 @@
   --display: "Antonio", "Arial Narrow", "Roboto Condensed", sans-serif;
   --body: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --hh: 54px;          /* day view: one focus hour (07-21); other hours are half */
-  --wh: 46px;          /* week view: one focus hour (07-21); other hours are half */
+  --wh: 72px;          /* week view: one focus hour (07-21), so 30 minutes fits a line of title; other hours are half */
   --hatch: repeating-linear-gradient(135deg, transparent 0 9px, rgba(0, 0, 0, .28) 9px 18px);
   --quiet: rgba(255, 255, 255, .025);
   /* Bridge type scale: one size per role */
@@ -402,10 +402,14 @@ button.arow:active { filter: brightness(1.2); }
   border: 0;
   border-radius: 0 8px 8px 0; border-left: 5px solid var(--c);
   background: color-mix(in srgb, var(--c) 30%, var(--panel));
-  font-size: 13px; line-height: 1.15; padding: 2px 4px; overflow: hidden; overflow: clip; text-align: left;
+  font-size: 13px; line-height: 1.15; padding: 2px 6px; overflow: hidden; overflow: clip; text-align: left;
   display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; z-index: 2;
 }
-.wkb .lbl { position: sticky; top: 2px; display: block; }
+.wkb .lbl { position: sticky; top: 2px; display: block; font-size: 14px; line-height: 1.2; }
+.wkb.one { justify-content: center; padding-block: 0; }
+.wkb.one .lbl { position: static; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wkb.tall { padding-top: 4px; }
+.wkb .tm { display: block; font-family: var(--display); font-size: var(--t-label); letter-spacing: .06em; color: var(--c); }
 .wkb.busy { background-image: var(--hatch); }
 .wknow { position: absolute; left: 0; right: 0; border-top: 2px solid var(--fg); z-index: 3; pointer-events: none; }
 
