@@ -33,12 +33,12 @@ TASKS = [
   T("Send Q4 deck draft", "🔄 In Progress", "🟡 Medium", "🎯 Work & Calling", "2026-10-08"),
   T("Sugar syrup for Hive 2", "⬜ To Do", "🔴 High", "🐝 Beekeeping", "2026-10-06"),
   T("Book furnace service", "⬜ To Do", "🟢 Low", "🏡 Home & Property", "2026-10-02"),
-  T("Call the lawyer back", "🚫 Blocked", "🟡 Medium", "⚖️ Divorce"),
+  T("Renew passport", "🚫 Blocked", "🟡 Medium", "🏡 Home & Property"),
   T("Read chapter 4", "⬜ To Do", "🟢 Low", "🌱 Personal Growth"),
   T("Renew registration", "✅ Done", "🟢 Low", "🏡 Home & Property", "2026-10-01", "2026-10-06"),
   T("Plan Saturday market display", "⬜ To Do", None, "🌿 SkyGarden Farm", "2026-10-20"),
 ]
-AREAS = ["💰 Money", "👨‍👩‍👧‍👦 Family", "⚖️ Divorce", "🌱 Personal Growth", "🌿 SkyGarden Farm", "🐝 Beekeeping", "🙏 Faith & Spirit", "🏥 Health", "🎯 Work & Calling", "🏡 Home & Property"]
+AREAS = ["💰 Money", "👨‍👩‍👧‍👦 Family", "🌱 Personal Growth", "🌿 SkyGarden Farm", "🐝 Beekeeping", "🙏 Faith & Spirit", "🏥 Health", "🎯 Work & Calling", "🏡 Home & Property"]
 PRIS = ["🔴 High", "🟡 Medium", "🟢 Low"]
 TCIDS = {}
 def KDt(title, start, end=None, area=None, typ=None, yearly=False, notes=""):
@@ -55,7 +55,7 @@ KTYPES = ["⏰ Deadline", "🌦️ Window", "🎂 Birthday", "💍 Anniversary",
 DCIDS = {}
 SEEN = {}
 POSTS = []
-CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "timothy@gmail.com"}]
+CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "personal@example.com"}]
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):

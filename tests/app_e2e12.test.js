@@ -16,18 +16,18 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1800);
   await p.click('#capBtn'); await p.click('[data-ctype="date"]');
-  await p.fill('#capText', 'Coy Meeting Anniversary (6 years)');
+  await p.fill('#capText', 'Planting anniversary');
   await p.fill('#capDate', '2026-11-13'); await p.dispatchEvent('#capDate', 'change');
   await p.selectOption('#capLifeArea', '👨‍👩‍👧‍👦 Family'); await p.selectOption('#capKdType', '💍 Anniversary'); await p.click('#capYearly');
   await p.click('#capSave'); await p.waitForTimeout(1500);
   console.log('reply lost -> toast:', await p.textContent('#toast'));
-  console.log('server copies:', (await stats()).dates.filter(d => d[0].startsWith('Coy')).length, '| queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).map(q => q.title + ' attempts=' + q.attempts)));
+  console.log('server copies:', (await stats()).dates.filter(d => d[0].startsWith('Planting')).length, '| queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).map(q => q.title + ' attempts=' + q.attempts)));
   await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
-  console.log('systems row:', (await p.locator('.calrow:has-text("Coy")').textContent()).replace(/\s+/g, ' '));
+  console.log('systems row:', (await p.locator('.calrow:has-text("Planting")').textContent()).replace(/\s+/g, ' '));
   // replies flow again; the dates refresh shows it is already in Notion
   lose = false;
   await p.click('[data-act="refresh"]'); await p.waitForTimeout(2000);
-  console.log('after refresh -> queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length), '| server copies:', (await stats()).dates.filter(d => d[0].startsWith('Coy')).length);
+  console.log('after refresh -> queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length), '| server copies:', (await stats()).dates.filter(d => d[0].startsWith('Planting')).length);
   console.log('toast:', await p.textContent('#toast'));
   // same for a calendar event
   lose = true;

@@ -6,7 +6,7 @@ function mkEv(title, s, e, opts={}) {
     isAllDayEvent:()=>!!opts.allDay, getLocation:()=>'', getMyStatus:()=>'YES',
     getAllDayStartDate:()=>new Date(s), getAllDayEndDate:()=>new Date(e), setDescription(){}, setTag(){} };
 }
-const personal = { getName:()=>'tim@gmail.com', getTimeZone:()=>'America/Chicago', getId:()=>'tim@gmail.com',
+const personal = { getName:()=>'personal@example.com', getTimeZone:()=>'America/Chicago', getId:()=>'personal@example.com',
   getEvents:()=>created.slice(),
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); created.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); created.push(ev); return ev; } };

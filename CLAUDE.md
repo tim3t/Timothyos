@@ -40,7 +40,7 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates` (the last two appe
 ## Rules
 
 - **Secrets never go in code, chat, or commits.** The access key and `NOTION_TOKEN` live only in the bridge's Script Properties (and the key in the iPad app). The repo is public.
-- **Privacy:** the Life Hub holds sensitive pages (Divorce, Health, Family, Money). Never open or read them without Timothy's explicit permission. The Notion integration is connected only to the two databases above; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
+- **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to the two databases above; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
 - **Work calendar is read-only forever.** Don't add write paths for it.
 - **Don't change Notion schemas or create databases** without asking first.
 - UI copy and docs: **no em dashes**. Uppercase display labels use the Antonio font; keep the LCARS frame (elbow, chrome colors, area colors as tokens in `css/app.css`).
@@ -79,4 +79,4 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 - **Ask Claude**: open decision between hand-off to the Claude app, hybrid, or a full panel. API usage is billed separately from his Claude subscription, and he expects heavy use.
 - **Weekly Review**: hours by life area + three reflection fields.
 - **Farm + Bees and Hobbies calendars**: separate Google calendars, add as toggles and Capture destinations.
-- Later: Home Assistant; moving hosting to his NAS after review with Coy.
+- Later: Home Assistant; moving hosting to his NAS after a hosting review.
