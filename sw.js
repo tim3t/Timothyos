@@ -1,12 +1,12 @@
 /* TimothyOS service worker: keeps the app shell available offline.
    Bump VERSION on every release so the iPad picks up new files. */
-var VERSION = "1.0.0";
+var VERSION = "1.1.0";
 var SHELL = "tos-shell-" + VERSION;
 var SHELL_FILES = [
   "./",
   "index.html",
-  "css/app.css?v=1.0.0",
-  "js/app.js?v=1.0.0",
+  "css/app.css?v=1.1.0",
+  "js/app.js?v=1.1.0",
   "manifest.webmanifest",
   "icons/icon-192.png",
   "icons/icon-512.png",
@@ -41,7 +41,7 @@ self.addEventListener("fetch", function (event) {
 
   /* Pages: network first so updates arrive, cached copy when offline. */
   if (req.mode === "navigate") {
-    event.respondWith(fetch(req).then(function (res) {
+    event.respondWith(fetch(req.url, { cache: "no-cache", credentials: "same-origin" }).then(function (res) {
       var copy = res.clone();
       caches.open(SHELL).then(function (c) { c.put("./", copy); });
       return res;

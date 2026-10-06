@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "1.1.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -185,36 +185,52 @@
     allDay.sort(function (a, b) { return areaRank(a.area) - areaRank(b.area); });
     return { timed: timed, allDay: allDay };
   }
-  /* Side-by-side columns for overlapping events. */
-  function layout(timed, day) {
+  /* Focus hours get full height; the night bands before and after are compressed. */
+  var FOCUS_START = 7, FOCUS_END = 21;
+  function makeScale(full, slim) {
+    function y(h) {
+      h = Math.max(0, Math.min(24, h));
+      if (h <= FOCUS_START) return h * slim;
+      if (h <= FOCUS_END) return FOCUS_START * slim + (h - FOCUS_START) * full;
+      return FOCUS_START * slim + (FOCUS_END - FOCUS_START) * full + (h - FOCUS_END) * slim;
+    }
+    return { y: y, total: y(24) };
+  }
+  /* Events that start overnight and run into the focus hours show their label at 07:00. */
+  function labelOffset(row, sc) {
+    return row.s < FOCUS_START && row.e > FOCUS_START + 0.5 ? Math.max(0, sc.y(FOCUS_START) - row.ys) : 0;
+  }
+  function nightBands(sc, cls, labels) {
+    var top = sc.y(FOCUS_START), late = sc.y(FOCUS_END);
+    return '<div class="' + cls + '" style="top:0;height:' + top + 'px">' + (labels ? '<span class="tnum">00-' + p2(FOCUS_START) + "</span>" : "") + "</div>" +
+      '<div class="' + cls + '" style="top:' + late + "px;height:" + (sc.total - late) + 'px">' + (labels ? '<span class="tnum">' + p2(FOCUS_END) + "-24</span>" : "") + "</div>";
+  }
+  /* Side-by-side columns for overlapping events, worked out in pixels so
+     short events in the compressed bands still get their own column. */
+  function layout(timed, day, sc, minPx) {
     var d0 = sod(day);
     var rows = timed.map(function (ev) {
-      var s = posInDay(ev._s, d0), e = posInDay(ev._e, d0);
-      return { ev: ev, s: s, e: e, ve: Math.max(e, s + 0.45) };
+      var s = posInDay(ev._s, d0), e = posInDay(ev._e, d0), ys = sc.y(s), ye = sc.y(e);
+      return { ev: ev, s: s, e: e, ys: ys, ye: ye, vye: Math.max(ye, ys + minPx) };
     });
     var clusters = [], cur = [], end = -1;
     rows.forEach(function (r) {
-      if (cur.length && r.s >= end) { clusters.push(cur); cur = []; end = -1; }
+      if (cur.length && r.ys >= end) { clusters.push(cur); cur = []; end = -1; }
       cur.push(r);
-      end = Math.max(end, r.ve);
+      end = Math.max(end, r.vye);
     });
     if (cur.length) clusters.push(cur);
     clusters.forEach(function (cl) {
       var cols = [];
       cl.forEach(function (r) {
         var c = 0;
-        while (cols[c] !== undefined && cols[c] > r.s) c++;
-        cols[c] = r.ve;
+        while (cols[c] !== undefined && cols[c] > r.ys) c++;
+        cols[c] = r.vye;
         r.col = c;
       });
       cl.forEach(function (r) { r.n = cols.length; });
     });
     return rows;
-  }
-  function hourWindow(rowSets) {
-    var a = 6, b = 22;
-    rowSets.forEach(function (rows) { rows.forEach(function (r) { a = Math.min(a, Math.floor(r.s)); b = Math.max(b, Math.ceil(r.e)); }); });
-    return { a: Math.max(0, a), b: Math.min(24, b) };
   }
   function calStatus(area) { return state.calendars.filter(function (c) { return c.area === area; })[0]; }
 
@@ -287,7 +303,8 @@
   /* ---------- Day ---------- */
   function renderDay() {
     var r = viewRange(), list = eventsFor(r), day = state.anchor, now = new Date(), isToday = sameDay(day, now);
-    var de = dayEvents(list, day), rows = layout(de.timed, day), w = hourWindow([rows]), hh = cssNum("--hh", 54);
+    var sc = makeScale(cssNum("--hh", 54), cssNum("--hh-night", 10));
+    var de = dayEvents(list, day), rows = layout(de.timed, day, sc, 24);
     var total = de.timed.length + de.allDay.length;
     var meta = !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") : total ? total + (total === 1 ? " EVENT" : " EVENTS") : "OPEN DAY";
     var html = '<div class="bridge"><section class="tlpanel">' + phead(isToday ? "TODAY TIMELINE" : "DAY TIMELINE", meta);
@@ -297,22 +314,21 @@
         return '<button type="button" class="adchip a-' + ev.area + '" data-id="' + esc(ev.id) + '">ALL DAY · ' + esc(ev.title) + "</button>";
       }).join("") + "</div>";
     }
-    html += '<div class="tlwrap" id="tlwrap"><div class="tl" style="height:' + (w.b - w.a) * hh + 'px">';
-    for (var h = w.a; h < w.b; h++) {
-      html += '<div class="hour" style="top:' + (h - w.a) * hh + 'px"><span class="tnum">' + p2(h) + "</span></div>";
+    html += '<div class="tlwrap" id="tlwrap"><div class="tl" style="height:' + sc.total + 'px">' + nightBands(sc, "nightband", true);
+    for (var h = FOCUS_START; h < FOCUS_END; h++) {
+      html += '<div class="hour" style="top:' + sc.y(h) + "px;height:" + (sc.y(h + 1) - sc.y(h)) + 'px"><span class="tnum">' + p2(h) + "</span></div>";
     }
     rows.forEach(function (row) {
-      var ev = row.ev, top = (row.s - w.a) * hh + 2, height = Math.max(24, (row.e - row.s) * hh - 4);
+      var ev = row.ev, top = row.ys + 1, height = Math.max(24, row.ye - row.ys - 3);
       state.index[ev.id] = ev;
       var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "");
-      html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height +
-        "px;left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
+      var pad = labelOffset(row, sc);
+      html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height + "px;" + (pad ? "padding-top:" + (pad + 6) + "px;" : "") +
+        "left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
         '<span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + "</span></button>";
     });
     var nowH = now.getHours() + now.getMinutes() / 60;
-    if (isToday && nowH >= w.a && nowH <= w.b) {
-      html += '<div class="now" style="top:' + (nowH - w.a) * hh + 'px"><span class="tnum">' + hm(now) + "</span></div>";
-    }
+    if (isToday) html += '<div class="now" style="top:' + sc.y(nowH) + 'px"><span class="tnum">' + hm(now) + "</span></div>";
     html += "</div></div></section><section class=\"rcol\">";
 
     html += "<div>" + phead("LIFE AREAS", "") + '<div class="arows">';
@@ -339,19 +355,23 @@
     $("content").innerHTML = html;
 
     var first = rows.length ? rows[0].s : 8;
-    state.scrollTarget = Math.max(0, ((isToday ? nowH - 2.5 : first - 1) - w.a) * hh);
+    state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, first) - 1));
   }
 
   /* ---------- Week ---------- */
   function renderWeek() {
-    var r = viewRange(), list = eventsFor(r), now = new Date(), px = cssNum("--wh", 32);
-    var days = [];
-    for (var i = 0; i < 7; i++) {
-      var d = addDays(r.from, i), de = dayEvents(list, d);
-      days.push({ d: d, de: de, rows: layout(de.timed, d) });
+    var r = viewRange(), list = eventsFor(r), now = new Date(), i;
+    var des = [];
+    for (i = 0; i < 7; i++) des.push(dayEvents(list, addDays(r.from, i)));
+    var hasAllDay = des.some(function (de) { return de.allDay.length; });
+    /* Fit the focus hours to the screen height on iPad; fixed size on narrow screens. */
+    var slim = cssNum("--wh-night", 6), full = cssNum("--wh", 34);
+    if (!window.matchMedia("(max-width: 860px)").matches) {
+      var avail = $("content").getBoundingClientRect().height - (hasAllDay ? 168 : 136);
+      full = Math.max(30, Math.min(64, (avail - 10 * slim) / (FOCUS_END - FOCUS_START)));
     }
-    var w = hourWindow(days.map(function (x) { return x.rows; }));
-    var hasAllDay = days.some(function (x) { return x.de.allDay.length; });
+    var sc = makeScale(full, slim);
+    var days = des.map(function (de, j) { var d = addDays(r.from, j); return { d: d, de: de, rows: layout(de.timed, d, sc, 14) }; });
     var html = phead("ALL CALENDARS", hasData(r) ? "TAP A DAY TO OPEN IT" : (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET")) +
       '<div class="wkscroll"><div class="wk"><div></div>';
     days.forEach(function (x) {
@@ -364,23 +384,23 @@
         html += '<div class="wkad">' + x.de.allDay.map(function (ev) { return '<span class="a-' + ev.area + '">' + esc(ev.title) + "</span>"; }).join("") + "</div>";
       });
     }
-    var height = (w.b - w.a) * px;
+    var height = sc.total;
     html += '<div class="wkgut" style="height:' + height + 'px">';
-    for (var h = w.a + 1; h < w.b; h++) {
-      if (h % 2 === 0) html += '<span class="tnum" style="top:' + (h - w.a) * px + 'px">' + p2(h) + "</span>";
+    for (var h = FOCUS_START; h <= FOCUS_END; h++) {
+      if (h % 2 === 1) html += '<span class="tnum" style="top:' + sc.y(h) + 'px">' + p2(h) + "</span>";
     }
     html += "</div>";
     days.forEach(function (x) {
-      html += '<div class="wkcol" style="height:' + height + 'px">';
+      html += '<div class="wkcol" style="height:' + height + 'px">' + nightBands(sc, "wkband", false);
       x.rows.forEach(function (row) {
-        var ev = row.ev, hgt = Math.max(14, (row.e - row.s) * px - 2);
+        var ev = row.ev, hgt = Math.max(14, row.ye - row.ys - 2), pad = labelOffset(row, sc);
         state.index[ev.id] = ev;
         html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
-          '" style="top:' + ((row.s - w.a) * px + 1) + "px;height:" + hgt + "px;left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
+          '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;" + (pad ? "padding-top:" + (pad + 2) + "px;" : "") + "left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
           ");width:calc((100% - 4px) / " + row.n + ' - 2px)">' + (hgt >= 26 ? esc(ev.title) : "") + "</button>";
       });
       var nowH = now.getHours() + now.getMinutes() / 60;
-      if (sameDay(x.d, now) && nowH >= w.a && nowH <= w.b) html += '<div class="wknow" style="top:' + (nowH - w.a) * px + 'px"></div>';
+      if (sameDay(x.d, now)) html += '<div class="wknow" style="top:' + sc.y(nowH) + 'px"></div>';
       html += "</div>";
     });
     html += "</div></div>";
@@ -580,6 +600,31 @@
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDetail(); });
 
+  /* ---------- Update notice ---------- */
+  var UPDATE_CHECK_MS = 10 * 60 * 1000, lastUpdateCheck = 0;
+  function newer(a, b) {
+    var x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
+    for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+    return false;
+  }
+  function checkForUpdate(force) {
+    if (!force && Date.now() - lastUpdateCheck < UPDATE_CHECK_MS) return;
+    lastUpdateCheck = Date.now();
+    fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.version && newer(j.version, VERSION)) { $("updateBtn").hidden = false; } })
+      .catch(function () { /* offline: check again later */ });
+  }
+  $("updateBtn").addEventListener("click", function () {
+    var b = $("updateBtn");
+    b.disabled = true;
+    b.textContent = "LOADING UPDATE…";
+    var reload = function () { location.reload(); };
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistration().then(function (reg) { return reg && reg.update(); }).then(reload, reload);
+    } else reload();
+  });
+
   /* ---------- Clock + background refresh ---------- */
   function tick() {
     var today = sod(new Date()).getTime();
@@ -590,9 +635,10 @@
     if (document.hidden) return;
     if ($("detailScrim").hidden && (state.screen === "today" || state.screen === "week") && state.conn) render(true);
     if (Date.now() - state.lastAuto > AUTO_MS) { state.lastAuto = Date.now(); refresh(true); }
+    checkForUpdate(false);
   }
   setInterval(tick, 60 * 1000);
-  document.addEventListener("visibilitychange", function () { if (!document.hidden) { tick(); refresh(false); } });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { tick(); refresh(false); checkForUpdate(true); } });
   window.addEventListener("online", function () { refresh(true); });
 
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
@@ -602,4 +648,5 @@
   state.lastAuto = Date.now();
   render(false);
   refresh(false);
+  setTimeout(function () { checkForUpdate(true); }, 3000);
 })();

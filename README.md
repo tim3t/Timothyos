@@ -93,8 +93,9 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 
 ## Updating
 
-- **App:** new versions arrive automatically from this repository. Close and reopen the app (sometimes twice) to load them. **SYSTEMS** shows the version.
-- **Bridge:** paste the new `Code.gs`, save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. The URL stays the same.
+- **App:** new versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **▲ UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on.
+- **Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push. It updates the version in all five places, which is what makes iPads fetch the new files and show the banner.
+- **Bridge:** paste the new `Code.gs`, save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. The URL stays the same. UI changes never need this.
 
 ## Troubleshooting
 
@@ -121,7 +122,9 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 index.html            app page
 css/app.css           styles (design tokens at the top)
 js/app.js             app logic
-sw.js                 offline cache (bump VERSION on each release)
+sw.js                 offline cache
+version.json          current version (the app checks it for updates)
+tools/bump_version.py sets the version everywhere before a release
 manifest.webmanifest  home screen install settings
 icons/, fonts/        app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs   the Google Apps Script bridge

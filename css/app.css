@@ -28,9 +28,12 @@
   --bad: #ff7a7a;
   --display: "Antonio", "Arial Narrow", "Roboto Condensed", sans-serif;
   --body: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
-  --hh: 54px;
-  --wh: 32px;
+  --hh: 54px;          /* day view: height of one focus hour (07-21) */
+  --hh-night: 10px;    /* day view: height of one night hour */
+  --wh: 34px;          /* week view on narrow screens; on iPad it fits the screen */
+  --wh-night: 6px;
   --hatch: repeating-linear-gradient(135deg, transparent 0 9px, rgba(0, 0, 0, .28) 9px 18px);
+  --night: repeating-linear-gradient(135deg, transparent 0 7px, rgba(255, 255, 255, .035) 7px 14px);
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -286,6 +289,8 @@ h1 {
   border-top: 1px solid var(--line);
 }
 .hour span { position: absolute; left: 0; top: 4px; font-family: var(--display); font-size: 15px; color: var(--dim); }
+.nightband { position: absolute; left: 0; right: 0; background-image: var(--night); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.nightband span { position: absolute; left: 0; top: 50%; transform: translateY(-50%); font-family: var(--display); font-size: 13px; letter-spacing: .06em; color: var(--dim); }
 .ev {
   position: absolute;
   border: 0;
@@ -348,12 +353,14 @@ h1 {
 .wkcol { position: relative; margin: 0 3px; background: var(--panel); border-radius: 0 0 14px 14px; border-top: 1px solid var(--line); }
 .wkgut { position: relative; }
 .wkgut span { position: absolute; right: 6px; font-family: var(--display); font-size: 13px; color: var(--dim); transform: translateY(-50%); }
+.wkband { position: absolute; left: 0; right: 0; background-image: var(--night); background-color: rgba(0, 0, 0, .3); }
 .wkb {
   position: absolute;
   border: 0;
   border-radius: 0 8px 8px 0; border-left: 5px solid var(--c);
   background: color-mix(in srgb, var(--c) 30%, var(--panel));
   font-size: 13px; line-height: 1.15; padding: 2px 4px; overflow: hidden; text-align: left;
+  display: flex; flex-direction: column; justify-content: flex-start;
 }
 .wkb.busy { background-image: var(--hatch); }
 .wknow { position: absolute; left: 0; right: 0; border-top: 2px solid var(--fg); z-index: 3; pointer-events: none; }
@@ -413,6 +420,15 @@ input:focus { border-color: var(--chrome-b); outline: none; }
   background: var(--fg); color: var(--ink); z-index: 30;
   font-family: var(--display); letter-spacing: .1em; font-size: 17px;
   padding: 12px 22px; border-radius: 26px; max-width: calc(100% - 32px); text-align: center;
+}
+
+.update {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 25;
+  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 34px);
+  min-height: 48px; padding: 0 24px; border: 0; border-radius: 24px;
+  background: var(--chrome-c); color: var(--ink);
+  font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: .14em;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .5); white-space: nowrap;
 }
 
 /* ---------- Narrow screens (iPad portrait split view, phones) ---------- */
