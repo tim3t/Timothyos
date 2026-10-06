@@ -1,13 +1,14 @@
 /**
- * TimothyOS calendar bridge, v1.1
+ * TimothyOS bridge, v1.2
  *
- * Runs inside your personal Google account as a web app. Reads your
- * calendars for the TimothyOS app on your iPad, and creates events that
- * you capture in the app.
+ * Runs inside your personal Google account as a web app.
+ *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
+ *  - Notion: reads your Master Task List for Plan Day; sets Focus Date, marks
+ *    tasks done, and adds new tasks. Nothing else in Notion is touched.
  *
- * Writing is limited to the calendars listed in WRITABLE below (Personal
- * only). The work calendar can never be written to. Nothing is ever edited
- * or deleted. Setup and update steps are in README.md.
+ * The work calendar can never be written to. Nothing is ever deleted.
+ * Your Notion key lives in Script Properties (NOTION_TOKEN), never in this code.
+ * Setup and update steps are in README.md.
  */
 
 // ---- Your settings ---------------------------------------------------------
@@ -20,12 +21,22 @@ var CONFIG = {
   // email address. Run setup() to list every calendar this account can see.
   // setup() also saves it, so future code updates keep it even if this line
   // goes back to the placeholder.
-  WORK_CALENDAR_ID: 'you@your-employer.com'
+  WORK_CALENDAR_ID: 'you@your-employer.com',
+
+  // Your Notion Master Task List (the ID is the 32 characters in its link).
+  // Not a secret on its own: the bridge also needs NOTION_TOKEN, which lives in
+  // Project Settings > Script Properties and never in this file.
+  NOTION_TASKS_DATABASE: '6c4a440d571e49e0b4076c18d5712c1f'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.1.0';
-var CAPABILITIES = ['read', 'create'];
+var VERSION = '1.2.0';
+var NOTION_VERSION = '2025-09-03';
+var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
+var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
+function capabilities_() {
+  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks'] : []);
+}
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
 var PLACEHOLDER = 'your-employer.com';
@@ -43,10 +54,12 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
     if (!keyMatches_(p.key)) return json_({ ok: false, error: 'unauthorized' });
-    if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: CAPABILITIES, calendars: calendarStatus_() });
+    if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_() });
     if (p.action === 'events') return json_(events_(Number(p.from), Number(p.to)));
+    if (p.action === 'tasks') return json_(tasks_(String(p.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
+    if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
     return json_({ ok: false, error: 'server_error', detail: String((err && err.message) || err) });
   }
 }
@@ -58,8 +71,12 @@ function doPost(e) {
   try {
     if (!keyMatches_(body.key)) return json_({ ok: false, error: 'unauthorized' });
     if (body.action === 'create') return json_(create_(body.item || {}));
+    if (body.action === 'focus') return json_(setFocus_(body.id, body.day));
+    if (body.action === 'status') return json_(setStatus_(body.id, body.status));
+    if (body.action === 'addtask') return json_(addTask_(body.task || {}));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
+    if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
     return json_({ ok: false, error: 'server_error', detail: String((err && err.message) || err) });
   }
 }
@@ -86,7 +103,9 @@ function setup() {
   calendarStatus_().forEach(function (s) {
     console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error));
   });
-  console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).join(', ') + '.');
+  var n = notionStatus_();
+  console.log('Notion: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
+  console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
 }
 
@@ -168,7 +187,7 @@ function events_(from, to) {
     });
   });
 
-  var out = { ok: true, version: VERSION, capabilities: CAPABILITIES, generated: new Date().toISOString(), calendars: calendars, events: events };
+  var out = { ok: true, version: VERSION, capabilities: capabilities_(), generated: new Date().toISOString(), calendars: calendars, events: events };
   try { cache.put(cacheKey, JSON.stringify(out), CACHE_SECONDS); } catch (e) { /* too large to cache; fine */ }
   return out;
 }
@@ -219,4 +238,162 @@ function create_(item) {
 
 function declined_(ev) {
   try { return ev.getMyStatus() === CalendarApp.GuestStatus.NO; } catch (e) { return false; }
+}
+
+// ---- Notion: Master Task List ---------------------------------------------
+
+function notion_(method, path, payload) {
+  var token = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
+  if (!token) { var e0 = new Error('No NOTION_TOKEN in Script Properties'); e0.notion = 'notion_not_configured'; throw e0; }
+  var opts = { method: method, muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token, 'Notion-Version': NOTION_VERSION } };
+  if (payload) { opts.contentType = 'application/json'; opts.payload = JSON.stringify(payload); }
+  var res = UrlFetchApp.fetch('https://api.notion.com/v1' + path, opts);
+  var code = res.getResponseCode(), body = {};
+  try { body = JSON.parse(res.getContentText() || '{}'); } catch (x) { body = {}; }
+  if (code >= 300) {
+    var e = new Error((body && body.message) || ('Notion HTTP ' + code));
+    e.notion = code === 401 ? 'notion_unauthorized' : code === 404 ? 'notion_not_shared' : code === 429 ? 'notion_busy' : 'notion_error';
+    throw e;
+  }
+  return body;
+}
+
+/** The Master Task List's data source ID, looked up once and remembered. */
+function tasksSource_() {
+  var props = PropertiesService.getScriptProperties();
+  var dbId = String(CONFIG.NOTION_TASKS_DATABASE || '').replace(/-/g, '');
+  var known = props.getProperty('NOTION_TASKS_SOURCE');
+  if (known && known.indexOf(dbId + ':') === 0) return known.split(':')[1];
+  var db = notion_('get', '/databases/' + dbId);
+  var ds = db.data_sources && db.data_sources[0] && db.data_sources[0].id;
+  if (!ds) { var e = new Error('That database has no data source'); e.notion = 'notion_error'; throw e; }
+  props.setProperty('NOTION_TASKS_SOURCE', dbId + ':' + ds);
+  return ds;
+}
+
+function notionStatus_() {
+  if (!PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
+    return { ok: false, error: 'not_configured', help: 'Add NOTION_TOKEN in Project Settings > Script Properties' };
+  }
+  try {
+    var ds = tasksSource_();
+    var src = notion_('get', '/data_sources/' + ds);
+    var open = queryAll_(ds, { property: 'Status', select: { does_not_equal: '✅ Done' } }, 1).length;
+    return { ok: true, name: plain_(src.title), open: open };
+  } catch (e) {
+    return { ok: false, error: e.notion || 'notion_error', help: e.notion === 'notion_not_shared' ? 'Connect the TimothyOS integration to the Master Task List (... > Connections)' : String(e.message) };
+  }
+}
+
+function plain_(rich) { return (rich || []).map(function (r) { return r.plain_text || ''; }).join(''); }
+function sel_(prop) { return prop && prop.select ? prop.select.name : null; }
+function day_(prop) { return prop && prop.date && prop.date.start ? prop.date.start.slice(0, 10) : null; }
+
+function toTask_(pg) {
+  var p = pg.properties || {};
+  return {
+    id: pg.id, url: pg.url,
+    title: plain_(p.Task && p.Task.title) || 'Untitled',
+    status: sel_(p.Status), priority: sel_(p.Priority), area: sel_(p['Life Area']),
+    due: day_(p['Due Date']), focus: day_(p['Focus Date'])
+  };
+}
+
+/** Query with pagination; maxPages x 100 rows at most. */
+function queryAll_(ds, filter, maxPages, sorts) {
+  var out = [], cursor = null;
+  for (var i = 0; i < (maxPages || 3); i++) {
+    var body = { page_size: 100, filter: filter };
+    if (sorts) body.sorts = sorts;
+    if (cursor) body.start_cursor = cursor;
+    var r = notion_('post', '/data_sources/' + ds + '/query', body);
+    out = out.concat(r.results || []);
+    if (!r.has_more) break;
+    cursor = r.next_cursor;
+  }
+  return out;
+}
+
+/** Life Area choices, read from the database so new areas appear automatically. */
+function areaOptions_(ds) {
+  var cache = CacheService.getScriptCache(), hit = cache.get('areas:' + ds);
+  if (hit) return JSON.parse(hit);
+  var src = notion_('get', '/data_sources/' + ds);
+  var prop = src.properties && src.properties['Life Area'];
+  var names = prop && prop.select ? prop.select.options.map(function (o) { return o.name; }) : [];
+  cache.put('areas:' + ds, JSON.stringify(names), 21600);
+  return names;
+}
+
+/** Plan Day data for one day: today's picks plus every open task. */
+function tasks_(day) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache();
+  var key = 'tasks:' + (cache.get('tgen') || '0') + ':' + day;
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var ds = tasksSource_();
+  var focus = queryAll_(ds, { property: 'Focus Date', date: { equals: day } }, 1).map(toTask_);
+  var open = queryAll_(ds, { property: 'Status', select: { does_not_equal: '✅ Done' } }, 3,
+    [{ property: 'Due Date', direction: 'ascending' }]).map(toTask_);
+  var out = { ok: true, version: VERSION, day: day, focus: focus, open: open, areas: areaOptions_(ds), priorities: TASK_PRIORITIES };
+  try { cache.put(key, JSON.stringify(out), 60); } catch (e) { /* too large to cache */ }
+  return out;
+}
+
+/** Only pages inside the Master Task List may be changed. */
+function ownTask_(id) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(String(id || ''))) return null;
+  var pg = notion_('get', '/pages/' + id);
+  var ds = tasksSource_(), parent = pg.parent || {};
+  return parent.data_source_id === ds ? pg : null;
+}
+function touched_() { CacheService.getScriptCache().put('tgen', String(Date.now()), 21600); }
+
+function setFocus_(id, day) {
+  if (day !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return { ok: false, error: 'bad_request' };
+  if (!ownTask_(id)) return { ok: false, error: 'not_writable' };
+  var pg = notion_('patch', '/pages/' + id, { properties: { 'Focus Date': { date: day ? { start: day } : null } } });
+  touched_();
+  return { ok: true, task: toTask_(pg) };
+}
+
+function setStatus_(id, status) {
+  if (TASK_STATUSES.indexOf(status) === -1) return { ok: false, error: 'bad_request' };
+  if (!ownTask_(id)) return { ok: false, error: 'not_writable' };
+  var pg = notion_('patch', '/pages/' + id, { properties: { Status: { select: { name: status } } } });
+  touched_();
+  return { ok: true, task: toTask_(pg) };
+}
+
+/** task: { cid, title, area, priority, day } -> new To Do task, focused on day. */
+function addTask_(task) {
+  var title = String(task.title || '').trim();
+  if (!title || title.length > 200) return { ok: false, error: 'bad_title' };
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(String(task.cid || ''))) return { ok: false, error: 'bad_request' };
+  if (task.day && !/^\d{4}-\d{2}-\d{2}$/.test(String(task.day))) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var cache = CacheService.getScriptCache(), seen = cache.get('tcid:' + task.cid);
+    if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var ds = tasksSource_();
+    var props = { Task: { title: [{ text: { content: title } }] }, Status: { select: { name: '⬜ To Do' } } };
+    if (task.area) {
+      if (areaOptions_(ds).indexOf(task.area) === -1) return { ok: false, error: 'bad_request' };
+      props['Life Area'] = { select: { name: task.area } };
+    }
+    if (task.priority) {
+      if (TASK_PRIORITIES.indexOf(task.priority) === -1) return { ok: false, error: 'bad_request' };
+      props.Priority = { select: { name: task.priority } };
+    }
+    if (task.day) props['Focus Date'] = { date: { start: task.day } };
+    var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    var out = { ok: true, version: VERSION, task: toTask_(pg) };
+    cache.put('tcid:' + task.cid, JSON.stringify(out), 21600);
+    touched_();
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
 }

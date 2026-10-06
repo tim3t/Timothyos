@@ -426,6 +426,36 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .err { color: var(--bad); min-height: 1.3em; }
 .okmsg { color: var(--ok); min-height: 1.3em; }
 
+/* ---------- Priorities + Plan Day ---------- */
+.prio {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px;
+  border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; padding: 6px 0;
+}
+.prio .box, .cand .box { width: 30px; height: 30px; flex: none; border: 3px solid var(--c); border-radius: 7px; display: grid; place-items: center; color: var(--ink); font-weight: 700; }
+.prio .pt { display: flex; flex-direction: column; min-width: 0; }
+.prio .pt b { font-weight: 600; }
+.prio .pt small, .cand small { color: var(--dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prio.done .box { background: var(--c); }
+.prio.done .pt b { text-decoration: line-through; color: var(--dim); }
+.prio.busy { opacity: .55; }
+.plansheet { width: min(760px, 100%); }
+.dayline { font-family: var(--display); letter-spacing: .1em; color: var(--chrome-b); font-size: 15px; }
+.pgroup { font-family: var(--display); letter-spacing: .16em; color: var(--dim); font-size: 14px; margin-top: 6px; }
+.cands { display: grid; gap: 6px; }
+.cand {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) 34px; gap: 14px; align-items: center;
+  width: 100%; min-height: 58px; border: 0; background: var(--panel-2); border-radius: 0 14px 14px 0; padding: 0 14px 0 0; text-align: left;
+}
+.cand .st { align-self: stretch; background: var(--c); }
+.cand .ct { display: flex; flex-direction: column; min-width: 0; }
+.cand .ct b { font-weight: 600; }
+.cand[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 22%, var(--panel-2)); }
+.cand[aria-pressed="true"] .box { background: var(--c); }
+.cand.isdone .ct b { text-decoration: line-through; color: var(--dim); }
+.newtask { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; }
+.newtask select { min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px; padding: 6px 12px; color: var(--fg); font-size: 15px; max-width: 190px; }
+.newtask .btn { min-height: 48px; }
+
 /* ---------- Captured items still on this iPad ---------- */
 .ev.pending, .wkb.pending, .adchip.pending { border-left-style: dashed; background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgba(255, 255, 255, .07) 8px 16px); }
 .moc .li.pending { border-left-style: dashed; }
@@ -498,6 +528,8 @@ input:focus { border-color: var(--chrome-b); outline: none; }
   .moc .li, .moc .more { display: none; }
   .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .frow { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .newtask { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .newtask input { grid-column: 1 / -1; }
   .kv dd { margin-bottom: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

@@ -2,7 +2,7 @@
 
 A personal, LCARS-inspired life dashboard that runs full-screen on an iPad home screen.
 
-**Calendar Core + Capture:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
+**Calendar Core + Capture + Plan Day:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. **Plan Day** picks up to three priorities from your Notion **Master Task List**, and you check them off on Today. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
 
 ```
 iPad home screen app  (GitHub Pages, free, works offline)
@@ -91,6 +91,33 @@ Capture needs bridge version 1.1. Do this once, from Safari (Request Desktop Web
 6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
 7. In TimothyOS: **SYSTEMS → REFRESH NOW**. The top bar changes to **CAPTURE ON**.
 
+## Notion link (turns on Plan Day and Priorities)
+
+Plan Day reads your **🎯 Master Task List** and writes only three things to it: the **Focus Date** field (the day you picked a task), **Status ✅ Done** when you check one off, and new tasks you add from Plan Day.
+
+**1. Create the integration** (Safari, Request Desktop Website)
+1. Open **notion.so/profile/integrations** → **New integration**.
+2. Name `TimothyOS bridge`, your workspace, type **Internal** → Save.
+3. Capabilities: **Read content**, **Update content**, **Insert content**. User information: **No user information**. Save.
+4. Copy the **Internal Integration Secret** (starts with `ntn_`). Treat it like a password: never paste it into chat, notes, or `Code.gs`.
+
+**2. Give it access to the Master Task List only**
+- Open **🎯 Master Task List** as a full page → **•••** (top right) → **Connections** → add **TimothyOS bridge** → Confirm.
+- Connect it to the **database only**, not to **Timothy's Life Hub**. Connecting the hub would let the bridge see every page under it.
+
+**3. Put the key in the bridge**
+- **script.google.com → TimothyOS bridge → Project Settings (gear) → Script Properties → Add script property**
+- Property `NOTION_TOKEN`, value: the secret. **Save script properties.**
+
+**4. Update the bridge code to 1.2**
+1. Copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs** and replace all the code in the editor.
+2. Skipped the 1.1 update? Put your work email on the `WORK_CALENDAR_ID` line this one time.
+3. Save, choose **setup**, **Run**. Approve the new permission (the bridge now talks to Notion).
+4. The log should show `Notion: OK (🎯 Master Task List, N open tasks)`.
+5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
+
+**5. In TimothyOS:** **SYSTEMS → REFRESH NOW**. **☀ PLAN DAY** lights up and the Priorities panel fills in.
+
 ## Daily use
 
 | Do | How |
@@ -100,6 +127,9 @@ Capture needs bridge version 1.1. Do this once, from Safari (Request Desktop Web
 | See event details | Tap the event |
 | Add an event | **▶ CAPTURE**, or tap an empty spot on the Day or Week timeline |
 | Hide or show a calendar | Tap **Work** or **Personal** on Today |
+| Plan your day | **☀ PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
+| Plan tomorrow | Go to tomorrow on Today (▶), then **☀ PLAN** in the Priorities panel |
+| Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
@@ -125,12 +155,16 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Changes to `Code.gs` have no effect | Deploy a **new version** (see Updating) |
 | Capture says "bridge needs the 1.1 update" | Follow **Bridge 1.1 update** above |
 | A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
+| PLAN DAY says SETUP | Follow **Notion link** above |
+| "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
+| "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 
 ## Security model
 
 - The repository is public and holds **no secrets**.
 - The **access key** lives in two places only: the script's properties and the iPad app's storage.
-- The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes anything.
+- The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes events.
+- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
 
@@ -151,4 +185,4 @@ docs/DESIGN.md        full design and roadmap
 
 ## Standby modules (later stages)
 
-Capture for notes, priorities and key dates · Ask Claude · Plan Day · Priorities · Key Dates · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.
+Capture for notes and key dates · Ask Claude · Key Dates · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.

@@ -5,13 +5,14 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.4.0";
+  var VERSION = "1.5.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
   var LS_HIDDEN = "tos.hidden.v1";
   var LS_QUEUE = "tos.queue.v1";       /* captures waiting to be saved */
   var LS_CAPPREFS = "tos.capprefs.v1";
+  var LS_TASKS = "tos.tasks.v1";       /* Notion Master Task List, last few days fetched */
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
@@ -26,10 +27,8 @@
   var LIVE = ["work", "personal"];
   var STANDBY_AREAS = ["farm", "hobby"];
   var STANDBY_MODULES = [
-    ["MORE CAPTURE TYPES", "Notes, priorities and key dates, with the Notion link."],
+    ["MORE CAPTURE TYPES", "Notes and key dates, with the next Notion stage."],
     ["ASK CLAUDE", "Questions about your days and projects."],
-    ["PLAN DAY", "Pick up to three priorities each morning."],
-    ["PRIORITIES", "Daily priorities, stored in Notion."],
     ["KEY DATES", "Upcoming dates, stored in Notion."],
     ["WEEKLY REVIEW", "Hours by life area and a short reflection."]
   ];
@@ -110,6 +109,10 @@
     bridgeVersion: cached.bridgeVersion || null,
     caps: cached.caps || [],             /* bridge abilities, e.g. ["read", "create"] */
     queue: lsGet(LS_QUEUE) || [],
+    tasks: lsGet(LS_TASKS) || {},          /* { "2026-10-06": { fetched, focus, open, areas, priorities } } */
+    tasksErr: null,
+    tasksInflight: {},
+    taskBusy: {},
     flushing: false,
     dayScale: null,
     weekScale: null,
@@ -298,7 +301,7 @@
       state.caps = j.capabilities || [];
       persist();
       setSync("ok");
-      if (state.screen === "systems") toast("Synced");
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); }
       flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
     }).catch(function (err) {
@@ -314,6 +317,8 @@
     $("pager").hidden = !linked || state.screen === "systems";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
+    $("planBtn").disabled = !linked || !canPlan();
+    $("planBtn").innerHTML = "☀ PLAN DAY" + (linked && !canPlan() ? "<small>SETUP</small>" : "");
     if (!linked && state.screen !== "systems") { e.textContent = "FIRST RUN"; t.textContent = "LINK CALENDARS"; }
     else if (state.screen === "today") {
       var diff = Math.round((sod(a) - sod(now)) / 86400000);
@@ -396,12 +401,13 @@
         '</b><small>Calendar not linked yet</small></span><span class="ct">STANDBY</span></div>';
     });
     html += "</div></div>";
-    html += "<div>" + phead("PRIORITIES", "") + stubBox("Picked each morning with Plan Day. Arrives with the Notion link.") + "</div>";
+    html += "<div>" + prioritiesPanel(ymd(day), isToday) + "</div>";
     html += "<div>" + phead("KEY DATES", "") + stubBox("Upcoming dates from Notion, with countdowns.") + "</div>";
     html += "</section></div>";
     $("content").innerHTML = html;
 
     state.dayScale = sc;
+    loadTasks(ymd(day), false);
     var first = rows.length ? rows[0].s : 8;
     state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, Math.min(first, 18)) - 0.5));
   }
@@ -512,6 +518,7 @@
     html += "</section>";
 
     html += captureSection();
+    html += notionSection();
     html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
       STANDBY_MODULES.map(function (m) { return '<div class="stubbox"><span><b style="color:var(--fg)">' + m[0] + "</b><br>" + m[1] + "</span></div>"; }).join("") + "</div></section>";
 
@@ -789,6 +796,303 @@
   $("capDate").addEventListener("change", function () { if (cap && /^\d{4}-\d{2}-\d{2}$/.test(this.value)) { cap.day = parseYmd(this.value); renderCapture(); } });
   $("capTime").addEventListener("change", function () { if (cap) cap.hour = Number(this.value); });
 
+
+  /* ---------- Plan Day + Priorities (Notion Master Task List) ---------- */
+  var DONE = "✅ Done", TODO = "⬜ To Do", INPROG = "🔄 In Progress", BLOCKED = "🚫 Blocked";
+  var PRI_RANK = { "🔴 High": 0, "🟡 Medium": 1, "🟢 Low": 2 };
+  var plan = null;
+
+  function canPlan() { return state.caps.indexOf("tasks") > -1; }
+  /* Map a Notion Life Area onto the four TimothyOS colors. */
+  function taskArea(name) {
+    if (!name) return "personal";
+    if (/Work/i.test(name)) return "work";
+    if (/Farm|Bee/i.test(name)) return "farm";
+    if (/Growth|Creative|Hobb/i.test(name)) return "hobby";
+    return "personal";
+  }
+  function dueLabel(due, day) {
+    if (!due) return "";
+    var n = Math.round((parseYmd(due) - parseYmd(day)) / 86400000);
+    if (n < 0) return "OVERDUE " + -n + "D";
+    if (n === 0) return "DUE TODAY";
+    if (n === 1) return "DUE TOMORROW";
+    return "DUE " + dLabel(parseYmd(due));
+  }
+  function taskMeta(t, day) {
+    return [t.priority, t.status === INPROG || t.status === BLOCKED ? t.status : "", t.area, dueLabel(t.due, day)].filter(Boolean).map(esc).join(" · ");
+  }
+  function rankTasks(list) {
+    return list.slice().sort(function (a, b) {
+      var pa = PRI_RANK[a.priority] === undefined ? 3 : PRI_RANK[a.priority], pb = PRI_RANK[b.priority] === undefined ? 3 : PRI_RANK[b.priority];
+      return (a.status === INPROG ? -1 : 0) - (b.status === INPROG ? -1 : 0) || pa - pb || (a.due || "9999").localeCompare(b.due || "9999");
+    });
+  }
+  function saveTasks() {
+    var days = Object.keys(state.tasks).sort().slice(-4), keep = {};
+    days.forEach(function (d) { keep[d] = state.tasks[d]; });
+    state.tasks = keep;
+    lsSet(LS_TASKS, keep);
+  }
+  function describeTasks(err) {
+    var code = err && (err.code || err.message);
+    return {
+      notion_not_configured: "Notion isn't set up yet. Add NOTION_TOKEN to the bridge's Script Properties.",
+      notion_unauthorized: "Notion rejected the bridge's key. Check NOTION_TOKEN in Script Properties.",
+      notion_not_shared: "The Master Task List isn't connected to the TimothyOS integration in Notion.",
+      notion_busy: "Notion is busy. Try again in a moment.",
+      not_writable: "That task isn't in your Master Task List."
+    }[code] || describe(err);
+  }
+
+  function loadTasks(day, force) {
+    if (!state.conn || !canPlan() || state.tasksInflight[day]) return;
+    var have = state.tasks[day];
+    if (!force && have && Date.now() - have.fetched < FRESH_MS) return;
+    if (!force && state.tasksErr && Date.now() - state.tasksErr.at < FRESH_MS) return;
+    state.tasksInflight[day] = true;
+    api({ action: "tasks", day: day }).then(function (j) {
+      state.tasks[day] = { fetched: Date.now(), focus: j.focus || [], open: j.open || [], areas: j.areas || [], priorities: j.priorities || [] };
+      state.tasksErr = null;
+      saveTasks();
+    }).catch(function (err) {
+      state.tasksErr = { at: Date.now(), msg: describeTasks(err) };
+    }).then(function () {
+      delete state.tasksInflight[day];
+      if (plan && plan.day === day) renderPlan();
+      if (state.screen === "today" || state.screen === "systems") render(true);
+    });
+  }
+
+  function prioritiesPanel(day, isToday) {
+    if (!canPlan()) {
+      return phead("PRIORITIES", "") + stubBox(state.conn ? "Needs the Notion link: bridge 1.2 and a Notion key. Steps are in the README." : "Link calendars first.");
+    }
+    var data = state.tasks[day], past = day < ymd(new Date());
+    if (!data) {
+      return phead("PRIORITIES", "") + '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
+    }
+    var focus = data.focus.slice().sort(function (a, b) { return (a.status === DONE) - (b.status === DONE); });
+    var done = focus.filter(function (t) { return t.status === DONE; }).length;
+    var html = phead("PRIORITIES", focus.length ? done + " OF " + focus.length + " DONE" : "");
+    if (!focus.length) {
+      html += '<div class="empty">' + (past ? "No priorities were picked for this day." : "No priorities picked yet.") + "</div>";
+    }
+    focus.forEach(function (t) {
+      var isDone = t.status === DONE, busy = !!state.taskBusy[t.id];
+      html += '<button type="button" class="prio a-' + taskArea(t.area) + (isDone ? " done" : "") + (busy ? " busy" : "") + '" data-task="' + esc(t.id) + '" data-day="' + day +
+        '" aria-pressed="' + isDone + '" aria-label="' + esc(t.title) + (isDone ? ", done. Tap to reopen." : ". Tap to mark done.") + '">' +
+        '<span class="box">' + (isDone ? "✓" : "") + '</span><span class="pt"><b>' + esc(t.title) + "</b><small>" + taskMeta(t, day) + "</small></span></button>";
+    });
+    if (!past) {
+      html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn plan" data-act="plan" data-day="' + day + '">☀ ' +
+        (focus.length ? "CHANGE PICKS" : "PLAN " + (isToday ? "TODAY" : dLabel(parseYmd(day)))) + "</button></div>";
+    }
+    if (state.tasksErr) html += '<div class="err">' + esc(state.tasksErr.msg) + "</div>";
+    return html;
+  }
+
+  /* Tap a priority: Done in Notion, or back to its previous status. */
+  function toggleDone(id, day) {
+    var data = state.tasks[day];
+    if (!data || state.taskBusy[id]) return;
+    var t = data.focus.filter(function (x) { return x.id === id; })[0];
+    if (!t) return;
+    var before = t.status, next = before === DONE ? (t._prev && t._prev !== DONE ? t._prev : TODO) : DONE;
+    t._prev = before;
+    t.status = next;
+    state.taskBusy[id] = true;
+    render(true);
+    apiPost({ action: "status", id: id, status: next }).then(function () {
+      delete state.taskBusy[id];
+      saveTasks();
+      toast(next === DONE ? "Done. Marked ✅ in Notion." : "Reopened in Notion.");
+      render(true);
+    }).catch(function (err) {
+      delete state.taskBusy[id];
+      t.status = before;
+      toast("Not changed: " + describeTasks(err));
+      render(true);
+    });
+  }
+
+  function notionSection() {
+    var data = state.tasks[ymd(new Date())];
+    var html = "<section>" + phead("NOTION", canPlan() ? "MASTER TASK LIST" : "NOT LINKED");
+    if (!canPlan()) {
+      html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need bridge 1.2 and a Notion key in its Script Properties. Steps are in the README under <b>Notion link</b>.</span></div>';
+    } else if (state.tasksErr) {
+      html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small class="errtxt">' + esc(state.tasksErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>';
+    } else {
+      html += '<div class="calrow a-personal"><span class="st"></span><span><b>🎯 Master Task List</b><small>' +
+        (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
+        '</small></span><span class="pill ok">OK</span></div>';
+    }
+    return html + "</section>";
+  }
+
+  /* --- the Plan Day sheet --- */
+  function openPlan(day) {
+    if (!canPlan()) return;
+    var d = ymd(day || (state.screen === "today" && ymd(state.anchor) >= ymd(new Date()) ? state.anchor : new Date()));
+    var data = state.tasks[d];
+    plan = { day: d, picks: {}, initial: {}, showAll: false, saving: false, err: "" };
+    if (data) data.focus.forEach(function (t) { plan.picks[t.id] = true; plan.initial[t.id] = true; });
+    plan.seeded = !!data;
+    renderPlan();
+    $("planScrim").hidden = false;
+    loadTasks(d, true);
+  }
+  function closePlan() { $("planScrim").hidden = true; plan = null; }
+  function openPicks() {
+    var data = state.tasks[plan.day];
+    if (!data) return 0;
+    var all = data.open.concat(data.focus);
+    return Object.keys(plan.picks).filter(function (id) {
+      var t = all.filter(function (x) { return x.id === id; })[0];
+      return t && t.status !== DONE;
+    }).length;
+  }
+  function dayContext(day) {
+    var d = parseYmd(day), r = { from: sow(d), to: addDays(sow(d), 7) };
+    var de = dayEvents(visible(eventsFor(r)), d), timed = de.timed;
+    if (!hasData(r)) return "Calendar for this day isn't loaded yet.";
+    var parts = [timed.length + (timed.length === 1 ? " EVENT" : " EVENTS")];
+    if (timed.length) parts.push("FIRST " + hm(timed[0]._s) + " " + esc(timed[0].title).toUpperCase());
+    /* longest open stretch between 07:00 and 21:00 */
+    var d0 = sod(d), cursor = FOCUS_START, best = 0, bestAt = null;
+    timed.forEach(function (ev) {
+      var s = posInDay(ev._s, d0), e = posInDay(ev._e, d0);
+      if (s > cursor && Math.min(s, FOCUS_END) - cursor > best) { best = Math.min(s, FOCUS_END) - cursor; bestAt = cursor; }
+      cursor = Math.max(cursor, e);
+    });
+    if (FOCUS_END - cursor > best) { best = FOCUS_END - cursor; bestAt = cursor; }
+    if (best >= 0.5) {
+      var a = new Date(d0), b = new Date(d0);
+      a.setMinutes(Math.round(bestAt * 60)); b.setMinutes(Math.round((bestAt + best) * 60));
+      parts.push("LONGEST OPEN STRETCH " + hm(a) + " TO " + hm(b));
+    }
+    return parts.join(" · ");
+  }
+  function planRow(t, day) {
+    var on = !!plan.picks[t.id], isDone = t.status === DONE;
+    return '<button type="button" class="cand a-' + taskArea(t.area) + (isDone ? " isdone" : "") + '" data-pick="' + esc(t.id) + '" aria-pressed="' + on + '">' +
+      '<span class="st"></span><span class="ct"><b>' + esc(t.title) + "</b><small>" + (isDone ? "✅ DONE · " : "") + taskMeta(t, day) + "</small></span>" +
+      '<span class="box">' + (on ? "✓" : "") + "</span></button>";
+  }
+  function renderPlan() {
+    if (!plan) return;
+    var day = plan.day, data = state.tasks[day], html;
+    if (data && !plan.seeded) {
+      data.focus.forEach(function (t) { plan.picks[t.id] = true; plan.initial[t.id] = true; });
+      plan.seeded = true;
+    }
+    var title = sameDay(parseYmd(day), new Date()) ? "PLAN TODAY · " + dLabel(parseYmd(day)) : "PLAN " + dLabel(parseYmd(day));
+    html = '<div class="sbar"><span>' + title + '</span><span id="planCount">' + (data ? openPicks() + " OF 3 PICKED" : "") + "</span></div>" +
+      '<div class="sbody"><div class="dayline">' + dayContext(day) + "</div>";
+    if (!data) {
+      html += '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
+    } else {
+      var used = {}, groups = [], day7 = ymd(addDays(parseYmd(day), 7));
+      var pool = rankTasks(data.open.filter(function (t) { return t.status !== DONE; }));
+      var take = function (label, list) { list = list.filter(function (t) { return !used[t.id]; }); list.forEach(function (t) { used[t.id] = 1; }); if (list.length) groups.push([label, list]); };
+      take("PICKED FOR THIS DAY", rankTasks(data.focus));
+      take("CARRIED OVER", pool.filter(function (t) { return t.focus && t.focus < day; }));
+      take("OVERDUE", pool.filter(function (t) { return t.due && t.due < day; }));
+      take("DUE IN THE NEXT 7 DAYS", pool.filter(function (t) { return t.due && t.due <= day7; }));
+      take("HIGH PRIORITY OR IN PROGRESS", pool.filter(function (t) { return t.priority === "🔴 High" || t.status === INPROG; }));
+      var rest = pool.filter(function (t) { return !used[t.id] && t.status !== BLOCKED; }).concat(pool.filter(function (t) { return !used[t.id] && t.status === BLOCKED; }));
+      groups.forEach(function (g) {
+        html += '<div class="pgroup">' + g[0] + '</div><div class="cands">' + g[1].map(function (t) { return planRow(t, day); }).join("") + "</div>";
+      });
+      if (rest.length) {
+        html += '<button type="button" class="chip" data-showall="1">' + (plan.showAll ? "HIDE" : "SHOW") + " ALL OTHER OPEN TASKS (" + rest.length + ")</button>";
+        if (plan.showAll) html += '<div class="cands" style="margin-top:8px">' + rest.map(function (t) { return planRow(t, day); }).join("") + "</div>";
+      }
+      if (!groups.length && !rest.length) html += '<div class="empty">No open tasks in your Master Task List. Add one below.</div>';
+      html += '<div class="pgroup">ADD A NEW TASK FOR THIS DAY</div><div class="newtask">' +
+        '<input type="text" id="planNew" maxlength="200" placeholder="New task" enterkeyhint="done">' +
+        '<select id="planArea" aria-label="Life Area"><option value="">Life Area</option>' + data.areas.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("") + "</select>" +
+        '<select id="planPri" aria-label="Priority"><option value="">Priority</option>' + data.priorities.map(function (a) { return '<option value="' + esc(a) + '">' + esc(a) + "</option>"; }).join("") + "</select>" +
+        '<button type="button" class="btn" id="planAdd">ADD</button></div>';
+    }
+    html += '<div class="err" id="planErr" role="alert">' + esc(plan.err) + "</div></div>" +
+      '<div class="sfoot capfoot"><span class="muted">Saved to Notion as Focus Date. Check them off on Today.</span><span class="btnrow">' +
+      '<button type="button" class="btn ghost" id="planCancel">CANCEL</button>' +
+      '<button type="button" class="btn capture" id="planSave"' + (!data || plan.saving || navigator.onLine === false ? " disabled" : "") + ">" +
+      (plan.saving ? esc(plan.saving) : navigator.onLine === false ? "OFFLINE" : "SET PRIORITIES ▶") + "</button></span></div>";
+    var sheet = $("planSheet"), top = sheet.scrollTop;
+    sheet.innerHTML = html;
+    sheet.scrollTop = top;
+  }
+  function togglePick(id) {
+    if (plan.picks[id]) delete plan.picks[id];
+    else if (openPicks() >= 3) { toast("Three is the limit. Unpick one first."); return; }
+    else plan.picks[id] = true;
+    var b = document.querySelector('[data-pick="' + id.replace(/"/g, "") + '"]');
+    if (b) { b.setAttribute("aria-pressed", String(!!plan.picks[id])); b.querySelector(".box").textContent = plan.picks[id] ? "✓" : ""; }
+    $("planCount").textContent = openPicks() + " OF 3 PICKED";
+  }
+  function addPlanTask() {
+    var title = $("planNew").value.trim();
+    if (!title) { plan.err = "Type the new task first."; renderPlan(); return; }
+    if (openPicks() >= 3) { toast("Three is the limit. Unpick one first."); return; }
+    var btn = $("planAdd");
+    btn.disabled = true; btn.textContent = "ADDING…";
+    apiPost({ action: "addtask", task: { cid: newCid(), title: title.slice(0, 200), area: $("planArea").value || null, priority: $("planPri").value || null, day: plan.day } })
+      .then(function (j) {
+        var data = state.tasks[plan.day];
+        data.focus.push(j.task); data.open.push(j.task);
+        plan.picks[j.task.id] = true; plan.initial[j.task.id] = true;   /* already focused on this day */
+        plan.err = "";
+        saveTasks();
+        toast("Added to Master Task List and picked");
+        renderPlan();
+      }).catch(function (err) { plan.err = "Not added: " + describeTasks(err); renderPlan(); });
+  }
+  /* Save the difference: new picks get Focus Date = day, removed picks are cleared. */
+  function savePlan() {
+    var day = plan.day, add = [], drop = [];
+    Object.keys(plan.picks).forEach(function (id) { if (!plan.initial[id]) add.push([id, day]); });
+    Object.keys(plan.initial).forEach(function (id) { if (!plan.picks[id]) drop.push([id, null]); });
+    var jobs = add.concat(drop), done = 0;
+    if (!jobs.length) { closePlan(); return; }
+    var step = function () {
+      if (!plan) return;
+      if (done === jobs.length) {
+        var n = openPicks();
+        closePlan();
+        toast(n + (n === 1 ? " priority" : " priorities") + " set for " + dLabel(parseYmd(day)));
+        loadTasks(day, true);
+        return;
+      }
+      plan.saving = "SAVING " + (done + 1) + " OF " + jobs.length + "…";
+      renderPlan();
+      apiPost({ action: "focus", id: jobs[done][0], day: jobs[done][1] }).then(function () {
+        if (jobs[done][1]) plan.initial[jobs[done][0]] = true; else delete plan.initial[jobs[done][0]];
+        done++;
+        step();
+      }).catch(function (err) {
+        plan.saving = false;
+        plan.err = "Stopped after " + done + " of " + jobs.length + ": " + describeTasks(err) + " Tap SET PRIORITIES to try the rest.";
+        renderPlan();
+      });
+    };
+    step();
+  }
+  $("planBtn").addEventListener("click", function () { openPlan(); });
+  $("planScrim").addEventListener("click", function (e) {
+    if (e.target === $("planScrim")) { closePlan(); return; }
+    var b = e.target.closest("button");
+    if (!b || b.disabled || !plan) return;
+    if (b.dataset.pick) togglePick(b.dataset.pick);
+    else if (b.dataset.showall) { plan.showAll = !plan.showAll; renderPlan(); }
+    else if (b.id === "planAdd") addPlanTask();
+    else if (b.id === "planCancel") closePlan();
+    else if (b.id === "planSave") savePlan();
+  });
+  $("planScrim").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "planNew") { e.preventDefault(); addPlanTask(); } });
+
   /* ---------- Render + navigation ---------- */
   function render(keepScroll) {
     var wrap = $("tlwrap");
@@ -832,6 +1136,8 @@
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
+    else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);
+    else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refresh(true);
@@ -866,7 +1172,7 @@
     if (b && b.dataset.qdiscard) { closeDetail(); discardCapture(b.dataset.qdiscard); return; }
     if (e.target === $("detailScrim") || e.target.id === "detailClose") closeDetail();
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDetail(); closeCapture(); } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDetail(); closeCapture(); closePlan(); } });
 
   /* ---------- Update notice ---------- */
   var UPDATE_CHECK_MS = 10 * 60 * 1000, lastUpdateCheck = 0;
