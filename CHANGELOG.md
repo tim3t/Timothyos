@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.4 · 2026-10-06
+- The Bridge is one full-width column instead of two, in this order: date and time, condition, Now / Next, Environment, Priorities, Horizon, Key Dates, Balance, Captain's Log and bearing.
+
 ## 1.7.3 · 2026-10-06
 - Fix: frequent "Couldn't reach the script" and OFFLINE flicker.
   - Requests cut off when the iPad sleeps or switches apps are re-run when you come back, instead of failing.

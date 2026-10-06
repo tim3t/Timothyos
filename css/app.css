@@ -562,9 +562,9 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .ov-nominal { padding: 8px 14px; display: flex; flex-direction: column; }
 .ov-nominal b { font-family: var(--display); font-weight: 600; letter-spacing: .1em; font-size: 20px; color: var(--ok); }
 .ov-nominal small { color: var(--dim); font-size: 15px; }
-.ov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; align-items: start; }
+/* One full-width column, top to bottom: Now/Next, Environment, Priorities, Horizon, Key Dates, Balance, Log. */
+.ov-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
 .ov-pnl { min-width: 0; }
-.ov-wide { grid-column: 1 / -1; }
 .ov-sub { display: block; font-family: var(--display); font-size: 13px; letter-spacing: .18em; color: var(--dim); margin: 16px 0 6px; }
 .ov-more { font-size: 14px; margin-top: 6px; }
 .ov-foot { margin-top: 10px; font-size: 14px; color: var(--dim); max-width: 62ch; }
@@ -613,7 +613,7 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .ov-day .bars { height: 172px; display: flex; flex-direction: column; justify-content: flex-end; padding: 0 6px; }
 .ov-day .mk { color: var(--chrome-b); font-size: 15px; text-align: center; min-height: 20px; }
 .ov-day .hrs { font-family: var(--display); font-size: 15px; text-align: center; color: var(--dim); margin-bottom: 4px; }
-.ov-day .seg { display: block; background: var(--c); flex: none; }
+.ov-day .seg { display: block; background: var(--c); flex: none; width: 100%; max-width: 72px; align-self: center; }
 .ov-day .seg:nth-child(3) { border-radius: 6px 6px 0 0; }
 .ov-day.heavy .hrs { color: var(--warn); font-weight: 600; }
 .ov-day .dl { display: flex; flex-direction: column; align-items: center; font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--dim); padding-bottom: 6px; }
@@ -668,9 +668,6 @@ textarea {
 }
 textarea:focus { border-color: var(--chrome-b); outline: none; }
 
-@media (max-width: 1080px) {
-  .ov-grid { grid-template-columns: minmax(0, 1fr); }
-}
 
 /* ---------- Narrow screens (iPad portrait split view, phones) ---------- */
 @media (max-width: 860px) {

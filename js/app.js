@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.7.3";
+  var VERSION = "1.7.4";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1804,12 +1804,12 @@
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
     var html = conditionBanner(now, today, list) + '<div class="ov-grid">' +
       '<section class="ov-pnl">' + nowPanel(now, list) + "</section>" +
+      '<section class="ov-pnl">' + envPanel(now) + "</section>" +
       '<section class="ov-pnl">' + prioritiesPanel(today, true) + duePanel(today) + "</section>" +
       '<section class="ov-pnl">' + horizonPanel(now, list) + "</section>" +
       '<section class="ov-pnl">' + kdNextPanel(today) + "</section>" +
-      '<section class="ov-pnl">' + envPanel(now) + "</section>" +
       '<section class="ov-pnl">' + balancePanel(now, today, list) + "</section>" +
-      '<section class="ov-pnl ov-wide">' + logPanel(today) + "</section></div>";
+      '<section class="ov-pnl">' + logPanel(today) + "</section></div>";
     $("content").innerHTML = html;
     loadTasks(today, false);
     loadDates(false);

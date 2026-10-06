@@ -129,16 +129,16 @@ Key dates live in **🗓️ Key Dates**, a Notion database inside Timothy's Life
 
 ## The Bridge (app 1.7)
 
-The app opens on the **Bridge**: one screen above the calendars. Tap **BRIDGE** in the top-left corner (or first in the menu row on a phone) to come back to it.
+The app opens on the **Bridge**: one screen above the calendars, one full-width column, top to bottom. Tap **BRIDGE** in the top-left corner (or first in the menu row on a phone) to come back to it.
 
 | Panel | Shows |
 |---|---|
 | **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it |
 | **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
+| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
 | **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
 | **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
 | **Key Dates** | The next three, with countdowns |
-| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
 | **Balance** | Tasks finished per area in the last 7 days, hours on Work and Personal, and areas that have gone quiet |
 | **Captain's Log** | One line of intent for today, and your **bearing** for the day |
 
