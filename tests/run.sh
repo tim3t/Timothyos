@@ -47,6 +47,7 @@ run app_e2e11.test.js     # Key Dates: panel, DATES screen, markers, capture, Pl
 run app_e2e12.test.js     # lost replies: already-saved items clear without duplicates
 run app_e2e13.test.js     # Bridge overview: condition, panels, weather, balance, log, settings
 run app_e2e14.test.js     # sync: dropped and background-cut requests retried, quiet outages, pacing
+run app_e2e15.test.js     # ignored events: weekend blocks left out of views and totals
 
 echo
 [ $fail -eq 0 ] && echo "ALL PASSED" || echo "SOME TESTS FAILED"

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.0 · 2026-10-06
+- **Ignored events:** events that only exist to block bookings (such as a weekend-long out-of-office block on the work calendar) can be left out of everything: Day, Week, Month, the Bridge (Now / Next, Horizon hours and heavy days, clashes, Balance hours), Life Area counts and Plan Day.
+  - Quickest: tap the event, then **IGNORE THIS TITLE**.
+  - Or **SYSTEMS → CALENDARS → IGNORED EVENTS**: one title per line; any event whose title contains it is left out. Shows how many events are being left out.
+  - Saved on this iPad. Google Calendar is not changed, so customers still see you as unavailable.
+
 ## 1.7.4 · 2026-10-06
 - The Bridge is one full-width column instead of two, in this order: date and time, condition, Now / Next, Environment, Priorities, Horizon, Key Dates, Balance, Captain's Log and bearing.
 

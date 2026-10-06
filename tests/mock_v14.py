@@ -21,6 +21,10 @@ def events(f, t):
         if wd == 1: out.append(ev("personal", d, 18, 0, 19, 30, "Dinner with Sam", loc="Luna Cafe"))
         if wd == 5: out.append(ev("personal", d, 7, 0, 13, 0, "Saturday market"))
         if wd == 6: out.append(ev("personal", d, 15, 0, 16, 0, "Call Mom"))
+        if wd == 5:  # a 48-hour work block over the weekend that only exists to stop bookings
+            s0 = dt.datetime(d.year, d.month, d.day, 0, 0, tzinfo=TZ); e0 = s0 + dt.timedelta(days=2)
+            out.append({"id": f"work:away:{d}", "area": "work", "title": "Away block (auto-decline)", "busy": False, "allDay": False, "location": "",
+                        "start": s0.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z"), "end": e0.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")})
         if d.day == 8: out.append({"id": f"personal:allday:{d}", "area": "personal", "title": "Garlic planting window", "busy": False, "allDay": True, "location": "", "start": str(d), "end": str(d + dt.timedelta(days=2))})
         if d.day == 16: out.append({"id": f"work:allday:{d}", "area": "work", "title": "Q4 planning offsite", "busy": False, "allDay": True, "location": "", "start": str(d), "end": str(d + dt.timedelta(days=1))})
         d += dt.timedelta(days=1)

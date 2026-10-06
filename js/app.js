@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.7.4";
+  var VERSION = "1.8.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -19,6 +19,7 @@
   var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
   var LS_LOG = "tos.log.v1";           /* Captain's Log: one intent line per day, last 30 days */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
+  var LS_IGNORE = "tos.ignore.v1";     /* event titles left out everywhere, e.g. blocks that only exist to stop bookings */
   var LS_TOPGAP = "tos.topgap.v1";     /* extra space below the iPad status bar, in px */
   var TOP_GAPS = [[14, "STANDARD"], [30, "MORE"], [48, "MOST"]];
   var MAX_ATTEMPTS = 10;
@@ -275,7 +276,33 @@
     return { from: w, to: addDays(w, 7) };
   }
   function rkey(r) { return r.from.getTime() + "_" + r.to.getTime(); }
-  function eventsFor(r) { return cachedEventsFor(r).concat(pendingEvents()); }
+  function eventsFor(r) { return cachedEventsFor(r).filter(function (ev) { return !ignored(ev); }).concat(pendingEvents()); }
+  /* ---------- Ignored events ---------- */
+  /* Some events exist only to stop others booking time (for example an all-weekend
+     "out of office" block on the work calendar). Any event whose title contains a
+     phrase on this list is left out of every view, count, clash and total.
+     The list stays on this iPad; the calendars themselves are untouched. */
+  var ignoreList = lsGet(LS_IGNORE) || [];
+  function ignored(ev) {
+    if (!ignoreList.length || ev.pending) return false;
+    var t = norm1(ev.title);
+    return ignoreList.some(function (p) { return t.indexOf(norm1(p)) > -1; });
+  }
+  function setIgnore(list) {
+    var seen = {};
+    ignoreList = list.map(function (s) { return String(s).trim(); }).filter(function (s) {
+      var k = norm1(s);
+      if (!k || seen[k]) return false;
+      seen[k] = 1;
+      return true;
+    }).slice(0, 30);
+    if (ignoreList.length) lsSet(LS_IGNORE, ignoreList); else lsDel(LS_IGNORE);
+  }
+  function ignoredCount() {
+    var seen = {};
+    Object.keys(state.ranges).forEach(function (k) { state.ranges[k].events.forEach(function (ev) { if (ignored(ev)) seen[ev.id] = 1; }); });
+    return Object.keys(seen).length;
+  }
   function cachedEventsFor(r) {
     var exact = state.ranges[rkey(r)];
     if (exact) return exact.events;
@@ -640,6 +667,12 @@
       html += '<div class="calrow a-' + k + '" style="opacity:.5"><span class="st"></span><span><b>' + AREAS[k].name +
         "</b><small>Separate calendar, linked in a later stage.</small></span><span class=\"pill\">STANDBY</span></div>";
     });
+    var nIgn = ignoredCount();
+    html += '<label class="ov-sub" for="ignIn">IGNORED EVENTS</label>' +
+      '<textarea id="ignIn" rows="3" placeholder="One title per line. Any event whose title contains it is left out of every view, count and total.">' + esc(ignoreList.join("\n")) + "</textarea>" +
+      '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="ignsave">SAVE IGNORED</button></div>' +
+      '<small class="muted">' + (ignoreList.length ? nIgn + (nIgn === 1 ? " event" : " events") + " left out of the loaded calendars. " : "") +
+      "Quickest way to add one: tap the event, then IGNORE THIS TITLE. Saved on this iPad; your calendars are not changed.</small>";
     html += "</section>";
 
     html += bridgeSection();
@@ -732,6 +765,7 @@
       '</div><div class="sfoot btnrow">' +
       (q ? (q.failed ? '<button type="button" class="btn" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
         '<button type="button" class="btn ghost" data-qdiscard="' + esc(q.cid) + '">DISCARD</button>' : "") +
+      (!q && !ev.busy ? '<button type="button" class="btn ghost" data-ignore="' + esc(ev.title) + '">IGNORE THIS TITLE</button>' : "") +
       '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
     $("detailScrim").hidden = false;
     $("detailClose").focus();
@@ -1934,6 +1968,11 @@
     else if (b.dataset.topgap) { lsSet(LS_TOPGAP, +b.dataset.topgap); applyTopGap(); render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
+    else if (b.dataset.act === "ignsave") {
+      setIgnore($("ignIn").value.split("\n"));
+      toast(ignoreList.length ? ignoreList.length + (ignoreList.length === 1 ? " title ignored" : " titles ignored") + " · " + ignoredCount() + " events left out" : "Nothing ignored");
+      render(true);
+    }
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refresh(true);
@@ -1968,6 +2007,13 @@
     var b = e.target.closest("button");
     if (b && b.dataset.qretry) { closeDetail(); retryCapture(b.dataset.qretry); return; }
     if (b && b.dataset.qdiscard) { closeDetail(); discardCapture(b.dataset.qdiscard); return; }
+    if (b && b.dataset.ignore) {
+      setIgnore(ignoreList.concat([b.dataset.ignore]));
+      closeDetail();
+      render(true);
+      toast("Ignored everywhere: \u201C" + b.dataset.ignore + "\u201D. Undo in SYSTEMS");
+      return;
+    }
     if (e.target === $("detailScrim") || e.target.id === "detailClose") closeDetail();
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeDetail(); closeCapture(); closePlan(); } });

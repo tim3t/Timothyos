@@ -69,6 +69,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 - The app draws under the iPad status bar (`black-translucent`, `viewport-fit=cover`). Top clearance is `--safe-top` + `--top-gap` (user-adjustable in Systems), with a solid `body::before` strip behind the bar. Don't switch the status-bar style meta: iOS reads it only at install, so Timothy would have to re-add the app and re-link.
 - Plain GET and text/plain POST only, no custom headers: Apps Script can't answer CORS preflights.
 - Calendar toggles (Work/Personal hidden) persist in localStorage and affect Day, Week, Month.
+- **Ignored events** (`tos.ignore.v1`, title phrases, case-insensitive contains) are filtered inside `eventsFor()`, so every view and total skips them. Raw `state.ranges` stay unfiltered (reconcile needs them). The list is device-only: Timothy's real titles never go in the repo. `app_e2e15` covers it.
 
 ## Release checklist
 

@@ -21,6 +21,7 @@ Stage 1 shipped as **Calendar Core**: work + personal calendars, read-only, in T
 | D15 | **Capture writes events to Personal only** (create-only) | Work calendar is never writable |
 | D16 | **Key Dates live in a new Notion database** (🗓️ Key Dates, inside Timothy's Life Hub) | Same Life Area tags as the Master Task List. Started empty. Integration connected to that database only |
 | D17 | **The Bridge is the home screen** (app 1.7) | Condition banner (GREEN/YELLOW/RED) over Now/Next, Priorities, Horizon, Key Dates, Environment, Balance and Captain's Log. Built from data already loaded, plus Open-Meteo weather from the iPad and a read-only bridge `done` action. Location, bearings and the log stay on the device |
+| D18 | **Ignored events** (app 1.8) | Title phrases kept on the iPad; matching events are left out of all views and totals. For calendar blocks that exist only to stop bookings. Calendars are never changed |
 | Open | Ask Claude delivery (hand-off, hybrid, or full panel) | Decide before that stage. API usage is billed separately from the Claude subscription |
 
 Everything else in this document stays the roadmap. Standby modules are visible in the app but inactive.

@@ -178,6 +178,7 @@ Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't rec
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
+| Leave out booking blocks (e.g. weekend out-of-office) | Tap the event → **IGNORE THIS TITLE**. Edit or undo in **SYSTEMS → CALENDARS → IGNORED EVENTS** |
 | Change or delete a key date | Tap it → **OPEN IN NOTION** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
