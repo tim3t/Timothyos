@@ -1,8 +1,10 @@
 /**
- * TimothyOS bridge, v1.7
+ * TimothyOS bridge, v1.8
  *
  * Runs inside your personal Google account as a web app.
- *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
+ *  - Calendars: reads Work + Personal, plus your farm calendar once linked
+ *    (Script Property FARM_CALENDAR_ID). Creates events you capture on Personal
+ *    or the farm calendar; never on Work.
  *  - Notion: reads your Master Task List for Plan Day; sets Focus Date, marks
  *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
  *    finished recently (for the Bridge's Balance panel). Reads a week's
@@ -43,7 +45,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.7.0';
+var VERSION = '1.8.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -56,12 +58,16 @@ var CACHE_SECONDS = 120;
 var PLACEHOLDER = 'your-employer.com';
 var SOURCES = [
   { area: 'work', id: workCalendarId_ },
-  { area: 'personal', id: function () { return CONFIG.PERSONAL_CALENDAR_ID; } }
+  { area: 'personal', id: function () { return CONFIG.PERSONAL_CALENDAR_ID; } },
+  { area: 'farm', id: farmCalendarId_, optional: true }   // left out until FARM_CALENDAR_ID is set
 ];
 // Calendars the app may add events to. Work is deliberately absent.
 var WRITABLE = {
-  personal: function () { return CONFIG.PERSONAL_CALENDAR_ID; }
+  personal: function () { return CONFIG.PERSONAL_CALENDAR_ID; },
+  farm: farmCalendarId_
 };
+/** Sources in use: optional calendars only once they're set. */
+function sources_() { return SOURCES.filter(function (src) { return !src.optional || src.id(); }); }
 
 /** Read requests. Every request must carry the access key. */
 function doGet(e) {
@@ -123,8 +129,9 @@ function setup() {
     console.log('  ' + c.getName() + '  ->  ' + c.getId());
   });
   calendarStatus_().forEach(function (s) {
-    console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error));
+    console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error + (s.area === 'farm' ? '. Check FARM_CALENDAR_ID in Script Properties against the list above' : '')));
   });
+  if (!farmCalendarId_()) console.log('TimothyOS farm calendar: OFF. Add FARM_CALENDAR_ID in Script Properties (the ID from the list above) to link it');
   var n = notionStatus_();
   console.log('Notion tasks: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
   var kd = n.dates || {};
@@ -133,7 +140,7 @@ function setup() {
   console.log('Notion weekly reviews: ' + (wr.ok ? 'OK (' + wr.name + ', ' + wr.count + ' reviews)' : 'NOT READY: ' + (wr.error || n.error) + (wr.help ? '. ' + wr.help : '')));
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK. This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
-  console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
+  console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
 }
 
@@ -159,6 +166,11 @@ function workCalendarId_() {
   return PropertiesService.getScriptProperties().getProperty('WORK_CALENDAR_ID') || '';
 }
 
+/** The farm calendar's ID, from Script Properties (so its name never sits in this code). Empty until linked. */
+function farmCalendarId_() {
+  return String(PropertiesService.getScriptProperties().getProperty('FARM_CALENDAR_ID') || '').trim();
+}
+
 function openCalendar_(id) {
   if (!id || id.indexOf(PLACEHOLDER) > -1) return { cal: null, error: 'not_configured' };
   var cal = id === 'primary' ? CalendarApp.getDefaultCalendar() : CalendarApp.getCalendarById(id);
@@ -166,7 +178,7 @@ function openCalendar_(id) {
 }
 
 function calendarStatus_() {
-  return SOURCES.map(function (src) {
+  return sources_().map(function (src) {
     var o = openCalendar_(src.id());
     return o.cal ? { area: src.area, ok: true, name: o.cal.getName() } : { area: src.area, ok: false, error: o.error };
   });
@@ -204,13 +216,13 @@ function events_(from, to) {
 
   var start = new Date(from), end = new Date(to);
   var calendars = [], events = [];
-  SOURCES.forEach(function (src) {
+  sources_().forEach(function (src) {
     var o = openCalendar_(src.id());
     if (!o.cal) { calendars.push({ area: src.area, ok: false, error: o.error }); return; }
     var tz = o.cal.getTimeZone();
     calendars.push({ area: src.area, ok: true, name: o.cal.getName() });
     o.cal.getEvents(start, end).forEach(function (ev) {
-      if (src.area === 'personal' && declined_(ev)) return;
+      if (src.area !== 'work' && declined_(ev)) return;
       events.push(toItem_(ev, src.area, tz));
     });
   });
@@ -659,8 +671,8 @@ var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
   "Facts: use only the snapshot below and your tools. Never invent events, tasks, dates or numbers. If something isn't in the data, say so. Times are local.",
-  "You can read his Work and Personal calendars, his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
-  "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar, or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
+  "You can read his Work and Personal calendars (and his farm calendar, area 'farm', when the snapshot lists it), his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
+  "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar (or the farm calendar for farm and bee work, when it's linked), or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
   "The Work calendar is read-only: never propose anything for it. A reminder is a short Personal calendar event at the reminder time; his devices alert him.",
   "Use exact task ids from the snapshot or get_tasks. Use Life Area, priority and key date type names exactly as listed in the snapshot."
 ].join('\n');
@@ -710,7 +722,7 @@ function claude_(payload, betas) {
 }
 
 var AI_TOOLS = [
-  { name: 'get_events', description: 'Work and Personal calendar events between two dates (inclusive, at most 62 days). Ignored booking blocks are already left out.',
+  { name: 'get_events', description: 'Work, Personal and (when linked) farm calendar events between two dates (inclusive, at most 62 days). Ignored booking blocks are already left out.',
     input_schema: { type: 'object', properties: { from: { type: 'string', description: 'yyyy-mm-dd' }, to: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['from', 'to'], additionalProperties: false } },
   { name: 'get_tasks', description: "Tasks picked for a day (its priorities) and every open task in the Master Task List, with ids, status, priority, Life Area and due date.",
     input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['day'], additionalProperties: false } },
@@ -726,16 +738,17 @@ var AI_TOOLS = [
     input_schema: { type: 'object', properties: { task_id: { type: 'string' }, task_title: { type: 'string' }, status: { type: 'string', enum: TASK_STATUSES } }, required: ['task_id', 'task_title', 'status'], additionalProperties: false } },
   { name: 'propose_add_key_date', description: 'Propose a new key date. Add an end date for a window; yearly for birthdays, anniversaries and seasons.',
     input_schema: { type: 'object', properties: { title: { type: 'string' }, start: { type: 'string', description: 'yyyy-mm-dd' }, end: { type: 'string', description: 'yyyy-mm-dd, for windows' }, life_area: { type: 'string' }, type: { type: 'string' }, yearly: { type: 'boolean' } }, required: ['title', 'start'], additionalProperties: false } },
-  { name: 'propose_add_event', description: 'Propose an event or reminder on the Personal calendar (never Work). Give a date and start time, or all_day.',
-    input_schema: { type: 'object', properties: { title: { type: 'string' }, date: { type: 'string', description: 'yyyy-mm-dd' }, start_time: { type: 'string', description: 'HH:MM, 24-hour' }, minutes: { type: 'integer', description: 'length, default 30' }, all_day: { type: 'boolean' } }, required: ['title', 'date'], additionalProperties: false } },
+  { name: 'propose_add_event', description: 'Propose an event or reminder on the Personal calendar, or on the farm calendar for farm and bee work when it is linked (never Work). Give a date and start time, or all_day.',
+    input_schema: { type: 'object', properties: { title: { type: 'string' }, calendar: { type: 'string', enum: ['personal', 'farm'], description: 'default personal' }, date: { type: 'string', description: 'yyyy-mm-dd' }, start_time: { type: 'string', description: 'HH:MM, 24-hour' }, minutes: { type: 'integer', description: 'length, default 30' }, all_day: { type: 'boolean' } }, required: ['title', 'date'], additionalProperties: false } },
   { name: 'propose_review_draft', description: "Propose text for a week's review fields. Timothy reviews them on the Review screen before saving.",
     input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'Monday, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
 ];
 
+var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm' };
 function aiDay_(s) { return YMD.test(String(s || '')); }
 function aiLine_(ev, tz) {
-  if (ev.allDay) return ev.start + ' all day · ' + (ev.area === 'work' ? 'Work' : 'Personal') + ' · ' + ev.title;
-  return Utilities.formatDate(new Date(ev.start), tz, 'EEE yyyy-MM-dd HH:mm') + '-' + Utilities.formatDate(new Date(ev.end), tz, 'HH:mm') + ' · ' + (ev.area === 'work' ? 'Work' : 'Personal') + ' · ' + ev.title;
+  if (ev.allDay) return ev.start + ' all day · ' + AREA_LABEL[ev.area] + ' · ' + ev.title;
+  return Utilities.formatDate(new Date(ev.start), tz, 'EEE yyyy-MM-dd HH:mm') + '-' + Utilities.formatDate(new Date(ev.end), tz, 'HH:mm') + ' · ' + AREA_LABEL[ev.area] + ' · ' + ev.title;
 }
 function aiTaskLine_(t) {
   return '[' + t.id + '] ' + t.title + ' · ' + [t.status, t.priority, t.area, t.due ? 'due ' + t.due : '', t.focus ? 'picked ' + t.focus : ''].filter(String).join(' · ');
@@ -787,7 +800,7 @@ function aiCheck_(name, i) {
   if (name === 'propose_set_focus') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : i.day !== 'none' && !aiDay_(i.day) ? 'day must be yyyy-mm-dd, or "none" to unpick.' : '';
   if (name === 'propose_set_status') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : TASK_STATUSES.indexOf(i.status) === -1 ? 'Unknown status.' : '';
   if (name === 'propose_add_key_date') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.start) ? 'start must be yyyy-mm-dd.' : i.end && (!aiDay_(i.end) || i.end < i.start) ? 'end must be yyyy-mm-dd, on or after start.' : '';
-  if (name === 'propose_add_event') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.date) ? 'date must be yyyy-mm-dd.' : !i.all_day && !/^\d{2}:\d{2}$/.test(String(i.start_time || '')) ? 'Give start_time as HH:MM, or all_day.' : '';
+  if (name === 'propose_add_event') return !str(i.title, 200) ? 'title is required.' : i.calendar === 'farm' && !farmCalendarId_() ? 'The farm calendar is not linked yet. Use personal.' : !aiDay_(i.date) ? 'date must be yyyy-mm-dd.' : !i.all_day && !/^\d{2}:\d{2}$/.test(String(i.start_time || '')) ? 'Give start_time as HH:MM, or all_day.' : '';
   if (name === 'propose_review_draft') return !aiDay_(i.week_start) ? 'week_start must be yyyy-mm-dd.' : '';
   return '';
 }

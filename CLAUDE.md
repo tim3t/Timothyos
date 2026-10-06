@@ -33,7 +33,7 @@ Current versions: **app 2.0.0**, **bridge 1.6.0**.
 | GET | `week` `week` (Monday yyyy-mm-dd) `from` `to` (local midnights, ISO) | tasks finished (last edit in range), tasks picked (Focus Date in week), saved review | `reviewsError` set if Weekly Reviews isn't connected; the rest still returns |
 | GET | `aispend` | this month's Ask spend `{month, usd, calls, budget}` | |
 | GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
-| POST | `create` `item{cid,area,title,allDay,start,end}` | new event, **Personal only** | `WRITABLE` allow-list; Work can never be written |
+| POST | `create` `item{cid,area,title,allDay,start,end}` | new event on `personal`, or `farm` once linked | `WRITABLE` allow-list; Work can never be written |
 | POST | `focus` `id` `day\|null` | sets Focus Date | page must belong to the Master Task List |
 | POST | `status` `id` `status` | sets Status (allow-listed values) | same ownership check |
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
@@ -49,6 +49,7 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 - **Secrets never go in code, chat, or commits.** The access key and `NOTION_TOKEN` live only in the bridge's Script Properties (and the key in the iPad app). The repo is public.
 - **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to the two databases above; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
 - **Work calendar is read-only forever.** Don't add write paths for it.
+- **Farm calendar** (bridge 1.8): area `farm`, ID only in Script Property `FARM_CALENDAR_ID` (never in code: its name is personal). `sources_()` leaves it out until set. The app's `setAreas()` moves `farm` from STANDBY_AREAS to LIVE when the bridge lists it, labels it with the calendar's name, and adds it to Capture's `WRITABLE`. Tests: `mock_v18.py` + `app_e2e19`.
 - **Don't change Notion schemas or create databases** without asking first.
 - UI copy and docs: **no em dashes**. **No emoji in the interface** (they clash with LCARS): show Notion labels through `bare()`, keep the raw value for writes. Flat marks (◆ ▲ ▼ ✕ ✓) are fine; ☀ ▶ ◀ ❄ are not (iPadOS draws them as emoji). `app_e2e13` checks this. Uppercase display labels use the Antonio font; keep the LCARS frame (elbow, chrome colors, area colors as tokens in `css/app.css`).
 - Big touch targets (≥ 48 px), works offline, fits iPad landscape (1180×820 and 1133×744) and phone width (400 px, no horizontal scroll).
@@ -75,7 +76,7 @@ Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no 
 
 ## Life areas and colors
 
-App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. Farm + Bees and Hobbies calendars are still standby.
+App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8); the Hobbies calendar is still standby.
 
 ## Known quirks (already handled; don't "fix" them away)
 

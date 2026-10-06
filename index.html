@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.1.1">
+<link rel="stylesheet" href="css/app.css?v=2.2.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.1</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 2.2</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -67,8 +67,8 @@
         <button type="button" class="chip" data-ctype="date" id="capTypeDate">KEY DATE</button>
       </div></div>
       <div class="frow" id="capAreaRow"><span>AREA</span><div class="chips">
-        <button type="button" class="chip on a-personal" aria-pressed="true" tabindex="-1">PERSONAL</button>
-        <button type="button" class="chip a-farm" disabled>FARM + BEES<small>STANDBY</small></button>
+        <button type="button" class="chip a-personal" data-carea="personal" aria-pressed="true">PERSONAL</button>
+        <button type="button" class="chip a-farm" data-carea="farm" id="capFarm" disabled>FARM + BEES<small>STANDBY</small></button>
         <button type="button" class="chip a-hobby" disabled>HOBBIES<small>STANDBY</small></button>
       </div></div>
       <div class="frow" id="capKdRow" hidden><span>AREA</span><div class="chips">
@@ -134,6 +134,6 @@
 <button class="update" id="updateBtn" type="button" hidden>UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=2.1.1"></script>
+<script src="js/app.js?v=2.2.0"></script>
 </body>
 </html>

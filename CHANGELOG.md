@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 · 2026-10-06 (farm calendar needs bridge 1.8.0 + FARM_CALENDAR_ID)
+- **Farm calendar goes live:** once linked, your farm and bee calendar joins Work and Personal on Today, Week, Month, the Bridge (Now/Next, Horizon, clashes, Balance hours) and Review, in amber, under the calendar's own name.
+- **Capture** has a chip for it (your last choice is remembered). **Ask** can propose events for it; nothing is added until you CONFIRM.
+- **Review** shows its hours beside Work and Personal and saves them as Hours Farm; the Review log's hours chart stacks them.
+- Clash alerts name both calendars.
+- Bridge 1.8.0: reads and writes the calendar set in Script Property `FARM_CALENDAR_ID`; setup reports it. Work stays read-only.
+
 ## 2.1.1 · 2026-10-06
 - Fix: opening a week from REVIEW made the header wrap to two lines on the iPad, which squeezed the left bar into a thin stripe above SYSTEMS. The week's header now matches the Week screen (week number above, dates as the title), and **ALL REVIEWS** takes the place of THIS WEEK, so the header stays on one line and the left bar looks the same on every screen.
 - The left bar is also sturdier: if the header ever needs two lines (for example in Split View), the buttons give a little height evenly instead of leaving a sliver.

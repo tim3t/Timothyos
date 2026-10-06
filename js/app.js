@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.1.1";
+  var VERSION = "2.2.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -40,10 +40,10 @@
   var AREAS = {
     work: { name: "WORK", unit: "MTGS" },
     personal: { name: "PERSONAL", unit: "ITEMS" },
-    farm: { name: "FARM + BEES" },
+    farm: { name: "FARM + BEES", unit: "ITEMS" },   /* named after its calendar once linked (bridge 1.8) */
     hobby: { name: "HOBBIES" }
   };
-  var LIVE = ["work", "personal"];
+  var LIVE = ["work", "personal"];         /* calendars in use; setAreas() adds farm once the bridge reports it */
   var STANDBY_AREAS = ["farm", "hobby"];
   var STANDBY_MODULES = [
     ["NOTES IN CAPTURE", "Quick notes, with a later Notion stage."]
@@ -416,6 +416,16 @@
     toast(name + " calendar " + (state.hidden[k] ? "hidden on all views" : "shown on all views"));
   }
   function calStatus(area) { return state.calendars.filter(function (c) { return c.area === area; })[0]; }
+  /* The farm calendar joins Work and Personal once the bridge lists it (bridge 1.8, FARM_CALENDAR_ID).
+     Its label is the calendar's own name, so nothing personal is written into this code. */
+  function setAreas() {
+    var f = calStatus("farm");
+    LIVE = f ? ["work", "personal", "farm"] : ["work", "personal"];
+    STANDBY_AREAS = f ? ["hobby"] : ["farm", "hobby"];
+    AREAS.farm.name = f && f.ok && bare(f.name || "").trim() ? bare(f.name).trim().toUpperCase().slice(0, 20) : "FARM + BEES";
+    WRITABLE = ["personal"].concat(f && f.ok ? ["farm"] : []);
+  }
+  function hasFarm() { return LIVE.indexOf("farm") > -1; }
 
   /* ---------- Sync ---------- */
   function setSync(status, error) {
@@ -690,7 +700,7 @@
       "</div></section>";
 
     html += netSection();
-    html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · PERSONAL TAKES CAPTURES" : "READ-ONLY");
+    html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · " + WRITABLE.map(function (k) { return AREAS[k].name; }).join(" + ") + (WRITABLE.length > 1 ? " TAKE" : " TAKES") + " CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
       var cs = calStatus(k);
       html += '<div class="calrow a-' + k + '"><span class="st"></span><span><b>' + AREAS[k].name + "</b><small>" +
@@ -965,7 +975,7 @@
     if (typeof hour === "number") h = hour;
     else if (sameDay(d, now)) h = Math.min(23.75, Math.ceil((now.getHours() + now.getMinutes() / 60) * 2) / 2);
     else h = 9;
-    cap = { day: d, hour: h, dur: capPrefs.dur || "1", type: type === "date" && canDates() ? "date" : "event", yearly: false };
+    cap = { day: d, hour: h, dur: capPrefs.dur || "1", type: type === "date" && canDates() ? "date" : "event", yearly: false, area: capPrefs.area || "personal" };
     $("capText").value = "";
     $("capUntil").value = "";
     fillDateSelects();
@@ -977,8 +987,14 @@
   function closeCapture() { $("capScrim").hidden = true; cap = null; }
   function renderCapture() {
     var now = new Date(), allDay = cap.dur === "all", notes = [], isDate = cap.type === "date";
-    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : isDate ? "NOTION · KEY DATES" : "PERSONAL CALENDAR";
-    $("capForm").style.setProperty("--c", isDate ? "var(--chrome-b)" : "var(--personal)");
+    setAreas();
+    if (WRITABLE.indexOf(cap.area) === -1) cap.area = "personal";
+    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : isDate ? "NOTION · KEY DATES" : AREAS[cap.area].name + " CALENDAR";
+    $("capForm").style.setProperty("--c", isDate ? "var(--chrome-b)" : "var(--" + cap.area + ")");
+    document.querySelectorAll("[data-carea]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.carea === cap.area)); });
+    var fb = $("capFarm"), farmOn = WRITABLE.indexOf("farm") > -1;
+    fb.disabled = !farmOn;
+    fb.innerHTML = esc(AREAS.farm.name) + (farmOn ? "" : "<small>STANDBY</small>");
     document.querySelectorAll("[data-ctype]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.ctype === cap.type)); });
     $("capTypeDate").disabled = !canDates();
     $("capTypeDate").innerHTML = "KEY DATE" + (canDates() ? "" : "<small>SETUP</small>");
@@ -986,9 +1002,9 @@
     $("capKdRow").hidden = !isDate; $("capUntilRow").hidden = !isDate;
     $("capYearly").setAttribute("aria-pressed", String(!!cap.yearly));
     $("capText").placeholder = isDate ? "What's the date? e.g. First frost risk" : "What goes in? e.g. Pick up bee feeder";
-    $("capFootText").textContent = isDate ? "Saves to Key Dates in Notion." : "Saves to your Personal Google Calendar. Work is read-only.";
+    $("capFootText").textContent = isDate ? "Saves to Key Dates in Notion." : "Saves to your " + areaName(cap.area) + " Google Calendar. Work is read-only.";
     if (!isDate && !canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
-    if (!isDate && state.hidden.personal) notes.push("Personal is hidden. New events save, but stay hidden until you tap Personal on Today.");
+    if (!isDate && state.hidden[cap.area]) notes.push(areaName(cap.area) + " is hidden. New events save, but stay hidden until you tap " + areaName(cap.area) + " on Today.");
     $("capNote").hidden = !notes.length;
     $("capNote").textContent = notes.join(" ");
     $("capSave").disabled = isDate ? !canDates() : !canCreate();
@@ -1016,7 +1032,7 @@
       return;
     }
     if (!canCreate()) return;
-    var item = { cid: newCid(), area: WRITABLE[0], title: title.slice(0, 200), created: Date.now(), attempts: 0 };
+    var item = { cid: newCid(), area: WRITABLE.indexOf(cap.area) > -1 ? cap.area : "personal", title: title.slice(0, 200), created: Date.now(), attempts: 0 };
     if (cap.dur === "all") {
       item.allDay = true; item.start = ymd(cap.day); item.end = ymd(addDays(cap.day, 1));
     } else {
@@ -1057,6 +1073,7 @@
     else if (b.id === "capYearly") { cap.yearly = !cap.yearly; renderCapture(); }
     else if (b.dataset.capday) { cap.day = b.dataset.capday === "today" ? sod(new Date()) : addDays(sod(new Date()), 1); renderCapture(); }
     else if (b.dataset.dur) { cap.dur = b.dataset.dur; capPrefs.dur = cap.dur; lsSet(LS_CAPPREFS, capPrefs); renderCapture(); }
+    else if (b.dataset.carea) { cap.area = b.dataset.carea; capPrefs.area = cap.area; lsSet(LS_CAPPREFS, capPrefs); renderCapture(); }
   });
   $("capDate").addEventListener("change", function () { if (cap && /^\d{4}-\d{2}-\d{2}$/.test(this.value)) { cap.day = parseYmd(this.value); renderCapture(); } });
   $("capTime").addEventListener("change", function () { if (cap) cap.hour = Number(this.value); });
@@ -1153,7 +1170,7 @@
       return;
     }
     var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
-    var areas = [["", "ALL"], ["work", "WORK"], ["personal", "PERSONAL"], ["farm", "FARM + BEES"], ["hobby", "HOBBIES"]];
+    var areas = [["", "ALL"], ["work", "WORK"], ["personal", "PERSONAL"], ["farm", AREAS.farm.name], ["hobby", "HOBBIES"]];
     html += '<div class="kdtools"><div class="chips">' + areas.map(function (a) {
       return '<button type="button" class="chip' + (a[0] ? " a-" + a[0] : "") + '" data-kdf="' + a[0] + '" aria-pressed="' + ((f || "") === a[0]) + '">' + a[1] + "</button>";
     }).join("") + '</div><button type="button" class="btn" data-act="adddate">+ ADD KEY DATE</button></div>';
@@ -1596,7 +1613,7 @@
     }
     if (hasData(bridgeRange())) {
       clashes(list, now).slice(0, 2).forEach(function (c) {
-        items.push({ lvl: "bad", ic: "✕", txt: "Calendar clash at " + hm(c[0]._s > c[1]._s ? c[0]._s : c[1]._s), sub: esc(c[0].title) + " (Work) overlaps " + esc(c[1].title) + " (Personal)", day: today, go: "TODAY" });
+        items.push({ lvl: "bad", ic: "✕", txt: "Calendar clash at " + hm(c[0]._s > c[1]._s ? c[0]._s : c[1]._s), sub: esc(c[0].title) + " (" + areaName(c[0].area) + ") overlaps " + esc(c[1].title) + " (" + areaName(c[1].area) + ")", day: today, go: "TODAY" });
       });
     }
     if (canDates() && state.dates) {
@@ -1705,18 +1722,20 @@
       var d = addDays(sod(now), i), timed = dayEvents(vis, d).timed;
       var w = unionHours(timed.filter(function (e) { return e.area === "work"; }), d, 0, 24);
       var p = unionHours(timed.filter(function (e) { return e.area === "personal"; }), d, 0, 24);
-      days.push({ d: d, w: w, p: p, tot: unionHours(timed, d, 0, 24), kd: kdMarks(ymd(d), false).length });
-      max = Math.max(max, w + p);
+      var f = unionHours(timed.filter(function (e) { return e.area === "farm"; }), d, 0, 24);
+      days.push({ d: d, w: w, p: p, f: f, tot: unionHours(timed, d, 0, 24), kd: kdMarks(ymd(d), false).length });
+      max = Math.max(max, w + p + f);
     }
     var html = phead("HORIZON · 7 DAYS", hiddenNote() || (hasData(bridgeRange()) ? "TAP A DAY" : "LOADING"), null, moreBtn("horizon", "horizon")) + '<div class="ov-wk">';
     days.forEach(function (x, i) {
       var heavy = x.tot >= HEAVY_HOURS;
       html += '<button type="button" class="ov-day' + (i === 0 ? " today" : "") + (heavy ? " heavy" : "") + '" data-day="' + ymd(x.d) + '" aria-label="' + DOWL[x.d.getDay()] + ", " + hrsLabel(x.tot) + ' booked">' +
         '<span class="bars"><span class="mk">' + (x.kd ? "◆" : "") + '</span><span class="hrs tnum">' + hrsLabel(x.tot) + "</span>" +
+        (x.f ? '<span class="seg a-farm" style="height:' + Math.round(x.f / max * H) + 'px"></span>' : "") +
         '<span class="seg a-personal" style="height:' + Math.round(x.p / max * H) + 'px"></span><span class="seg a-work" style="height:' + Math.round(x.w / max * H) + 'px"></span></span>' +
         '<span class="dl">' + DOW[x.d.getDay()] + '<b class="tnum">' + p2(x.d.getDate()) + "</b></span></button>";
     });
-    html += '</div><div class="ov-legend ov-extra"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span><span><i class="dia">◆</i>KEY DATE</span></div>';
+    html += '</div><div class="ov-legend ov-extra"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span>' + (hasFarm() ? '<span><i class="a-farm"></i>' + AREAS.farm.name + "</span>" : "") + '<span><i class="dia">◆</i>KEY DATE</span></div>';
     var heavy = days.filter(function (x) { return x.tot >= HEAVY_HOURS; });
     if (heavy.length) html += '<div class="ov-heavy">▲ HEAVY: ' + heavy.map(function (x) { return DOW[x.d.getDay()] + " " + hrsLabel(x.tot); }).join(" · ") + ". Few open gaps.</div>";
     return html;
@@ -1999,6 +2018,7 @@
       return tot;
     };
     var st = { cur: cur, work: hours(w0, "work"), personal: hours(w0, "personal"), prevWork: hours(addDays(w0, -7), "work"), prevPersonal: hours(addDays(w0, -7), "personal") };
+    if (hasFarm()) { st.farm = hours(w0, "farm"); st.prevFarm = hours(addDays(w0, -7), "farm"); }
     var busiest = null, open = 0, meetings = 0;
     for (var i = 0; i < 7; i++) {
       var d = addDays(w0, i), timed = dayEvents(list, d).timed, tot = unionHours(timed, d, 0, 24);
@@ -2038,8 +2058,8 @@
     html += "<section>" + phead("TIME", st.cur ? "SO FAR THIS WEEK" : "VS THE WEEK BEFORE");
     if (!loaded) html += '<div class="empty">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar for this week isn't loaded yet.") + "</div>";
     else {
-      var maxH = Math.max(10, st.work, st.personal);
-      [["work", st.work, st.prevWork], ["personal", st.personal, st.prevPersonal]].forEach(function (x) {
+      var maxH = Math.max(10, st.work, st.personal, st.farm || 0);
+      [["work", st.work, st.prevWork], ["personal", st.personal, st.prevPersonal]].concat(hasFarm() ? [["farm", st.farm, st.prevFarm]] : []).forEach(function (x) {
         html += '<div class="rv-row a-' + x[0] + '"><span class="bn">' + AREAS[x[0]].name + '</span><span class="track"><span style="width:' + Math.round(x[1] / maxH * 100) + '%"></span></span>' +
           '<span class="bv tnum">' + hrsLabel(x[1]) + "</span>" + (st.cur ? "<span></span>" : '<span class="dl tnum">' + delta(x[1], x[2]) + "</span>") + "</div>";
       });
@@ -2131,7 +2151,7 @@
       intents: intents(w0).filter(function (x) { return x.text; }).map(function (x) { return DOW[x.d.getDay()] + " " + p2(x.d.getDate()) + " · " + x.text; }).join("\n"),
       hoursWork: hasData(viewRange()) ? Math.round(st.work * 10) / 10 : null,
       hoursPersonal: hasData(viewRange()) ? Math.round(st.personal * 10) / 10 : null,
-      hoursFarm: null, hoursHobbies: null,
+      hoursFarm: hasFarm() && hasData(viewRange()) ? Math.round(st.farm * 10) / 10 : null, hoursHobbies: null,
       tasksDone: w ? st.done : null, picked: w ? st.picked : null, pickedDone: w ? st.pickedDone : null,
       byArea: w ? st.byArea.map(function (x) { return (bare(x.area) || "No area") + " " + x.n; }).join(" · ") : ""
     };
@@ -2217,7 +2237,7 @@
   function hoursChart(weeks) {
     var VW = chartWidth(false), VH = 210, L = 40, R = 8, T = 22, B = 28, n = weeks.length, cw = (VW - L - R) / n, bw = Math.max(8, Math.min(40, cw - 12));
     var top = 10;
-    weeks.forEach(function (x) { if (x.r && num(x.r.hoursWork)) top = Math.max(top, x.r.hoursWork + (x.r.hoursPersonal || 0)); });
+    weeks.forEach(function (x) { if (x.r && num(x.r.hoursWork)) top = Math.max(top, x.r.hoursWork + (x.r.hoursPersonal || 0) + (x.r.hoursFarm || 0)); });
     top = Math.ceil(top / 10) * 10;
     var y = function (v) { return T + (VH - T - B) * (1 - v / top); }, best = null;
     var s = svgOpen(VW, VH, "Hours per week, Work and Personal") + gridLine(L, VW - R, y(0), "0") + gridLine(L, VW - R, y(top / 2), top / 2) + gridLine(L, VW - R, y(top), top);
@@ -2228,11 +2248,12 @@
           hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), x.status === "cur" ? "In progress" : x.status === "due" ? "Not saved yet" : r ? "Saved without hours" : "Not saved");
         return;
       }
-      var wv = r.hoursWork, pv = r.hoursPersonal || 0, yw = y(wv), yp = y(wv + pv);
-      s += '<rect class="b-work" x="' + bx + '" y="' + yw + '" width="' + bw + '" height="' + Math.max(0, y(0) - yw) + '"/>';
-      if (pv) s += '<rect class="b-personal" x="' + bx + '" y="' + yp + '" width="' + bw + '" height="' + Math.max(0, yw - yp - 2) + '" rx="4"/>';
-      best = { x: bx + bw / 2, y: yp, v: wv + pv };
-      s += lab + hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), "Work " + hrsLabel(wv).toLowerCase() + " · Personal " + hrsLabel(pv).toLowerCase() + " · " + hrsLabel(wv + pv).toLowerCase() + " total");
+      var wv = r.hoursWork, pv = r.hoursPersonal || 0, fv = r.hoursFarm || 0, yw = y(wv), yp = y(wv + pv), yf = y(wv + pv + fv);
+      s += '<rect class="b-work" x="' + bx + '" y="' + yw + '" width="' + bw + '" height="' + Math.max(0, y(0) - yw) + '"' + (pv || fv ? "" : ' rx="4"') + "/>";
+      if (pv) s += '<rect class="b-personal" x="' + bx + '" y="' + yp + '" width="' + bw + '" height="' + Math.max(0, yw - yp - 2) + '"' + (fv ? "" : ' rx="4"') + "/>";
+      if (fv) s += '<rect class="b-farm" x="' + bx + '" y="' + yf + '" width="' + bw + '" height="' + Math.max(0, yp - yf - 2) + '" rx="4"/>';
+      best = { x: bx + bw / 2, y: yf, v: wv + pv + fv };
+      s += lab + hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), "Work " + hrsLabel(wv).toLowerCase() + " · Personal " + hrsLabel(pv).toLowerCase() + (fv ? " · " + areaName("farm") + " " + hrsLabel(fv).toLowerCase() : "") + " · " + hrsLabel(wv + pv + fv).toLowerCase() + " total");
     });
     if (best) s += '<text class="v" x="' + best.x + '" y="' + (best.y - 6) + '" text-anchor="middle">' + hrsLabel(best.v) + "</text>";
     return s + "</svg>";
@@ -2341,7 +2362,7 @@
         '<div class="rl-stat"><b class="tnum">' + (wAvg === null ? "NONE" : Math.round(wAvg) + "H · " + Math.round(pAvg) + "H") + '</b><span>WORK · PERSONAL, AVG</span></div></div>' +
         '<div class="rl-charts">' +
         '<div class="rl-chart wide"><h3>HOURS PER WEEK</h3><div class="sub">Calendar time, ignored events left out. Week numbers along the bottom.</div>' + hoursChart(win) +
-        '<div class="rl-legend"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span><span><i class="gap"></i>NOT SAVED</span></div></div>' +
+        '<div class="rl-legend"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span>' + (win.some(function (x) { return x.r && x.r.hoursFarm; }) ? '<span><i class="a-farm"></i>' + AREAS.farm.name + "</span>" : "") + '<span><i class="gap"></i>NOT SAVED</span></div></div>' +
         '<div class="rl-chart ov-extra"><h3>PRIORITIES KEPT</h3><div class="sub">Share of the week\'s picks marked done.</div>' + keptChart(win) + "</div>" +
         '<div class="rl-chart ov-extra"><h3>TASKS FINISHED</h3><div class="sub">Marked done in the Master Task List.</div>' + doneChart(win) + "</div>" +
         '<div class="rl-chart wide ov-extra"><h3>WHERE THE WORK WENT</h3><div class="sub">Tasks finished by Life Area, ' + meta.toLowerCase().replace("last ", "") + ".</div>" +
@@ -2505,6 +2526,7 @@
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange()), out = [];
     var line = function (e) { return e.allDay ? "all day · " + AREAS[e.area].name + " · " + e.title : hm(e._s) + "-" + hm(e._e) + " · " + AREAS[e.area].name + " · " + e.title + (e.pending ? " (not saved yet)" : ""); };
     out.push("NOW: " + DOWL[now.getDay()] + " " + today + " " + hm(now) + " (iPad local time). Week starts Monday.");
+    if (hasFarm()) out.push("CALENDARS: WORK (read-only), PERSONAL, " + AREAS.farm.name + " (farm and bees; calendar 'farm' for proposals)");
     var items = conditions(now, today, list);
     out.push("CONDITION: " + (items.some(function (i) { return i.lvl === "bad"; }) ? "RED" : items.length ? "YELLOW" : "GREEN") +
       (items.length ? " · " + items.map(function (i) { return i.txt + " (" + unesc(i.sub.replace(/<[^>]+>/g, "")) + ")"; }).join(" · ") : ""));
@@ -2549,6 +2571,7 @@
     var f = function (k) { var el = $("rv-" + k); return el ? el.value.trim() : d[k] || (saved && saved[k]) || ""; };
     var lines = [weekLabel(w0) + (st.cur ? " (in progress, numbers so far)" : ""),
       "Hours: Work " + hrsLabel(st.work) + (st.cur ? "" : " (week before " + hrsLabel(st.prevWork) + ")") + ", Personal " + hrsLabel(st.personal) + (st.cur ? "" : " (week before " + hrsLabel(st.prevPersonal) + ")") +
+        (hasFarm() ? ", " + areaName("farm") + " (farm and bees) " + hrsLabel(st.farm) + (st.cur ? "" : " (week before " + hrsLabel(st.prevFarm) + ")") : "") +
         ". Busiest day " + (st.busiest && st.busiest.h ? DOW[st.busiest.d.getDay()] + " " + hrsLabel(st.busiest.h) : "none") + ". Open time 07:00 to 21:00: " + hrsLabel(st.open) + " of 98H. Work events: " + st.meetings + "."];
     if (w) {
       lines.push("Finished (" + st.done + "): " + (w.done.map(function (t) { return t.title + " [" + (bare(t.area) || "no area") + "]"; }).join("; ") || "none"));
@@ -2582,7 +2605,7 @@
     if (p.kind === "set_focus") return (i.day === "none" ? "UNPICK · " : "PICK FOR " + dLabel(parseYmd(i.day)) + " · ") + i.task_title;
     if (p.kind === "set_status") return "MARK " + bare(i.status).toUpperCase() + " · " + i.task_title;
     if (p.kind === "add_key_date") return "ADD KEY DATE · " + i.title;
-    if (p.kind === "add_event") return "ADD TO PERSONAL CALENDAR · " + i.title;
+    if (p.kind === "add_event") return "ADD TO " + (i.calendar === "farm" ? AREAS.farm.name : "PERSONAL") + " CALENDAR · " + i.title;
     if (p.kind === "review_draft") return "DRAFT REVIEW · " + weekLabel(sow(parseYmd(i.week_start)));
     return p.kind;
   }
@@ -2661,14 +2684,15 @@
       state.queue.push({ kind: "date", cid: newCid(), title: i.title.slice(0, 200), start: i.start, end: i.end && i.end !== i.start ? i.end : null, area: i.life_area || null, type: i.type || null, yearly: !!i.yearly, created: Date.now(), attempts: 0 });
       saveQueue(); flushQueue(true); finish(true, "Saving to Key Dates.");
     } else if (p.kind === "add_event") {
-      var item = { cid: newCid(), area: "personal", title: i.title.slice(0, 200), created: Date.now(), attempts: 0 };
+      var area = i.calendar === "farm" && WRITABLE.indexOf("farm") > -1 ? "farm" : "personal";
+      var item = { cid: newCid(), area: area, title: i.title.slice(0, 200), created: Date.now(), attempts: 0 };
       if (i.all_day) { item.allDay = true; item.start = i.date; item.end = ymd(addDays(parseYmd(i.date), 1)); }
       else {
         var s = parseYmd(i.date), hmv = String(i.start_time).split(":");
         s.setHours(+hmv[0], +hmv[1], 0, 0);
         item.allDay = false; item.start = s.toISOString(); item.end = new Date(s.getTime() + Math.max(5, Math.min(600, i.minutes || 30)) * 60000).toISOString();
       }
-      state.queue.push(item); saveQueue(); flushQueue(true); finish(true, "Saving to your Personal calendar.");
+      state.queue.push(item); saveQueue(); flushQueue(true); finish(true, "Saving to your " + areaName(area) + " calendar.");
     } else if (p.kind === "review_draft") {
       var wk = ymd(sow(parseYmd(i.week_start)));
       [["went_well", "wentWell"], ["drained", "drained"], ["next_focus", "nextFocus"], ["bearing", "bearing"], ["summary", "summary"]].forEach(function (f) { if (i[f[0]]) saveDraft(wk, f[1], i[f[0]]); });
@@ -2719,6 +2743,7 @@
     var active = document.activeElement, typing = active && active.id && $("content").contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)
       ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
     state.index = {};
+    setAreas();
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }

@@ -10,6 +10,11 @@ const personal = { getName:()=>'personal@example.com', getTimeZone:()=>'America/
   getEvents:()=>created.slice(),
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); created.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); created.push(ev); return ev; } };
+const farmEvents = [];
+const farm = { getName:()=>'Farm cal', getTimeZone:()=>'America/Chicago', getId:()=>'farm-id@group.calendar.google.com',
+  getEvents:()=>farmEvents.slice(),
+  createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); farmEvents.push(ev); return ev; },
+  createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); farmEvents.push(ev); return ev; } };
 const work = { getName:()=>'Work', getTimeZone:()=>'America/Chicago', getId:()=>'tim@work.com', getEvents:()=>[],
   createEvent:()=>{ throw new Error('WORK WRITE ATTEMPTED'); } };
 const ctx = {
@@ -20,7 +25,7 @@ const ctx = {
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
   Session: { getScriptTimeZone: ()=>'America/Chicago' },
   LockService: { getScriptLock: ()=>({ waitLock(){}, releaseLock(){} }) },
-  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:null, getAllCalendars:()=>[personal, work] },
+  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:null, getAllCalendars:()=>[personal, work, farm] },
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'),'utf8'), ctx);
@@ -44,3 +49,25 @@ console.log('all day:', JSON.stringify(post({ key, action:'create', item: { cid:
 console.log('bad json:', JSON.stringify(post('{nope')));
 const ev = get({action:'events', key, from: now - 864e5, to: now + 5*864e5});
 console.log('events now include created:', ev.events.map(x => x.title).join(' | '), '| caps', ev.capabilities);
+
+// --- farm calendar (bridge 1.8): off until FARM_CALENDAR_ID is set, then read and writable; Work still never
+const assert = require('assert');
+assert.deepStrictEqual(get({ action:'ping', key }).calendars.map(c => c.area), ['work', 'personal'], 'farm left out until linked');
+const fitem = { cid:'farm-0001', area:'farm', title:'Inspect hive 2', start: s, end: e, allDay:false };
+const off = post({ key, action:'create', item: fitem });
+console.log('farm create before linking:', JSON.stringify(off));
+assert.strictEqual(off.ok, false);
+props.FARM_CALENDAR_ID = ' farm-id@group.calendar.google.com ';
+const cals = get({ action:'ping', key }).calendars;
+console.log('calendars once linked:', JSON.stringify(cals));
+assert.deepStrictEqual(cals.map(c => c.area + ':' + c.ok), ['work:true', 'personal:true', 'farm:true']);
+const on = post({ key, action:'create', item: Object.assign({}, fitem, { cid:'farm-0002' }) });
+assert.ok(on.ok && on.event.area === 'farm', 'farm takes captures');
+assert.strictEqual(farmEvents.length, 1);
+const ev2 = get({ action:'events', key, from: now - 864e5, to: now + 5*864e5 });
+assert.ok(ev2.events.some(x => x.area === 'farm' && x.title === 'Inspect hive 2'), 'farm events read');
+assert.strictEqual(post({ key, action:'create', item: Object.assign({}, fitem, { area:'work', cid:'farm-0003' }) }).error, 'not_writable');
+props.FARM_CALENDAR_ID = 'wrong-id';
+assert.deepStrictEqual(get({ action:'ping', key }).calendars[2], { area:'farm', ok:false, error:'not_found' });
+delete props.FARM_CALENDAR_ID;
+console.log('farm calendar checks passed');

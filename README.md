@@ -205,11 +205,24 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 
 **How it works**
 - Each question goes with a snapshot of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your log line and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the bridge.
-- **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add a Personal calendar event or reminder, draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
+- **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm calendar, once linked), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
 - **Models:** Haiku 4.5 by default (about 1 to 2¢ a question). **THINK HARDER** uses Sonnet 5.5 (about 3 to 5¢). **WRITE SUMMARY** on Review uses Sonnet 5.5.
 - **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far. At the budget the bridge stops calling Claude until the 1st.
 - **OPEN IN CLAUDE** copies the snapshot and opens the Claude app (your Pro plan) for longer conversations. If Claude opens empty, paste.
 - The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
+
+## Farm calendar (bridge 1.8)
+
+A third Google calendar for farm and bee work. Once linked, it sits beside Work and Personal everywhere (Today, Week, Month, the Bridge, Review hours) in amber, labeled with the calendar's own name. **CAPTURE** and **ASK** can add to it. Work stays read-only.
+
+1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it, time zone **Central Time**, **Create calendar**.
+2. **Copy its ID:** **Settings** → under *Settings for my calendars* pick the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
+3. **Update the bridge to 1.8:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+4. **Add the ID:** Project Settings (gear) → **Script Properties** → **Add script property**: name `FARM_CALENDAR_ID`, value the Calendar ID. (It lives there, not in the code, so code updates keep it.)
+5. Run **setup**. The log should show `TimothyOS farm calendar: OK (<your calendar's name>)` and end with `Bridge version 1.8.0. Can write to: personal, farm`.
+6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
+
+To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never deleted.
 
 ## Daily use
 

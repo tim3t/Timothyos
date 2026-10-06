@@ -744,6 +744,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .rl-svg .gap { fill: var(--panel); stroke: var(--line); stroke-dasharray: 3 4; }
 .rl-svg .b-work { fill: var(--work); }
 .rl-svg .b-personal { fill: var(--personal); }
+.rl-svg .b-farm { fill: var(--farm); }
 .rl-svg .b-done { fill: var(--chrome-c); }
 .rl-svg .ln { fill: none; stroke: var(--chrome-b); stroke-width: 2; }
 .rl-svg .dot { fill: var(--chrome-b); stroke: var(--bg); stroke-width: 2; }
