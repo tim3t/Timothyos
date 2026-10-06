@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TimothyOS</title>
+<meta name="description" content="Timothy's life dashboard: calendars in one place.">
+<meta name="theme-color" content="#07080b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TimothyOS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css?v=1.0.0">
+</head>
+<body>
+<div class="app" id="app">
+  <div class="elbow" aria-hidden="true">TIMOTHY<br>OS</div>
+  <header class="top">
+    <div class="topbar"><span>TIMOTHYOS 1.0</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="headrow">
+      <div class="titlegroup">
+        <div>
+          <div class="eyebrow" id="eyebrow">TODAY</div>
+          <h1 id="title">TIMOTHYOS</h1>
+        </div>
+        <div class="pager" id="pager" hidden>
+          <button class="chip" type="button" id="prevBtn" aria-label="Previous">◀</button>
+          <button class="chip" type="button" id="todayBtn">TODAY</button>
+          <button class="chip" type="button" id="nextBtn" aria-label="Next">▶</button>
+        </div>
+      </div>
+      <div class="actions" aria-label="Coming later">
+        <button class="btn plan" type="button" disabled title="Standby: arrives with priorities">☀ PLAN DAY<small>STANDBY</small></button>
+        <button class="btn ask" type="button" disabled title="Standby: arrives in a later stage">◆ ASK<small>STANDBY</small></button>
+        <button class="btn capture" type="button" disabled title="Standby: arrives when calendars become writable">▶ CAPTURE<small>STANDBY</small></button>
+      </div>
+    </div>
+  </header>
+  <nav class="side" aria-label="Screens">
+    <button class="nav" data-screen="today" style="--c: var(--chrome-b)" type="button">TODAY</button>
+    <button class="nav" data-screen="week" style="--c: var(--chrome-a)" type="button">WEEK</button>
+    <button class="nav" data-screen="month" style="--c: var(--chrome-b)" type="button">MONTH</button>
+    <button class="nav" style="--c: var(--chrome-c)" type="button" disabled><small>STANDBY</small>DATES</button>
+    <button class="nav" style="--c: var(--chrome-b)" type="button" disabled><small>STANDBY</small>REVIEW</button>
+    <div class="fill" aria-hidden="true"></div>
+    <button class="nav sys" data-screen="systems" style="--c: var(--chrome-c)" type="button">SYSTEMS</button>
+    <button class="status" id="status" type="button" aria-label="Sync status. Opens Systems."></button>
+  </nav>
+  <main class="content" id="content"></main>
+</div>
+
+<div class="scrim" id="detailScrim" hidden>
+  <div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="js/app.js?v=1.0.0"></script>
+</body>
+</html>
