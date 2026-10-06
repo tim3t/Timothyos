@@ -190,6 +190,8 @@ js/app.js             app logic
 sw.js                 offline cache
 version.json          current version (the app checks it for updates)
 tools/bump_version.py sets the version everywhere before a release
+tests/run.sh          runs all tests (simulated bridges + headless browser)
+CLAUDE.md             working notes for Claude: architecture, rules, release checklist
 manifest.webmanifest  home screen install settings
 icons/, fonts/        app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs   the Google Apps Script bridge

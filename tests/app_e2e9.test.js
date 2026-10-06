@@ -1,0 +1,55 @@
+const { chromium } = require('playwright');
+const D = __dirname + '/out/', K = 'k'.repeat(64);
+const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?action=stats&key=' + K)).json());
+(async () => {
+  const b = await chromium.launch(); const errs = [];
+  const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
+  await p.goto('http://localhost:8080/');
+  // bridge 1.1 (no tasks): plan disabled
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.reload(); await p.waitForTimeout(1200);
+  console.log('bridge 1.1: plan disabled', await p.isDisabled('#planBtn'), '| label', (await p.textContent('#planBtn')).trim(), '| panel:', (await p.textContent('.rcol')).includes('Needs the Notion link'));
+  // bridge 1.2
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.reload(); await p.waitForTimeout(1500);
+  console.log('bridge 1.2: plan enabled', !(await p.isDisabled('#planBtn')), '| priorities rows', await p.locator('.prio').count(), '| meta', await p.textContent('.rcol .phead:has(h2:text("PRIORITIES")) .meta').catch(() => '-'));
+  await p.screenshot({ path: D + 'plan-today-before.png' });
+  await p.click('#planBtn'); await p.waitForTimeout(800);
+  console.log('dayline:', await p.textContent('.dayline'));
+  console.log('groups:', (await p.locator('.pgroup').allTextContents()).join(' | '));
+  console.log('count:', await p.textContent('#planCount'));
+  await p.screenshot({ path: D + 'plan-sheet.png' });
+  await p.click('.cand:has-text("Order spring bulbs")'); await p.click('.cand:has-text("Sugar syrup for Hive 2")'); await p.click('.cand:has-text("Send Q4 deck draft")');
+  console.log('after 3 picks:', await p.textContent('#planCount'));
+  await p.click('.cand:has-text("Book furnace service")'); await p.waitForTimeout(200);
+  console.log('4th pick blocked toast:', await p.textContent('#toast'), '|', await p.textContent('#planCount'));
+  await p.click('[data-showall]'); console.log('show all rows:', await p.locator('.cand').count());
+  await p.fill('#planNew', 'Call the vet'); await p.click('#planAdd'); await p.waitForTimeout(400);
+  console.log('add at limit -> toast:', await p.textContent('#toast'));
+  await p.click('.cand:has-text("Send Q4 deck draft")');
+  await p.fill('#planNew', 'Call the vet'); await p.selectOption('#planArea', '👨‍👩‍👧‍👦 Family'); await p.selectOption('#planPri', '🟡 Medium'); await p.click('#planAdd'); await p.waitForTimeout(600);
+  console.log('added new -> count', await p.textContent('#planCount'));
+  await p.click('#planSave'); await p.waitForTimeout(1500);
+  console.log('save toast:', await p.textContent('#toast'), '| sheet hidden', await p.isHidden('#planScrim'));
+  console.log('notion now:', JSON.stringify((await stats()).tasks.filter(t => t[2] === '2026-10-06')));
+  await p.waitForTimeout(500);
+  console.log('priorities rows:', await p.locator('.prio').count(), '|', (await p.locator('.prio b').allTextContents()).join(', '));
+  await p.click('.prio:has-text("Sugar syrup")'); await p.waitForTimeout(600);
+  console.log('check-off toast:', await p.textContent('#toast'), '| notion status:', JSON.stringify((await stats()).tasks.find(t => t[0].startsWith('Sugar'))));
+  await p.screenshot({ path: D + 'plan-today-after.png' });
+  await p.click('.prio:has-text("Sugar syrup")'); await p.waitForTimeout(600);
+  console.log('reopen ->', JSON.stringify((await stats()).tasks.find(t => t[0].startsWith('Sugar'))));
+  // failure path: status rejected
+  await p.route('**/127.0.0.1:8093/**', r => r.request().method() === 'POST' ? r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"ok":false,"error":"notion_unauthorized"}' }) : r.continue());
+  await p.click('.prio:has-text("Order spring")'); await p.waitForTimeout(500);
+  console.log('failure toast:', await p.textContent('#toast'), '| reverted done?', await p.locator('.prio.done:has-text("Order spring")').count());
+  await p.unroute('**/127.0.0.1:8093/**');
+  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
+  console.log('systems notion:', await p.locator('.calrow:has-text("Master Task List") small').first().textContent());
+  await p.setViewportSize({ width: 400, height: 860 }); await p.click('[data-screen="today"]'); await p.waitForTimeout(300); await p.click('#planBtn'); await p.waitForTimeout(500);
+  await p.screenshot({ path: D + 'plan-phone.png' });
+  console.log('phone scrollWidth', await p.evaluate(() => document.documentElement.scrollWidth));
+  console.log('errors', errs); await b.close();
+})();
