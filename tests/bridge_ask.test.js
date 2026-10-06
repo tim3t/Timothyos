@@ -88,6 +88,11 @@ sent = []; script = [{ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usag
 const r3 = ask({ mode: 'summary' });
 assert.ok(!sent[0].tools); assert.ok(sent[0].system[0].text.includes('weekly summary')); assert.strictEqual(r3.reply, 'A steady week.');
 
+// patterns mode: Sonnet, no tools, its own task
+sent = []; script = [{ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: '- Evening calls drain you most weeks.' }] }];
+const rp = ask({ mode: 'patterns' });
+assert.strictEqual(sent[0].model, 'claude-sonnet-5-5'); assert.ok(!sent[0].tools); assert.ok(sent[0].system[0].text.includes('patterns across them')); assert.ok(rp.reply.startsWith('- Evening'));
+
 // invalid proposal comes back to the model as an error, not a proposal
 script = [
   { model: 'claude-haiku-4-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tx', name: 'propose_set_status', input: { task_id: 'nope', task_title: 'x', status: '✅ Done' } }] },

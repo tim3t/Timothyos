@@ -28,7 +28,8 @@ function notionMock(url, opts) {
   if (path.indexOf(DB3) > -1 || path.indexOf(DS3) > -1 || (opts.payload && opts.payload.indexOf(DS3) > -1)) { if (!reviewsShared) return res(404, { message: 'Could not find database' }); }
   if (m === 'get' && path === '/databases/' + DB3) return res(200, { data_sources: [{ id: DS3 }] });
   if (m === 'get' && path === '/data_sources/' + DS3) return res(200, { title: [{ plain_text: '🧭 Weekly Reviews' }], properties: {} });
-  if (m === 'post' && path === '/data_sources/' + DS3 + '/query') { const f = JSON.parse(opts.payload).filter; return res(200, { results: f ? rpages.filter(p => (p.properties['Week Start'].date || {}).start === f.date.equals) : rpages, has_more: false }); }
+  if (m === 'post' && path === '/data_sources/' + DS3 + '/query') { const q = JSON.parse(opts.payload), f = q.filter; let r = f ? rpages.filter(p => (p.properties['Week Start'].date || {}).start === f.date.equals) : rpages.slice();
+    if (q.sorts) r.sort((a, b) => (b.properties['Week Start'].date.start).localeCompare(a.properties['Week Start'].date.start)); return res(200, { results: r, has_more: false }); }
   if (m === 'post' && path === '/pages' && JSON.parse(opts.payload).parent.data_source_id === DS3) { const pg = { id: 'r'.repeat(31) + rpages.length, url: 'u', last_edited_time: '2026-10-11T20:00:00.000Z', parent: { data_source_id: DS3 }, properties: stored(JSON.parse(opts.payload).properties) }; rpages.push(pg); return res(200, pg); }
   const rm = path.match(/^\/pages\/(r+\d+)$/);
   if (rm && m === 'patch') { const pg = rpages.find(p => p.id === rm[1]); Object.assign(pg.properties, stored(JSON.parse(opts.payload).properties)); return res(200, pg); }
@@ -115,7 +116,7 @@ assert.strictEqual(dn.ok, true);
 assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
 assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
 assert.ok(dn.done.length >= 1);
-assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'tasks', 'dates', 'done', 'reviews']);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'tasks', 'dates', 'done', 'reviews', 'reviewlog']);
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
 
 console.log('--- weekly review ---');
@@ -142,7 +143,12 @@ assert.ok(s2.ok && !s2.created, 'second save updates the same page'); assert.str
 assert.strictEqual(get(W).review.nextFocus, 'Hive winter prep, then rest', 'week returns the saved review (cache refreshed)');
 assert.strictEqual(post({ key, action: 'savereview', review: { week: 'oops' } }).error, 'bad_request');
 assert.strictEqual(post({ action: 'savereview', review: R }).error, 'unauthorized');
-assert.ok(get({ action: 'ping', key }).capabilities.includes('reviews'));
+assert.ok(get({ action: 'ping', key }).capabilities.includes('reviews') && get({ action: 'ping', key }).capabilities.includes('reviewlog'));
+post({ key, action: 'savereview', review: { week: '2026-09-28', title: 'Week 40', wentWell: 'Quiet week', hoursWork: 30 } });
+const list = get({ action: 'reviews', key });
+console.log('reviews list:', list.reviews.map(r => r.week + ' ' + r.title));
+assert.deepStrictEqual(list.reviews.map(r => r.week), ['2026-10-05', '2026-09-28'], 'newest first');
+assert.strictEqual(list.reviews[0].nextFocus, 'Hive winter prep, then rest');
 reviewsShared = false; ctx.PropertiesService.getScriptProperties().deleteProperty('NOTION_REVIEWS_SOURCE'); cache['rgen'] = 'x';
 const ns = get(W);
 console.log('reviews not connected -> week still works:', ns.ok, ns.reviewsError, '| save:', post({ key, action: 'savereview', review: R }).error);

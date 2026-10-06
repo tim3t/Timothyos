@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0 · 2026-10-06 (needs bridge 1.7.0 for trends and the full list)
+- **Review log:** REVIEW opens on a landing page.
+  - **Up next:** the week that's due and this week.
+  - **Trends, last 12 weeks:** reviews saved, week streak, priorities kept, average hours, and an hours-per-week chart. **+** adds priorities kept, tasks finished and where the work went by Life Area. Tap a bar for its values.
+  - **PATTERNS:** Claude (Sonnet 5.5) names what keeps coming up across your saved reflections. About 8¢, only on tap.
+  - **All reviews by month,** with each week's numbers and next focus. Tap a week to open it; **◀ ALL REVIEWS** comes back. The Bridge reminder still opens the due week directly.
+- **Four questions:** What went well? · What drained me? · What's my next focus? · Where did I hold my bearing? All four are equal; none is marked optional.
+- Bridge 1.7.0: `reviews` (saved reviews, newest first) and the `patterns` ask mode.
+
 ## 2.0.2 · 2026-10-06
 - **Week view, easier to read:** focus hours (07:00 to 21:00) are taller (72 px an hour), so a 30-minute meeting has room for its title. Every block now shows its title: short ones on one line ending in "…", longer ones wrapped with their start time on top. Slightly more padding inside blocks.
 

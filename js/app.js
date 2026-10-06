@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.0.2";
+  var VERSION = "2.1.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -22,6 +22,8 @@
   var LS_WEEKS = "tos.weeks.v1";       /* Review: last few weeks fetched (finished + picked tasks, saved review) */
   var LS_RSAVED = "tos.rsaved.v1";     /* Review: weeks saved to Notion, for the Bridge reminder */
   var LS_RDRAFT = "tos.rdraft.v1";     /* Review: unsaved writing, per week */
+  var LS_RLOG = "tos.rlog.v1";         /* Review log: saved reviews from Notion (bridge 1.7) */
+  var LS_RPAT = "tos.rpatterns.v1";    /* Review log: the last "patterns" answer from Claude */
   var LS_ASK = "tos.ask.v1";           /* Ask: the current conversation (6 hours, or until NEW CHAT) */
   var LS_AISPEND = "tos.aispend.v1";   /* Ask: this month's spend as last reported by the bridge */
   var LS_BOPEN = "tos.bopen.v1";       /* Bridge panels opened with + */
@@ -149,6 +151,9 @@
     weekErr: null,
     weekInflight: {},
     reviewSaving: false,
+    rvLog: true,                           /* REVIEW shows the log (landing) rather than one week */
+    rlog: lsGet(LS_RLOG),                  /* { fetched, reviews } */
+    rlogErr: null, rlogInflight: false, patternsBusy: false,
     aiSpend: lsGet(LS_AISPEND),            /* { month, usd, calls, budget } */
     flushing: false,
     dayScale: null,
@@ -282,7 +287,7 @@
   function viewRange() {
     var a = state.anchor;
     if (state.screen === "bridge") return bridgeRange();
-    if (state.screen === "review") { var rw = sow(a); return { from: addDays(rw, -7), to: addDays(rw, 14) }; }
+    if (state.screen === "review") { var rw = state.rvLog ? sow(new Date()) : sow(a); return { from: addDays(rw, -7), to: addDays(rw, 14) }; }
     if (state.screen === "month") { var g = sow(som(a)); return { from: g, to: addDays(g, 42) }; }
     var w = sow(a);
     return { from: w, to: addDays(w, 7) };
@@ -462,7 +467,8 @@
   function renderHeader() {
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge";
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || (state.screen === "review" && state.rvLog);
+    $("logBtn").hidden = state.screen !== "review";
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -486,6 +492,10 @@
     } else if (state.screen === "month") {
       e.textContent = "MONTH" + (hiddenNote() ? " · " + hiddenNote() : "");
       t.textContent = MONL[a.getMonth()] + " " + a.getFullYear();
+    } else if (state.screen === "review" && state.rvLog) {
+      var nSaved = Object.keys(reviewMap()).concat(Object.keys(savedWeeks)).filter(function (k, i, arr) { return arr.indexOf(k) === i; }).length;
+      e.textContent = "REVIEW · " + (nSaved ? nSaved + " SAVED" : "LOG");
+      t.textContent = "WEEKLY REVIEWS";
     } else if (state.screen === "review") {
       var rw0 = sow(a), thisW = sow(now).getTime() === rw0.getTime(), lastW = addDays(sow(now), -7).getTime() === rw0.getTime();
       e.textContent = "REVIEW · " + (thisW ? "THIS WEEK" : lastW ? "LAST WEEK" : rw0 > now ? "AHEAD" : "PAST WEEK") + (reviewSaved(ymd(rw0)) ? " · SAVED" : "");
@@ -1911,10 +1921,10 @@
      per week, together with the week's numbers and Captain's Log lines. */
   var WEEK_FRESH_MS = 2 * 60 * 1000;
   var REVIEW_FIELDS = [
-    ["wentWell", "WENT WELL", "What worked, what you're glad about"],
-    ["drained", "DRAINED ME", "What cost more than it gave"],
-    ["nextFocus", "NEXT FOCUS", "The one or two things that matter most next week"],
-    ["bearing", "BEARING", "Where did I hold my bearing? (optional)"]
+    ["wentWell", "1 · WHAT WENT WELL?", "Wins, good moments, what worked"],
+    ["drained", "2 · WHAT DRAINED ME?", "What cost more than it gave"],
+    ["nextFocus", "3 · WHAT'S MY NEXT FOCUS?", "The one or two things that matter most next week"],
+    ["bearing", "4 · WHERE DID I HOLD MY BEARING?", "Moments you stayed on course, and what helped"]
   ];
   function canReviews() { return state.caps.indexOf("reviews") > -1; }
   /* The week a review is due for: from Sunday 14:00 it's this week; on Monday and Tuesday, last week. */
@@ -2089,7 +2099,7 @@
 
     /* reflection + save */
     var saved = w && w.review, draft = drafts()[wk] || {};
-    html += "<section>" + phead("REFLECTION", saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET");
+    html += "<section>" + phead("REFLECTION", "4 QUESTIONS · " + (saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET"));
     REVIEW_FIELDS.forEach(function (f) {
       var v = draft[f[0]] !== undefined ? draft[f[0]] : saved ? saved[f[0]] || "" : "";
       html += '<label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + '</label><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
@@ -2129,6 +2139,10 @@
       state.weeks[wk] = state.weeks[wk] || { fetched: 0, done: [], picked: [], review: null };
       state.weeks[wk].review = j.review;
       savedWeeks[wk] = Date.now();
+      if (state.rlog) {
+        state.rlog.reviews = state.rlog.reviews.filter(function (r) { return r.week !== wk; }).concat([j.review]).sort(function (a, b) { return a.week < b.week ? 1 : -1; });
+        lsSet(LS_RLOG, state.rlog);
+      }
       var all = drafts(); delete all[wk]; lsSet(LS_RDRAFT, all);
       saveWeeks();
       toast(j.created ? "Review saved to Notion" : "Review updated in Notion");
@@ -2138,6 +2152,269 @@
       state.reviewSaving = false;
       render(true);
     });
+  }
+
+  /* ---------- Review log (landing page) ---------- */
+  /* REVIEW opens here: what's due, trends from saved reviews, and every week by
+     month. Tapping a week opens it on the Review screen above; ALL REVIEWS comes
+     back. The numbers are the ones stored with each saved review (bridge 1.7). */
+  var RLOG_FRESH_MS = 2 * 60 * 1000;
+  function canReviewLog() { return state.caps.indexOf("reviewlog") > -1; }
+  function loadReviewLog(force) {
+    if (!state.conn || !canReviewLog() || state.rlogInflight) return;
+    if (!force && state.rlog && Date.now() - state.rlog.fetched < RLOG_FRESH_MS) return;
+    if (!force && state.rlogErr && Date.now() - state.rlogErr.at < FRESH_MS) return;
+    state.rlogInflight = true;
+    api({ action: "reviews", limit: 60 }).then(function (j) {
+      state.rlog = { fetched: Date.now(), reviews: j.reviews || [] };
+      state.rlog.reviews.forEach(function (r) { savedWeeks[r.week] = Date.parse(r.saved) || Date.now(); });
+      state.rlogErr = null;
+      lsSet(LS_RLOG, state.rlog);
+      saveWeeks();
+    }).catch(function (err) {
+      state.rlogErr = { at: Date.now(), code: err.code, msg: describeTasks(err) };
+    }).then(function () {
+      state.rlogInflight = false;
+      if (state.screen === "review" && state.rvLog) render(true);
+    });
+  }
+  /* Saved reviews by week; a week fetched or saved on the Review screen wins, being newer. */
+  function reviewMap() {
+    var m = {};
+    ((state.rlog && state.rlog.reviews) || []).forEach(function (r) { m[r.week] = r; });
+    Object.keys(state.weeks).forEach(function (k) { if (state.weeks[k].review) m[k] = state.weeks[k].review; });
+    return m;
+  }
+  /* Every week from this one back to the first saved review (at least last week), newest first. */
+  function logWeeks(now) {
+    var cur = sow(now), map = reviewMap(), keys = Object.keys(map).concat(Object.keys(savedWeeks)).sort();
+    var first = keys.length ? sow(parseYmd(keys[0])) : cur, due = reviewDue(now), dueK = due ? ymd(due) : "";
+    if (first > addDays(cur, -7)) first = addDays(cur, -7);
+    var out = [];
+    for (var w = cur, i = 0; w >= first && i < 104; w = addDays(w, -7), i++) {
+      var k = ymd(w), r = map[k] || null;
+      out.push({ w0: w, wk: k, r: r, status: r || savedWeeks[k] ? "saved" : k === dueK ? "due" : k === ymd(cur) ? "cur" : "missed" });
+    }
+    return out;
+  }
+  function rlPill(st) {
+    return { cur: '<span class="pill inprog">IN PROGRESS</span>', due: '<span class="pill warn">DUE</span>', saved: '<span class="pill ok">SAVED</span>', missed: '<span class="pill">NOT SAVED</span>' }[st];
+  }
+  function num(v) { return typeof v === "number" && isFinite(v); }
+  function hasDraft(wk) { var d = drafts()[wk]; return !!d && Object.keys(d).some(function (k) { return String(d[k] || "").trim(); }); }
+
+  /* Charts: SVG drawn at about the screen's pixel width so labels stay at label size. Tap or hover a week for its values. */
+  function chartWidth(half) {
+    var c = $("content"), w = Math.max(280, Math.min(980, (c ? c.clientWidth : 900) - 34));
+    return half && w > 640 ? Math.floor((w - 36) / 2) : w;
+  }
+  function svgOpen(vw, vh, label) { return '<svg class="rl-svg" viewBox="0 0 ' + vw + " " + vh + '" role="img" aria-label="' + label + '">'; }
+  function gridLine(x1, x2, y, label) { return '<line class="g" x1="' + x1 + '" x2="' + x2 + '" y1="' + y + '" y2="' + y + '"/><text x="' + (x1 - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + label + "</text>"; }
+  function hitRect(x, y, w, h, title, line) { return '<rect class="hit" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" data-tip="' + esc(title + "|" + line) + '"/>'; }
+  function wkNo(x) { return isoWeek(x.w0); }
+  function hoursChart(weeks) {
+    var VW = chartWidth(false), VH = 210, L = 40, R = 8, T = 22, B = 28, n = weeks.length, cw = (VW - L - R) / n, bw = Math.max(8, Math.min(40, cw - 12));
+    var top = 10;
+    weeks.forEach(function (x) { if (x.r && num(x.r.hoursWork)) top = Math.max(top, x.r.hoursWork + (x.r.hoursPersonal || 0)); });
+    top = Math.ceil(top / 10) * 10;
+    var y = function (v) { return T + (VH - T - B) * (1 - v / top); }, best = null;
+    var s = svgOpen(VW, VH, "Hours per week, Work and Personal") + gridLine(L, VW - R, y(0), "0") + gridLine(L, VW - R, y(top / 2), top / 2) + gridLine(L, VW - R, y(top), top);
+    weeks.forEach(function (x, i) {
+      var bx = L + i * cw + (cw - bw) / 2, r = x.r, lab = '<text x="' + (bx + bw / 2) + '" y="' + (VH - 8) + '" text-anchor="middle">' + wkNo(x) + "</text>";
+      if (!r || !num(r.hoursWork)) {
+        s += '<rect class="gap" x="' + bx + '" y="' + T + '" width="' + bw + '" height="' + (y(0) - T) + '" rx="4"/>' + lab +
+          hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), x.status === "cur" ? "In progress" : x.status === "due" ? "Not saved yet" : r ? "Saved without hours" : "Not saved");
+        return;
+      }
+      var wv = r.hoursWork, pv = r.hoursPersonal || 0, yw = y(wv), yp = y(wv + pv);
+      s += '<rect class="b-work" x="' + bx + '" y="' + yw + '" width="' + bw + '" height="' + Math.max(0, y(0) - yw) + '"/>';
+      if (pv) s += '<rect class="b-personal" x="' + bx + '" y="' + yp + '" width="' + bw + '" height="' + Math.max(0, yw - yp - 2) + '" rx="4"/>';
+      best = { x: bx + bw / 2, y: yp, v: wv + pv };
+      s += lab + hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), "Work " + hrsLabel(wv).toLowerCase() + " · Personal " + hrsLabel(pv).toLowerCase() + " · " + hrsLabel(wv + pv).toLowerCase() + " total");
+    });
+    if (best) s += '<text class="v" x="' + best.x + '" y="' + (best.y - 6) + '" text-anchor="middle">' + hrsLabel(best.v) + "</text>";
+    return s + "</svg>";
+  }
+  function keptChart(weeks) {
+    var VW = chartWidth(true), VH = 190, L = 44, R = 10, T = 16, B = 28, n = weeks.length, cw = (VW - L - R) / n;
+    var y = function (v) { return T + (VH - T - B) * (1 - v / 100); }, xp = function (i) { return L + i * cw + cw / 2; };
+    var s = svgOpen(VW, VH, "Priorities kept, percent per week") + gridLine(L, VW - R, y(0), "0%") + gridLine(L, VW - R, y(50), "50%") + gridLine(L, VW - R, y(100), "100%");
+    var seg = [], segs = [], dots = "";
+    weeks.forEach(function (x, i) {
+      var r = x.r, ok = r && num(r.picked) && r.picked > 0 && num(r.pickedDone);
+      s += '<text x="' + xp(i) + '" y="' + (VH - 8) + '" text-anchor="middle">' + wkNo(x) + "</text>";
+      if (!ok) { if (seg.length) { segs.push(seg); seg = []; } return; }
+      var pc = Math.round(r.pickedDone / r.picked * 100);
+      seg.push([xp(i), y(pc)]);
+      dots += '<circle class="dot" cx="' + xp(i) + '" cy="' + y(pc) + '" r="4.5"/>' + hitRect(xp(i) - cw / 2, T, cw, VH - T - B, "WEEK " + wkNo(x), r.pickedDone + " of " + r.picked + " kept · " + pc + "%");
+    });
+    if (seg.length) segs.push(seg);
+    segs.forEach(function (sg) { s += '<polyline class="ln" points="' + sg.map(function (p) { return p.join(","); }).join(" ") + '"/>'; });
+    return s + dots + "</svg>";
+  }
+  function doneChart(weeks) {
+    var VW = chartWidth(true), VH = 190, L = 36, R = 10, T = 16, B = 28, n = weeks.length, cw = (VW - L - R) / n, bw = Math.max(6, Math.min(22, cw - 10)), top = 5;
+    weeks.forEach(function (x) { if (x.r && num(x.r.tasksDone)) top = Math.max(top, x.r.tasksDone); });
+    top = Math.ceil(top / 5) * 5;
+    var y = function (v) { return T + (VH - T - B) * (1 - v / top); };
+    var s = svgOpen(VW, VH, "Tasks finished per week") + gridLine(L, VW - R, y(0), "0") + gridLine(L, VW - R, y(top), top);
+    weeks.forEach(function (x, i) {
+      var bx = L + i * cw + (cw - bw) / 2, r = x.r;
+      s += '<text x="' + (bx + bw / 2) + '" y="' + (VH - 8) + '" text-anchor="middle">' + wkNo(x) + "</text>";
+      if (!r || !num(r.tasksDone)) return;
+      s += '<rect class="b-done" x="' + bx + '" y="' + y(r.tasksDone) + '" width="' + bw + '" height="' + Math.max(0, y(0) - y(r.tasksDone)) + '" rx="' + (r.tasksDone ? 4 : 0) + '"/>' +
+        hitRect(L + i * cw, T, cw, VH - T - B, "WEEK " + wkNo(x), r.tasksDone + (r.tasksDone === 1 ? " task" : " tasks") + " finished");
+    });
+    return s + "</svg>";
+  }
+  /* "Area 3 · Other area 1" (stored with each review) summed over the weeks. */
+  function areaTotals(weeks) {
+    var by = {};
+    weeks.forEach(function (x) {
+      String((x.r && x.r.byArea) || "").split(" · ").forEach(function (part) {
+        var m = /^(.*\S)\s+(\d+)$/.exec(part.trim());
+        if (m) by[m[1]] = (by[m[1]] || 0) + (+m[2]);
+      });
+    });
+    return Object.keys(by).sort(function (a, b) { return by[b] - by[a] || a.localeCompare(b); }).slice(0, 8).map(function (k) { return { area: k, n: by[k] }; });
+  }
+  var rlTip = null;
+  function showTip(el) {
+    hideTip();
+    var parts = (el.getAttribute("data-tip") || "").split("|"), box = el.closest(".rl-chart");
+    if (!box) return;
+    var r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    rlTip = document.createElement("div");
+    rlTip.className = "rl-tip";
+    rlTip.innerHTML = "<b>" + esc(parts[0]) + "</b><br>" + esc(parts[1] || "");
+    rlTip.style.left = Math.max(80, Math.min(b.width - 80, r.left - b.left + r.width / 2)) + "px";
+    rlTip.style.top = (r.top - b.top + 8) + "px";
+    box.appendChild(rlTip);
+  }
+  function hideTip() { if (rlTip) { rlTip.remove(); rlTip = null; } }
+
+  function renderReviewLog() {
+    hideTip();
+    var now = new Date(), cur = sow(now), all = logWeeks(now), due = reviewDue(now), html = '<div class="rv">';
+    var stillDue = due && !reviewSaved(ymd(due));
+
+    /* up next */
+    var card = function (w0, kind) {
+      var wk = ymd(w0), w = state.weeks[wk], sub;
+      if (kind === "due") sub = "Due now. Not saved yet · about 5 minutes" + (hasDraft(wk) ? " · draft started" : "");
+      else if (kind === "saved") sub = "Saved · tap to read or update";
+      else sub = "In progress" + (w ? " · " + w.done.length + " finished so far" : "") + " · due Sunday" + (hasDraft(wk) ? " · draft started" : "");
+      return '<button type="button" class="rl-card ' + kind + '" data-rweek="' + wk + '"><span class="st"></span><span class="tx"><b>' + weekLabel(w0) + "</b><small>" + sub + "</small></span>" +
+        (kind === "due" ? '<span class="pill warn">REVIEW NOW</span>' : rlPill(kind)) + "</button>";
+    };
+    html += "<section>" + phead("UP NEXT", "DUE SUNDAY 14:00 TO TUESDAY NIGHT") + '<div class="rl-up">' +
+      (stillDue ? card(due, "due") : "") + (stillDue && ymd(due) === ymd(cur) ? "" : card(cur, reviewSaved(ymd(cur)) ? "saved" : "cur")) + "</div>";
+    if (!canReviews()) html += stubBox(state.conn ? "Saving reviews needs bridge 1.5. Steps are in the README under <b>Bridge 1.5</b>." : "Link calendars first.");
+    html += "</section>";
+
+    /* trends */
+    var win = all.slice(0, 12).reverse(), savedW = win.filter(function (x) { return x.r; });
+    var meta = "LAST " + win.length + (win.length === 1 ? " WEEK" : " WEEKS");
+    if (!canReviews()) { /* nothing to show yet */ }
+    else if (!canReviewLog()) html += "<section>" + phead("TRENDS", "", "chrome-a") + stubBox("Trends and the full list of reviews need bridge 1.7. Steps are in the README under <b>Bridge 1.7</b>.") + "</section>";
+    else if (state.rlogErr && !state.rlog) html += "<section>" + phead("TRENDS", "", "chrome-a") + '<div class="err">' + rlogErrText() + "</div></section>";
+    else if (!state.rlog) html += "<section>" + phead("TRENDS", "", "chrome-a") + '<div class="empty">Loading your saved reviews from Notion…</div></section>';
+    else if (!savedW.length) html += "<section>" + phead("TRENDS", meta, "chrome-a") + '<div class="empty">Trends appear here once you\'ve saved a review.</div></section>';
+    else {
+      var eligible = win.filter(function (x) { return x.r || x.status === "missed"; }).length, streak = 0;
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].status === "saved") streak++;
+        else if (all[i].status === "missed") break;
+      }
+      var avg = function (list, f) { return list.length ? list.reduce(function (s, x) { return s + f(x); }, 0) / list.length : null; };
+      var kept = savedW.filter(function (x) { return num(x.r.picked) && x.r.picked > 0 && num(x.r.pickedDone); });
+      var hrs = savedW.filter(function (x) { return num(x.r.hoursWork); });
+      var kAvg = avg(kept, function (x) { return x.r.pickedDone / x.r.picked; }), wAvg = avg(hrs, function (x) { return x.r.hoursWork; }), pAvg = avg(hrs, function (x) { return x.r.hoursPersonal || 0; });
+      var areas = areaTotals(win);
+      html += pnl("rtrends", phead("TRENDS", meta + " · FROM SAVED REVIEWS", "chrome-a", moreBtn("rtrends", "trends")) +
+        '<div class="rl-stats">' +
+        '<div class="rl-stat"><b class="tnum">' + savedW.length + "/" + Math.max(eligible, savedW.length) + '</b><span>REVIEWS SAVED</span></div>' +
+        '<div class="rl-stat"><b class="tnum">' + streak + '</b><span>WEEK STREAK</span></div>' +
+        '<div class="rl-stat"><b class="tnum">' + (kAvg === null ? "NONE" : Math.round(kAvg * 100) + "%") + '</b><span>PRIORITIES KEPT, AVG</span></div>' +
+        '<div class="rl-stat"><b class="tnum">' + (wAvg === null ? "NONE" : Math.round(wAvg) + "H · " + Math.round(pAvg) + "H") + '</b><span>WORK · PERSONAL, AVG</span></div></div>' +
+        '<div class="rl-charts">' +
+        '<div class="rl-chart wide"><h3>HOURS PER WEEK</h3><div class="sub">Calendar time, ignored events left out. Week numbers along the bottom.</div>' + hoursChart(win) +
+        '<div class="rl-legend"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span><span><i class="gap"></i>NOT SAVED</span></div></div>' +
+        '<div class="rl-chart ov-extra"><h3>PRIORITIES KEPT</h3><div class="sub">Share of the week\'s picks marked done.</div>' + keptChart(win) + "</div>" +
+        '<div class="rl-chart ov-extra"><h3>TASKS FINISHED</h3><div class="sub">Marked done in the Master Task List.</div>' + doneChart(win) + "</div>" +
+        '<div class="rl-chart wide ov-extra"><h3>WHERE THE WORK WENT</h3><div class="sub">Tasks finished by Life Area, ' + meta.toLowerCase().replace("last ", "") + ".</div>" +
+        (areas.length ? '<div class="rl-areas">' + areas.map(function (a) {
+          return '<div class="rl-arow"><span class="bn">' + esc(a.area) + '</span><span class="track"><span style="width:' + Math.round(a.n / areas[0].n * 100) + '%"></span></span><span class="v tnum">' + a.n + "</span></div>";
+        }).join("") + "</div>" : '<div class="empty">No finished tasks in these reviews.</div>') + "</div></div>" +
+        patternsBox(all) + (state.rlogErr ? stale(state.rlog.fetched) : ""));
+    }
+
+    /* all reviews */
+    html += "<section>" + phead("ALL REVIEWS", "TAP A WEEK");
+    var lastM = "";
+    all.forEach(function (x) {
+      var end = addDays(x.w0, 6), m = MONL[end.getMonth()] + " " + end.getFullYear(), r = x.r;
+      if (m !== lastM) { html += (lastM ? "</div>" : "") + '<div class="rl-month"><div class="rl-mlabel">' + m + "</div>"; lastM = m; }
+      var bits = [];
+      if (r) {
+        if (num(r.hoursWork)) bits.push("WORK <b>" + hrsLabel(r.hoursWork) + "</b>");
+        if (num(r.hoursPersonal)) bits.push("PERSONAL <b>" + hrsLabel(r.hoursPersonal) + "</b>");
+        if (num(r.tasksDone)) bits.push("<b>" + r.tasksDone + "</b> FINISHED");
+        if (num(r.picked) && r.picked > 0) bits.push("<b>" + (r.pickedDone || 0) + "/" + r.picked + "</b> PICKS KEPT");
+      }
+      var nums = bits.length ? bits.join(" · ") : x.status === "saved" ? "Saved" : x.status === "missed" ? "No review saved" : x.status === "due" ? "Ready to review" : "Week in progress";
+      var focus = r && (r.nextFocus || r.wentWell), snip = focus ? "<em>" + (r.nextFocus ? "NEXT FOCUS" : "WENT WELL") + "</em> " + esc(focus.split("\n")[0])
+        : hasDraft(x.wk) ? "<em>DRAFT</em> Started on this iPad" : x.status === "missed" ? "<em>NOTE</em> You can still write it" : "";
+      html += '<button type="button" class="rl-row ' + x.status + '" data-rweek="' + x.wk + '"><span class="st"></span><span class="rlw"><b>WEEK ' + wkNo(x) + "</b><small>" + weekLabel(x.w0).replace(/^WEEK \d+ · /, "") + "</small></span>" +
+        '<span class="tx"><span class="nums tnum">' + nums + "</span>" + (snip ? '<span class="snip">' + snip + "</span>" : "") + '</span><span class="end">' + rlPill(x.status) + '<span class="tri r"></span></span></button>';
+    });
+    html += "</div></section></div>";
+    $("content").innerHTML = html;
+    loadReviewLog(false);
+    if (due && canReviews() && !reviewSaved(ymd(due))) loadWeek(due, false);
+    loadWeek(cur, false);
+  }
+  function rlogErrText() {
+    var e = state.rlogErr;
+    return e.code === "notion_not_shared" ? "Weekly Reviews isn't connected to the TimothyOS integration. In Notion: Weekly Reviews → ••• → Connections → add TimothyOS bridge." : esc(e.msg);
+  }
+
+  /* Patterns: Claude reads the saved reflections (Sonnet, no tools). Kept on this iPad until you ask again. */
+  function patternSource(all) {
+    return all.filter(function (x) { return x.r && (x.r.wentWell || x.r.drained || x.r.nextFocus || x.r.bearing); }).slice(0, 26);
+  }
+  function patternsBox(all) {
+    var src = patternSource(all), p = lsGet(LS_RPAT), enough = src.length >= 2;
+    var btn = '<button type="button" class="btn ask" data-act="patterns"' + (!canAsk() || !enough || state.patternsBusy || navigator.onLine === false ? " disabled" : "") + ">" +
+      (state.patternsBusy ? "READING…" : p ? "FIND AGAIN" : "FIND PATTERNS") + "<small>" + (canAsk() ? "SONNET · ABOUT 8¢" : "SETUP") + "</small></button>";
+    var html = '<div class="rl-pat"><span class="st"></span><span class="tx"><b>PATTERNS ACROSS YOUR REVIEWS</b><small>' +
+      (!enough ? "Needs two saved reviews with writing." : "Claude reads your " + src.length + " saved reflections and names what keeps coming up.") + "</small></span>" + btn + "</div>";
+    if (p && p.text) {
+      var lines = p.text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+      html += '<div class="rl-patout"><div class="ov-sub">FROM ' + p.n + " REVIEWS · " + esc(stamp(p.at)) + " · " + money(p.cost || 0) + "</div><ul>" +
+        lines.map(function (l) { return "<li>" + esc(l.replace(/^[-*•]\s*/, "")) + "</li>"; }).join("") + "</ul></div>";
+    }
+    return html;
+  }
+  function findPatterns() {
+    var src = patternSource(logWeeks(new Date()));
+    if (src.length < 2 || !canAsk()) return;
+    var ctx = src.map(function (x) {
+      var r = x.r, n = [];
+      if (num(r.hoursWork)) n.push("Work " + r.hoursWork + "h, Personal " + (r.hoursPersonal || 0) + "h");
+      if (num(r.tasksDone)) n.push(r.tasksDone + " tasks finished");
+      if (num(r.picked) && r.picked) n.push((r.pickedDone || 0) + " of " + r.picked + " priorities kept");
+      return weekLabel(x.w0) + (n.length ? " (" + n.join(", ") + ")" : "") +
+        "\nWhat went well: " + (r.wentWell || "(blank)") + "\nWhat drained me: " + (r.drained || "(blank)") +
+        "\nNext focus: " + (r.nextFocus || "(blank)") + "\nWhere I held my bearing: " + (r.bearing || "(blank)");
+    }).join("\n\n");
+    state.patternsBusy = true;
+    render(true);
+    apiPost({ action: "ask", cid: newCid(), mode: "patterns", messages: [{ role: "user", text: "What patterns do you see across my weekly reviews?" }], context: "SAVED WEEKLY REVIEWS, NEWEST FIRST\n\n" + ctx, ignore: ignoreList }, 150000).then(function (j) {
+      lsSet(LS_RPAT, { at: Date.now(), text: j.reply, cost: j.cost, n: src.length });
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      toast("Patterns found (" + money(j.cost) + ")");
+    }).catch(function (err) { toast(describeAi(err)); }).then(function () { state.patternsBusy = false; render(true); });
   }
 
   /* --- Systems: Bridge settings --- */
@@ -2277,7 +2554,7 @@
     }
     var ins = intents(w0).filter(function (x) { return x.text; });
     if (ins.length) lines.push("Daily intents: " + ins.map(function (x) { return DOW[x.d.getDay()] + " " + x.text; }).join("; "));
-    lines.push("His reflection so far. Went well: " + (f("wentWell") || "(blank)") + ". Drained me: " + (f("drained") || "(blank)") + ". Next focus: " + (f("nextFocus") || "(blank)") + ". Bearing: " + (f("bearing") || "(blank)") + ".");
+    lines.push("His reflection so far. What went well: " + (f("wentWell") || "(blank)") + ". What drained me: " + (f("drained") || "(blank)") + ". Next focus: " + (f("nextFocus") || "(blank)") + ". Where I held my bearing: " + (f("bearing") || "(blank)") + ".");
     state.summaryBusy = true;
     render(true);
     apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [{ role: "user", text: "Write my weekly summary for " + weekLabel(w0) + "." }], context: lines.join("\n"), ignore: ignoreList }, 150000).then(function (j) {
@@ -2443,7 +2720,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: renderReview, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     if (typing && $(typing.id)) {
       var el = $(typing.id);
       el.value = typing.value;
@@ -2457,7 +2734,7 @@
   }
   function go(screen, anchor) {
     state.screen = screen;
-    if (!anchor && screen === "review") anchor = defaultReviewWeek();
+    if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
     render(false);
     $("content").scrollTop = 0;
@@ -2478,9 +2755,13 @@
   $("status").addEventListener("click", function () { go("systems"); });
   $("prevBtn").addEventListener("click", function () { page(-1); });
   $("nextBtn").addEventListener("click", function () { page(1); });
+  $("logBtn").addEventListener("click", function () { go("review"); });
   $("todayBtn").addEventListener("click", function () { go(state.screen, state.screen === "review" ? sow(new Date()) : new Date()); });
 
   $("content").addEventListener("click", function (e) {
+    var hit = e.target.closest(".hit");
+    if (hit) { showTip(hit); return; }
+    hideTip();
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
@@ -2497,7 +2778,9 @@
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
     else if (b.dataset.more) { bridgeOpen[b.dataset.more] = !bridgeOpen[b.dataset.more]; lsSet(LS_BOPEN, bridgeOpen); render(true); var again = document.querySelector('[data-more="' + b.dataset.more + '"]'); if (again) again.focus(); }
-    else if (b.dataset.act === "review") go("review");
+    else if (b.dataset.act === "review") go("review", defaultReviewWeek());
+    else if (b.dataset.rweek) go("review", parseYmd(b.dataset.rweek));
+    else if (b.dataset.act === "patterns") findPatterns();
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") writeSummary();
     else if (b.dataset.act === "ignsave") {
@@ -2530,6 +2813,8 @@
       }
     }
   });
+  $("content").addEventListener("mouseover", function (e) { var h = e.target.closest && e.target.closest(".hit"); if (h) showTip(h); });
+  $("content").addEventListener("mouseout", function (e) { if (e.target.closest && e.target.closest(".hit")) hideTip(); });
   $("content").addEventListener("submit", function (e) {
     if (e.target.id === "connForm") { e.preventDefault(); submitConnect(); }
   });

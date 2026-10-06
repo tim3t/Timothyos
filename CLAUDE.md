@@ -39,9 +39,10 @@ Current versions: **app 2.0.0**, **bridge 1.6.0**.
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
 | POST | `adddate` `date{cid,title,start,end,area,type,yearly}` | new key date | |
 | POST | `savereview` `review{week,title,wentWell,drained,nextFocus,bearing,summary,intents,byArea,hoursWork,hoursPersonal,hoursFarm,hoursHobbies,tasksDone,picked,pickedDone}` | create or update that week's page | upsert on Week Start; only fields sent are written |
-| POST | `ask` `{cid, mode: fast\|deep\|summary, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
+| GET | `reviews` `limit` (1 to 104, default 60) | saved reviews, newest first (same shape as `week`'s `review`) | cached 5 min, cleared by `savereview`; error `notion_not_shared` if not connected |
+| POST | `ask` `{cid, mode: fast\|deep\|summary\|patterns, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews` (once `NOTION_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews` and `reviewlog` (once `NOTION_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
@@ -65,6 +66,8 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 ## Weekly Review
 
 `renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.
+
+Review log: `state.rvLog` picks the landing page (`renderReviewLog()`) over one week; `go("review")` with no anchor opens the log, with an anchor opens that week. Saved reviews come from `reviews` (bridge 1.7) into `tos.rlog.v1`; `reviewMap()` overlays fresher ones from `state.weeks`. `logWeeks()` lists this week back to the first saved review. Trends use the numbers stored in each review; unsaved weeks are gaps. Charts are inline SVG sized to the content width so labels stay at label size; `.hit` rects show tooltips on tap or hover. PATTERNS sends the saved reflections with ask mode `patterns` (Sonnet, no tools); the answer is kept in `tos.rpatterns.v1`. The reflection's four questions are `REVIEW_FIELDS`. Tests: `mock_v17.py` + `app_e2e18`.
 
 ## Ask Claude
 
@@ -96,7 +99,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 
 ## Testing
 
-`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v14`, in America/Chicago time with a fixed clock. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
+`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v17`, in America/Chicago time with a fixed clock. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
 
 Limit: the runner fails on crashes, page errors and timeouts, but most tests print their key values (event counts, toasts, saved items) instead of asserting them. Run `VERBOSE=1 tests/run.sh` and read the output after any change, and convert printed checks to `assert` calls when touching a test.
 

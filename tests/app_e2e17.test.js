@@ -106,14 +106,15 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
 
   // --- Review: review draft from Ask is there; WRITE SUMMARY; saved with the review
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(1000);
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT', 'on a Tuesday, REVIEW opens on last week while it is due');
+  await p.click('.rl-card.due'); await p.waitForTimeout(1000);
+  assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT', 'on a Tuesday, last week is the one due');
   await p.click('#todayBtn'); await p.waitForTimeout(1500);
   assert.strictEqual(await p.inputValue('#rv-wentWell'), 'Shipped the deck', 'Ask draft placed in Review');
   await p.click('[data-act="writesummary"]'); await p.waitForTimeout(1500);
   console.log('summary:', await p.inputValue('#rv-summary'), '| toast', await p.textContent('#toast'));
   assert.ok((await p.inputValue('#rv-summary')).startsWith('A steady week'));
   s = await stats(); a = s.asks[s.asks.length - 1];
-  assert.strictEqual(a.mode, 'summary'); assert.ok(a.ctx.includes('Finished (3)') && a.ctx.includes('Went well: Shipped the deck'));
+  assert.strictEqual(a.mode, 'summary'); assert.ok(a.ctx.includes('Finished (3)') && a.ctx.includes('What went well: Shipped the deck'));
   await p.click('[data-act="savereview"]'); await p.waitForTimeout(1200);
   s = await stats(); assert.ok(s.reviews['2026-10-05'].summary.startsWith('A steady week'), 'summary saved to Notion');
 

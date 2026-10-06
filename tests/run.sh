@@ -39,6 +39,7 @@ python3 mock_v13.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.3: + Key Dates    
 python3 mock_v14.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.4: + done (Balance)    :8095
 python3 mock_v15.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.5: + Weekly Review     :8096
 python3 mock_v16.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.6: + Ask (scripted)    :8097
+python3 mock_v17.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.7: + review log        :8098
 sleep 1.5
 
 run app_e2e.test.js       # linking, Day/Week/Month, detail, offline cache, phone width
@@ -52,6 +53,7 @@ run app_e2e13.test.js     # Bridge overview: condition, panels, weather, balance
 run app_e2e14.test.js     # sync: dropped and background-cut requests retried, quiet outages, pacing
 run app_e2e15.test.js     # ignored events: weekend blocks left out of views and totals
 run app_e2e16.test.js     # Weekly Review: Sunday reminder, screen, drafts, save/update in Notion
+run app_e2e18.test.js     # Review log: landing page, trends, list by month, patterns, four questions
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 
 echo

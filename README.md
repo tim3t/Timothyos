@@ -176,9 +176,20 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 
 **How it works**
 - **Due** from Sunday 14:00 to Tuesday night. The Bridge shows **Weekly review due** until you save it.
-- **The screen, top to bottom:** Time (hours per calendar, change from the week before, busiest day, open hours) · Output (tasks finished per Life Area) · Priorities kept · Intent log (your Captain's Log lines) · Next week (heavy days, key dates, tasks due) · Reflection (Went well, Drained me, Next focus, Bearing).
+- **The screen, top to bottom:** Time (hours per calendar, change from the week before, busiest day, open hours) · Output (tasks finished per Life Area) · Priorities kept · Intent log (your Captain's Log lines) · Next week (heavy days, key dates, tasks due) · Reflection, four questions: What went well? · What drained me? · What's my next focus? · Where did I hold my bearing?
 - **Writing is kept on the iPad as you type.** **SAVE TO NOTION** writes it; saving again updates the same page.
 - **◀ ▶** browse earlier weeks and their saved reviews. **CLAUDE SUMMARY** waits for Ask Claude.
+
+## Review log (bridge 1.7)
+
+**REVIEW** now opens on a log of your reviews. Tap a week to open it; **◀ ALL REVIEWS** beside the arrows comes back. The Bridge's **Weekly review due** still goes straight to that week.
+
+**Update the bridge to 1.7:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup** (the log ends with `Bridge version 1.7.0`), then **Deploy → Manage deployments → pencil → Version: New version → Deploy**, and in TimothyOS **SYSTEMS → REFRESH NOW**. No new keys or Notion changes.
+
+- **Up next:** the week that's due and this week.
+- **Trends, last 12 weeks:** reviews saved, week streak, priorities kept on average, Work and Personal hours on average, and hours per week. **+** shows priorities kept, tasks finished, and where the work went by Life Area. Tap a bar or point for its values. Numbers come from saved reviews, so unsaved weeks show as gaps.
+- **PATTERNS:** Claude (Sonnet 5.5) reads your saved reflections and names what keeps coming up. About 8¢, only when you tap it; the answer stays on this iPad until you ask again.
+- **All reviews,** by month: each week's numbers and next focus, with SAVED, DUE, IN PROGRESS or NOT SAVED. A missed week can still be written.
 
 ## Ask Claude (bridge 1.6)
 

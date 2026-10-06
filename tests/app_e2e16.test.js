@@ -23,6 +23,8 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   await setup(8095); await p.reload(); await p.waitForTimeout(1800);
   assert.ok(!(await p.textContent('.ov-cond')).includes('Weekly review due'), 'no reminder without bridge 1.5');
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
+  assert.ok((await p.textContent('#content')).includes('needs bridge 1.5'), 'the log says what is missing');
+  await p.click('.rl-card >> nth=0'); await p.waitForTimeout(800);
   assert.ok((await p.textContent('#content')).includes('need bridge 1.5'));
   assert.ok(await p.isDisabled('[data-act="savereview"]'));
 
@@ -56,7 +58,9 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   await p.fill('#rv-wentWell', 'Shipped the deck early');
   await p.fill('#rv-drained', 'Evening calls');
   await p.reload(); await p.waitForTimeout(1500);
-  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(1200);
+  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
+  assert.ok((await p.innerText('.rl-card.due')).includes('draft started'), 'the log shows the draft');
+  await p.click('.rl-card.due'); await p.waitForTimeout(1200);
   assert.strictEqual(await p.inputValue('#rv-wentWell'), 'Shipped the deck early', 'draft kept on the iPad');
   await p.fill('#rv-nextFocus', 'Hive winter prep');
   await p.screenshot({ path: D + 'review-ipad.png', fullPage: false });
@@ -86,6 +90,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   // --- browse to last week; database not connected
   await fetch('http://127.0.0.1:8096/x/exec?action=unshare&key=' + K);
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(500);
+  await p.click('.rl-card.saved'); await p.waitForTimeout(500);
   await p.click('#prevBtn'); await p.waitForTimeout(1500);
   console.log('prev:', await p.textContent('#title'), '|', await p.textContent('#eyebrow'));
   assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT');

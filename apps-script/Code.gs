@@ -1,5 +1,5 @@
 /**
- * TimothyOS bridge, v1.6
+ * TimothyOS bridge, v1.7
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
@@ -7,6 +7,7 @@
  *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
  *    finished recently (for the Bridge's Balance panel). Reads a week's
  *    finished and picked tasks, and saves your Weekly Review (one page per week).
+ *    Lists saved reviews for the Review log and its trends.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
@@ -42,13 +43,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.6.0';
+var VERSION = '1.7.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -74,6 +75,7 @@ function doGet(e) {
     if (p.action === 'dates') return json_(dates_());
     if (p.action === 'done') return json_(done_(p.days));
     if (p.action === 'week') return json_(week_(String(p.week || ''), String(p.from || ''), String(p.to || '')));
+    if (p.action === 'reviews') return json_(reviews_(p.limit));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -471,6 +473,18 @@ function week_(week, from, to) {
   return out;
 }
 
+/** Saved reviews, newest first, for the Review log and its trends. */
+function reviews_(limit) {
+  limit = Math.max(1, Math.min(104, Math.floor(Number(limit)) || 60));
+  var cache = CacheService.getScriptCache(), key = 'reviews:' + (cache.get('rgen') || '0') + ':' + limit, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var rows = queryAll_(reviewsSource_(), null, Math.ceil(limit / 100), [{ property: 'Week Start', direction: 'descending' }])
+    .map(toReview_).filter(function (r) { return r.week; }).slice(0, limit);
+  var out = { ok: true, version: VERSION, reviews: rows };
+  try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
+  return out;
+}
+
 /** Save the review for one week: updates that week's page, or creates it. Only fields that are sent change. Safe to repeat. */
 function saveReview_(r) {
   var week = String(r.week || '');
@@ -788,7 +802,7 @@ function ask_(body) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(String(body.cid || ''))) return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache(), seen = cache.get('ask:' + body.cid);
   if (seen) return JSON.parse(seen);
-  var mode = body.mode === 'deep' || body.mode === 'summary' ? body.mode : 'fast';
+  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' ? body.mode : 'fast';
   var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-20).filter(function (m) {
     return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
   }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
@@ -799,10 +813,11 @@ function ask_(body) {
   if (spend.usd >= spend.budget) return { ok: false, error: 'ai_budget', spend: spend };
 
   var model = mode === 'fast' ? AI.FAST : AI.DEEP;
-  var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." : '') },
+  var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." :
+      mode === 'patterns' ? "\nTask: read the saved weekly reviews in the snapshot and name the patterns across them: what keeps draining him, what reliably goes well, focus areas that keep coming back or slipping, how he holds his bearing, and any trend in the numbers. 4 to 6 lines starting with '- ', each one concrete and tied to specific weeks. End with one suggestion. Don't use tools." : '') },
     { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
   var payload = { model: model, max_tokens: mode === 'fast' ? 2000 : 8000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
-  if (mode !== 'summary') payload.tools = AI_TOOLS;
+  if (mode === 'fast' || mode === 'deep') payload.tools = AI_TOOLS;
   var betas = [];
   if (model === AI.DEEP) { payload.output_config = { effort: 'medium' }; payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
 
