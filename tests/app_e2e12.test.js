@@ -13,7 +13,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
     return r.continue();
   });
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1800);
   await p.click('#capBtn'); await p.click('[data-ctype="date"]');
   await p.fill('#capText', 'Planting anniversary');

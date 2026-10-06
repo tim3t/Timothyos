@@ -6,7 +6,7 @@ const D = __dirname + '/out/';
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-06T10:40:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1200);
   await p.click('[data-screen="week"]'); await p.waitForTimeout(900);
   const pt = await p.evaluate(() => {

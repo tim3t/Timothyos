@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TimothyOS</title>
-<meta name="description" content="Timothy's life dashboard: calendars in one place.">
+<meta name="description" content="Timothy's life dashboard: the Bridge overview, calendars, priorities and key dates in one place.">
 <meta name="theme-color" content="#07080b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=1.6.1">
+<link rel="stylesheet" href="css/app.css?v=1.7.0">
 </head>
 <body>
 <div class="app" id="app">
-  <div class="elbow" aria-hidden="true">BRIDGE</div>
+  <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 1.6</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 1.7</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -40,6 +40,7 @@
     </div>
   </header>
   <nav class="side" aria-label="Screens">
+    <button class="nav navbridge" data-screen="bridge" style="--c: var(--chrome-a)" type="button">BRIDGE</button>
     <button class="nav" data-screen="today" style="--c: var(--chrome-b)" type="button">TODAY</button>
     <button class="nav" data-screen="week" style="--c: var(--chrome-a)" type="button">WEEK</button>
     <button class="nav" data-screen="month" style="--c: var(--chrome-b)" type="button">MONTH</button>
@@ -110,6 +111,6 @@
 <button class="update" id="updateBtn" type="button" hidden>▲ UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=1.6.1"></script>
+<script src="js/app.js?v=1.7.0"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D16, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D17, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Goo
      Both live under 🏠 Timothy's Life Hub (page 31893ad51450814c8a3be31c1f26aed8).
 ```
 
-Current versions: **app 1.6.1**, **bridge 1.3.0**.
+Current versions: **app 1.7.0**, **bridge 1.4.0**.
 
 ### Bridge actions
 
@@ -29,13 +29,14 @@ Current versions: **app 1.6.1**, **bridge 1.3.0**.
 | GET | `events` `from` `to` (epoch ms, ≤ 62 days) | Work + Personal events | declined personal events hidden; untitled = `Busy` |
 | GET | `tasks` `day` (yyyy-mm-dd) | `focus` (Focus Date = day) + `open` tasks + Life Area options | |
 | GET | `dates` | all key dates + Life Area and Type options | app computes yearly repeats and countdowns |
+| GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
 | POST | `create` `item{cid,area,title,allDay,start,end}` | new event, **Personal only** | `WRITABLE` allow-list; Work can never be written |
 | POST | `focus` `id` `day\|null` | sets Focus Date | page must belong to the Master Task List |
 | POST | `status` `id` `status` | sets Status (allow-listed values) | same ownership check |
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
 | POST | `adddate` `date{cid,title,start,end,area,type,yearly}` | new key date | |
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates` (the last two appear once `NOTION_TOKEN` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done` (the last three appear once `NOTION_TOKEN` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
@@ -45,6 +46,15 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates` (the last two appe
 - **Don't change Notion schemas or create databases** without asking first.
 - UI copy and docs: **no em dashes**. Uppercase display labels use the Antonio font; keep the LCARS frame (elbow, chrome colors, area colors as tokens in `css/app.css`).
 - Big touch targets (≥ 48 px), works offline, fits iPad landscape (1180×820 and 1133×744) and phone width (400 px, no horizontal scroll).
+
+## The Bridge (overview screen)
+
+`renderBridge()` in `js/app.js`. The app opens on it unless `tos.start.v1` is `"today"` (tests set that, so older tests still open on Today). It fetches events for today minus 6 to today plus 7 (`bridgeRange()`), so Horizon and Balance share one request.
+
+- **Condition rules** live in `conditions()`: thresholds are constants at the top of the section (`HEAVY_HOURS`, `KD_WARN_DAYS`, `PICK_BY_HOUR`, `STALE_SYNC_MS`, `HIVE`). Keep README's rule table in step when they change.
+- **Weather** is fetched from the iPad straight to Open-Meteo (`loadWeather()`), only when a location is set in Systems. Coordinates are rounded to 2 decimals.
+- **Device-only data** (never sent to the bridge, never in the repo): `tos.place.v1`, `tos.bearings.v1`, `tos.log.v1`. Bearings have no defaults on purpose: they are Timothy's own words and the repo is public.
+- `render()` keeps focus and caret in a text field across re-renders (the Bridge re-renders every minute).
 
 ## Life areas and colors
 
@@ -62,14 +72,14 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 
 1. Make the change. Keep `README.md`, `CHANGELOG.md` and (for decisions) `docs/DESIGN.md` in step.
 2. `python3 tools/bump_version.py X.Y.Z` (updates app.js, sw.js, index.html, version.json). Without this the iPad keeps old files and no banner appears.
-3. `tests/run.sh` must print `ALL PASSED`. Extend the matching test (and `tests/mock_v13.py`) when behavior changes.
+3. `tests/run.sh` must print `ALL PASSED`. Extend the matching test (and `tests/mock_v14.py`) when behavior changes. `app_e2e13` (the Bridge) uses strict asserts; follow that pattern.
 4. Commit to `main` with the session attribution lines, push, then poll `https://tim3t.github.io/Timothyos/version.json` until it shows the new version (usually under a minute).
 5. **Bridge changes** need Timothy: copy `https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs`, replace the code in script.google.com, run `setup` (check the log), then Deploy → Manage deployments → pencil → New version. Bump `VERSION` in `Code.gs` and say so clearly.
 6. Tell Timothy: tap **UPDATE READY**, then (if needed) **SYSTEMS → REFRESH NOW**.
 
 ## Testing
 
-`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v13`, in America/Chicago time with a fixed clock. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
+`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v14`, in America/Chicago time with a fixed clock. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
 
 Limit: the runner fails on crashes, page errors and timeouts, but most tests print their key values (event counts, toasts, saved items) instead of asserting them. Run `VERBOSE=1 tests/run.sh` and read the output after any change, and convert printed checks to `assert` calls when touching a test.
 

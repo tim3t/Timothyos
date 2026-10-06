@@ -8,12 +8,12 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   await p.goto('http://localhost:8080/');
   // bridge 1.2 (no dates)
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1500);
   console.log('bridge 1.2: panel stub', (await p.textContent('.rcol')).includes('Needs bridge 1.3'));
   await p.click('#capBtn'); console.log('  key date chip disabled', await p.isDisabled('#capTypeDate')); await p.click('#capCancel');
   // bridge 1.3
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8094/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(2000);
   const rows = await p.locator('.rcol .kd').allTextContents();
   console.log('panel rows:\n   ' + rows.join('\n   '));

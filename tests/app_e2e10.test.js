@@ -16,7 +16,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
     return r.continue();
   });
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(6000);
   console.log('after transient 404s -> status:', (await p.textContent('#status')).trim(), '| priorities rows:', await p.locator('.prio').count(), '| error shown:', await p.locator('.rcol .err').count(), '| hits', JSON.stringify(hits));
   await p.click('#capBtn'); await p.fill('#capText', 'Retry test event'); await p.click('#capSave'); await p.waitForTimeout(3000);

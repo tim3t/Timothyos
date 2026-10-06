@@ -10,7 +10,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8092/x/exec?acti
   await p.goto('http://localhost:8080/');
 
   // 1. Old bridge (no create ability)
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8090/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8090/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1200);
   await p.click('#capBtn'); await p.waitForTimeout(200);
   console.log('old bridge: note shown', await p.isVisible('#capNote'), '| save disabled', await p.isDisabled('#capSave'));
@@ -18,7 +18,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8092/x/exec?acti
   await p.click('#capCancel');
 
   // 2. New bridge
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1200);
   console.log('topbar:', await p.textContent('#topNote'));
   await p.click('#capBtn'); await p.waitForTimeout(200);

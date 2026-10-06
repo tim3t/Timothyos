@@ -2,7 +2,7 @@ const fs = require('fs'); const vm = require('vm');
 const props = {}; const cache = {};
 const DS = 'ds-1111', DB = '6c4a440d571e49e0b4076c18d5712c1f', DS2 = 'ds-2222', DB2 = '8184db37aacb4d96943b2067558b92ab';
 const dpages = [{ id: 'f'.repeat(32), url: 'u', parent: { type: 'data_source_id', data_source_id: 'ds-2222' }, properties: { Name: { title: [{ plain_text: 'First frost risk' }] }, Date: { date: { start: '2026-10-12', end: null } }, 'Life Area': { select: { name: '🌿 SkyGarden Farm' } }, Type: { select: { name: '⏰ Deadline' } }, 'Repeats Yearly': { checkbox: false }, Notes: { rich_text: [] } } }];
-const mk = (id, title, status, priority, area, due, focus, parent = DS) => ({ id, url: 'https://notion.so/' + id, parent: { type: 'data_source_id', data_source_id: parent }, properties: {
+const mk = (id, title, status, priority, area, due, focus, parent = DS, edited = '2026-10-05T15:00:00.000Z') => ({ id, url: 'https://notion.so/' + id, last_edited_time: edited, parent: { type: 'data_source_id', data_source_id: parent }, properties: {
   Task: { title: [{ plain_text: title }] }, Status: { select: status ? { name: status } : null }, Priority: { select: priority ? { name: priority } : null },
   'Life Area': { select: area ? { name: area } : null }, 'Due Date': { date: due ? { start: due } : null }, 'Focus Date': { date: focus ? { start: focus } : null } } });
 const pages = [
@@ -27,6 +27,8 @@ function notionMock(url, opts) {
     const f = JSON.parse(opts.payload).filter; let r = pages;
     if (f.property === 'Focus Date') r = pages.filter(p => (p.properties['Focus Date'].date || {}).start === f.date.equals);
     if (f.property === 'Status') r = pages.filter(p => (p.properties.Status.select || {}).name !== f.select.does_not_equal);
+    if (f.and) { const st = f.and.find(x => x.property === 'Status').select.equals, since = f.and.find(x => x.timestamp === 'last_edited_time').last_edited_time.on_or_after;
+      r = pages.filter(p => (p.properties.Status.select || {}).name === st && p.last_edited_time >= since); }
     return res(200, { results: r, has_more: false });
   }
   const pm = path.match(/^\/pages\/(.+)$/);
@@ -85,3 +87,16 @@ console.log('end before start:', JSON.stringify(post({ key, action: 'adddate', d
 console.log('bad type:', JSON.stringify(post({ key, action: 'adddate', date: { cid: 'date-0000-0004', title: 'x', start: '2026-10-10', type: 'Nope' } })));
 console.log('no key:', JSON.stringify(post({ action: 'adddate', date: kd })));
 console.log('after adds:', get({ action: 'dates', key }).dates.length);
+
+console.log('--- balance (done) ---');
+const assert = require('assert');
+const RealDate = Date; ctx.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : ['2026-10-06T12:00:00Z'])); } static now() { return new RealDate('2026-10-06T12:00:00Z').getTime(); } };
+pages.push(mk('h'.repeat(32), 'Old finished thing', '✅ Done', null, '🌿 SkyGarden Farm', null, null, DS, '2026-08-01T12:00:00.000Z'));
+const dn = get({ action: 'done', key, days: '30' });
+console.log('done:', JSON.stringify(dn));
+assert.strictEqual(dn.ok, true);
+assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
+assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
+assert.ok(dn.done.length >= 1);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'tasks', 'dates', 'done']);
+console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);

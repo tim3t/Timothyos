@@ -1,10 +1,11 @@
 /**
- * TimothyOS bridge, v1.3
+ * TimothyOS bridge, v1.4
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal; creates events you capture (Personal only).
  *  - Notion: reads your Master Task List for Plan Day; sets Focus Date, marks
- *    tasks done, and adds new tasks. Reads and adds Key Dates.
+ *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
+ *    finished recently (for the Bridge's Balance panel).
  *    Nothing else in Notion is touched.
  *
  * The work calendar can never be written to. Nothing is ever deleted.
@@ -34,12 +35,12 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.3.0';
+var VERSION = '1.4.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
-  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks', 'dates'] : []);
+  return ['read', 'create'].concat(PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -62,6 +63,7 @@ function doGet(e) {
     if (p.action === 'events') return json_(events_(Number(p.from), Number(p.to)));
     if (p.action === 'tasks') return json_(tasks_(String(p.day || '')));
     if (p.action === 'dates') return json_(dates_());
+    if (p.action === 'done') return json_(done_(p.days));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -359,6 +361,30 @@ function tasks_(day) {
     [{ property: 'Due Date', direction: 'ascending' }]).map(toTask_);
   var out = { ok: true, version: VERSION, day: day, focus: focus, open: open, areas: areaOptions_(ds), priorities: TASK_PRIORITIES };
   try { cache.put(key, JSON.stringify(out), 60); } catch (e) { /* too large to cache */ }
+  return out;
+}
+
+/**
+ * Balance: tasks marked Done in the last few days, with their Life Area only
+ * (no titles). Notion has no "completed on" field, so each page's last edit
+ * stands in for the day it was finished.
+ */
+function done_(days) {
+  days = Math.max(1, Math.min(60, Math.floor(Number(days)) || 30));
+  var cache = CacheService.getScriptCache();
+  var key = 'done:' + (cache.get('tgen') || '0') + ':' + days;
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var ds = tasksSource_();
+  var since = new Date(Date.now() - days * 86400000).toISOString();
+  var done = queryAll_(ds, { and: [
+    { property: 'Status', select: { equals: '✅ Done' } },
+    { timestamp: 'last_edited_time', last_edited_time: { on_or_after: since } }
+  ] }, 3).map(function (pg) {
+    return { area: sel_((pg.properties || {})['Life Area']), at: pg.last_edited_time || null };
+  });
+  var out = { ok: true, version: VERSION, days: days, done: done };
+  try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
   return out;
 }
 

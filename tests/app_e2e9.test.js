@@ -8,11 +8,11 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   await p.goto('http://localhost:8080/');
   // bridge 1.1 (no tasks): plan disabled
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1200);
   console.log('bridge 1.1: plan disabled', await p.isDisabled('#planBtn'), '| label', (await p.textContent('#planBtn')).trim(), '| panel:', (await p.textContent('.rcol')).includes('Needs the Notion link'));
   // bridge 1.2
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1500);
   console.log('bridge 1.2: plan enabled', !(await p.isDisabled('#planBtn')), '| priorities rows', await p.locator('.prio').count(), '| meta', await p.textContent('.rcol .phead:has(h2:text("PRIORITIES")) .meta').catch(() => '-'));
   await p.screenshot({ path: D + 'plan-today-before.png' });

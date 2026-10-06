@@ -127,10 +127,47 @@ Key dates live in **🗓️ Key Dates**, a Notion database inside Timothy's Life
 3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
 4. In TimothyOS: **SYSTEMS → REFRESH NOW**. The **DATES** screen and the **Key Dates** panel fill in, and **KEY DATE** appears in Capture.
 
+## The Bridge (app 1.7)
+
+The app opens on the **Bridge**: one screen above the calendars. Tap **BRIDGE** in the top-left corner (or first in the menu row on a phone) to come back to it.
+
+| Panel | Shows |
+|---|---|
+| **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it |
+| **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
+| **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
+| **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
+| **Key Dates** | The next three, with countdowns |
+| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
+| **Balance** | Tasks finished per area in the last 7 days, hours on Work and Personal, and areas that have gone quiet |
+| **Captain's Log** | One line of intent for today, and your **bearing** for the day |
+
+**Condition rules**
+
+| Level | When |
+|---|---|
+| 🔴 RED | A High-priority task is overdue · Work and Personal events overlap later today · Sync has failed for over 6 hours |
+| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load |
+| 🟢 GREEN | None of the above |
+
+**One-time settings** (all in **SYSTEMS → BRIDGE**, saved on this iPad only):
+- **Location** for weather: tap **USE THIS IPAD'S LOCATION**, or type latitude and longitude. It's rounded to about 1 km.
+- **Bearings:** your guiding words, one per line. The Bridge shows one each day; tap it to see the next.
+- **Opens on:** Bridge or Today.
+
+## Bridge 1.4 update (turns on Balance)
+
+1. Copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code in the script editor, save, run **setup**. The log should end with `Bridge version 1.4.0`.
+2. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
+3. In TimothyOS: **SYSTEMS → REFRESH NOW**. The **Balance** panel fills in.
+
+Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't record the day a task was finished, so the date of its last edit stands in. Only the Life Area and that date leave Notion, never titles.
+
 ## Daily use
 
 | Do | How |
 |---|---|
+| See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
 | Move between days, weeks, months | ◀ ▶ next to the title. **TODAY** jumps back |
 | Open a day from Week or Month | Tap the day |
 | See event details | Tap the event |
@@ -171,6 +208,9 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
+| Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
+| Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
+| "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
 
 ## Security model
 
@@ -180,6 +220,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 - In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
+- **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Captain's Log are stored on the iPad and never go to the bridge or this repository.
 
 ## Project layout
 

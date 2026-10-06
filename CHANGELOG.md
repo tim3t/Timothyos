@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0 · 2026-10-06 (Balance needs bridge 1.4.0)
+- **The Bridge:** a new overview screen. Tap **BRIDGE** in the top-left corner. The app now opens here (change it in **SYSTEMS → BRIDGE**).
+- **Condition banner:** GREEN, YELLOW or RED, listing every item that needs you: overdue tasks, Work and Personal clashes, key dates within 3 days, unpicked tasks due today, no priorities by 10:00, frost tonight, stuck captures, failing sync. Tap an item to go fix it.
+- **Now / Next:** free time or time left, the next event, a 07:00 to 21:00 strip of the day (clashes outlined in red), booked and open hours.
+- **Priorities** with check-off, plus tasks due or overdue that aren't picked.
+- **Horizon:** hours booked for the next 7 days with key-date markers and heavy-day warnings.
+- **Key Dates:** the next three, with countdowns.
+- **Environment:** weather, hive check and frost watch from Open-Meteo, once a location is set.
+- **Balance:** tasks finished per area in the last 7 days, Work and Personal hours, quiet areas. Needs bridge 1.4.
+- **Captain's Log** (one line of intent per day) and **Bearings** (your guiding words, one per day). Both stay on the iPad.
+- Bridge 1.4.0: adds a read-only `done` action (Life Area and date of recently finished tasks, no titles).
+
 ## 1.6.1 · 2026-10-06
 - Fix: if a save reached Google or Notion but the reply was lost, the item stayed queued and kept retrying. The app now checks what's already saved before resending and clears those items ("already saved"), so nothing is duplicated, even after the 6-hour duplicate guard expires.
 - Systems shows why a queued item is still waiting ("Last reply: …").

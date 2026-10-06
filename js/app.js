@@ -1,11 +1,10 @@
-/* TimothyOS: calendar core + capture.
-   Reads work + personal calendars through the Apps Script bridge and shows
-   them in Day, Week and Month views. Capture adds events to Personal.
-   Everything else is on standby. */
+/* TimothyOS: Bridge overview, calendars, capture, Plan Day and Key Dates.
+   Reads work + personal calendars and Notion through the Apps Script bridge.
+   The Bridge screen sums it all up; Day, Week and Month show the detail. */
 (function () {
   "use strict";
 
-  var VERSION = "1.6.1";
+  var VERSION = "1.7.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -14,6 +13,12 @@
   var LS_CAPPREFS = "tos.capprefs.v1";
   var LS_TASKS = "tos.tasks.v1";       /* Notion Master Task List, last few days fetched */
   var LS_DATES = "tos.dates.v1";       /* Notion Key Dates */
+  var LS_START = "tos.start.v1";       /* screen the app opens on: "bridge" or "today" */
+  var LS_PLACE = "tos.place.v1";       /* { lat, lon } rounded, for weather */
+  var LS_WX = "tos.wx.v1";             /* last Open-Meteo forecast */
+  var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
+  var LS_LOG = "tos.log.v1";           /* Captain's Log: one intent line per day, last 30 days */
+  var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
@@ -101,7 +106,7 @@
   /* ---------- State ---------- */
   var cached = lsGet(LS_CACHE) || {};
   var state = {
-    screen: "today",
+    screen: lsGet(LS_START) === "today" ? "today" : "bridge",
     anchor: sod(new Date()),
     conn: lsGet(LS_CONN),
     ranges: cached.ranges || {},
@@ -116,6 +121,13 @@
     dates: lsGet(LS_DATES),                /* { fetched, dates, areas, types } */
     datesErr: null,
     datesInflight: false,
+    done: lsGet(LS_DONE),                  /* { fetched, done: [{ area, at }] } */
+    doneErr: null,
+    doneInflight: false,
+    wx: lsGet(LS_WX),                      /* { fetched, key, data } */
+    wxErr: null,
+    wxInflight: false,
+    wmShift: 0,
     flushing: false,
     dayScale: null,
     weekScale: null,
@@ -199,6 +211,7 @@
   /* ---------- Ranges + events ---------- */
   function viewRange() {
     var a = state.anchor;
+    if (state.screen === "bridge") return bridgeRange();
     if (state.screen === "month") { var g = sow(som(a)); return { from: g, to: addDays(g, 42) }; }
     var w = sow(a);
     return { from: w, to: addDays(w, 7) };
@@ -328,7 +341,7 @@
       persist();
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); }
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); }
       flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
     }).catch(function (err) {
@@ -341,12 +354,16 @@
   function renderHeader() {
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates";
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
     $("planBtn").disabled = !linked || !canPlan();
     $("planBtn").innerHTML = "☀ PLAN DAY" + (linked && !canPlan() ? "<small>SETUP</small>" : "");
     if (!linked && state.screen !== "systems") { e.textContent = "FIRST RUN"; t.textContent = "LINK CALENDARS"; }
+    else if (state.screen === "bridge") {
+      e.textContent = "BRIDGE · " + hm(now) + (hiddenNote() ? " · " + hiddenNote() : "");
+      t.textContent = DOWL[now.getDay()] + " " + p2(now.getDate()) + " " + MON[now.getMonth()];
+    }
     else if (state.screen === "today") {
       var diff = Math.round((sod(a) - sod(now)) / 86400000);
       e.textContent = diff === 0 ? "TODAY" : diff === 1 ? "TOMORROW" : diff === -1 ? "YESTERDAY" : DOWL[a.getDay()];
@@ -360,7 +377,7 @@
       t.textContent = MONL[a.getMonth()] + " " + a.getFullYear();
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
-    document.querySelectorAll(".nav[data-screen]").forEach(function (b) {
+    document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
       if (b.dataset.screen === state.screen) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
   }
@@ -554,6 +571,7 @@
     });
     html += "</section>";
 
+    html += bridgeSection();
     html += captureSection();
     html += notionSection();
     html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
@@ -596,7 +614,7 @@
       persist();
       var bad = state.calendars.filter(function (c) { return !c.ok; });
       toast(bad.length ? "Linked. One calendar needs attention, see Systems." : "Linked. Loading your calendars.");
-      go("today", sod(new Date()));
+      go(lsGet(LS_START) === "today" ? "today" : "bridge", sod(new Date()));
     }).catch(function (e) {
       err.textContent = describe(e);
       btn.disabled = false;
@@ -908,7 +926,7 @@
       state.datesErr = { at: Date.now(), msg: describeTasks(err) };
     }).then(function () {
       state.datesInflight = false;
-      if (["today", "week", "month", "dates", "systems"].indexOf(state.screen) > -1) render(true);
+      if (["bridge", "today", "week", "month", "dates", "systems"].indexOf(state.screen) > -1) render(true);
     });
   }
   function addKeyDate(d) {
@@ -1084,7 +1102,7 @@
     }).then(function () {
       delete state.tasksInflight[day];
       if (plan && plan.day === day) renderPlan();
-      if (state.screen === "today" || state.screen === "systems") render(true);
+      if (state.screen === "today" || state.screen === "bridge" || state.screen === "systems") render(true);
     });
   }
 
@@ -1151,6 +1169,14 @@
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>🎯 Master Task List</b><small>' +
         (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
         '</small></span><span class="pill ok">OK</span></div>';
+    }
+    if (canBalance()) {
+      html += state.doneErr
+        ? '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small class="errtxt">' + esc(state.doneErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
+        : '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small>' + (state.done ? state.done.done.length + " tasks finished in the last 30 days · synced " + esc(stamp(state.done.fetched)) : "Not loaded yet") +
+          '</small></span><span class="pill ok">OK</span></div>';
+    } else if (canPlan()) {
+      html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs bridge 1.4. Steps are in the README under Bridge 1.4.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canDates()) {
       html += state.datesErr
@@ -1330,15 +1356,446 @@
   });
   $("planScrim").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "planNew") { e.preventDefault(); addPlanTask(); } });
 
+  /* ---------- Bridge (overview) ---------- */
+  /* One screen above the calendars: what needs you now, what's coming, and
+     whether the week is in balance. Everything here is read from data the app
+     already loads, plus weather (Open-Meteo) and the bridge's "done" counts. */
+  var HEAVY_HOURS = 7, KD_WARN_DAYS = 3, PICK_BY_HOUR = 10, STALE_SYNC_MS = 6 * 3600 * 1000;
+  var HIGH = "🔴 High";
+  var BAL_AREAS = ["work", "personal", "farm", "hobby"];
+  var HIVE = { minF: 60, maxWind: 12, maxRain: 30, from: 10, to: 17 };
+  var WX_FRESH_MS = 30 * 60 * 1000, DONE_FRESH_MS = 10 * 60 * 1000;
+
+  function canBalance() { return state.caps.indexOf("done") > -1; }
+  function durLabel(min) {
+    min = Math.max(0, Math.round(min));
+    var h = Math.floor(min / 60), m = min % 60;
+    return h && m ? h + "H " + m + "M" : h ? h + "H" : m + "M";
+  }
+  function hrsLabel(h) { return (Math.round(h * 10) / 10) + "H"; }
+  /* Hours covered by events between hours a and b of one day (overlaps counted once). */
+  function unionHours(timed, day, a, b) {
+    var d0 = sod(day), tot = 0, cs = null, ce = null;
+    timed.map(function (ev) { return [Math.max(a, posInDay(ev._s, d0)), Math.min(b, posInDay(ev._e, d0))]; })
+      .filter(function (x) { return x[1] > x[0]; })
+      .sort(function (x, y) { return x[0] - y[0]; })
+      .forEach(function (x) {
+        if (ce === null || x[0] > ce) { if (ce !== null) tot += ce - cs; cs = x[0]; ce = x[1]; } else if (x[1] > ce) ce = x[1];
+      });
+    if (ce !== null) tot += ce - cs;
+    return tot;
+  }
+  function titles(list) {
+    var t = list.slice(0, 2).map(function (x) { return esc(x.title); }).join(" · ");
+    return t + (list.length > 2 ? " · +" + (list.length - 2) + " more" : "");
+  }
+  function bridgeRange() { var t = sod(new Date()); return { from: addDays(t, -6), to: addDays(t, 7) }; }
+  /* Work and Personal events that overlap later today (all calendars, even hidden ones). */
+  function clashes(list, now) {
+    var timed = dayEvents(list, now).timed.filter(function (e) { return e._e > now && !e.pending; }), out = [];
+    timed.forEach(function (a, i) {
+      timed.slice(i + 1).forEach(function (b) {
+        if (a.area !== b.area && a._s < b._e && b._s < a._e) out.push(a.area === "work" ? [a, b] : [b, a]);
+      });
+    });
+    return out;
+  }
+
+  /* --- condition: GREEN, YELLOW or RED, with every item that needs you --- */
+  function conditions(now, today, list) {
+    var items = [], data = canPlan() ? state.tasks[today] : null;
+    if (data) {
+      var picked = {};
+      data.focus.forEach(function (t) { picked[t.id] = 1; });
+      var overdue = rankTasks(data.open.filter(function (t) { return t.due && t.due < today && t.status !== DONE; }));
+      var hi = overdue.filter(function (t) { return t.priority === HIGH; }), lo = overdue.filter(function (t) { return t.priority !== HIGH; });
+      if (hi.length) items.push({ lvl: "bad", ic: "▲", txt: hi.length === 1 ? "Overdue, High priority" : hi.length + " High-priority tasks overdue", sub: titles(hi), act: "plan", go: "PLAN DAY" });
+      if (lo.length) items.push({ lvl: "warn", ic: "▲", txt: lo.length === 1 ? "1 task overdue" : lo.length + " tasks overdue", sub: titles(lo), act: "plan", go: "PLAN DAY" });
+      var dueNow = rankTasks(data.open.filter(function (t) { return t.due === today && !picked[t.id] && t.status !== DONE; }));
+      if (dueNow.length) items.push({ lvl: "warn", ic: "▲", txt: "Due today, not in your picks", sub: titles(dueNow), act: "plan", go: "PLAN DAY" });
+      if (!data.focus.length && now.getHours() >= PICK_BY_HOUR) items.push({ lvl: "warn", ic: "☀", txt: "No priorities picked yet", sub: "Plan Day takes a minute.", act: "plan", go: "PLAN DAY" });
+    }
+    if (hasData(bridgeRange())) {
+      clashes(list, now).slice(0, 2).forEach(function (c) {
+        items.push({ lvl: "bad", ic: "✕", txt: "Calendar clash at " + hm(c[0]._s > c[1]._s ? c[0]._s : c[1]._s), sub: esc(c[0].title) + " (Work) overlaps " + esc(c[1].title) + " (Personal)", day: today, go: "TODAY" });
+      });
+    }
+    if (canDates() && state.dates) {
+      occurrences(today, ymd(addDays(now, KD_WARN_DAYS))).filter(function (o) { return o.s >= today; }).forEach(function (o) {
+        var n = daysBetween(today, o.s);
+        items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
+      });
+    }
+    var fr = frost(now);
+    if (fr && fr.low <= 32) items.push({ lvl: "warn", ic: "❄", txt: "Frost tonight", sub: "Low " + Math.round(fr.low) + "°F around " + fr.at, act: "none", go: "" });
+    var st = state.sync;
+    if (state.conn && (st.status === "error" || st.status === "offline") && (!st.at || Date.now() - st.at > STALE_SYNC_MS)) {
+      items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", go: "SYSTEMS" });
+    }
+    var stuck = state.queue.filter(function (q) { return q.failed || (q.attempts || 0) >= 2; });
+    if (stuck.length) items.push({ lvl: "warn", ic: "▶", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", go: "SYSTEMS" });
+    if (canPlan() && state.tasksErr && !data) items.push({ lvl: "warn", ic: "◌", txt: "Task list didn't load", sub: esc(state.tasksErr.msg), act: "systems", go: "SYSTEMS" });
+    items.sort(function (a, b) { return (a.lvl === "bad" ? 0 : 1) - (b.lvl === "bad" ? 0 : 1); });
+    return items;
+  }
+  function conditionBanner(now, today, list) {
+    var items = conditions(now, today, list);
+    var level = items.some(function (i) { return i.lvl === "bad"; }) ? "red" : items.length ? "yellow" : "green";
+    var body;
+    if (!items.length) {
+      var data = canPlan() ? state.tasks[today] : null, facts = [];
+      if (data) facts.push(data.focus.length + (data.focus.length === 1 ? " priority" : " priorities") + " picked", "nothing overdue");
+      facts.push("no clashes");
+      if (state.sync.at) facts.push("synced " + stamp(state.sync.at));
+      body = '<div class="ov-nominal"><b>ALL SYSTEMS NOMINAL</b><small>' + esc(facts.join(" · ")) + "</small></div>";
+    } else {
+      body = items.map(function (i) {
+        var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"';
+        return '<button type="button" class="ov-alert ' + i.lvl + '"' + attrs + '><span class="ic">' + i.ic + "</span><span class=\"tx\"><b>" + i.txt + "</b><small>" + i.sub + "</small></span>" +
+          (i.go ? '<span class="go">' + i.go + " ▶</span>" : "") + "</button>";
+      }).join("");
+    }
+    var n = items.length;
+    return '<section class="ov-cond ' + level + '" aria-label="Condition ' + level + '"><div class="lvl"><small>CONDITION</small>' + level.toUpperCase() +
+      "<small>" + (n ? n + (n === 1 ? " ITEM NEEDS" : " ITEMS NEED") + " YOU" : "NOTHING NEEDS YOU") + '</small></div><div class="list">' + body + "</div></section>";
+  }
+
+  /* --- now / next --- */
+  function nowPanel(now, list) {
+    var de = dayEvents(visible(list), now), timed = de.timed;
+    var cur = timed.filter(function (e) { return e._s <= now && e._e > now; })[0];
+    var next = timed.filter(function (e) { return e._s > now; })[0];
+    var html = phead("NOW / NEXT", hiddenNote()) + '<div class="ov-now">';
+    if (!hasData(bridgeRange()) && !timed.length) {
+      return html + '<div class="empty">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar not loaded yet.") + "</div></div>";
+    }
+    if (cur) html += '<span class="pill a-' + cur.area + ' ov-state">NOW</span><span class="ov-cd tnum">' + durLabel((cur._e - now) / 60000) + '</span><span class="muted">left · ' + esc(cur.title) + "</span>";
+    else if (next) html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd tnum">' + durLabel((next._s - now) / 60000) + '</span><span class="muted">until ' + hm(next._s) + "</span>";
+    else html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd">CLEAR</span><span class="muted">nothing else on the calendar today</span>';
+    html += "</div>";
+    if (next) {
+      state.index[next.id] = next;
+      html += '<button type="button" class="ov-next a-' + next.area + pendingCls(next) + '" data-id="' + esc(next.id) + '"><span class="st"></span><span class="tx"><b>' + esc(next.title) + "</b><small>NEXT · " +
+        hm(next._s) + " TO " + hm(next._e) + " · " + AREAS[next.area].name + pendingTag(next) + '</small></span><span class="go tnum">IN ' + durLabel((next._s - now) / 60000) + "</span></button>";
+    }
+    if (de.allDay.length) html += '<div class="ov-allday">ALL DAY: ' + de.allDay.map(function (e) { return esc(e.title); }).join(" · ") + "</div>";
+    /* the day from 07:00 to 21:00, events stacked in lanes when they overlap */
+    var span = FOCUS_END - FOCUS_START, pct = function (h) { return ((h - FOCUS_START) / span * 100).toFixed(2); };
+    var clash = {};
+    clashes(visible(list), sod(now)).forEach(function (c) { clash[c[0].id] = 1; clash[c[1].id] = 1; });
+    var rows = layout(timed, now, { y: function (h) { return h * 60; } }, 0), d0 = sod(now);
+    html += '<div class="ov-strip">';
+    rows.forEach(function (r) {
+      var s = Math.max(FOCUS_START, r.s), e = Math.min(FOCUS_END, r.e);
+      if (e <= s) return;
+      state.index[r.ev.id] = r.ev;
+      html += '<button type="button" class="ov-blk a-' + r.ev.area + (clash[r.ev.id] ? " clash" : "") + (r.ev.busy ? " busy" : "") + pendingCls(r.ev) + '" data-id="' + esc(r.ev.id) +
+        '" aria-label="' + esc(r.ev.title) + ", " + hm(r.ev._s) + " to " + hm(r.ev._e) + '" style="left:' + pct(s) + "%;width:" + (pct(e) - pct(s)).toFixed(2) +
+        "%;top:calc(5px + (100% - 10px) * " + r.col + " / " + r.n + ");height:calc((100% - 10px) / " + r.n + ' - 2px)"></button>';
+    });
+    var nowH = posInDay(now, d0);
+    if (nowH >= FOCUS_START && nowH <= FOCUS_END) html += '<span class="ov-nowln" style="left:' + pct(nowH) + '%"><i class="tnum">' + hm(now) + "</i></span>";
+    html += '</div><div class="ov-ticks">' + [7, 9, 11, 13, 15, 17, 19, 21].map(function (h) { return '<span class="tnum" style="left:' + pct(h) + '%">' + p2(h) + "</span>"; }).join("") + "</div>";
+    var booked = unionHours(timed, now, FOCUS_START, FOCUS_END), left = unionHours([{ _s: now, _e: addDays(d0, 1) }], now, FOCUS_START, FOCUS_END) - unionHours(timed.map(function (e) { return { _s: e._s < now ? now : e._s, _e: e._e }; }), now, FOCUS_START, FOCUS_END);
+    html += '<div class="ov-load tnum"><span><b>' + durLabel(booked * 60) + "</b> BOOKED</span><span><b>" + durLabel((span - booked) * 60) + "</b> OPEN</span>" +
+      (nowH < FOCUS_END ? "<span><b>" + durLabel(Math.max(0, left) * 60) + "</b> OPEN FROM NOW</span>" : "") + "<span>07:00 TO 21:00</span></div>";
+    return html;
+  }
+
+  /* --- priorities + what's due outside them --- */
+  function duePanel(today) {
+    var data = canPlan() ? state.tasks[today] : null;
+    if (!data) return "";
+    var picked = {};
+    data.focus.forEach(function (t) { picked[t.id] = 1; });
+    var list = data.open.filter(function (t) { return t.due && t.due <= today && !picked[t.id] && t.status !== DONE; })
+      .sort(function (a, b) { return a.due.localeCompare(b.due) || (PRI_RANK[a.priority] === undefined ? 3 : PRI_RANK[a.priority]) - (PRI_RANK[b.priority] === undefined ? 3 : PRI_RANK[b.priority]); });
+    if (!list.length) return '<div class="ov-sub">DUE + OVERDUE</div><div class="empty">Nothing due outside your picks.</div>';
+    return '<div class="ov-sub">DUE + OVERDUE · NOT IN YOUR PICKS</div>' + list.slice(0, 4).map(function (t) {
+      return '<button type="button" class="ov-due a-' + taskArea(t.area) + '" data-act="plan" data-day="' + today + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" +
+        [t.priority, t.area].filter(Boolean).map(esc).join(" · ") + '</small></span><span class="pill ' + (t.due < today ? "bad" : "warn") + '">' + dueLabel(t.due, today) + "</span></button>";
+    }).join("") + (list.length > 4 ? '<div class="muted ov-more">+' + (list.length - 4) + " more in Plan Day</div>" : "");
+  }
+
+  /* --- the next seven days --- */
+  function horizonPanel(now, list) {
+    var vis = visible(list), days = [], max = 10, H = 120;
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(sod(now), i), timed = dayEvents(vis, d).timed;
+      var w = unionHours(timed.filter(function (e) { return e.area === "work"; }), d, 0, 24);
+      var p = unionHours(timed.filter(function (e) { return e.area === "personal"; }), d, 0, 24);
+      days.push({ d: d, w: w, p: p, tot: unionHours(timed, d, 0, 24), kd: kdMarks(ymd(d), false).length });
+      max = Math.max(max, w + p);
+    }
+    var html = phead("HORIZON · 7 DAYS", hiddenNote() || (hasData(bridgeRange()) ? "TAP A DAY" : "LOADING")) + '<div class="ov-wk">';
+    days.forEach(function (x, i) {
+      var heavy = x.tot >= HEAVY_HOURS;
+      html += '<button type="button" class="ov-day' + (i === 0 ? " today" : "") + (heavy ? " heavy" : "") + '" data-day="' + ymd(x.d) + '" aria-label="' + DOWL[x.d.getDay()] + ", " + hrsLabel(x.tot) + ' booked">' +
+        '<span class="bars"><span class="mk">' + (x.kd ? "◆" : "") + '</span><span class="hrs tnum">' + hrsLabel(x.tot) + "</span>" +
+        '<span class="seg a-personal" style="height:' + Math.round(x.p / max * H) + 'px"></span><span class="seg a-work" style="height:' + Math.round(x.w / max * H) + 'px"></span></span>' +
+        '<span class="dl">' + DOW[x.d.getDay()] + '<b class="tnum">' + p2(x.d.getDate()) + "</b></span></button>";
+    });
+    html += '</div><div class="ov-legend"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span><span><i class="dia">◆</i>KEY DATE</span></div>';
+    var heavy = days.filter(function (x) { return x.tot >= HEAVY_HOURS; });
+    if (heavy.length) html += '<div class="ov-heavy">▲ HEAVY: ' + heavy.map(function (x) { return DOW[x.d.getDay()] + " " + hrsLabel(x.tot); }).join(" · ") + ". Few open gaps.</div>";
+    return html;
+  }
+
+  /* --- key dates: the next three --- */
+  function kdNextPanel(today) {
+    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs bridge 1.3 and the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
+    if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
+    var list = occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (o) { return o.e >= today; }).slice(0, 3);
+    var html = phead("KEY DATES", "NEXT UP");
+    if (!list.length) html += '<div class="empty">No key dates in the next 12 months.</div>';
+    list.forEach(function (o) {
+      var running = o.s < today, n = running ? daysBetween(today, o.e) : daysBetween(today, o.s);
+      var unit = running ? "D LEFT" : n === 0 ? "TODAY" : n === 1 ? "DAY" : "DAYS";
+      html += '<button type="button" class="ov-kd a-' + taskArea(o.d.area) + (!running && n <= KD_WARN_DAYS ? " soon" : "") + '" data-kd="' + esc(o.id) + '"><span class="kn tnum">' + (n === 0 && !running ? "◆" : n) +
+        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.type ? " · " + esc(o.d.type) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
+    });
+    return html + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button><button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
+  }
+
+  /* --- environment (Open-Meteo, no key needed; only rounded coordinates are sent) --- */
+  function place() { return lsGet(LS_PLACE); }
+  function placeKey(pl) { return pl.lat + "," + pl.lon; }
+  function loadWeather(force) {
+    var pl = place();
+    if (!pl || state.wxInflight || navigator.onLine === false) return;
+    if (!force && state.wx && state.wx.key === placeKey(pl) && Date.now() - state.wx.fetched < WX_FRESH_MS) return;
+    if (!force && state.wxErr && Date.now() - state.wxErr < FRESH_MS) return;
+    state.wxInflight = true;
+    var u = "https://api.open-meteo.com/v1/forecast?latitude=" + pl.lat + "&longitude=" + pl.lon +
+      "&current=temperature_2m,weather_code,wind_speed_10m" +
+      "&hourly=temperature_2m,precipitation_probability,wind_speed_10m,weather_code" +
+      "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max" +
+      "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3";
+    fetch(u, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("http_" + r.status);
+      return r.json();
+    }).then(function (j) {
+      if (!j || !j.hourly || !j.daily) throw new Error("bad_json");
+      state.wx = { fetched: Date.now(), key: placeKey(pl), data: j };
+      state.wxErr = null;
+      lsSet(LS_WX, state.wx);
+    }).catch(function () { state.wxErr = Date.now(); })
+      .then(function () { state.wxInflight = false; if (state.screen === "bridge") render(true); });
+  }
+  function wxData() { var pl = place(); return pl && state.wx && state.wx.key === placeKey(pl) ? state.wx.data : null; }
+  function wxText(c) {
+    if (c === 0) return "CLEAR"; if (c === 1) return "MOSTLY CLEAR"; if (c === 2) return "PARTLY CLOUDY"; if (c === 3) return "OVERCAST";
+    if (c === 45 || c === 48) return "FOG"; if (c >= 51 && c <= 57) return "DRIZZLE"; if (c >= 61 && c <= 67) return "RAIN";
+    if (c >= 71 && c <= 77) return "SNOW"; if (c >= 80 && c <= 82) return "SHOWERS"; if (c === 85 || c === 86) return "SNOW SHOWERS";
+    if (c >= 95) return "THUNDERSTORMS"; return "";
+  }
+  function wxHours(j) {
+    var h = j.hourly;
+    return h.time.map(function (t, i) {
+      return { t: t, day: t.slice(0, 10), hr: +t.slice(11, 13), temp: h.temperature_2m[i], wind: h.wind_speed_10m[i], rain: h.precipitation_probability[i], code: h.weather_code[i] };
+    });
+  }
+  /* Best stretch for opening hives: warm, calm and dry, between 10:00 and 17:00. */
+  function hiveCheck(now) {
+    var j = wxData();
+    if (!j) return null;
+    var hours = wxHours(j), today = ymd(now), start = now.getHours() + (now.getMinutes() ? 1 : 0), label = "TODAY", day = today;
+    if (Math.max(start, HIVE.from) >= HIVE.to) { day = ymd(addDays(now, 1)); start = 0; label = "TOMORROW"; }
+    var slot = hours.filter(function (x) { return x.day === day && x.hr >= Math.max(start, HIVE.from) && x.hr < HIVE.to; });
+    if (!slot.length) return null;
+    var why = { cool: 0, wind: 0, rain: 0 }, best = null, run = null, hiT = -99;
+    slot.forEach(function (x) {
+      hiT = Math.max(hiT, x.temp);
+      var wet = x.code >= 51 || (x.rain != null && x.rain > HIVE.maxRain);
+      var ok = x.temp >= HIVE.minF && x.wind <= HIVE.maxWind && !wet;
+      if (!ok) { if (x.temp < HIVE.minF) why.cool++; else if (x.wind > HIVE.maxWind) why.wind++; else why.rain++; run = null; return; }
+      if (!run) run = { from: x.hr, to: x.hr + 1, lo: x.temp, hi: x.temp }; else { run.to = x.hr + 1; run.lo = Math.min(run.lo, x.temp); run.hi = Math.max(run.hi, x.temp); }
+      if (!best || run.to - run.from > best.to - best.from) best = { from: run.from, to: run.to, lo: run.lo, hi: run.hi };
+    });
+    if (best) return { go: true, label: label, text: "Best window " + p2(best.from) + ":00 to " + p2(best.to) + ":00", sub: (Math.round(best.lo) === Math.round(best.hi) ? "" : Math.round(best.lo) + " to ") + Math.round(best.hi) + "°F, light wind, dry" };
+    var reason = why.cool >= why.wind && why.cool >= why.rain ? "Too cool, high " + Math.round(hiT) + "°F" : why.wind >= why.rain ? "Too windy" : "Rain likely";
+    return { go: false, label: label, text: reason, sub: "Needs " + HIVE.minF + "°F+, wind under " + HIVE.maxWind + " mph, dry" };
+  }
+  /* Lowest temperature from now until 09:00 tomorrow. */
+  function frost(now) {
+    var j = wxData();
+    if (!j) return null;
+    var end = ymd(addDays(now, 1)) + "T09:00", from = ymd(now) + "T" + p2(now.getHours()) + ":00", low = null;
+    wxHours(j).forEach(function (x) { if (x.t >= from && x.t <= end && (low === null || x.temp < low.temp)) low = x; });
+    return low ? { low: low.temp, at: low.t.slice(11, 16) } : null;
+  }
+  function envPanel(now) {
+    var pl = place(), html = phead("ENVIRONMENT", pl ? (pl.name ? esc(pl.name) : "") : "SETUP", "farm");
+    if (!pl) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Weather, hive check and frost watch need your location. Set it in Systems.</span></div>' +
+      '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="systems">SET LOCATION</button></div>';
+    var j = wxData();
+    if (!j) return html + '<div class="empty">' + (state.wxErr ? "Weather didn't load. It retries in a minute." : "Loading weather…") + "</div>";
+    var c = j.current || {}, dly = j.daily, today = ymd(now), di = Math.max(0, dly.time.indexOf(today));
+    html += '<div class="ov-env"><span class="ov-temp tnum">' + Math.round(c.temperature_2m) + '°F</span><span class="tx"><b>' + wxText(c.weather_code) + "</b><small>High " +
+      Math.round(dly.temperature_2m_max[di]) + "° · Low " + Math.round(dly.temperature_2m_min[di]) + "°</small></span></div>" +
+      '<div class="ov-facts tnum"><span>WIND <b>' + Math.round(c.wind_speed_10m) + " MPH</b></span><span>RAIN <b>" + (dly.precipitation_probability_max[di] == null ? "–" : dly.precipitation_probability_max[di] + "%") +
+      "</b></span><span>SUNRISE <b>" + dly.sunrise[di].slice(11, 16) + "</b></span><span>SUNSET <b>" + dly.sunset[di].slice(11, 16) + "</b></span></div>";
+    var hv = hiveCheck(now), fr = frost(now);
+    if (hv) html += '<div class="ov-envrow"><span class="k">HIVE CHECK<small>' + hv.label + '</small></span><span class="tx"><b>' + hv.text + "</b><small>" + hv.sub + '</small></span><span class="pill ' + (hv.go ? "ok" : "warn") + '">' + (hv.go ? "GO" : "HOLD") + "</span></div>";
+    if (fr) {
+      var lvl = fr.low <= 32 ? "bad" : fr.low <= 36 ? "warn" : "ok";
+      html += '<div class="ov-envrow"><span class="k">FROST WATCH<small>TONIGHT</small></span><span class="tx"><b>Low ' + Math.round(fr.low) + "°F around " + fr.at + "</b><small>" +
+        (lvl === "ok" ? "No frost expected" : lvl === "warn" ? "Near frost. Cover tender plants." : "Frost likely. Protect plants and water lines.") + '</small></span><span class="pill ' + lvl + '">' +
+        (lvl === "ok" ? "NO FROST" : lvl === "warn" ? "NEAR FROST" : "FROST") + "</span></div>";
+    }
+    return html + '<div class="ov-foot">Weather by Open-Meteo · updated ' + esc(stamp(state.wx.fetched)) + "</div>";
+  }
+
+  /* --- balance: tasks finished per area, hours per calendar, quiet areas --- */
+  function loadDone(force) {
+    if (!state.conn || !canBalance() || state.doneInflight) return;
+    if (!force && state.done && Date.now() - state.done.fetched < DONE_FRESH_MS) return;
+    if (!force && state.doneErr && Date.now() - state.doneErr.at < FRESH_MS) return;
+    state.doneInflight = true;
+    api({ action: "done", days: 30 }).then(function (j) {
+      state.done = { fetched: Date.now(), done: j.done || [] };
+      state.doneErr = null;
+      lsSet(LS_DONE, state.done);
+    }).catch(function (err) {
+      state.doneErr = { at: Date.now(), msg: describeTasks(err) };
+    }).then(function () {
+      state.doneInflight = false;
+      if (state.screen === "bridge") render(true);
+    });
+  }
+  function balancePanel(now, today, list) {
+    var html = phead("BALANCE · LAST 7 DAYS", "", "personal");
+    if (!canBalance()) return html + stubBox(state.conn ? "Needs bridge 1.4. Steps are in the README under <b>Bridge 1.4</b>." : "Link calendars first.");
+    if (!state.done) return html + '<div class="empty">' + (state.doneErr ? esc(state.doneErr.msg) : "Loading finished tasks…") + "</div>";
+    var since = addDays(sod(now), -6), stats = {};
+    BAL_AREAS.forEach(function (a) { stats[a] = { n: 0, last: null, hrs: 0 }; });
+    state.done.done.forEach(function (x) {
+      if (!x.at) return;
+      var s = stats[taskArea(x.area)], t = new Date(x.at);
+      if (!s.last || t > s.last) s.last = t;
+      if (t >= since) s.n++;
+    });
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(since, i), timed = dayEvents(list, d).timed, upTo = i === 6 ? posInDay(now, sod(now)) : 24;
+      LIVE.forEach(function (a) { stats[a].hrs += unionHours(timed.filter(function (e) { return e.area === a; }), d, 0, upTo); });
+    }
+    var maxN = Math.max(3, Math.max.apply(null, BAL_AREAS.map(function (a) { return stats[a].n; })));
+    BAL_AREAS.forEach(function (a) {
+      var s = stats[a], ago = s.last ? daysBetween(ymd(s.last), today) : null;
+      var pill = ago === null ? '<span class="pill warn">NONE IN 30 D</span>' : ago >= 7 ? '<span class="pill warn">QUIET ' + ago + " D</span>" :
+        '<span class="pill">LAST ' + (ago === 0 ? "TODAY" : ago === 1 ? "YESTERDAY" : ago + " D AGO") + "</span>";
+      html += '<div class="ov-bal a-' + a + '"><span class="bn">' + AREAS[a].name + '</span><span class="track"><span style="width:' + Math.round(s.n / maxN * 100) + '%"></span></span>' +
+        '<span class="bv tnum">' + s.n + " DONE" + (LIVE.indexOf(a) > -1 && hasData(bridgeRange()) ? " · " + hrsLabel(s.hrs) : "") + "</span>" + pill + "</div>";
+    });
+    html += '<div class="ov-foot">Tasks marked done per Life Area, dated by their last edit in Notion. Hours come from the Work and Personal calendars; Farm + Bees and Hobbies get hours once they have their own calendars.</div>';
+    if (state.doneErr) html += '<div class="err">' + esc(state.doneErr.msg) + "</div>";
+    return html;
+  }
+
+  /* --- captain's log + bearing (both stay on this iPad) --- */
+  function bearings() { return lsGet(LS_BEARINGS) || []; }
+  function bearingFor(today) {
+    var b = bearings();
+    return b.length ? b[((daysBetween("2000-01-01", today) + state.wmShift) % b.length + b.length) % b.length] : "";
+  }
+  function logPanel(today) {
+    var log = lsGet(LS_LOG) || {}, b = bearingFor(today);
+    return phead("CAPTAIN'S LOG", dLabel(parseYmd(today)) + " · ON THIS IPAD") + '<div class="ov-log"><div><label class="ov-sub" for="logIntent">TODAY\'S INTENT</label>' +
+      '<input type="text" id="logIntent" maxlength="160" placeholder="One line: what makes today a good day?" autocomplete="off" enterkeyhint="done" value="' + esc(log[today] || "") + '"></div>' +
+      (b ? '<button type="button" class="ov-bearing" data-act="bearing">BEARING<b>' + esc(b) + "</b>TAP TO ROTATE</button>"
+        : '<button type="button" class="ov-bearing" data-act="systems">BEARING<b>SET IN SYSTEMS</b>YOUR GUIDING WORDS</button>') + "</div>";
+  }
+  function saveLog(text) {
+    var log = lsGet(LS_LOG) || {}, today = ymd(new Date());
+    if (text) log[today] = text; else delete log[today];
+    var keep = {};
+    Object.keys(log).sort().slice(-30).forEach(function (k) { keep[k] = log[k]; });
+    lsSet(LS_LOG, keep);
+  }
+
+  function renderBridge() {
+    var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
+    var html = conditionBanner(now, today, list) + '<div class="ov-grid">' +
+      '<section class="ov-pnl">' + nowPanel(now, list) + "</section>" +
+      '<section class="ov-pnl">' + prioritiesPanel(today, true) + duePanel(today) + "</section>" +
+      '<section class="ov-pnl">' + horizonPanel(now, list) + "</section>" +
+      '<section class="ov-pnl">' + kdNextPanel(today) + "</section>" +
+      '<section class="ov-pnl">' + envPanel(now) + "</section>" +
+      '<section class="ov-pnl">' + balancePanel(now, today, list) + "</section>" +
+      '<section class="ov-pnl ov-wide">' + logPanel(today) + "</section></div>";
+    $("content").innerHTML = html;
+    loadTasks(today, false);
+    loadDates(false);
+    loadDone(false);
+    loadWeather(false);
+  }
+
+  /* --- Systems: Bridge settings --- */
+  function bridgeSection() {
+    var pl = place(), start = lsGet(LS_START) || "bridge";
+    return "<section>" + phead("BRIDGE", "SAVED ON THIS IPAD") + '<dl class="kv">' +
+      '<dt>OPENS ON</dt><dd><div class="chips">' + [["bridge", "BRIDGE"], ["today", "TODAY"]].map(function (o) {
+        return '<button type="button" class="chip" data-start="' + o[0] + '" aria-pressed="' + (start === o[0]) + '">' + o[1] + "</button>";
+      }).join("") + "</div></dd>" +
+      "<dt>LOCATION</dt><dd>" + (pl ? '<span class="tnum">' + esc(placeKey(pl)) + "</span>" + (pl.name ? " · " + esc(pl.name) : "") : '<span class="muted">Not set. Weather, hive check and frost watch stay off.</span>') +
+      '<div class="ov-place"><input type="text" id="placeIn" placeholder="Latitude, longitude (e.g. 44.98, -93.27)" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<button type="button" class="btn" data-act="placesave">SAVE</button><button type="button" class="btn ghost" data-act="geo">USE THIS IPAD\'S LOCATION</button>' +
+      (pl ? '<button type="button" class="btn ghost" data-act="placeclear">CLEAR</button>' : "") + "</div>" +
+      '<small class="muted">Rounded to about 1 km. Weather requests send only these numbers to Open-Meteo.</small></dd>' +
+      '<dt>BEARINGS</dt><dd><textarea id="bearIn" rows="5" placeholder="One per line. The Bridge shows one each day.">' + esc(bearings().join("\n")) + "</textarea>" +
+      '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="bearsave">SAVE BEARINGS</button></div></dd>' +
+      '</dl><div class="err" id="bridgeErr" role="alert"></div></section>';
+  }
+  function setPlace(lat, lon, name) {
+    lat = Math.round(lat * 100) / 100; lon = Math.round(lon * 100) / 100;
+    lsSet(LS_PLACE, { lat: lat, lon: lon, name: name || "" });
+    state.wx = null; state.wxErr = null; lsDel(LS_WX);
+    toast("Location saved. Weather loads on the Bridge.");
+    render(true);
+    loadWeather(true);
+  }
+  function bridgeAct(act) {
+    var err = $("bridgeErr");
+    if (act === "placesave") {
+      var m = ($("placeIn").value || "").match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+      if (!m || Math.abs(+m[1]) > 90 || Math.abs(+m[2]) > 180) { err.textContent = "Type latitude and longitude as two numbers, like 44.98, -93.27."; return; }
+      setPlace(+m[1], +m[2]);
+    } else if (act === "geo") {
+      if (!navigator.geolocation) { err.textContent = "This browser can't share its location. Type the numbers instead."; return; }
+      err.textContent = "";
+      toast("Asking for location…");
+      navigator.geolocation.getCurrentPosition(function (pos) { setPlace(pos.coords.latitude, pos.coords.longitude); },
+        function () { var e2 = $("bridgeErr"); if (e2) e2.textContent = "Location wasn't shared. Allow it in Settings, or type the numbers instead."; },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
+    } else if (act === "placeclear") {
+      lsDel(LS_PLACE); lsDel(LS_WX); state.wx = null;
+      toast("Location cleared. Weather is off.");
+      render(true);
+    } else if (act === "bearsave") {
+      var list = $("bearIn").value.split("\n").map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 30);
+      if (list.length) lsSet(LS_BEARINGS, list); else lsDel(LS_BEARINGS);
+      toast(list.length ? list.length + (list.length === 1 ? " bearing saved" : " bearings saved") : "Bearings cleared");
+      render(true);
+    }
+  }
+
   /* ---------- Render + navigation ---------- */
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
+    var active = document.activeElement, typing = active && active.id && $("content").contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)
+      ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
     state.index = {};
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    if (typing && $(typing.id)) {
+      var el = $(typing.id);
+      el.value = typing.value;
+      el.focus();
+      try { el.setSelectionRange(typing.a, typing.b); } catch (x) { /* not a text field */ }
+    }
     var w2 = $("tlwrap");
     if (w2) w2.scrollTop = keep !== null ? keep : state.scrollTarget || 0;
     var head = $("wkhead");
@@ -1360,7 +1817,7 @@
     refresh(false);
   }
 
-  document.querySelectorAll(".nav[data-screen]").forEach(function (b) {
+  document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
     b.addEventListener("click", function () { go(b.dataset.screen, b.dataset.screen === "today" ? new Date() : null); });
   });
   $("status").addEventListener("click", function () { go("systems"); });
@@ -1379,6 +1836,10 @@
     else if (b.dataset.act === "adddate") openCapture(null, null, "date");
     else if (b.dataset.kdf !== undefined) { state.kdFilter = b.dataset.kdf || null; render(false); }
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
+    else if (b.dataset.act === "systems") go("systems");
+    else if (b.dataset.act === "bearing") { state.wmShift++; render(true); }
+    else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
+    else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refresh(true);
@@ -1407,6 +1868,8 @@
   $("content").addEventListener("submit", function (e) {
     if (e.target.id === "connForm") { e.preventDefault(); submitConnect(); }
   });
+  $("content").addEventListener("input", function (e) { if (e.target.id === "logIntent") saveLog(e.target.value.trim()); });
+  $("content").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur(); });
   $("detailScrim").addEventListener("click", function (e) {
     var b = e.target.closest("button");
     if (b && b.dataset.qretry) { closeDetail(); retryCapture(b.dataset.qretry); return; }
@@ -1448,7 +1911,8 @@
       state.lastDay = today;
     }
     if (document.hidden) return;
-    if ($("detailScrim").hidden && (state.screen === "today" || state.screen === "week") && state.conn) render(true);
+    if ($("detailScrim").hidden && (state.screen === "bridge" || state.screen === "today" || state.screen === "week") && state.conn) render(true);
+    if (state.screen === "bridge") loadWeather(false);
     if (Date.now() - state.lastAuto > AUTO_MS) { state.lastAuto = Date.now(); refresh(true); }
     flushQueue(false);
     checkForUpdate(false);

@@ -35,6 +35,7 @@ python3 mock_v10.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.0: calendars only 
 python3 mock_v11.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.1: + capture           :8092
 python3 mock_v12.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.2: + Notion tasks      :8093
 python3 mock_v13.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.3: + Key Dates         :8094
+python3 mock_v14.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.4: + done (Balance)    :8095
 sleep 1.5
 
 run app_e2e.test.js       # linking, Day/Week/Month, detail, offline cache, phone width
@@ -44,6 +45,7 @@ run app_e2e9.test.js      # Plan Day + Priorities against Notion tasks
 run app_e2e10.test.js     # Google's transient 404s are retried
 run app_e2e11.test.js     # Key Dates: panel, DATES screen, markers, capture, Plan Day line
 run app_e2e12.test.js     # lost replies: already-saved items clear without duplicates
+run app_e2e13.test.js     # Bridge overview: condition, panels, weather, balance, log, settings
 
 echo
 [ $fail -eq 0 ] && echo "ALL PASSED" || echo "SOME TESTS FAILED"

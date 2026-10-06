@@ -13,7 +13,7 @@ const D = __dirname + '/out/';
   await p.screenshot({ path: D + '1-connect.png' });
   await p.fill('#connUrl', 'https://example.com/foo'); await p.fill('#connKey', 'abc'); await p.click('#connBtn');
   console.log('bad url msg:', await p.textContent('#connErr'));
-  await p.evaluate(() => localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8090/macros/s/test/exec', key: 'k'.repeat(64) })));
+  await p.evaluate(() => { localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8090/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1200);
   await p.screenshot({ path: D + '2-today.png' });
   console.log('today events:', await p.locator('.ev').count(), '| status:', (await p.textContent('#status')).trim());
