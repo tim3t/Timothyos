@@ -4,10 +4,11 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.2.0";
+  var VERSION = "1.3.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
+  var LS_HIDDEN = "tos.hidden.v1";
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
   var KEEP_RANGES = 8;
@@ -104,6 +105,7 @@
     calendars: cached.calendars || [],
     bridgeVersion: cached.bridgeVersion || null,
     sync: lsGet(LS_SYNC) || { status: "idle", at: null, error: null },
+    hidden: lsGet(LS_HIDDEN) || {},   /* calendars toggled off on Today, e.g. { work: true } */
     inflight: {},
     index: {},
     lastDay: sod(new Date()).getTime(),
@@ -231,6 +233,19 @@
     });
     return rows;
   }
+  /* ---------- Calendar visibility ---------- */
+  function visible(list) { return list.filter(function (ev) { return !state.hidden[ev.area]; }); }
+  function hiddenNote() {
+    var off = LIVE.filter(function (k) { return state.hidden[k]; });
+    return off.length ? off.map(function (k) { return AREAS[k].name; }).join(" + ") + " HIDDEN" : "";
+  }
+  function toggleArea(k) {
+    if (state.hidden[k]) delete state.hidden[k]; else state.hidden[k] = true;
+    lsSet(LS_HIDDEN, state.hidden);
+    render(true);
+    var name = AREAS[k].name.charAt(0) + AREAS[k].name.slice(1).toLowerCase();
+    toast(name + " calendar " + (state.hidden[k] ? "hidden on all views" : "shown on all views"));
+  }
   function calStatus(area) { return state.calendars.filter(function (c) { return c.area === area; })[0]; }
 
   /* ---------- Sync ---------- */
@@ -281,7 +296,7 @@
       e.textContent = "WEEK " + isoWeek(a) + (sow(now).getTime() === w0.getTime() ? " · THIS WEEK" : "");
       t.textContent = p2(w0.getDate()) + (w0.getMonth() !== w1.getMonth() ? " " + MON[w0.getMonth()] : "") + " TO " + p2(w1.getDate()) + " " + MON[w1.getMonth()];
     } else if (state.screen === "month") {
-      e.textContent = "MONTH";
+      e.textContent = "MONTH" + (hiddenNote() ? " · " + hiddenNote() : "");
       t.textContent = MONL[a.getMonth()] + " " + a.getFullYear();
     } else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     document.querySelectorAll(".nav[data-screen]").forEach(function (b) {
@@ -303,9 +318,10 @@
   function renderDay() {
     var r = viewRange(), list = eventsFor(r), day = state.anchor, now = new Date(), isToday = sameDay(day, now);
     var sc = makeScale(cssNum("--hh", 54));
-    var de = dayEvents(list, day), rows = layout(de.timed, day, sc, 24);
-    var total = de.timed.length + de.allDay.length;
-    var meta = !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") : total ? total + (total === 1 ? " EVENT" : " EVENTS") : "OPEN DAY";
+    var all = dayEvents(list, day), de = dayEvents(visible(list), day), rows = layout(de.timed, day, sc, 24);
+    var total = de.timed.length + de.allDay.length, allHidden = LIVE.every(function (k) { return state.hidden[k]; });
+    var meta = !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") : allHidden ? "ALL CALENDARS HIDDEN" :
+      (total ? total + (total === 1 ? " EVENT" : " EVENTS") : "OPEN DAY") + (hiddenNote() ? " · " + hiddenNote() : "");
     var html = '<div class="bridge"><section class="tlpanel">' + phead(isToday ? "TODAY TIMELINE" : "DAY TIMELINE", meta);
     if (de.allDay.length) {
       html += '<div class="allday">' + de.allDay.map(function (ev) {
@@ -329,18 +345,20 @@
     if (isToday) html += '<div class="now" style="top:' + sc.y(nowH) + 'px"><span class="tnum">' + hm(now) + "</span></div>";
     html += "</div></div></section><section class=\"rcol\">";
 
-    html += "<div>" + phead("LIFE AREAS", "") + '<div class="arows">';
+    html += "<div>" + phead("LIFE AREAS", "TAP TO SHOW OR HIDE") + '<div class="arows">';
     LIVE.forEach(function (k) {
-      var cs = calStatus(k);
-      var items = de.timed.filter(function (e) { return e.area === k; });
-      var adCount = de.allDay.filter(function (e) { return e.area === k; }).length;
+      var cs = calStatus(k), off = !!state.hidden[k];
+      var items = all.timed.filter(function (e) { return e.area === k; });
+      var adCount = all.allDay.filter(function (e) { return e.area === k; }).length;
       var next = items.filter(function (e) { return !isToday || e._e > now; })[0];
       var sub;
-      if (cs && !cs.ok) sub = "Not connected. See Systems.";
+      if (off) sub = "Hidden on all views. Tap to show.";
+      else if (cs && !cs.ok) sub = "Not connected. See Systems.";
       else if (next) sub = (isToday && next._s <= now ? "Now: " : "Next: ") + hm(next._s) + " " + esc(next.title);
       else sub = items.length ? "Done for the day" : adCount ? "All-day only" : "Nothing scheduled";
-      html += '<div class="arow a-' + k + '"><span class="sw"></span><span class="nm"><b>' + AREAS[k].name + "</b><small>" + sub +
-        '</small></span><span class="ct"><b class="tnum">' + (items.length + adCount) + "</b>" + AREAS[k].unit + "</span></div>";
+      html += '<button type="button" class="arow a-' + k + (off ? " off" : "") + '" data-toggle="' + k + '" aria-pressed="' + !off + '" aria-label="' +
+        AREAS[k].name + (off ? " calendar hidden. Tap to show." : " calendar shown. Tap to hide.") + '"><span class="sw"></span><span class="nm"><b>' + AREAS[k].name + "</b><small>" + sub +
+        '</small></span><span class="ct"><b class="tnum">' + (items.length + adCount) + "</b>" + (off ? "HIDDEN" : AREAS[k].unit) + "</span></button>";
     });
     STANDBY_AREAS.forEach(function (k) {
       html += '<div class="arow stub a-' + k + '" aria-disabled="true"><span class="sw"></span><span class="nm"><b>' + AREAS[k].name +
@@ -358,7 +376,7 @@
 
   /* ---------- Week ---------- */
   function renderWeek() {
-    var r = viewRange(), list = eventsFor(r), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
+    var r = viewRange(), list = visible(eventsFor(r)), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
     var sc = makeScale(cssNum("--wh", 46));
     var days = [];
     for (var i = 0; i < 7; i++) {
@@ -366,7 +384,8 @@
       days.push({ d: d, de: de, rows: layout(de.timed, d, sc, 14) });
     }
     var hasAllDay = days.some(function (x) { return x.de.allDay.length; });
-    var html = '<div class="wkpanel">' + phead("ALL CALENDARS", hasData(r) ? "TAP A DAY TO OPEN IT" : (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET")) +
+    var html = '<div class="wkpanel">' + phead(hiddenNote() ? "CALENDARS" : "ALL CALENDARS", !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") :
+      hiddenNote() ? hiddenNote() + " · CHANGE ON TODAY" : "TAP A DAY TO OPEN IT") +
       '<div class="wkscroll"><div class="wk wkhead" id="wkhead"><div></div>';
     days.forEach(function (x) {
       html += '<button type="button" class="wkh' + (sameDay(x.d, now) ? " today" : "") + '" data-day="' + ymd(x.d) + '">' +
@@ -405,7 +424,7 @@
 
   /* ---------- Month ---------- */
   function renderMonth() {
-    var r = viewRange(), list = eventsFor(r), now = new Date(), m = state.anchor.getMonth();
+    var r = viewRange(), list = visible(eventsFor(r)), now = new Date(), m = state.anchor.getMonth();
     var html = '<div class="mo">';
     ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].forEach(function (d) { html += '<div class="moh">' + d + "</div>"; });
     for (var c = 0; c < 42; c++) {
@@ -571,6 +590,7 @@
     if (!b || b.disabled) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
+    else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refresh(true);
     else if (b.dataset.act === "setup") go("today");
     else if (b.dataset.act === "disconnect") {

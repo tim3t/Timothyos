@@ -337,6 +337,12 @@ h1 {
 .arow .nm small { color: var(--dim); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .arow .ct { align-self: center; font-family: var(--display); font-size: 15px; letter-spacing: .1em; color: var(--dim); text-align: right; }
 .arow .ct b { display: block; font-size: 28px; color: var(--fg); line-height: 1; }
+button.arow { border: 0; width: 100%; text-align: left; color: inherit; }
+button.arow:active { filter: brightness(1.2); }
+.arow.off { background: transparent; box-shadow: inset 0 0 0 2px var(--line); }
+.arow.off .sw { background: transparent; box-shadow: inset 4px 0 0 var(--c); opacity: .6; }
+.arow.off .nm b { color: var(--dim); }
+.arow.off .ct, .arow.off .ct b { color: var(--dim); }
 .arow.stub { opacity: .45; background-image: var(--hatch); }
 .arow.stub .ct { font-size: 13px; letter-spacing: .2em; }
 

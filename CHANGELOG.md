@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0 · 2026-10-06
+- Top-left corner reads BRIDGE. TimothyOS and the version stay in the top bar.
+- Tap the Work or Personal row on Today to hide or show that calendar. The choice applies to Day, Week and Month, is remembered between launches, and is labeled wherever a calendar is hidden.
+
 ## 1.2.0 · 2026-10-06
 - Day and Week views show every hour, 00:00 to 23:59. Focus hours (07:00 to 21:00) are twice as tall as the others, which keep a faint shading.
 - Both views scroll. Week view keeps the day headers fixed while the hours scroll, and opens at the current time (or 07:00 for other weeks).
