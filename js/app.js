@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.7.2";
+  var VERSION = "1.7.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -23,6 +23,8 @@
   var TOP_GAPS = [[14, "STANDARD"], [30, "MORE"], [48, "MOST"]];
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
+  var TASKS_FRESH_MS = 5 * 60 * 1000; /* background refresh of the task list; your own actions refresh at once */
+  var LS_NETLOG = "tos.netlog.v1";    /* last bridge requests: action, time taken, result (no data) */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
   var KEEP_RANGES = 8;
 
@@ -99,6 +101,8 @@
     return '<div class="phead"' + (c ? ' style="--c: var(--' + c + ')"' : "") + '><span class="cap"></span><h2>' + title +
       '</h2><span class="rule"></span>' + (meta ? '<span class="meta">' + meta + "</span>" : "") + "</div>";
   }
+  /* A refresh failed but saved data is on screen: say so quietly. Details are in Systems. */
+  function stale(at) { return '<div class="stale">Couldn\'t refresh just now. Showing ' + esc(stamp(at)) + ". Retrying.</div>"; }
   function stubBox(text) { return '<div class="stubbox"><span class="pill">STANDBY</span><span>' + text + "</span></div>"; }
   var toastTimer;
   function toast(msg) {
@@ -151,23 +155,66 @@
   /* ---------- Bridge API ---------- */
   /* Google answers in two steps (script, then a result page). The second step
      occasionally returns a 404 or an HTML error page even though the script ran
-     fine. Those are retried. Every bridge action is safe to repeat: reads, and
-     writes that carry a unique ID or set a field to a fixed value. */
-  var RETRY_DELAYS = [700, 1800];
+     fine. Those are retried, and so are dropped connections. Every bridge action
+     is safe to repeat: reads, and writes that carry a unique ID or set a field
+     to a fixed value. */
+  var RETRY_DELAYS = [700, 1800, 4000];
+  var MAX_PARALLEL = 2;                 /* bridge requests at once; more just queue inside Google */
   function transient(err) {
     var code = err && err.code;
-    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "");
+    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "") || (!!err && err.name === "TypeError");
+  }
+  /* iPadOS cuts off requests when the screen locks or you switch apps. */
+  var lastHidden = 0;
+  document.addEventListener("visibilitychange", function () { if (document.hidden) lastHidden = Date.now(); });
+  function waitVisible() {
+    return new Promise(function (res) {
+      if (!document.hidden) { res(); return; }
+      var f = function () { if (!document.hidden) { document.removeEventListener("visibilitychange", f); res(); } };
+      document.addEventListener("visibilitychange", f);
+    });
   }
   function withRetry(run) {
-    var attempt = 0;
+    var attempt = 0, paused = 0;
     function go() {
+      var started = Date.now();
       return run().catch(function (err) {
-        if (!transient(err) || attempt >= RETRY_DELAYS.length) throw err;
+        /* Cut off by the iPad going to sleep or to another app: try again once it's back. */
+        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; return waitVisible().then(go); }
+        if (navigator.onLine === false || !transient(err) || attempt >= RETRY_DELAYS.length) throw err;
         var wait = RETRY_DELAYS[attempt++];
         return new Promise(function (res) { setTimeout(res, wait); }).then(go);
       });
     }
     return go();
+  }
+  /* Run at most MAX_PARALLEL requests at once; the rest wait their turn. */
+  var active = 0, waiting = [];
+  function slot(fn) {
+    return new Promise(function (res, rej) {
+      waiting.push(function () {
+        active++;
+        fn().then(res, rej).then(function () {
+          active--;
+          if (waiting.length) waiting.shift()();
+        });
+      });
+      if (active < MAX_PARALLEL) waiting.shift()();
+    });
+  }
+  /* A short log of recent requests, shown in Systems, to tell slow from dropped from refused. */
+  var netlog = lsGet(LS_NETLOG) || [];
+  function logged(action, started, p) {
+    return p.then(function (j) { note(action, started, "ok"); return j; }, function (err) {
+      var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error";
+      note(action, started, r + (document.hidden || lastHidden >= started ? " · in background" : ""));
+      throw err;
+    });
+  }
+  function note(action, started, result) {
+    netlog.push({ t: started, a: action || "?", ms: Date.now() - started, r: result });
+    netlog = netlog.slice(-30);
+    lsSet(LS_NETLOG, netlog);
   }
   function api(params, conn) { return withRetry(function () { return apiOnce(params, conn); }); }
   function apiPost(body) { return withRetry(function () { return apiPostOnce(body); }); }
@@ -176,21 +223,25 @@
     var u = new URL(conn.url);
     u.searchParams.set("key", conn.key);
     Object.keys(params).forEach(function (k) { u.searchParams.set(k, params[k]); });
-    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
-    /* Plain GET with no custom headers, so Apps Script answers without a CORS preflight. */
-    return fetch(u.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
-      .then(readReply)
-      .finally(function () { if (timer) clearTimeout(timer); });
+    return slot(function () {
+      var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 45000) : null;
+      /* Plain GET with no custom headers, so Apps Script answers without a CORS preflight. */
+      return logged(params.action, Date.now(), fetch(u.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+        .then(readReply)
+        .finally(function () { if (timer) clearTimeout(timer); }));
+    });
   }
   /* Writes go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
   function apiPostOnce(body) {
     var conn = state.conn;
-    var ctrl = typeof AbortController === "function" ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 60000) : null;
-    return fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
-      .then(readReply)
-      .finally(function () { if (timer) clearTimeout(timer); });
+    return slot(function () {
+      var ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 60000) : null;
+      return logged(body.action, Date.now(), fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+        .then(readReply)
+        .finally(function () { if (timer) clearTimeout(timer); }));
+    });
   }
   function readReply(r) {
     if (!r.ok) { var e = new Error("http_" + r.status); e.code = "http_" + r.status; throw e; }
@@ -210,7 +261,8 @@
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
     if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs.";
     if (/^http_/.test(code || "")) return "The script answered with " + code.replace("http_", "HTTP ") + ". Check the deployment.";
-    if (isNetworkError(err)) return "Couldn't reach the script. Check your connection, that the URL ends in /exec, and that access is set to Anyone.";
+    if (err && err.name === "AbortError") return "Google took too long to answer (45 seconds), even after retrying. Usually temporary.";
+    if (isNetworkError(err)) return navigator.onLine === false ? "No connection. Showing saved data." : "Couldn't reach the script, even after retrying. If this keeps happening, check that the URL ends in /exec and access is set to Anyone.";
     return "Sync failed (" + esc(code) + ").";
   }
 
@@ -345,13 +397,24 @@
       if (j.version) state.bridgeVersion = j.version;
       state.caps = j.capabilities || [];
       persist();
+      state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
       if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); }
       flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
     }).catch(function (err) {
-      setSync(isNetworkError(err) || navigator.onLine === false ? "offline" : "error", describe(err));
+      var offline = navigator.onLine === false;
+      state.syncFails = (state.syncFails || 0) + 1;
+      if (!offline && state.syncFails < 3 && hasData(r) && (transient(err) || isNetworkError(err))) {
+        /* Showing saved data that's still good: stay quiet and try again shortly. */
+        state.sync.status = "retrying";
+        state.sync.error = describe(err);
+        renderStatus();
+        setTimeout(function () { refresh(true); }, 30000 * state.syncFails);
+      } else {
+        setSync(isNetworkError(err) || offline ? "offline" : "error", describe(err));
+      }
       if (state.screen === "systems") render(true);
     }).then(function () { delete state.inflight[k]; });
   }
@@ -391,6 +454,7 @@
     var s = $("status"), st = state.sync, at = stamp(st.at), line1, line2, cls;
     if (!state.conn) { cls = "unlinked"; line1 = "NOT LINKED"; line2 = "SETUP NEEDED"; }
     else if (st.status === "syncing") { cls = "syncing"; line1 = "SYNCING"; line2 = at ? "LAST " + at : ""; }
+    else if (st.status === "retrying") { cls = "ok"; line1 = "SYNCED"; line2 = (at ? at + " · " : "") + "RETRYING"; }
     else if (st.status === "offline") { cls = "offline"; line1 = "OFFLINE"; line2 = at ? "CACHED " + at : "NO DATA YET"; }
     else if (st.status === "error") { cls = "error"; line1 = "SYNC ERROR"; line2 = "SEE SYSTEMS"; }
     else { cls = "ok"; line1 = at ? "SYNCED" : "WAITING"; line2 = at; }
@@ -564,6 +628,7 @@
         : '<button type="button" class="btn capture" data-act="setup">LINK CALENDARS</button>') +
       "</div></section>";
 
+    html += netSection();
     html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · PERSONAL TAKES CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
       var cs = calStatus(k);
@@ -590,6 +655,19 @@
         return '<button type="button" class="chip" data-topgap="' + g[0] + '" aria-pressed="' + (topGap() === g[0]) + '">' + g[1] + "</button>";
       }).join("") + '</div><small class="muted">Space between the iPad status bar and the top of the app. Status bar height here: ' + safeTop() + " px.</small></dd></dl></section></div>";
     $("content").innerHTML = html;
+  }
+
+  /* Recent bridge requests: how long each took and how it ended. */
+  function netSection() {
+    if (!state.conn || !netlog.length) return "";
+    var hour = netlog.filter(function (n) { return Date.now() - n.t < 3600000; }), bad = hour.filter(function (n) { return n.r !== "ok"; });
+    var slow = netlog.filter(function (n) { return n.r === "ok"; }).map(function (n) { return n.ms; }).sort(function (a, b) { return a - b; });
+    var median = slow.length ? (slow[Math.floor(slow.length / 2)] / 1000).toFixed(1) + " s" : "–";
+    return "<section>" + phead("RECENT REQUESTS", hour.length ? bad.length + " OF " + hour.length + " FAILED IN THE LAST HOUR · TYPICAL " + median : "TYPICAL " + median) +
+      '<div class="netlog tnum">' + netlog.slice(-12).reverse().map(function (n) {
+        return '<span>' + hm(new Date(n.t)) + "</span><span>" + esc(String(n.a).toUpperCase()) + "</span><span>" + (n.ms / 1000).toFixed(1) + " s</span>" +
+          '<span class="' + (n.r === "ok" ? "okmsg" : "errtxt") + '">' + esc(n.r === "ok" ? "OK" : n.r.toUpperCase()) + "</span>";
+      }).join("") + '</div><small class="muted">DROPPED: the connection was cut. TIMEOUT: no answer in 45 s. IN BACKGROUND: the iPad slept or switched apps mid-request; those are retried when you come back.</small></section>';
   }
 
   /* ---------- First-run link ---------- */
@@ -995,7 +1073,7 @@
     if (list.length > 5) html += '<div class="muted" style="font-size:14px;margin-top:6px">+' + (list.length - 5) + " more in the next 30 days</div>";
     html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button>' +
       '<button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
-    if (state.datesErr) html += '<div class="err">' + esc(state.datesErr.msg) + "</div>";
+    if (state.datesErr) html += stale(state.dates.fetched);
     return html;
   }
   function renderDatesScreen() {
@@ -1022,7 +1100,7 @@
     });
     if (!list.length) html += '<div class="empty" style="margin-top:20px">' + (f ? "No key dates in this area for the next 12 months." : "No key dates yet. Tap + ADD KEY DATE, or add them in Notion.") + "</div>";
     html += '<div class="muted" style="margin-top:22px;font-size:14px">Past dates stay in Notion. Edit or delete key dates there.</div>';
-    if (state.datesErr) html += '<div class="err">' + esc(state.datesErr.msg) + "</div>";
+    if (state.datesErr) html += stale(state.dates.fetched);
     $("content").innerHTML = html + "</div>";
   }
   function openKeyDate(o) {
@@ -1099,7 +1177,7 @@
   function loadTasks(day, force) {
     if (!state.conn || !canPlan() || state.tasksInflight[day]) return;
     var have = state.tasks[day];
-    if (!force && have && Date.now() - have.fetched < FRESH_MS) return;
+    if (!force && have && Date.now() - have.fetched < TASKS_FRESH_MS) return;
     if (!force && state.tasksErr && Date.now() - state.tasksErr.at < FRESH_MS) return;
     state.tasksInflight[day] = true;
     api({ action: "tasks", day: day }).then(function (j) {
@@ -1139,7 +1217,7 @@
       html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn plan" data-act="plan" data-day="' + day + '">' +
         (focus.length ? "CHANGE PICKS" : "PLAN " + (isToday ? "TODAY" : dLabel(parseYmd(day)))) + "</button></div>";
     }
-    if (state.tasksErr) html += '<div class="err">' + esc(state.tasksErr.msg) + "</div>";
+    if (state.tasksErr) html += stale(data.fetched);
     return html;
   }
 
@@ -1697,7 +1775,7 @@
         '<span class="bv tnum">' + s.n + " DONE" + (LIVE.indexOf(a) > -1 && hasData(bridgeRange()) ? " · " + hrsLabel(s.hrs) : "") + "</span>" + pill + "</div>";
     });
     html += '<div class="ov-foot">Tasks marked done per Life Area, dated by their last edit in Notion. Hours come from the Work and Personal calendars; Farm + Bees and Hobbies get hours once they have their own calendars.</div>';
-    if (state.doneErr) html += '<div class="err">' + esc(state.doneErr.msg) + "</div>";
+    if (state.doneErr) html += stale(state.done.fetched);
     return html;
   }
 

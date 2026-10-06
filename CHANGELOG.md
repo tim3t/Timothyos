@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.3 · 2026-10-06
+- Fix: frequent "Couldn't reach the script" and OFFLINE flicker.
+  - Requests cut off when the iPad sleeps or switches apps are re-run when you come back, instead of failing.
+  - Dropped connections are retried up to 3 times (they weren't retried before).
+  - The task list refreshes every 5 minutes in the background, not every minute. Your own actions (check-off, Plan Day, Refresh) still refresh at once.
+  - At most 2 bridge requests run at once; the rest wait their turn.
+  - Requests wait up to 45 seconds for an answer (was 30).
+- A short failure over good saved data no longer turns the status OFFLINE or paints red errors. The status reads SYNCED · RETRYING and panels show a quiet "Showing 07:40. Retrying." note. It turns OFFLINE only after 3 failures in a row, or when the iPad has no connection.
+- **SYSTEMS → RECENT REQUESTS:** the last 12 bridge requests with how long each took and how it ended (OK, DROPPED, TIMEOUT, in background), plus failures in the last hour.
+
 ## 1.7.2 · 2026-10-06
 - No emoji in the interface. Buttons read PLAN DAY, ASK, CAPTURE, SAVE, UPDATE READY; the day arrows are drawn shapes.
 - Notion labels show as plain text (High, Work & Calling, Deadline). Notion itself is unchanged, and the app still sends the original values back.

@@ -63,6 +63,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 ## Known quirks (already handled; don't "fix" them away)
 
 - **Google's result page intermittently 404s** (about 1 in 8 requests) even though the script ran. `withRetry()` re-runs the request twice for `http_404`, `bad_json`, `http_5xx`. Re-fetching the same result URL does not help.
+- **Dropped and background-cut requests:** iPadOS kills in-flight fetches when the app is backgrounded or the screen locks. `withRetry()` waits for `visibilitychange` and re-runs those, and retries `TypeError` drops (3 times). `slot()` caps bridge requests at 2 in parallel. A refresh failure over saved data shows `retrying`, not `offline`, until 3 in a row. `netlog` (Systems → Recent requests) records action, duration and outcome only, never data. `app_e2e14` covers this.
 - **Lost replies:** a write can succeed while the reply is lost. `reconcileQueue()` clears queued items that already appear in loaded data, so they're never re-sent after the 6 h cid cache expires.
 - iOS standalone apps don't reload on resume. `version.json` + the **UPDATE READY** banner handle updates; the service worker fetches the page with `cache: "no-cache"`.
 - The app draws under the iPad status bar (`black-translucent`, `viewport-fit=cover`). Top clearance is `--safe-top` + `--top-gap` (user-adjustable in Systems), with a solid `body::before` strip behind the bar. Don't switch the status-bar style meta: iOS reads it only at install, so Timothy would have to re-add the app and re-link.
