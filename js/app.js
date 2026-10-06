@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -185,9 +185,11 @@
     allDay.sort(function (a, b) { return areaRank(a.area) - areaRank(b.area); });
     return { timed: timed, allDay: allDay };
   }
-  /* Focus hours get full height; the night bands before and after are compressed. */
-  var FOCUS_START = 7, FOCUS_END = 21;
-  function makeScale(full, slim) {
+  /* Every hour is shown. Focus hours (07-21) are twice as tall as the rest. */
+  var FOCUS_START = 7, FOCUS_END = 21, QUIET_RATIO = 0.5;
+  function isFocus(h) { return h >= FOCUS_START && h < FOCUS_END; }
+  function makeScale(full) {
+    var slim = full * QUIET_RATIO;
     function y(h) {
       h = Math.max(0, Math.min(24, h));
       if (h <= FOCUS_START) return h * slim;
@@ -196,14 +198,11 @@
     }
     return { y: y, total: y(24) };
   }
-  /* Events that start overnight and run into the focus hours show their label at 07:00. */
-  function labelOffset(row, sc) {
-    return row.s < FOCUS_START && row.e > FOCUS_START + 0.5 ? Math.max(0, sc.y(FOCUS_START) - row.ys) : 0;
-  }
-  function nightBands(sc, cls, labels) {
+  /* Faint shading behind the quieter hours. */
+  function quietBands(sc, cls) {
     var top = sc.y(FOCUS_START), late = sc.y(FOCUS_END);
-    return '<div class="' + cls + '" style="top:0;height:' + top + 'px">' + (labels ? '<span class="tnum">00-' + p2(FOCUS_START) + "</span>" : "") + "</div>" +
-      '<div class="' + cls + '" style="top:' + late + "px;height:" + (sc.total - late) + 'px">' + (labels ? '<span class="tnum">' + p2(FOCUS_END) + "-24</span>" : "") + "</div>";
+    return '<div class="' + cls + '" style="top:0;height:' + top + 'px"></div>' +
+      '<div class="' + cls + '" style="top:' + late + "px;height:" + (sc.total - late) + 'px"></div>';
   }
   /* Side-by-side columns for overlapping events, worked out in pixels so
      short events in the compressed bands still get their own column. */
@@ -303,7 +302,7 @@
   /* ---------- Day ---------- */
   function renderDay() {
     var r = viewRange(), list = eventsFor(r), day = state.anchor, now = new Date(), isToday = sameDay(day, now);
-    var sc = makeScale(cssNum("--hh", 54), cssNum("--hh-night", 10));
+    var sc = makeScale(cssNum("--hh", 54));
     var de = dayEvents(list, day), rows = layout(de.timed, day, sc, 24);
     var total = de.timed.length + de.allDay.length;
     var meta = !hasData(r) ? (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET") : total ? total + (total === 1 ? " EVENT" : " EVENTS") : "OPEN DAY";
@@ -314,18 +313,17 @@
         return '<button type="button" class="adchip a-' + ev.area + '" data-id="' + esc(ev.id) + '">ALL DAY · ' + esc(ev.title) + "</button>";
       }).join("") + "</div>";
     }
-    html += '<div class="tlwrap" id="tlwrap"><div class="tl" style="height:' + sc.total + 'px">' + nightBands(sc, "nightband", true);
-    for (var h = FOCUS_START; h < FOCUS_END; h++) {
-      html += '<div class="hour" style="top:' + sc.y(h) + "px;height:" + (sc.y(h + 1) - sc.y(h)) + 'px"><span class="tnum">' + p2(h) + "</span></div>";
+    html += '<div class="tlwrap" id="tlwrap"><div class="tl" style="height:' + sc.total + 'px">' + quietBands(sc, "quietband");
+    for (var h = 0; h < 24; h++) {
+      html += '<div class="hour' + (isFocus(h) ? "" : " quiet") + '" style="top:' + sc.y(h) + "px;height:" + (sc.y(h + 1) - sc.y(h)) + 'px"><span class="tnum">' + p2(h) + "</span></div>";
     }
     rows.forEach(function (row) {
       var ev = row.ev, top = row.ys + 1, height = Math.max(24, row.ye - row.ys - 3);
       state.index[ev.id] = ev;
       var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "");
-      var pad = labelOffset(row, sc);
-      html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height + "px;" + (pad ? "padding-top:" + (pad + 6) + "px;" : "") +
-        "left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
-        '<span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + "</span></button>";
+      html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height +
+        "px;left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
+        '<span class="lbl"><span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + "</span></span></button>";
     });
     var nowH = now.getHours() + now.getMinutes() / 60;
     if (isToday) html += '<div class="now" style="top:' + sc.y(nowH) + 'px"><span class="tnum">' + hm(now) + "</span></div>";
@@ -355,25 +353,21 @@
     $("content").innerHTML = html;
 
     var first = rows.length ? rows[0].s : 8;
-    state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, first) - 1));
+    state.scrollTarget = Math.max(0, sc.y(isToday ? nowH - 2.5 : Math.max(FOCUS_START, Math.min(first, 18)) - 0.5));
   }
 
   /* ---------- Week ---------- */
   function renderWeek() {
-    var r = viewRange(), list = eventsFor(r), now = new Date(), i;
-    var des = [];
-    for (i = 0; i < 7; i++) des.push(dayEvents(list, addDays(r.from, i)));
-    var hasAllDay = des.some(function (de) { return de.allDay.length; });
-    /* Fit the focus hours to the screen height on iPad; fixed size on narrow screens. */
-    var slim = cssNum("--wh-night", 6), full = cssNum("--wh", 34);
-    if (!window.matchMedia("(max-width: 860px)").matches) {
-      var avail = $("content").getBoundingClientRect().height - (hasAllDay ? 168 : 136);
-      full = Math.max(30, Math.min(64, (avail - 10 * slim) / (FOCUS_END - FOCUS_START)));
+    var r = viewRange(), list = eventsFor(r), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
+    var sc = makeScale(cssNum("--wh", 46));
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(r.from, i), de = dayEvents(list, d);
+      days.push({ d: d, de: de, rows: layout(de.timed, d, sc, 14) });
     }
-    var sc = makeScale(full, slim);
-    var days = des.map(function (de, j) { var d = addDays(r.from, j); return { d: d, de: de, rows: layout(de.timed, d, sc, 14) }; });
-    var html = phead("ALL CALENDARS", hasData(r) ? "TAP A DAY TO OPEN IT" : (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET")) +
-      '<div class="wkscroll"><div class="wk"><div></div>';
+    var hasAllDay = days.some(function (x) { return x.de.allDay.length; });
+    var html = '<div class="wkpanel">' + phead("ALL CALENDARS", hasData(r) ? "TAP A DAY TO OPEN IT" : (state.sync.status === "syncing" ? "LOADING" : "NO DATA YET")) +
+      '<div class="wkscroll"><div class="wk wkhead" id="wkhead"><div></div>';
     days.forEach(function (x) {
       html += '<button type="button" class="wkh' + (sameDay(x.d, now) ? " today" : "") + '" data-day="' + ymd(x.d) + '">' +
         DOW[x.d.getDay()] + '<b class="tnum">' + p2(x.d.getDate()) + "</b></button>";
@@ -384,27 +378,29 @@
         html += '<div class="wkad">' + x.de.allDay.map(function (ev) { return '<span class="a-' + ev.area + '">' + esc(ev.title) + "</span>"; }).join("") + "</div>";
       });
     }
-    var height = sc.total;
-    html += '<div class="wkgut" style="height:' + height + 'px">';
-    for (var h = FOCUS_START; h <= FOCUS_END; h++) {
-      if (h % 2 === 1) html += '<span class="tnum" style="top:' + sc.y(h) + 'px">' + p2(h) + "</span>";
+    html += '</div><div class="wkbody" id="tlwrap"><div class="wk"><div class="wkgut" style="height:' + sc.total + 'px">';
+    for (var h = 0; h < 24; h++) {
+      html += '<span class="tnum' + (isFocus(h) ? "" : " quiet") + '" style="top:' + (sc.y(h) + 2) + 'px">' + p2(h) + "</span>";
     }
     html += "</div>";
+    var lines = "";
+    for (var k = 1; k < 24; k++) lines += '<div class="wkline" style="top:' + sc.y(k) + 'px"></div>';
     days.forEach(function (x) {
-      html += '<div class="wkcol" style="height:' + height + 'px">' + nightBands(sc, "wkband", false);
+      html += '<div class="wkcol" style="height:' + sc.total + 'px">' + quietBands(sc, "wkband") + lines;
       x.rows.forEach(function (row) {
-        var ev = row.ev, hgt = Math.max(14, row.ye - row.ys - 2), pad = labelOffset(row, sc);
+        var ev = row.ev, hgt = Math.max(14, row.ye - row.ys - 2);
         state.index[ev.id] = ev;
         html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
-          '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;" + (pad ? "padding-top:" + (pad + 2) + "px;" : "") + "left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
-          ");width:calc((100% - 4px) / " + row.n + ' - 2px)">' + (hgt >= 26 ? esc(ev.title) : "") + "</button>";
+          '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
+          ");width:calc((100% - 4px) / " + row.n + ' - 2px)">' + (hgt >= 26 ? '<span class="lbl">' + esc(ev.title) + "</span>" : "") + "</button>";
       });
-      var nowH = now.getHours() + now.getMinutes() / 60;
       if (sameDay(x.d, now)) html += '<div class="wknow" style="top:' + sc.y(nowH) + 'px"></div>';
       html += "</div>";
     });
-    html += "</div></div>";
+    html += "</div></div></div></div>";
     $("content").innerHTML = html;
+    var thisWeek = days.some(function (x) { return sameDay(x.d, now); });
+    state.scrollTarget = Math.max(0, sc.y(thisWeek ? Math.min(nowH, 18) - 2 : FOCUS_START) - 8);
   }
 
   /* ---------- Month ---------- */
@@ -543,6 +539,8 @@
     ({ today: renderDay, week: renderWeek, month: renderMonth, systems: renderSystems })[state.screen]();
     var w2 = $("tlwrap");
     if (w2) w2.scrollTop = keep !== null ? keep : state.scrollTarget || 0;
+    var head = $("wkhead");
+    if (head && w2) head.style.paddingRight = (w2.offsetWidth - w2.clientWidth) + "px";
   }
   function go(screen, anchor) {
     state.screen = screen;

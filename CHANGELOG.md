@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 · 2026-10-06
+- Day and Week views show every hour, 00:00 to 23:59. Focus hours (07:00 to 21:00) are twice as tall as the others, which keep a faint shading.
+- Both views scroll. Week view keeps the day headers fixed while the hours scroll, and opens at the current time (or 07:00 for other weeks).
+- Event titles stay pinned to the top of the visible area while you scroll through a long event.
+- Hour lines added to the Week view.
+- Replaces the 1.1.0 compressed night bands.
+
 ## 1.1.0 · 2026-10-06
 - Day and Week views give the focus hours (07:00 to 21:00) most of the height. Overnight hours (00:00 to 07:00, 21:00 to 24:00) shrink to thin shaded bands, so all-day blocks no longer squeeze the work day.
 - Week view fits the focus hours to the iPad screen height.
