@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.1 · 2026-10-06
+- Fix: the iPad status bar (clock, battery) could cover the top line of the app. The app now leaves clear space below it, keeps a solid strip behind it, and no longer stretches when pulled down.
+- **SYSTEMS → APP → TOP SPACING:** Standard, More or Most, if the top still looks crowded. Also shows the status bar height the iPad reports.
+
 ## 1.7.0 · 2026-10-06 (Balance needs bridge 1.4.0)
 - **The Bridge:** a new overview screen. Tap **BRIDGE** in the top-left corner. The app now opens here (change it in **SYSTEMS → BRIDGE**).
 - **Condition banner:** GREEN, YELLOW or RED, listing every item that needs you: overdue tasks, Work and Personal clashes, key dates within 3 days, unpicked tasks due today, no priorities by 10:00, frost tonight, stuck captures, failing sync. Tap an item to go fix it.

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.7.0";
+  var VERSION = "1.7.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -19,6 +19,8 @@
   var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
   var LS_LOG = "tos.log.v1";           /* Captain's Log: one intent line per day, last 30 days */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
+  var LS_TOPGAP = "tos.topgap.v1";     /* extra space below the iPad status bar, in px */
+  var TOP_GAPS = [[14, "STANDARD"], [30, "MORE"], [48, "MOST"]];
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var AUTO_MS = 5 * 60 * 1000;       /* background refresh while the app is open */
@@ -579,7 +581,10 @@
 
     html += "<section>" + phead("APP", "") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
       "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) : '<span class="muted">Unknown</span>') + "</dd>" +
-      "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd></dl></section></div>";
+      "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd>" +
+      '<dt>TOP SPACING</dt><dd><div class="chips">' + TOP_GAPS.map(function (g) {
+        return '<button type="button" class="chip" data-topgap="' + g[0] + '" aria-pressed="' + (topGap() === g[0]) + '">' + g[1] + "</button>";
+      }).join("") + '</div><small class="muted">Space between the iPad status bar and the top of the app. Status bar height here: ' + safeTop() + " px.</small></dd></dl></section></div>";
     $("content").innerHTML = html;
   }
 
@@ -1779,6 +1784,12 @@
     }
   }
 
+  /* ---------- Top spacing below the status bar ---------- */
+  function topGap() { var g = lsGet(LS_TOPGAP); return TOP_GAPS.some(function (x) { return x[0] === g; }) ? g : TOP_GAPS[0][0]; }
+  function applyTopGap() { document.documentElement.style.setProperty("--top-gap", topGap() + "px"); }
+  function safeTop() { return Math.round(parseFloat(getComputedStyle(document.body, "::before").height) || 0); }
+  applyTopGap();
+
   /* ---------- Render + navigation ---------- */
   function render(keepScroll) {
     var wrap = $("tlwrap");
@@ -1838,6 +1849,7 @@
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.act === "systems") go("systems");
     else if (b.dataset.act === "bearing") { state.wmShift++; render(true); }
+    else if (b.dataset.topgap) { lsSet(LS_TOPGAP, +b.dataset.topgap); applyTopGap(); render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));

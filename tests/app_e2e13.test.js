@@ -131,6 +131,15 @@ function weather() {
   // --- Systems: open on Today instead
   await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
   assert.ok((await p.textContent('#content')).includes('44.98,-93.27'));
+  const padBefore = await p.evaluate(() => getComputedStyle(document.body).paddingTop);
+  await p.click('[data-topgap="48"]'); await p.waitForTimeout(100);
+  const padAfter = await p.evaluate(() => getComputedStyle(document.body).paddingTop);
+  console.log('top spacing:', padBefore, '->', padAfter, '|', await p.textContent('dd:has([data-topgap]) small'));
+  assert.strictEqual(padBefore, '14px'); assert.strictEqual(padAfter, '48px');
+  await p.reload(); await p.waitForTimeout(800);
+  assert.strictEqual(await p.evaluate(() => getComputedStyle(document.body).paddingTop), '48px', 'spacing kept after reload');
+  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('[data-topgap="14"]');
   await p.fill('#placeIn', 'not a place'); await p.click('[data-act="placesave"]');
   assert.ok((await p.textContent('#bridgeErr')).includes('two numbers'));
   await p.click('[data-start="today"]'); await p.waitForTimeout(200);

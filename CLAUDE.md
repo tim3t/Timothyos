@@ -65,6 +65,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 - **Google's result page intermittently 404s** (about 1 in 8 requests) even though the script ran. `withRetry()` re-runs the request twice for `http_404`, `bad_json`, `http_5xx`. Re-fetching the same result URL does not help.
 - **Lost replies:** a write can succeed while the reply is lost. `reconcileQueue()` clears queued items that already appear in loaded data, so they're never re-sent after the 6 h cid cache expires.
 - iOS standalone apps don't reload on resume. `version.json` + the **UPDATE READY** banner handle updates; the service worker fetches the page with `cache: "no-cache"`.
+- The app draws under the iPad status bar (`black-translucent`, `viewport-fit=cover`). Top clearance is `--safe-top` + `--top-gap` (user-adjustable in Systems), with a solid `body::before` strip behind the bar. Don't switch the status-bar style meta: iOS reads it only at install, so Timothy would have to re-add the app and re-link.
 - Plain GET and text/plain POST only, no custom headers: Apps Script can't answer CORS preflights.
 - Calendar toggles (Work/Personal hidden) persist in localStorage and affect Day, Week, Month.
 

@@ -209,6 +209,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
 | Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
+| Top line hidden under the clock and battery | **SYSTEMS → APP → TOP SPACING → MORE** (or **MOST**) |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
 
