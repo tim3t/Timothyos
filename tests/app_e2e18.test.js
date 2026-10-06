@@ -27,8 +27,24 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8098/x/exec?acti
   await setup(8098); await p.reload(); await p.waitForTimeout(2000);
   // the Bridge reminder goes straight to the week
   await p.click('.ov-alert:has-text("Weekly review due")'); await p.waitForTimeout(1000);
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT');
+  assert.strictEqual(await p.textContent('#title'), '28 SEP TO 04 OCT');
   assert.ok(await p.isVisible('#logBtn'), 'ALL REVIEWS beside the arrows');
+  assert.strictEqual(await p.textContent('#eyebrow'), 'WEEK 40 · LAST WEEK');
+  assert.ok(await p.isHidden('#todayBtn'), 'ALL REVIEWS takes the place of THIS WEEK');
+  // on Timothy's iPad width the header stays one line, so the sidebar matches every other screen
+  const dims = () => p.evaluate(() => [document.querySelector('.top').getBoundingClientRect().height, document.querySelector('.fill').getBoundingClientRect().height]);
+  const hr = await dims();
+  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(300);
+  const hw = await dims();
+  console.log('header + fill, review week vs Week screen:', hr, hw);
+  assert.deepStrictEqual(hr, hw, 'sidebar identical to other screens');
+  // narrower (Split View): the header may wrap, but the left bar never collapses to a sliver
+  await p.click('.elbow'); await p.waitForTimeout(300); await p.click('.ov-alert:has-text("Weekly review due")'); await p.waitForTimeout(800);
+  await p.setViewportSize({ width: 1000, height: 695 }); await p.waitForTimeout(200);
+  const narrow = await dims(); console.log('narrow header + fill:', narrow);
+  assert.ok(narrow[1] >= 40, 'fill keeps its size');
+  await p.setViewportSize({ width: 1180, height: 820 });
+  await p.click('.elbow'); await p.waitForTimeout(300); await p.click('.ov-alert:has-text("Weekly review due")'); await p.waitForTimeout(800);
   await p.click('#logBtn'); await p.waitForTimeout(1200);
   console.log('header:', await p.textContent('#eyebrow'), '|', await p.textContent('#title'));
   assert.strictEqual(await p.textContent('#title'), 'WEEKLY REVIEWS');
@@ -87,7 +103,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8098/x/exec?acti
 
   // a saved week: the four questions, arrows, back to the log
   await p.click('.rl-row:has-text("WEEK 39")'); await p.waitForTimeout(1500);
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 39 · 21 TO 27 SEP');
+  assert.strictEqual(await p.textContent('#title'), '21 TO 27 SEP');
   assert.ok((await p.textContent('#eyebrow')).includes('SAVED'));
   const qs = await p.locator('label[for^="rv-"]').allTextContents();
   console.log('questions:', qs.join(' | '));
@@ -95,7 +111,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8098/x/exec?acti
   assert.ok(!(await p.textContent('#content')).includes('optional'));
   assert.strictEqual(await p.inputValue('#rv-bearing'), 'Kept mornings for deep work');
   await p.click('#prevBtn'); await p.waitForTimeout(800);
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 38 · 14 TO 20 SEP');
+  assert.strictEqual(await p.textContent('#title'), '14 TO 20 SEP');
   await p.click('#logBtn'); await p.waitForTimeout(500);
   assert.strictEqual(await p.textContent('#title'), 'WEEKLY REVIEWS');
 

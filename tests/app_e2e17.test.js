@@ -107,8 +107,8 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   // --- Review: review draft from Ask is there; WRITE SUMMARY; saved with the review
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(1000);
   await p.click('.rl-card.due'); await p.waitForTimeout(1000);
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT', 'on a Tuesday, last week is the one due');
-  await p.click('#todayBtn'); await p.waitForTimeout(1500);
+  assert.strictEqual(await p.textContent('#title'), '28 SEP TO 04 OCT', 'on a Tuesday, last week is the one due');
+  await p.click('#nextBtn'); await p.waitForTimeout(1500);
   assert.strictEqual(await p.inputValue('#rv-wentWell'), 'Shipped the deck', 'Ask draft placed in Review');
   await p.click('[data-act="writesummary"]'); await p.waitForTimeout(1500);
   console.log('summary:', await p.inputValue('#rv-summary'), '| toast', await p.textContent('#toast'));

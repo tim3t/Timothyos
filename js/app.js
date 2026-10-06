@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.1.0";
+  var VERSION = "2.1.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -469,6 +469,7 @@
     var linked = !!state.conn;
     $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
+    $("todayBtn").hidden = state.screen === "review";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -498,8 +499,9 @@
       t.textContent = "WEEKLY REVIEWS";
     } else if (state.screen === "review") {
       var rw0 = sow(a), thisW = sow(now).getTime() === rw0.getTime(), lastW = addDays(sow(now), -7).getTime() === rw0.getTime();
-      e.textContent = "REVIEW · " + (thisW ? "THIS WEEK" : lastW ? "LAST WEEK" : rw0 > now ? "AHEAD" : "PAST WEEK") + (reviewSaved(ymd(rw0)) ? " · SAVED" : "");
-      t.textContent = weekLabel(rw0);
+      /* Same shape as the Week screen (week number above, dates as the title) so the header stays on one line beside ALL REVIEWS and the arrows. */
+      e.textContent = "WEEK " + isoWeek(rw0) + " · " + (thisW ? "THIS WEEK" : lastW ? "LAST WEEK" : rw0 > now ? "AHEAD" : "PAST WEEK") + (reviewSaved(ymd(rw0)) ? " · SAVED" : "");
+      t.textContent = weekLabel(rw0).replace(/^WEEK \d+ · /, "");
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");

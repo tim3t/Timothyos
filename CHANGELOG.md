@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1 · 2026-10-06
+- Fix: opening a week from REVIEW made the header wrap to two lines on the iPad, which squeezed the left bar into a thin stripe above SYSTEMS. The week's header now matches the Week screen (week number above, dates as the title), and **ALL REVIEWS** takes the place of THIS WEEK, so the header stays on one line and the left bar looks the same on every screen.
+- The left bar is also sturdier: if the header ever needs two lines (for example in Split View), the buttons give a little height evenly instead of leaving a sliver.
+
 ## 2.1.0 · 2026-10-06 (needs bridge 1.7.0 for trends and the full list)
 - **Review log:** REVIEW opens on a landing page.
   - **Up next:** the week that's due and this week.

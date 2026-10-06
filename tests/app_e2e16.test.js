@@ -36,8 +36,8 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   assert.ok((await due.innerText()).includes('WEEK 41 · 05 TO 11 OCT'));
   await due.click(); await p.waitForTimeout(1500);
   console.log('header:', await p.textContent('#eyebrow'), '|', await p.textContent('#title'));
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 41 · 05 TO 11 OCT');
-  assert.ok((await p.textContent('#eyebrow')).startsWith('REVIEW · THIS WEEK'));
+  assert.strictEqual(await p.textContent('#title'), '05 TO 11 OCT');
+  assert.ok((await p.textContent('#eyebrow')).startsWith('WEEK 41 · THIS WEEK'));
   assert.strictEqual(await p.getAttribute('[data-screen="review"].nav', 'aria-current'), 'page');
 
   const rows = (await p.locator('.rv-row').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
@@ -93,13 +93,13 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   await p.click('.rl-card.saved'); await p.waitForTimeout(500);
   await p.click('#prevBtn'); await p.waitForTimeout(1500);
   console.log('prev:', await p.textContent('#title'), '|', await p.textContent('#eyebrow'));
-  assert.strictEqual(await p.textContent('#title'), 'WEEK 40 · 28 SEP TO 04 OCT');
+  assert.strictEqual(await p.textContent('#title'), '28 SEP TO 04 OCT');
   assert.ok((await p.textContent('#content .err')).includes("isn't connected"));
   assert.ok(await p.isDisabled('[data-act="savereview"]'));
   assert.ok(rows.length && (await p.locator('.rv-row .dl').count()) >= 2, 'past weeks compare with the week before');
 
   // --- phone width
-  await p.click('#todayBtn'); await p.waitForTimeout(500);
+  await p.click('#nextBtn'); await p.waitForTimeout(500);
   await p.setViewportSize({ width: 400, height: 860 }); await p.waitForTimeout(300);
   await p.screenshot({ path: D + 'review-phone.png', fullPage: true });
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth) <= 400, 'no sideways scroll on a phone');
