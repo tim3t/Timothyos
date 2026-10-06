@@ -2,7 +2,7 @@
 
 A personal, LCARS-inspired life dashboard that runs full-screen on an iPad home screen.
 
-**Calendar Core + Capture + Plan Day:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. **Plan Day** picks up to three priorities from your Notion **Master Task List**, and you check them off on Today. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
+**Calendar Core + Capture + Plan Day + Key Dates:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. **Plan Day** picks up to three priorities from your Notion **Master Task List**, and you check them off on Today. **Key Dates** (deadlines, seasonal windows, birthdays) come from a Notion database, with countdowns on Today, a DATES screen, and markers on the calendar. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
 
 ```
 iPad home screen app  (GitHub Pages, free, works offline)
@@ -118,6 +118,15 @@ Plan Day reads your **🎯 Master Task List** and writes only three things to it
 
 **5. In TimothyOS:** **SYSTEMS → REFRESH NOW**. **☀ PLAN DAY** lights up and the Priorities panel fills in.
 
+## Key Dates (bridge 1.3)
+
+Key dates live in **🗓️ Key Dates**, a Notion database inside Timothy's Life Hub. Fields: Name, Date (one day, or a start and end for windows), Life Area, Type, Repeats Yearly, Notes.
+
+1. **Connect the integration to Key Dates:** open **🗓️ Key Dates** as a full page → **•••** → **Connections** → add **TimothyOS bridge**. (It still has no access to the Life Hub page or anything else.)
+2. **Update the bridge code to 1.3:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion key dates: OK (🗓️ Key Dates, N dates)`.
+3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
+4. In TimothyOS: **SYSTEMS → REFRESH NOW**. The **DATES** screen and the **Key Dates** panel fill in, and **KEY DATE** appears in Capture.
+
 ## Daily use
 
 | Do | How |
@@ -130,6 +139,9 @@ Plan Day reads your **🎯 Master Task List** and writes only three things to it
 | Plan your day | **☀ PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
 | Plan tomorrow | Go to tomorrow on Today (▶), then **☀ PLAN** in the Priorities panel |
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
+| See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
+| Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **↻ YEARLY** for birthdays and seasons |
+| Change or delete a key date | Tap it → **OPEN IN NOTION** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
@@ -158,13 +170,14 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | PLAN DAY says SETUP | Follow **Notion link** above |
 | "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
+| Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
 
 ## Security model
 
 - The repository is public and holds **no secrets**.
 - The **access key** lives in two places only: the script's properties and the iPad app's storage.
 - The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes events.
-- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). It never deletes anything. The Notion key lives only in Script Properties.
+- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
 
@@ -185,4 +198,4 @@ docs/DESIGN.md        full design and roadmap
 
 ## Standby modules (later stages)
 
-Capture for notes and key dates · Ask Claude · Key Dates · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.
+Notes in Capture · Ask Claude · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.

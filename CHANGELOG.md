@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0 · 2026-10-06 (needs bridge 1.3.0)
+- **Key Dates** from the new 🗓️ Key Dates Notion database: deadlines, windows (start and end), birthdays and other yearly dates.
+- Today: **Key Dates panel** with countdowns for the next 30 days ("IN 6 D", "19 D LEFT", "ENDS TODAY").
+- **DATES screen** unlocked: happening now, then the next 12 months by month, with an area filter.
+- ◆ markers on Day (including "DAY 6 OF 25" inside a window), Week and Month views. Tap for details and an Open in Notion link.
+- **Capture → KEY DATE**: Life Area, Type, optional end date, ↻ yearly. Works offline through the same queue.
+- Plan Day shows key dates coming up in the next 14 days.
+- Capture error messages clear as soon as you change the form.
+- Bridge 1.3.0: reads and adds key dates; nothing else.
+
 ## 1.5.1 · 2026-10-06
 - Fix: Google's servers occasionally answer a bridge request with a 404 or an error page even though the script ran. The app now retries those automatically (up to twice). Every bridge action is safe to repeat, so retries never duplicate events or tasks.
 - Captures hit by those errors stay queued instead of being marked NOT SAVED.

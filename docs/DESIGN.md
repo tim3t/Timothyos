@@ -19,6 +19,7 @@ Stage 1 shipped as **Calendar Core**: work + personal calendars, read-only, in T
 | D13 | **Fonts self-hosted** | Works offline, no third-party font requests |
 | D14 | **Priorities live in the existing Notion Master Task List** (not a new database) | Plan Day sets a new **Focus Date** field; check-off sets Status ✅ Done. Notion integration is connected to that database only |
 | D15 | **Capture writes events to Personal only** (create-only) | Work calendar is never writable |
+| D16 | **Key Dates live in a new Notion database** (🗓️ Key Dates, inside Timothy's Life Hub) | Same Life Area tags as the Master Task List. Started empty. Integration connected to that database only |
 | Open | Ask Claude delivery (hand-off, hybrid, or full panel) | Decide before that stage. API usage is billed separately from the Claude subscription |
 
 Everything else in this document stays the roadmap. Standby modules are visible in the app but inactive.
