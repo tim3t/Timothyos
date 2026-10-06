@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "1.6.0";
+  var VERSION = "1.6.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -169,7 +169,7 @@
   function apiPostOnce(body) {
     var conn = state.conn;
     var ctrl = typeof AbortController === "function" ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : null;
+    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 60000) : null;
     return fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
       .then(readReply)
       .finally(function () { if (timer) clearTimeout(timer); });
@@ -327,6 +327,7 @@
       state.caps = j.capabilities || [];
       persist();
       setSync("ok");
+      reconcileQueue();
       if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); }
       flushQueue(false);
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
@@ -688,10 +689,36 @@
     }[code] || describe(err);
   }
 
+  /* A capture whose reply was lost may already be saved. Before resending,
+     look for it in what we already loaded; if it's there, it's done. */
+  function norm1(t) { return String(t || "").trim().toLowerCase(); }
+  function alreadySaved(q) {
+    if (q.kind === "date") {
+      return !!(state.dates && state.dates.dates.some(function (d) {
+        return norm1(d.title) === norm1(q.title) && d.start === q.start && (d.end || null) === (q.end || null);
+      }));
+    }
+    var at = q.allDay ? q.start : Date.parse(q.start);
+    return Object.keys(state.ranges).some(function (k) {
+      return state.ranges[k].events.some(function (ev) {
+        return ev.area === q.area && norm1(ev.title) === norm1(q.title) && (q.allDay ? ev.allDay && ev.start === at : !ev.allDay && Date.parse(ev.start) === at);
+      });
+    });
+  }
+  function reconcileQueue() {
+    var done = state.queue.filter(function (q) { return (q.attempts || q.failed) && alreadySaved(q); });
+    if (!done.length) return;
+    state.queue = state.queue.filter(function (q) { return done.indexOf(q) === -1; });
+    saveQueue();
+    toast(done.length === 1 ? "\"" + done[0].title + "\" was already saved. Cleared from the queue." : done.length + " queued items were already saved. Cleared.");
+    render(true);
+  }
+
   /* Send queued captures one at a time. Network trouble and temporary Google
      errors keep the item queued; anything else marks it NOT SAVED. */
   function flushQueue(announce) {
     if (!state.conn || state.flushing) return;
+    reconcileQueue();
     var next = queued().filter(function (q) { return q.kind === "date" ? canDates() : canCreate(); })[0];
     if (!next) return;
     state.flushing = true;
@@ -714,7 +741,7 @@
         var code = err && err.code;
         next.attempts = (next.attempts || 0) + 1;
         if ((isNetworkError(err) || RETRYABLE[code] || /^http_5/.test(code || "")) && next.attempts < MAX_ATTEMPTS) {
-          next.lastError = describe(err);
+          next.lastError = describeCapture(err);
           saveQueue();
           if (announce) toast(isNetworkError(err) || navigator.onLine === false ? "Queued. It saves when you're back online." : "Google didn't answer. Queued to retry.");
           render(true);
@@ -749,7 +776,7 @@
     if (!state.queue.length) html += '<div class="empty">Nothing waiting. Every capture has been saved.</div>';
     state.queue.forEach(function (q) {
       html += '<div class="calrow a-' + (q.kind === "date" ? taskArea(q.area) : q.area) + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
-        (q.failed ? '<span class="errtxt">' + esc(q.lastError || "Not saved") + "</span>" : q.attempts ? "Queued, " + q.attempts + (q.attempts === 1 ? " try" : " tries") : "Saving") +
+        (q.failed ? '<span class="errtxt">' + esc(q.lastError || "Not saved") + "</span>" : q.attempts ? "Queued, " + q.attempts + (q.attempts === 1 ? " try" : " tries") + (q.lastError ? '</small><small class="errtxt">Last reply: ' + esc(q.lastError) : "") : "Saving") +
         '</small></span><span class="btnrow">' + (q.failed ? '<button type="button" class="chip" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
         '<button type="button" class="chip" data-qdiscard="' + esc(q.cid) + '">DISCARD</button></span></div>';
     });
@@ -876,6 +903,7 @@
       state.dates = { fetched: Date.now(), dates: j.dates || [], areas: j.areas || [], types: j.types || [] };
       state.datesErr = null;
       lsSet(LS_DATES, state.dates);
+      reconcileQueue();
     }).catch(function (err) {
       state.datesErr = { at: Date.now(), msg: describeTasks(err) };
     }).then(function () {

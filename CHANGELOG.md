@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 · 2026-10-06
+- Fix: if a save reached Google or Notion but the reply was lost, the item stayed queued and kept retrying. The app now checks what's already saved before resending and clears those items ("already saved"), so nothing is duplicated, even after the 6-hour duplicate guard expires.
+- Systems shows why a queued item is still waiting ("Last reply: …").
+- Saves wait up to 60 seconds for a reply (was 30), to ride out a slow first run of the bridge.
+
 ## 1.6.0 · 2026-10-06 (needs bridge 1.3.0)
 - **Key Dates** from the new 🗓️ Key Dates Notion database: deadlines, windows (start and end), birthdays and other yearly dates.
 - Today: **Key Dates panel** with countdowns for the next 30 days ("IN 6 D", "19 D LEFT", "ENDS TODAY").
