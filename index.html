@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.2.0">
+<link rel="stylesheet" href="css/app.css?v=2.3.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.2</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 2.3</span><span id="topNote">CALENDAR CORE</span></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -47,6 +47,7 @@
     <button class="nav" data-screen="month" style="--c: var(--chrome-b)" type="button">MONTH</button>
     <button class="nav" data-screen="dates" style="--c: var(--chrome-c)" type="button">DATES</button>
     <button class="nav" data-screen="review" style="--c: var(--chrome-b)" type="button">REVIEW</button>
+    <button class="nav" data-screen="ledger" style="--c: var(--chrome-a)" type="button">LEDGER</button>
     <div class="fill" aria-hidden="true"></div>
     <button class="nav sys" data-screen="systems" style="--c: var(--chrome-c)" type="button">SYSTEMS</button>
     <button class="status" id="status" type="button" aria-label="Sync status. Opens Systems."></button>
@@ -134,6 +135,6 @@
 <button class="update" id="updateBtn" type="button" hidden>UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="js/app.js?v=2.2.0"></script>
+<script src="js/app.js?v=2.3.0"></script>
 </body>
 </html>

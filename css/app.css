@@ -38,7 +38,7 @@
   --t-title: 19px;     /* section titles, day numbers */
   --t-body: 17px;      /* what you read */
   --t-sub: 15px;       /* second line, dim */
-  --t-label: 13px;     /* uppercase labels and readouts */
+  --t-label: 13px; --t-money: 64px;     /* uppercase labels and readouts */
   --ls-label: .14em;
   --top-gap: 14px;     /* clearance below the iPad status bar; SYSTEMS → APP → TOP SPACING */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -144,6 +144,9 @@ button.elbow { border: 0; flex-direction: column; }
 .tri { display: inline-block; width: 0; height: 0; border-block: 9px solid transparent; vertical-align: middle; }
 .tri.l { border-right: 13px solid currentColor; }
 .tri.r { border-left: 13px solid currentColor; }
+.tri.u, .tri.d { border-block: 0; border-inline: 8px solid transparent; }
+.tri.u { border-bottom: 11px solid currentColor; }
+.tri.d { border-top: 11px solid currentColor; }
 .eyebrow { font-family: var(--display); color: var(--chrome-b); letter-spacing: .18em; font-size: 15px; }
 h1 {
   margin: 0;
@@ -787,6 +790,80 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .rl-row .tri { color: var(--dim); }
 @media (hover: hover) { .rl-card:hover, .rl-row:hover { background: var(--panel-2); } }
 
+/* Ledger (YNAB, read-only) + Replicator Queue */
+.lg { display: grid; gap: 64px; max-width: 1000px; }
+.lg > * { min-width: 0; }
+.lg-note { font-size: var(--t-sub); }
+.lg-open { margin-left: 4px; min-height: 40px; font-size: 14px; text-decoration: none; color: var(--fg); display: inline-flex; align-items: center; flex: none; }
+.lg-money { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; }
+.lg-hero { display: grid; grid-template-columns: 10px minmax(0, 1fr); background: var(--panel); border-radius: 0 28px 28px 0; min-height: 150px; }
+.lg-hero .st { background: var(--chrome-b); }
+.lg-hero .in { padding: 18px 24px; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; }
+.lg-big { font-family: var(--display); font-weight: 600; font-size: var(--t-money); line-height: 1; letter-spacing: .02em; }
+.lg-big .c { font-size: var(--t-count); color: var(--dim); }
+.lg-aom { background: var(--panel); border-radius: 0 28px 28px 0; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lg-aom .n { font-family: var(--display); font-weight: 600; font-size: var(--t-hero); line-height: 1; }
+.lg-aom .n small { font-size: var(--t-sub); color: var(--dim); letter-spacing: var(--ls-label); margin-left: 6px; }
+.lg-spark { display: block; width: 100%; height: auto; }
+.lg-spark .l { fill: none; stroke: var(--chrome-b); stroke-width: 2; }
+.lg-spark .a { fill: var(--chrome-b); opacity: .12; }
+.lg-spark .d { fill: var(--chrome-b); stroke: var(--panel); stroke-width: 2; }
+.lg-spark .g { stroke: var(--line); stroke-width: 1; }
+.lg-spark text { fill: var(--dim); font-family: var(--display); font-size: 11px; }
+.lg-accts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 36px; margin-top: 30px; }
+.lg-agroup h3 { margin: 0 0 8px; }
+.lg-arow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.lg-arow .nm { font-size: var(--t-sub); min-width: 0; overflow-wrap: anywhere; }
+.lg-arow .v { font-family: var(--display); font-size: var(--t-title); letter-spacing: .04em; }
+.lg-arow .bar { grid-column: 1 / -1; height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.lg-arow .bar span { display: block; height: 100%; background: var(--ok); border-radius: 3px; }
+.lg-arow .sub { grid-column: 1 / -1; font-size: 14px; color: var(--dim); }
+.lg-tools { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.lg-seg { display: flex; gap: 6px; }
+.lg-seg .chip { min-height: 40px; padding: 0 14px; font-size: 14px; }
+.lg-legend { display: flex; gap: 6px 18px; flex-wrap: wrap; font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); }
+.lg-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.lg-legend i.b { width: 18px; height: 10px; border-radius: 0 5px 5px 0; background: var(--chrome-c); display: inline-block; }
+.lg-legend i.t { width: 3px; height: 14px; background: var(--fg); display: inline-block; border-radius: 1px; }
+.lg-cats { display: grid; }
+.lg-crow { display: grid; grid-template-columns: 170px minmax(0, 1fr) 76px; gap: 12px; align-items: center; min-height: 44px; width: 100%; border: 0; background: transparent; color: var(--fg); text-align: left; padding: 4px 0; }
+.lg-crow .nm { display: flex; flex-direction: column; min-width: 0; }
+.lg-crow .nm b { font-family: var(--display); font-weight: 400; font-size: var(--t-sub); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-crow .nm small { font-family: var(--display); font-size: 11px; letter-spacing: var(--ls-label); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-crow .track { position: relative; height: 14px; background: var(--panel); border-radius: 0 7px 7px 0; }
+.lg-crow .track .b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--chrome-c); border-radius: 0 7px 7px 0; }
+.lg-crow .track .t { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1.5px; background: var(--fg); border-radius: 1px; box-shadow: 0 0 0 2px var(--bg); }
+.lg-crow .v { font-family: var(--display); font-size: var(--t-title); text-align: right; }
+.lg-cdetail { margin: -2px 0 8px 182px; font-size: var(--t-sub); color: var(--dim); }
+.lg-total { display: grid; grid-template-columns: 170px minmax(0, 1fr) 76px; gap: 12px; align-items: center; border-top: 2px solid var(--line); margin-top: 8px; padding-top: 12px; }
+.lg-total .v { font-family: var(--display); font-size: var(--t-title); text-align: right; }
+.lg-fund { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 16px; align-items: center; background: var(--panel); border-radius: 0 22px 22px 0; padding: 12px 18px 12px 0; margin-bottom: 18px; }
+.lg-fund .st { align-self: stretch; background: var(--ok); }
+.lg-fund b { font-family: var(--display); font-weight: 600; font-size: var(--t-count); letter-spacing: .03em; }
+.lg-fundhint { text-align: right; }
+.lg-queue { display: grid; gap: 8px; }
+.lg-witem { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.lg-witem .rank { font-family: var(--display); font-size: var(--t-count); color: var(--dim); text-align: right; }
+.lg-witem .tx { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lg-witem .tx b { font-family: var(--display); font-weight: 600; font-size: var(--t-title); letter-spacing: .06em; overflow-wrap: anywhere; }
+.lg-witem .tx small { font-size: var(--t-sub); color: var(--dim); overflow-wrap: anywhere; }
+.lg-witem .tx a { color: var(--chrome-b); }
+.lg-witem .fb { height: 8px; background: var(--panel-2); border-radius: 0 4px 4px 0; overflow: hidden; max-width: 360px; }
+.lg-witem .fb span { display: block; height: 100%; background: var(--ok); border-radius: 0 4px 4px 0; }
+.lg-witem .right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lg-witem .cost { font-family: var(--display); font-size: var(--t-title); }
+.lg-witem .acts { display: flex; gap: 6px; align-items: center; }
+.lg-witem .btn, .lg-brow .btn { min-height: 44px; padding: 0 16px; font-size: var(--t-sub); }
+.lg-icon { width: 44px; height: 44px; border-radius: 22px; border: 2px solid var(--line); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; color: var(--fg); }
+.lg-icon:disabled { opacity: .3; }
+.lg-add { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr) auto; gap: 10px; margin-top: 18px; align-items: end; }
+.lg-add label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lg-add input { min-height: 46px; border-radius: 12px; border: 2px solid var(--line); background: var(--panel); color: var(--fg); padding: 0 12px; font: inherit; width: 100%; }
+.lg-add input:focus { border-color: var(--chrome-b); outline: none; }
+.lg-add .btn { min-height: 46px; font-size: var(--t-sub); padding: 0 24px; }
+.lg-bought { margin-top: 22px; display: grid; gap: 4px; }
+.lg-brow { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--dim); font-size: var(--t-sub); }
+
 /* ---------- Ask ---------- */
 .asksheet { width: min(860px, 100%); }
 .asklog { display: flex; flex-direction: column; gap: 12px; max-height: min(56vh, 560px); overflow-y: auto; padding-right: 4px; -webkit-overflow-scrolling: touch; }
@@ -816,6 +893,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 
 /* ---------- Narrow screens (iPad portrait split view, phones) ---------- */
 @media (max-width: 860px) {
+  .lg-money, .lg-accts { grid-template-columns: minmax(0, 1fr); }
   .rl-up, .rl-charts { grid-template-columns: minmax(0, 1fr); }
   .rl-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; }
   html, body { height: auto; }
@@ -862,6 +940,16 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 @media (max-width: 520px) {
+  .lg-big { font-size: 48px; }
+  .lg-crow, .lg-total { grid-template-columns: 112px minmax(0, 1fr) 64px; }
+  .lg-cdetail { margin-left: 0; }
+  .lg-witem { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .lg-witem .right { grid-column: 2 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+  .lg-witem .acts { grid-column: 2 / -1; }
+  .lg-add { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .lg-add .wide { grid-column: 1 / -1; }
+  .lg-fund { grid-template-columns: 10px minmax(0, 1fr); }
+  .lg-fundhint { display: none; }
   .rl-row { grid-template-columns: 8px minmax(0, 1fr) auto; row-gap: 4px; }
   .rl-row .tx { grid-column: 2 / -1; grid-row: 2; }
   .rl-arow { grid-template-columns: 110px minmax(0, 1fr) 30px; }

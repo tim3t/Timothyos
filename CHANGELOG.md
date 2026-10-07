@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.0 · 2026-10-07 (needs bridge 1.9.0 + YNAB_TOKEN; Replicator Queue connected in Notion)
+- **LEDGER** (new screen in the left panel): your finances from YNAB at a glance. Read-only; YNAB stays where you budget.
+  - **Accounts:** checking in large type, age of money with its 12-month trend, savings, and loans with % paid off.
+  - **Average spend** by category for the last 3, 6 or 12 months, with this month so far. Tap a category for detail; **+** shows the smaller ones.
+  - **Replicator Queue:** things to buy once the **Discretionary** category can cover them, funded top-down in priority order. Reorder, add, mark bought, undo. Lives in Notion.
+- **Ask Claude** never sees your finances unless you turn on **SYSTEMS → LEDGER → SHARE WITH ASK**.
+- Bridge 1.9.0: `ledger` (YNAB, GET only, cached), `queueadd`, `queueorder`, `queuebought`.
+
 ## 2.2.0 · 2026-10-06 (farm calendar needs bridge 1.8.0 + FARM_CALENDAR_ID)
 - **Farm calendar goes live:** once linked, your farm and bee calendar joins Work and Personal on Today, Week, Month, the Bridge (Now/Next, Horizon, clashes, Balance hours) and Review, in amber, under the calendar's own name.
 - **Capture** has a chip for it (your last choice is remembered). **Ask** can propose events for it; nothing is added until you CONFIRM.

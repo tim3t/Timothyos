@@ -224,6 +224,25 @@ A third Google calendar for farm and bee work. Once linked, it sits beside Work 
 
 To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never deleted.
 
+## Ledger (bridge 1.9)
+
+**LEDGER** shows your finances from YNAB at a glance: checking, age of money, savings and loans, average spend by category, and the **Replicator Queue**, your list of things to buy once the **Discretionary** category can cover them. YNAB stays where you budget: the bridge only reads it and can never change it.
+
+1. **In YNAB:** create a category named **Discretionary** (any group). Its available balance funds the Replicator Queue, top item first.
+2. **YNAB token:** app.ynab.com → **Account Settings** → **Developer Settings** → **New Token**. Copy it. Treat it like your YNAB password: it only goes into Script Properties.
+3. **In Notion:** open **🛸 Replicator Queue** (in your Life Hub) as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
+4. **Update the bridge to 1.9:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+5. **Add the token:** Project Settings (gear) → **Script Properties** → **Add script property**: name `YNAB_TOKEN`, value the token. Optional: `YNAB_PLAN_ID` (if the plan you open most isn't the one to show) and `LEDGER_FUND_CATEGORY` (a different fund category name).
+6. Run **setup**. The log should show `Ledger (YNAB): OK. 1 checking, … Fund category "Discretionary": found`, `Notion replicator queue: OK (0 waiting)` and end with `Bridge version 1.9.0`.
+7. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW** and open **LEDGER**.
+
+**How it works**
+- **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
+- **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages. **+** shows the smaller categories. Card payments, hidden and internal categories are left out.
+- **Replicator Queue:** reorder with ▲ ▼, **ADD** with a rough cost and note, **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
+- **Freshness:** YNAB figures refresh every 10 minutes at most; past months are kept for 6 hours. That stays far below YNAB's 200 requests an hour.
+- **Ask Claude:** your finances are never sent with questions unless you choose **SYSTEMS → LEDGER → SHARE WITH ASK**.
+
 ## Daily use
 
 | Do | How |
@@ -263,6 +282,8 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
 | "Couldn't reach the script" | URL must end in `/exec`; deployment access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
+| LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB → replace `YNAB_TOKEN` → run setup |
+| Replicator Queue says not connected | Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (see Updating) |

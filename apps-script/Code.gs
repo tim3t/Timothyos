@@ -1,5 +1,5 @@
 /**
- * TimothyOS bridge, v1.8
+ * TimothyOS bridge, v1.9
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal, plus your farm calendar once linked
@@ -10,6 +10,8 @@
  *    finished recently (for the Bridge's Balance panel). Reads a week's
  *    finished and picked tasks, and saves your Weekly Review (one page per week).
  *    Lists saved reviews for the Review log and its trends.
+ *  - Ledger: reads your YNAB plan (Script Property YNAB_TOKEN; read-only, it never
+ *    writes to YNAB) and the Replicator Queue in Notion (add, reorder, mark bought).
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
@@ -41,17 +43,20 @@ var CONFIG = {
   NOTION_DATES_DATABASE: '8184db37aacb4d96943b2067558b92ab',
 
   // Your Notion Weekly Reviews database.
-  NOTION_REVIEWS_DATABASE: '459bcacdc38d4bad9f58b4579fa9f4fd'
+  NOTION_REVIEWS_DATABASE: '459bcacdc38d4bad9f58b4579fa9f4fd',
+
+  // Your Notion Replicator Queue (things to buy once the Discretionary category allows).
+  NOTION_QUEUE_DATABASE: '6f9b8c3888f74ec18a503bd197f37c8c'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.8.0';
+var VERSION = '1.9.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -82,6 +87,7 @@ function doGet(e) {
     if (p.action === 'done') return json_(done_(p.days));
     if (p.action === 'week') return json_(week_(String(p.week || ''), String(p.from || ''), String(p.to || '')));
     if (p.action === 'reviews') return json_(reviews_(p.limit));
+    if (p.action === 'ledger') return json_(ledger_());
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -102,6 +108,9 @@ function doPost(e) {
     if (body.action === 'adddate') return json_(addDate_(body.date || {}));
     if (body.action === 'savereview') return json_(saveReview_(body.review || {}));
     if (body.action === 'ask') return json_(ask_(body));
+    if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
+    if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
+    if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -138,6 +147,9 @@ function setup() {
   console.log('Notion key dates: ' + (kd.ok ? 'OK (' + kd.name + ', ' + kd.count + ' dates)' : 'NOT READY: ' + (kd.error || n.error) + (kd.help ? '. ' + kd.help : '')));
   var wr = n.reviews || {};
   console.log('Notion weekly reviews: ' + (wr.ok ? 'OK (' + wr.name + ', ' + wr.count + ' reviews)' : 'NOT READY: ' + (wr.error || n.error) + (wr.help ? '. ' + wr.help : '')));
+  var lg = ledgerStatus_();
+  console.log('Ledger (YNAB): ' + lg.ynab);
+  console.log('Notion replicator queue: ' + lg.queue);
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK. This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -646,6 +658,194 @@ function addDate_(date) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---- Ledger: YNAB (read-only) + Replicator Queue (Notion) ---------------------
+//
+// YNAB: Script Property YNAB_TOKEN (a Personal Access Token). Optional YNAB_PLAN_ID
+// (default: the plan you used last). The bridge only ever sends GET requests to YNAB.
+// The fund for the Replicator Queue is the category named in LEDGER_FUND_CATEGORY
+// (Script Property, default "Discretionary").
+
+var YNAB_BASE = 'https://api.ynab.com/v1';
+var LEDGER_SECONDS = 600;          // the current state, cached 10 minutes
+var MONTH_SECONDS = 21600;         // past months, cached 6 hours (the longest Apps Script allows)
+var LEDGER_MONTHS = 12;
+var LOAN_TYPES = ['mortgage', 'autoLoan', 'studentLoan', 'personalLoan', 'medicalDebt', 'otherDebt'];
+var SKIP_GROUPS = ['Credit Card Payments', 'Internal Master Category', 'Hidden Categories'];
+
+function ynabToken_() { return PropertiesService.getScriptProperties().getProperty('YNAB_TOKEN'); }
+function ynabPlan_() { return String(PropertiesService.getScriptProperties().getProperty('YNAB_PLAN_ID') || 'last-used').trim(); }
+function fundName_() { return String(PropertiesService.getScriptProperties().getProperty('LEDGER_FUND_CATEGORY') || 'Discretionary').trim(); }
+
+/** Read one YNAB resource for the plan. GET only: there is no write path to YNAB. */
+function ynab_(path) {
+  var token = ynabToken_();
+  if (!token) { var e0 = new Error('No YNAB_TOKEN in Script Properties'); e0.ynab = 'ynab_not_configured'; throw e0; }
+  var res = UrlFetchApp.fetch(YNAB_BASE + '/plans/' + encodeURIComponent(ynabPlan_()) + path, { method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token } });
+  var code = res.getResponseCode(), body = {};
+  try { body = JSON.parse(res.getContentText() || '{}'); } catch (x) { body = {}; }
+  if (code >= 300) {
+    var e = new Error((body.error && body.error.detail) || ('YNAB HTTP ' + code));
+    e.ynab = code === 401 ? 'ynab_unauthorized' : code === 404 ? 'ynab_not_found' : code === 429 ? 'ynab_busy' : 'ynab_error';
+    throw e;
+  }
+  return body.data || {};
+}
+
+/** yyyy-mm-01 for this month and the n months before it, oldest first. */
+function ledgerMonths_(n) {
+  var t = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'), y = +t.slice(0, 4), m = +t.slice(5, 7), out = [];
+  for (var i = n; i >= 0; i--) {
+    var mm = m - i, yy = y;
+    while (mm < 1) { mm += 12; yy--; }
+    out.push(yy + '-' + (mm < 10 ? '0' : '') + mm + '-01');
+  }
+  return out;
+}
+function money_(milli) { return typeof milli === 'number' ? Math.round(milli) / 1000 : null; }
+function spendable_(c) { return !c.deleted && !c.hidden && !c.internal && SKIP_GROUPS.indexOf(c.category_group_name) === -1; }
+
+/** One past month, reduced to what the Ledger needs: age of money and spending per category. */
+function ledgerMonth_(month) {
+  var cache = CacheService.getScriptCache(), key = 'ym:' + ynabPlan_() + ':' + month, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var m = ynab_('/months/' + month).month || {}, out = { age: typeof m.age_of_money === 'number' ? m.age_of_money : null, spend: {} };
+  (m.categories || []).forEach(function (c) { if (spendable_(c) && c.activity) out.spend[c.id] = -money_(c.activity); });
+  try { cache.put(key, JSON.stringify(out), MONTH_SECONDS); } catch (x) { /* too large to cache */ }
+  return out;
+}
+
+/** Accounts, age of money, spending by category (12 months + this month so far), and the fund category. */
+function ynabLedger_() {
+  var cache = CacheService.getScriptCache(), key = 'ynab:' + ynabPlan_(), hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var months = ledgerMonths_(LEDGER_MONTHS), thisMonth = months.pop();
+  var accts = (ynab_('/accounts').accounts || []).filter(function (a) { return !a.deleted && !a.closed; });
+  var acct = function (a) { return { id: a.id, name: a.name, type: a.type, balance: money_(a.balance), original: a.debt_original_balance == null ? null : Math.abs(money_(a.debt_original_balance)) }; };
+  var cur = ynab_('/months/' + thisMonth).month || {};
+  var cats = (cur.categories || []).filter(spendable_);
+  var past = months.map(ledgerMonth_);
+  var want = fundName_().toLowerCase(), fund = null;
+  (cur.categories || []).forEach(function (c) { if (!fund && !c.deleted && String(c.name).trim().toLowerCase() === want) fund = { name: c.name, balance: money_(c.balance) }; });
+  var out = {
+    month: thisMonth, months: months,
+    checking: accts.filter(function (a) { return a.type === 'checking'; }).map(acct),
+    savings: accts.filter(function (a) { return a.type === 'savings'; }).map(acct),
+    loans: accts.filter(function (a) { return LOAN_TYPES.indexOf(a.type) > -1; }).map(acct),
+    age: past.map(function (p, i) { return { month: months[i], days: p.age }; }).concat([{ month: thisMonth, days: typeof cur.age_of_money === 'number' ? cur.age_of_money : null }]),
+    cats: cats.map(function (c) {
+      return { id: c.id, name: c.name, group: c.category_group_name || '', m: past.map(function (p) { return p.spend[c.id] || 0; }), now: -money_(c.activity || 0) };
+    }),
+    fundName: fundName_(), fund: fund
+  };
+  try { cache.put(key, JSON.stringify(out), LEDGER_SECONDS); } catch (x) { /* too large to cache */ }
+  return out;
+}
+
+function queueSource_() { return sourceFor_(CONFIG.NOTION_QUEUE_DATABASE, 'NOTION_QUEUE_SOURCE'); }
+function toQueue_(pg) {
+  var p = pg.properties || {};
+  return {
+    id: pg.id, url: pg.url, title: plain_(p.Name && p.Name.title) || 'Untitled',
+    cost: p.Cost && typeof p.Cost.number === 'number' ? p.Cost.number : null,
+    priority: p.Priority && typeof p.Priority.number === 'number' ? p.Priority.number : null,
+    note: plain_(p.Note && p.Note.rich_text), link: (p.Link && p.Link.url) || '',
+    bought: day_(p.Bought), created: pg.created_time || ''
+  };
+}
+/** Waiting items in priority order (lowest first; unranked go last, oldest first), plus the last 10 bought. */
+function queueRows_() {
+  var rows = queryAll_(queueSource_(), null, 3).map(toQueue_);
+  var rank = function (r) { return r.priority === null ? 1e9 : r.priority; };
+  return {
+    items: rows.filter(function (r) { return !r.bought; }).sort(function (a, b) { return rank(a) - rank(b) || (a.created < b.created ? -1 : 1); }),
+    bought: rows.filter(function (r) { return r.bought; }).sort(function (a, b) { return a.bought < b.bought ? 1 : -1; }).slice(0, 10)
+  };
+}
+
+/** Everything the LEDGER screen shows. A YNAB problem and a Notion problem are reported separately. */
+function ledger_() {
+  var out = { ok: true, version: VERSION };
+  try { out.ynab = ynabLedger_(); } catch (e) { out.ynabError = e.ynab || 'ynab_error'; out.ynabDetail = String(e.message || e); }
+  try { out.queue = queueRows_(); } catch (e2) { out.queueError = e2.notion || 'notion_error'; }
+  return out;
+}
+
+function queueAdd_(item) {
+  var title = String(item.title || '').trim();
+  if (!title || title.length > 120) return { ok: false, error: 'bad_title' };
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(String(item.cid || ''))) return { ok: false, error: 'bad_request' };
+  var cost = item.cost === null || item.cost === undefined || item.cost === '' ? null : Number(item.cost);
+  if (cost !== null && (!isFinite(cost) || cost < 0 || cost > 1e7)) return { ok: false, error: 'bad_request' };
+  var link = String(item.link || '').trim();
+  if (link && !/^https?:\/\/\S+$/i.test(link)) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var cache = CacheService.getScriptCache(), seen = cache.get('qcid:' + item.cid);
+    if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var q = queueRows_(), last = q.items.reduce(function (m, r) { return Math.max(m, r.priority || 0); }, 0);
+    var props = { Name: { title: rt_(title) }, Priority: { number: last + 10 } };
+    if (cost !== null) props.Cost = { number: Math.round(cost * 100) / 100 };
+    if (String(item.note || '').trim()) props.Note = { rich_text: rt_(String(item.note).trim().slice(0, 500)) };
+    if (link) props.Link = { url: link.slice(0, 1000) };
+    var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: queueSource_() }, properties: props });
+    var out = { ok: true, version: VERSION, item: toQueue_(pg) };
+    cache.put('qcid:' + item.cid, JSON.stringify(out), 21600);
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Set the order of waiting items: ids top to bottom. Only items in the queue can be touched. Safe to repeat. */
+function queueOrder_(ids) {
+  if (!Array.isArray(ids) || !ids.length || ids.length > 100) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var q = queueRows_(), byId = {};
+    q.items.forEach(function (r) { byId[r.id] = r; });
+    if (ids.some(function (id) { return !byId[id]; })) return { ok: false, error: 'not_writable' };
+    ids.forEach(function (id, i) {
+      var want = (i + 1) * 10;
+      if (byId[id].priority !== want) notion_('patch', '/pages/' + id, { properties: { Priority: { number: want } } });
+    });
+    return { ok: true, version: VERSION, queue: queueRows_() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Mark an item bought on a day, or put it back in the queue (day null). */
+function queueBought_(id, day) {
+  if (day !== null && !YMD.test(String(day || ''))) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var q = queueRows_();
+    if (!q.items.concat(q.bought).some(function (r) { return r.id === id; })) return { ok: false, error: 'not_writable' };
+    notion_('patch', '/pages/' + id, { properties: { Bought: { date: day ? { start: day } : null } } });
+    return { ok: true, version: VERSION, queue: queueRows_() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function ledgerStatus_() {
+  var out = {};
+  if (!ynabToken_()) out.ynab = 'OFF. Add YNAB_TOKEN in Script Properties to turn on the Ledger';
+  else {
+    try {
+      CacheService.getScriptCache().remove('ynab:' + ynabPlan_());
+      var y = ynabLedger_();
+      out.ynab = 'OK. ' + y.checking.length + ' checking, ' + y.savings.length + ' savings, ' + y.loans.length + ' loan accounts. Fund category "' + y.fundName + '": ' + (y.fund ? 'found' : 'NOT FOUND (create it in YNAB, or set LEDGER_FUND_CATEGORY)');
+    } catch (e) { out.ynab = 'PROBLEM: ' + (e.ynab || 'ynab_error') + '. ' + e.message; }
+  }
+  try { var q = queueRows_(); out.queue = 'OK (' + q.items.length + ' waiting)'; }
+  catch (e2) { out.queue = 'NOT READY: ' + (e2.notion || 'notion_error') + (e2.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to the Replicator Queue (... > Connections)' : ''); }
+  return out;
 }
 
 // ---- Ask Claude ---------------------------------------------------------------
