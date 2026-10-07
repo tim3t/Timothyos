@@ -50,7 +50,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.9.1';
+var VERSION = '1.9.2';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -723,6 +723,8 @@ function ledgerMonths_(n) {
   return out;
 }
 function money_(milli) { return typeof milli === 'number' ? Math.round(milli) / 1000 : null; }
+/** Names compared without emoji, symbols, extra spaces or capitals: "🪽 Discretionary" matches "Discretionary". */
+function plainName_(s) { return String(s || '').replace(/[^A-Za-z0-9\u00C0-\u024F]+/g, ' ').trim().toLowerCase(); }
 function spendable_(c) { return !c.deleted && !c.hidden && !c.internal && SKIP_GROUPS.indexOf(c.category_group_name) === -1; }
 
 /** One past month, reduced to what the Ledger needs: age of money and spending per category. */
@@ -748,8 +750,8 @@ function ynabLedger_() {
   var cur = ynab_('/months/' + thisMonth).month || {};
   var cats = (cur.categories || []).filter(spendable_);
   var past = months.map(ledgerMonth_);
-  var want = fundName_().toLowerCase(), fund = null;
-  (cur.categories || []).forEach(function (c) { if (!fund && !c.deleted && String(c.name).trim().toLowerCase() === want) fund = { name: c.name, balance: money_(c.balance) }; });
+  var want = plainName_(fundName_()), fund = null;
+  (cur.categories || []).forEach(function (c) { if (!fund && !c.deleted && plainName_(c.name) === want) fund = { name: c.name, balance: money_(c.balance) }; });
   var out = {
     month: thisMonth, months: months,
     checking: accts.filter(function (a) { return a.type === 'checking'; }).map(acct),

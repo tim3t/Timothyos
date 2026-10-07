@@ -5,7 +5,7 @@
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = { NOTION_TOKEN: 'ntn_test' }; const cache = {};
 const QDB = '6f9b8c3888f74ec18a503bd197f37c8c', QDS = 'ds-q';
-let ynabCalls = [], ynabStatus = 200, planStart = null, onlyBudgets = false;
+let ynabCalls = [], ynabStatus = 200, planStart = null, onlyBudgets = false, fundCatName = 'Discretionary';
 const M = (y, m) => y + '-' + String(m).padStart(2, '0') + '-01';
 // sample plan: today 2026-10-07; months Oct 2025 .. Sep 2026 + Oct 2026 so far
 const cat = (id, name, group, activity, extra = {}) => Object.assign({ id, name, category_group_name: group, activity, balance: 0, hidden: false, deleted: false, internal: false }, extra);
@@ -14,7 +14,7 @@ function monthDetail(month) {
   return { month, age_of_money: 40 + (i % 12), categories: [
     cat('c-groc', 'Groceries', 'Everyday', -600000 - i * 1000),
     cat('c-fuel', 'Fuel', 'Everyday', month === '2026-10-01' ? -74000 : -230000),
-    cat('c-disc', 'Discretionary', 'Fun', -20000, { balance: 340000 }),
+    cat('c-disc', fundCatName, 'Fun', -20000, { balance: 340000 }),
     cat('c-ccp', 'Visa', 'Credit Card Payments', -500000),
     cat('c-rta', 'Inflow: Ready to Assign', 'Internal Master Category', 4000000, { internal: true }),
     cat('c-old', 'Old hobby', 'Fun', -10000, { hidden: true })
@@ -163,4 +163,12 @@ const st = ctx.ledgerStatus_();
 console.log('setup line:', st.ynab);
 assert.ok(/ynab_not_found\. .*\(reading accounts\)\. Plans this token can see .*Household -> p-123/.test(st.ynab));
 delete props.YNAB_PLAN_ID;
+
+// --- bridge 1.9.2: the fund category may carry an emoji
+fundCatName = '\u{1FABD} Discretionary'; Object.keys(cache).forEach(k => { delete cache[k]; });
+L = get({ action: 'ledger' });
+assert.deepStrictEqual(L.ynab.fund, { name: '\u{1FABD} Discretionary', balance: 340 }, 'emoji ignored when matching');
+props.LEDGER_FUND_CATEGORY = 'discretionary!'; Object.keys(cache).forEach(k => { delete cache[k]; });
+assert.ok(get({ action: 'ledger' }).ynab.fund, 'symbols and capitals ignored on both sides');
+delete props.LEDGER_FUND_CATEGORY;
 console.log('ledger checks passed');

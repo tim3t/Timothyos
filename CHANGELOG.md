@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.3.1 · 2026-10-07 (bridge 1.9.2)
+- The Replicator Queue's fund category is found even with an emoji or symbols in its YNAB name: "🪽 Discretionary" matches "Discretionary". Systems shows the name without the emoji, like other labels.
+
 ## Bridge 1.9.1 · 2026-10-07 (app unchanged)
 - Fix: a YNAB plan younger than 12 months stopped the Ledger with "ynab_not_found". Months before the plan began are now skipped.
 - If an account only answers on YNAB's older `/budgets` address, the bridge falls back to it and remembers.

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.3.0";
+  var VERSION = "2.3.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2968,7 +2968,7 @@
     var L = state.ledger, html = "<section>" + phead("LEDGER", canLedger() ? "YNAB READ-ONLY" : "SETUP");
     if (!canLedger() && !canQueue()) return html + stubBox("Needs bridge 1.9. Steps are in the README under <b>Ledger</b>.") + "</section>";
     var y = L && L.ynab;
-    html += '<div class="calrow"><span class="st" style="background:var(--chrome-b)"></span><span><b>YNAB</b><small' + (L && L.ynabError ? ' class="errtxt">' + ynabErrText(L.ynabError) : ">" + (y ? y.checking.length + " checking · " + y.savings.length + " savings · " + y.loans.length + " loans · fund category " + (y.fund ? '"' + esc(y.fund.name) + '" found' : '"' + esc(y.fundName) + '" not found') : canLedger() ? "Not loaded yet" : "Add YNAB_TOKEN in Script Properties")) + "</small></span>" +
+    html += '<div class="calrow"><span class="st" style="background:var(--chrome-b)"></span><span><b>YNAB</b><small' + (L && L.ynabError ? ' class="errtxt">' + ynabErrText(L.ynabError) : ">" + (y ? y.checking.length + " checking · " + y.savings.length + " savings · " + y.loans.length + " loans · fund category " + (y.fund ? '"' + esc(bare(y.fund.name).trim() || y.fund.name) + '" found' : '"' + esc(y.fundName) + '" not found') : canLedger() ? "Not loaded yet" : "Add YNAB_TOKEN in Script Properties")) + "</small></span>" +
       '<span class="pill' + (y ? " ok" : L && L.ynabError ? " bad" : "") + '">' + (y ? "OK" : L && L.ynabError ? "ERROR" : canLedger() ? "WAITING" : "SETUP") + "</span></div>";
     html += '<div class="calrow"><span class="st" style="background:var(--ok)"></span><span><b>Replicator Queue</b><small' + (L && L.queueError ? ' class="errtxt">' + (L.queueError === "notion_not_shared" ? "Not connected. In Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge." : esc(L.queueError)) : ">" + (L && L.queue ? L.queue.items.length + " waiting · " + L.queue.bought.length + " bought recently" : "Not loaded yet")) + "</small></span>" +
       '<span class="pill' + (L && L.queue ? " ok" : L && L.queueError ? " bad" : "") + '">' + (L && L.queue ? "OK" : L && L.queueError ? "SETUP" : "WAITING") + "</span></div>";
