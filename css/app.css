@@ -206,7 +206,6 @@ h1 {
   line-height: 1.1;
 }
 .nav small { font-size: 11px; letter-spacing: .2em; font-weight: 400; }
-.nav.sys { height: 50px; }
 .nav[aria-current="page"] { background: var(--fg); }
 .fill { flex: 1; min-height: 40px; background: var(--chrome-c); }   /* never a thin sliver above SYSTEMS */
 .status {
@@ -226,6 +225,7 @@ h1 {
   font-size: 14px;
   text-align: right;
 }
+.status[aria-current="page"] { background: var(--fg); }
 .status b { font-size: 17px; display: flex; align-items: center; gap: 8px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; background: #1d6b34; box-shadow: 0 0 0 2px var(--ink); flex: none; }
 .status.syncing .dot { background: var(--chrome-c); animation: pulse 1s infinite alternate; }
@@ -907,7 +907,6 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
   .btn.capture { padding: 0 20px; font-size: 18px; }
   .side { flex-direction: row; overflow-x: auto; gap: 5px; padding-bottom: 2px; }
   .nav { height: 52px; min-width: 88px; padding: 0 12px 6px; font-size: 16px; flex: none; }
-  .nav.sys { height: 52px; }
   .nav:first-child { border-radius: 26px 0 0 26px; }
   .fill { display: none; }
   .navbridge { display: flex !important; }

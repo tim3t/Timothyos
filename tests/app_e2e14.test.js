@@ -42,7 +42,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   const hide = h => p.evaluate(h => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); }, h);
   mode = 'dropAll'; dropped = 0;
   await hide(true);
-  await p.evaluate(() => document.querySelector('[data-screen="systems"].nav').click());
+  await p.evaluate(() => document.querySelector('#status').click());
   await p.evaluate(() => document.querySelector('[data-act="refresh"]').click());
   await settle();
   const whileAsleep = dropped;
@@ -59,7 +59,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   // 3. an outage over good saved data: stays quiet (SYNCED · RETRYING), panels show a muted note, not red errors
   await p.evaluate(() => document.querySelector('.elbow').click()); await settle();
   mode = 'dropAll';
-  await p.evaluate(() => document.querySelector('[data-screen="systems"].nav').click());
+  await p.evaluate(() => document.querySelector('#status').click());
   await p.evaluate(() => document.querySelector('[data-act="refresh"]').click());
   await settle();
   console.log('outage status:', (await p.textContent('#status')).trim());
@@ -74,7 +74,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.ok(!(await p.textContent('#status')).includes('RETRYING'));
 
   // 4. task list: not re-fetched on every 1-minute tick
-  await p.evaluate(() => document.querySelector('[data-screen="systems"].nav').click());
+  await p.evaluate(() => document.querySelector('#status').click());
   const t0 = hits.tasks || 0;
   await p.evaluate(() => document.querySelector('[data-act="refresh"]').click());
   for (let i = 0; i < 60 && (hits.tasks || 0) === t0; i++) { await p.waitForTimeout(150); await p.clock.runFor(500); }

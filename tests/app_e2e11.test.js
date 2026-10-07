@@ -53,7 +53,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   // plan day coming-up line
   await p.click('[data-screen="today"]'); await p.waitForTimeout(500); await p.click('#planBtn'); await p.waitForTimeout(800);
   console.log('plan line:', await p.textContent('.kdline').catch(() => 'none')); await p.click('#planCancel');
-  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   console.log('systems:', await p.locator('.calrow:has-text("Key Dates") small').first().textContent());
   await p.setViewportSize({ width: 400, height: 860 }); await p.click('[data-screen="dates"]'); await p.waitForTimeout(300);
   await p.screenshot({ path: D + 'kd-phone.png' });

@@ -119,7 +119,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   s = await stats(); assert.ok(s.reviews['2026-10-05'].summary.startsWith('A steady week'), 'summary saved to Notion');
 
   // --- Systems meter
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(800);
+  await p.click('#status'); await p.waitForTimeout(800);
   const sys = (await p.innerText('section:has(.phead:has-text("ASK CLAUDE"))')).replace(/\s+/g, ' ');
   console.log('systems:', sys.slice(0, 200));
   assert.ok(/\$0\.\d\d of \$8\.00 · \d+ calls/.test(sys));

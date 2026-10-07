@@ -248,6 +248,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 | Do | How |
 |---|---|
 | See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
+| Open **SYSTEMS** (settings, sync health, links) | Tap the **SYNCED** status in the bottom-left corner. It lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there |
 | Move between days, weeks, months | The arrows next to the title. **TODAY** jumps back |
 | Open a day from Week or Month | Tap the day |
 | See event details | Tap the event |

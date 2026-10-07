@@ -58,7 +58,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8092/x/exec?acti
   // 6. Permanent failure
   await p.click('#capBtn'); await p.fill('#capText', 'FAILME'); await p.click('#capSave'); await p.waitForTimeout(800);
   console.log('failure toast:', await p.textContent('#toast'), '| status:', (await p.textContent('#status')).trim());
-  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   await p.screenshot({ path: D + 'cap-systems.png', fullPage: true });
   await p.click('[data-qdiscard]'); await p.waitForTimeout(300);
   console.log('after discard: queue', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length), '| status:', (await p.textContent('#status')).trim());

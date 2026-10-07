@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.3.1";
+  var VERSION = "2.3.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -523,6 +523,8 @@
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
       if (b.dataset.screen === state.screen) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
+    /* Systems has no button of its own: the sync status opens it, and lights up while it's open. */
+    if (state.screen === "systems") $("status").setAttribute("aria-current", "page"); else $("status").removeAttribute("aria-current");
   }
   function renderStatus() {
     var s = $("status"), st = state.sync, at = stamp(st.at), line1, line2, cls;

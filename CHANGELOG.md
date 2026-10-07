@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.3.2 · 2026-10-07
+- The **SYSTEMS** button is gone from the left panel. Tap the **SYNCED** status in the bottom-left corner to open Systems; it lights up while Systems is open. More room in the panel for future screens.
+
 ## 2.3.1 · 2026-10-07 (bridge 1.9.2)
 - The Replicator Queue's fund category is found even with an emoji or symbols in its YNAB name: "🪽 Discretionary" matches "Discretionary". Systems shows the name without the emoji, like other labels.
 

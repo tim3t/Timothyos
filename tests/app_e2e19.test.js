@@ -36,7 +36,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8099/x/exec?acti
   assert.ok(await p.locator('.ov-day.today .seg.a-farm').count() === 1, 'Horizon stacks farm hours');
   console.log('horizon today:', await p.textContent('.ov-day.today .hrs'));
 
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(400);
+  await p.click('#status'); await p.waitForTimeout(400);
   const cal = (await p.innerText('section:has(.phead:has-text("CALENDARS"))')).replace(/\s+/g, ' ');
   console.log('systems:', cal.slice(0, 160));
   assert.ok(cal.includes('WORK READ-ONLY · PERSONAL + HILLTOP TAKE CAPTURES') && /HILLTOP Hilltop OK/.test(cal));

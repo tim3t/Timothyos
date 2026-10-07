@@ -22,7 +22,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   await p.click('#capSave'); await p.waitForTimeout(1500);
   console.log('reply lost -> toast:', await p.textContent('#toast'));
   console.log('server copies:', (await stats()).dates.filter(d => d[0].startsWith('Planting')).length, '| queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).map(q => q.title + ' attempts=' + q.attempts)));
-  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   console.log('systems row:', (await p.locator('.calrow:has-text("Planting")').textContent()).replace(/\s+/g, ' '));
   // replies flow again; the dates refresh shows it is already in Notion
   lose = false;
@@ -35,7 +35,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   await p.click('#capBtn'); await p.fill('#capText', 'Lost reply event'); await p.click('#capSave'); await p.waitForTimeout(1500);
   console.log('event reply lost -> queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length), '| server has it:', (await stats()).created.filter(t => t === 'Lost reply event').length);
   lose = false;
-  await p.click('[data-screen="systems"]'); await p.click('[data-act="refresh"]'); await p.waitForTimeout(2000);
+  await p.click('#status'); await p.click('[data-act="refresh"]'); await p.waitForTimeout(2000);
   console.log('after refresh -> queue:', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length), '| server copies:', (await stats()).created.filter(t => t === 'Lost reply event').length);
   console.log('errors', errs); await b.close();
 })();

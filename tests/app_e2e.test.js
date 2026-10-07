@@ -24,7 +24,7 @@ const D = __dirname + '/out/';
   await p.click('[data-screen="month"]'); await p.waitForTimeout(1200); await p.screenshot({ path: D + '5-month.png' });
   console.log('month cells with items:', await p.locator('.moc .li').count());
   await p.click('#nextBtn'); await p.waitForTimeout(1000); console.log('next month title:', await p.textContent('#title'));
-  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300); await p.screenshot({ path: D + '6-systems.png', fullPage: true });
+  await p.click('#status'); await p.waitForTimeout(300); await p.screenshot({ path: D + '6-systems.png', fullPage: true });
   await p.route('**/127.0.0.1:8090/**', r => r.abort());
   await p.click('[data-act="refresh"]'); await p.waitForTimeout(600);
   console.log('offline status:', (await p.textContent('#status')).trim());

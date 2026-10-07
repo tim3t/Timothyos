@@ -88,7 +88,10 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.click('#askBtn'); await p.fill('#askText', 'What should I do first today?'); await p.click('#askSend'); await p.waitForTimeout(1000);
   s = await stats(); assert.ok(!s.asks[s.asks.length - 1].ctx.includes('FINANCES'), 'off by default');
   await p.click('#askClose');
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(500);
+  assert.strictEqual(await p.locator('[data-screen="systems"]').count(), 0, 'no SYSTEMS button');
+  await p.click('#status'); await p.waitForTimeout(500);
+  assert.strictEqual(await p.textContent('#title'), 'SYSTEMS');
+  assert.strictEqual(await p.getAttribute('#status', 'aria-current'), 'page', 'the status lights up on Systems');
   const sys = await txt(p, 'section:has(.phead:has-text("LEDGER"))'); console.log('systems:', sys.slice(0, 220));
   assert.ok(sys.includes('1 checking · 2 savings · 1 loans · fund category "Discretionary" found') && sys.includes('Off: your finances are never sent'));
   await p.click('[data-aifin="1"]'); await p.waitForTimeout(100);

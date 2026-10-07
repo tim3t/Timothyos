@@ -23,7 +23,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.strictEqual(before[5], '24H', 'Sunday inflated by the block');
 
   // ignore by phrase in Systems
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   await p.fill('#ignIn', 'away block');
   await p.click('[data-act="ignsave"]'); await p.waitForTimeout(200);
   console.log('toast:', await p.textContent('#toast'));
@@ -40,7 +40,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.ok(!(await p.textContent('#content')).includes('Away block'), 'gone from Month');
 
   // clear it, then ignore from the event itself
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   await p.fill('#ignIn', ''); await p.click('[data-act="ignsave"]'); await p.waitForTimeout(200);
   await p.click('[data-screen="week"].nav'); await p.waitForTimeout(500);
   assert.ok(await away() >= 1, 'back in Week once cleared');
@@ -58,7 +58,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   // survives a reload; Systems shows the title
   await p.reload(); await p.waitForTimeout(1500);
   assert.strictEqual((await hrs())[4], '6H');
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   assert.strictEqual(await p.inputValue('#ignIn'), 'Away block (auto-decline)');
 
   console.log('errors', errs);

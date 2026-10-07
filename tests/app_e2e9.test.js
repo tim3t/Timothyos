@@ -46,7 +46,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   await p.click('.prio:has-text("Order spring")'); await p.waitForTimeout(500);
   console.log('failure toast:', await p.textContent('#toast'), '| reverted done?', await p.locator('.prio.done:has-text("Order spring")').count());
   await p.unroute('**/127.0.0.1:8093/**');
-  await p.click('[data-screen="systems"]'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   console.log('systems notion:', await p.locator('.calrow:has-text("Master Task List") small').first().textContent());
   await p.setViewportSize({ width: 400, height: 860 }); await p.click('[data-screen="today"]'); await p.waitForTimeout(300); await p.click('#planBtn'); await p.waitForTimeout(500);
   await p.screenshot({ path: D + 'plan-phone.png' });

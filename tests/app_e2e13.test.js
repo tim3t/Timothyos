@@ -127,7 +127,7 @@ function weather() {
   // --- Bearings: empty until set in Systems
   assert.ok((await p.textContent('.ov-bearing')).includes('SET IN SYSTEMS'));
   await p.click('.ov-bearing'); await p.waitForTimeout(300);
-  assert.strictEqual(await p.getAttribute('[data-screen="systems"].nav', 'aria-current'), 'page');
+  assert.strictEqual(await p.getAttribute('#status', 'aria-current'), 'page');
   await p.fill('#bearIn', 'First bearing\nSecond bearing\n\nThird bearing');
   await p.click('[data-act="bearsave"]'); await p.waitForTimeout(200);
   console.log('toast:', await p.textContent('#toast'));
@@ -155,7 +155,7 @@ function weather() {
   console.log('after toggle toast:', await p.textContent('#toast'));
 
   // --- Systems: open on Today instead
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   assert.ok((await p.textContent('#content')).includes('44.98,-93.27'));
   const padBefore = await p.evaluate(() => getComputedStyle(document.body).paddingTop);
   await p.click('[data-topgap="48"]'); await p.waitForTimeout(100);
@@ -164,7 +164,7 @@ function weather() {
   assert.strictEqual(padBefore, '14px'); assert.strictEqual(padAfter, '48px');
   await p.reload(); await p.waitForTimeout(800);
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.body).paddingTop), '48px', 'spacing kept after reload');
-  await p.click('[data-screen="systems"].nav'); await p.waitForTimeout(300);
+  await p.click('#status'); await p.waitForTimeout(300);
   await p.click('[data-topgap="14"]');
   await p.fill('#placeIn', 'not a place'); await p.click('[data-act="placesave"]');
   assert.ok((await p.textContent('#bridgeErr')).includes('two numbers'));
