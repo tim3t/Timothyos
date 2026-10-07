@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.4.2 · 2026-10-08
+- **Calmer standby:** one centered column, one typeface and three sizes (the clock, the event title, small spaced capitals). The date and weather share one line under the clock; a short rule; next up as time and countdown, the title on one line, then what follows; condition and key date on one quiet line. The calendar color is a small dot, like the condition. Same information, less clutter.
+
 ## 2.4.1 · 2026-10-08
 - Fix: text typed into a form could vanish when a sync landed mid-entry. The screen redraws when fresh data arrives, and it kept only the field in use: adding "New glasses" with a price, then tapping the note field, cleared the item and price. Everything typed since the last redraw now survives in every field on every screen. A field you haven't touched still shows fresh data, and the Replicator Queue form clears once the item is added.
 

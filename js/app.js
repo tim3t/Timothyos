@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.4.1";
+  var VERSION = "2.4.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3089,39 +3089,36 @@
   setInterval(checkIdle, 15000);
 
   function standbyHtml(now) {
-    var today = ymd(now), list = visible(eventsFor(bridgeRange())), html = "";
+    /* One centered column, one typeface, three sizes: the clock, the event title, and small
+       spaced capitals for everything else. */
+    var today = ymd(now), list = visible(eventsFor(bridgeRange()));
     var timed = dayEvents(list, now).timed.filter(function (e) { return e._e > now; }).sort(function (a, b) { return a._s - b._s; });
     var cur = timed.filter(function (e) { return e._s <= now; })[0], up = timed.filter(function (e) { return e._s > now; });
-    var tomorrow = up.length ? [] : dayEvents(list, addDays(sod(now), 1)).timed.sort(function (a, b) { return a._s - b._s; });
-    var j = wxData(), pl = place();
-    html += '<div class="sb-clock"><span class="tm tnum">' + hm(now) + '</span><span class="dt">' + DOWL[now.getDay()] + " " + p2(now.getDate()) + " " + MONL[now.getMonth()] + "</span></div>";
-    html += '<div class="sb-right">';
+    var tomorrow = up.length || cur ? [] : dayEvents(list, addDays(sod(now), 1)).timed.sort(function (a, b) { return a._s - b._s; });
+    var mins = function (ms) { var m = Math.max(1, Math.round(ms / 60000)); return m < 60 ? m + " MIN" : durLabel(m).toUpperCase(); };
+    var dot = function (cls) { return '<i class="sb-dot ' + cls + '"></i>'; };
+    var j = wxData(), top = DOWL[now.getDay()] + " " + p2(now.getDate()) + " " + MONL[now.getMonth()];
     if (j && j.current) {
       var dly = j.daily, di = Math.max(0, dly.time.indexOf(today));
-      html += '<div class="sb-wx"><span class="sb-lbl">' + esc(((pl && pl.name) || "OUTSIDE").toUpperCase()) + ' · NOW</span><b class="tnum">' + Math.round(j.current.temperature_2m) + "°</b><span>" + esc(wxText(j.current.weather_code)) +
-        " · H " + Math.round(dly.temperature_2m_max[di]) + "° L " + Math.round(dly.temperature_2m_min[di]) + "°</span></div>";
+      top += '<span class="sb-sep">·</span>' + Math.round(j.current.temperature_2m) + "° " + esc(wxText(j.current.weather_code).toUpperCase()) +
+        '<span class="sb-sep">·</span>H ' + Math.round(dly.temperature_2m_max[di]) + "° L " + Math.round(dly.temperature_2m_min[di]) + "°";
     }
-    var line = function (e, label) {
-      return '<div class="sb-next a-' + e.area + '"><span class="st"></span><span><span class="in">' + label + '</span><b>' + hm(e._s) + " " + esc(e.title) + "</b></span></div>";
-    };
-    html += '<div><span class="sb-lbl">' + (cur ? "NOW" : "NEXT UP") + "</span>";
-    if (cur) html += line(cur, "ENDS IN " + durLabel((cur._e - now) / 60000).toUpperCase());
-    else if (up.length) html += line(up[0], "IN " + durLabel((up[0]._s - now) / 60000).toUpperCase());
-    else if (tomorrow.length) html += line(tomorrow[0], "TOMORROW");
-    else html += '<div class="sb-then">Nothing else on the calendar.</div>';
-    var after = cur ? up[0] : up[1];
-    if (after) html += '<div class="sb-then">Then ' + hm(after._s) + " " + esc(after.title) + "</div>";
-    html += "</div></div>";
+    var html = '<div class="sb-tm tnum">' + hm(now) + '</div><div class="sb-lbl sb-acc">' + top + '</div><div class="sb-rule"></div>';
+    var ev = cur || up[0] || tomorrow[0], after = cur ? up[0] : up[1];
+    if (ev) {
+      var when = cur ? "NOW · UNTIL " + hm(cur._e) + " · " + mins(cur._e - now) + " LEFT" : up.length ? "NEXT UP · " + hm(ev._s) + " · IN " + mins(ev._s - now) : "TOMORROW · " + hm(ev._s);
+      html += '<div class="sb-lbl">' + dot("a-" + ev.area) + when + '</div><div class="sb-title">' + esc(ev.title) + "</div>" +
+        (after ? '<div class="sb-lbl sb-dim">THEN ' + hm(after._s) + " · " + esc(after.title.toUpperCase()) + "</div>" : "");
+    } else html += '<div class="sb-lbl">NOTHING ELSE ON THE CALENDAR</div>';
     var items = conditions(now, today, eventsFor(bridgeRange()));
     var level = items.some(function (i) { return i.lvl === "bad"; }) ? "red" : items.length ? "yellow" : "green";
+    var foot = dot(level) + "CONDITION " + level.toUpperCase() + (items.length ? " · " + items.length + (items.length === 1 ? " ITEM" : " ITEMS") : "");
     var kd = canDates() && state.dates ? occurrences(today, ymd(addDays(now, 366))).filter(function (o) { return o.e >= today; })[0] : null;
-    var kdTxt = "";
     if (kd) {
       var running = kd.s < today, n = running ? daysBetween(today, kd.e) : daysBetween(today, kd.s);
-      kdTxt = "◆ " + esc(kd.d.title.toUpperCase()) + " · " + (running ? n + " D LEFT" : n === 0 ? "TODAY" : n + " D");
+      foot += '<span class="sb-sep wide"></span>◆ ' + esc(kd.d.title.toUpperCase()) + " · " + (running ? n + " D LEFT" : n === 0 ? "TODAY" : "IN " + n + " D");
     }
-    html += '<div class="sb-foot"><span><span class="sb-dot ' + level + '"></span>CONDITION ' + level.toUpperCase() + (items.length ? " · " + items.length + (items.length === 1 ? " ITEM" : " ITEMS") : "") + "</span><span>" + kdTxt + "</span></div>";
-    return html;
+    return html + '<div class="sb-lbl sb-dim sb-foot">' + foot + "</div>";
   }
   function paintStandby() {
     var now = new Date(), el = $("standby"), h = now.getHours();
