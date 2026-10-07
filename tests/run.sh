@@ -59,6 +59,7 @@ run app_e2e16.test.js     # Weekly Review: Sunday reminder, screen, drafts, save
 run app_e2e18.test.js     # Review log: landing page, trends, list by month, patterns, four questions
 run app_e2e19.test.js     # farm calendar: standby until linked, then live everywhere, captures, review hours
 run app_e2e20.test.js     # Ledger: YNAB figures, average spend, Replicator Queue, finances kept out of Ask
+run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 
 echo

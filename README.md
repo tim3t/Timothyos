@@ -248,6 +248,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 | Do | How |
 |---|---|
 | See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
+| Standby (screensaver) | Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen |
 | Open **SYSTEMS** (settings, sync health, links) | Tap the **SYNCED** status in the bottom-left corner. It lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there |
 | Move between days, weeks, months | The arrows next to the title. **TODAY** jumps back |
 | Open a day from Week or Month | Tap the day |
@@ -286,6 +287,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add Script Property `YNAB_PLAN_ID` with the right id, run setup again, deploy a new version |
 | LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB → replace `YNAB_TOKEN` → run setup |
 | Replicator Queue says not connected | Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge |
+| The iPad still locks while TimothyOS is open | SYSTEMS → STANDBY shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (see Updating) |

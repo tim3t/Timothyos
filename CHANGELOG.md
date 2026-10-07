@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.0 · 2026-10-08
+- **Standby:** after 15 minutes without a touch, the screen fades to a dim clock with the date, weather (high and low), **Next up** with a countdown and what follows, the condition and the next key date. Amber and dimmer from 22:00 to 06:00. Tap anywhere to wake; that tap only wakes the screen. Content drifts a few pixels each minute so nothing burns into an OLED screen.
+  - **STANDBY** at the right end of the top bar starts it any time, like a screensaver.
+  - **SYSTEMS → STANDBY:** Off, 5, 15 or 30 minutes; STANDBY NOW; and whether iPadOS is keeping the screen on.
+- **Motion,** quick and only when you do something: buttons light up when pressed, screens rise in, sheets slide up and back down, + details ease open (+ turns into −), bars grow when a screen opens, a priority marked done pops, Replicator Queue items slide to their new place, and the condition color crossfades when it changes. Background syncs never animate. Reduce Motion on the iPad turns all of it off.
+
 ## 2.3.2 · 2026-10-07
 - The **SYSTEMS** button is gone from the left panel. Tap the **SYNCED** status in the bottom-left corner to open Systems; it lights up while Systems is open. More room in the panel for future screens.
 

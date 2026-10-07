@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.3.2";
+  var VERSION = "2.4.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -27,7 +27,8 @@
   var LS_ASK = "tos.ask.v1";           /* Ask: the current conversation (6 hours, or until NEW CHAT) */
   var LS_LEDGER = "tos.ledger.v1";       /* Ledger: last YNAB figures and Replicator Queue from the bridge */
   var LS_LEDGERRANGE = "tos.lrange.v1"; /* Ledger: averaging period, 3, 6 or 12 months */
-  var LS_AIFIN = "tos.aifin.v1";        /* Ask: share finances with Claude (off unless turned on) */
+  var LS_AIFIN = "tos.aifin.v1";
+  var LS_STANDBY = "tos.standby.v1";    /* Standby after N minutes without a touch (0 = off) */        /* Ask: share finances with Claude (off unless turned on) */
   var LS_AISPEND = "tos.aispend.v1";   /* Ask: this month's spend as last reported by the bridge */
   var LS_BOPEN = "tos.bopen.v1";       /* Bridge panels opened with + */
   var LS_IGNORE = "tos.ignore.v1";     /* event titles left out everywhere, e.g. blocks that only exist to stop bookings */
@@ -728,6 +729,7 @@
 
     html += aiSection();
     html += ledgerSection();
+    html += standbySection();
     html += bridgeSection();
     html += captureSection();
     html += notionSection();
@@ -820,10 +822,10 @@
         '<button type="button" class="btn ghost" data-qdiscard="' + esc(q.cid) + '">DISCARD</button>' : "") +
       (!q && !ev.busy ? '<button type="button" class="btn ghost" data-ignore="' + esc(ev.title) + '">IGNORE THIS TITLE</button>' : "") +
       '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
-    $("detailScrim").hidden = false;
+    showSheet("detailScrim");
     $("detailClose").focus();
   }
-  function closeDetail() { $("detailScrim").hidden = true; }
+  function closeDetail() { hideSheet("detailScrim"); }
 
 
   /* ---------- Capture ---------- */
@@ -989,10 +991,10 @@
     fillDateSelects();
     $("capErr").textContent = "";
     renderCapture();
-    $("capScrim").hidden = false;
+    showSheet("capScrim");
     setTimeout(function () { $("capText").focus(); }, 60);
   }
-  function closeCapture() { $("capScrim").hidden = true; cap = null; }
+  function closeCapture() { hideSheet("capScrim"); cap = null; }
   function renderCapture() {
     var now = new Date(), allDay = cap.dur === "all", notes = [], isDate = cap.type === "date";
     setAreas();
@@ -1208,7 +1210,7 @@
       (d.notes ? "<div>" + esc(d.notes) + "</div>" : "") +
       '</div><div class="sfoot btnrow">' + (d.url ? '<a class="btn ghost" href="' + esc(d.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
       '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
-    $("detailScrim").hidden = false;
+    showSheet("detailScrim");
     $("detailClose").focus();
   }
   function fillDateSelects() {
@@ -1326,6 +1328,7 @@
     t.status = next;
     state.taskBusy[id] = true;
     render(true);
+    if (next === DONE) document.querySelectorAll('.prio[data-task="' + id + '"]').forEach(function (el) { restartClass(el, "justdone"); });
     apiPost({ action: "status", id: id, status: next }).then(function () {
       delete state.taskBusy[id];
       saveTasks();
@@ -1387,10 +1390,10 @@
     if (data) data.focus.forEach(function (t) { plan.picks[t.id] = true; plan.initial[t.id] = true; });
     plan.seeded = !!data;
     renderPlan();
-    $("planScrim").hidden = false;
+    showSheet("planScrim");
     loadTasks(d, true);
   }
-  function closePlan() { $("planScrim").hidden = true; plan = null; }
+  function closePlan() { hideSheet("planScrim"); plan = null; }
   function openPicks() {
     var data = state.tasks[plan.day];
     if (!data) return 0;
@@ -1936,6 +1939,13 @@
       pnl("horizon", horizonPanel(now, list)) + pnl("kd", kdNextPanel(today)) +
       pnl("bal", balancePanel(now, today, list)) + pnl("log", logPanel(today)) + "</div>";
     $("content").innerHTML = html;
+    /* when the condition changes, its color crossfades from the old one */
+    var cEl = document.querySelector(".ov-cond"), lv = cEl && (cEl.className.match(/\b(green|yellow|red)\b/) || [])[1];
+    if (lv && state.lastCond && state.lastCond !== lv) {
+      cEl.style.setProperty("--prev", "var(--" + { green: "ok", yellow: "warn", red: "bad" }[state.lastCond] + ")");
+      restartClass(cEl, "changed");
+    }
+    if (lv) state.lastCond = lv;
     loadTasks(today, false);
     loadDates(false);
     loadDone(false);
@@ -2604,11 +2614,11 @@
     freshAsk();
     $("askErr").textContent = "";
     renderAsk();
-    $("askScrim").hidden = false;
+    showSheet("askScrim");
     setTimeout(function () { $("askText").focus(); }, 50);
     loadAiSpend(false);
   }
-  function closeAsk() { $("askScrim").hidden = true; }
+  function closeAsk() { hideSheet("askScrim"); }
   function propTitle(p) {
     var i = p.input;
     if (p.kind === "add_task") return "ADD TASK · " + i.title;
@@ -2928,7 +2938,10 @@
     var items = q.items.slice(), it = items.splice(i, 1)[0];
     items.splice(i + dir, 0, it);
     q.items = items;   /* shown at once; the bridge confirms */
-    queueSend({ action: "queueorder", ids: items.map(function (x) { return x.id; }) }).then(function () {
+    var before = tops(".lg-witem", "data-qid");
+    var sent = queueSend({ action: "queueorder", ids: items.map(function (x) { return x.id; }) });
+    slideFrom(".lg-witem", "data-qid", before);
+    sent.then(function () {
       var again = document.querySelector('[data-qid="' + it.id + '"] [data-qmove="' + dir + '"]:not(:disabled)') || document.querySelector('[data-qid="' + it.id + '"] .lg-icon:not(:disabled)');
       if (again) again.focus();
     });
@@ -2981,6 +2994,176 @@
     return html;
   }
 
+  /* ---------- Motion ---------- */
+  /* Small, quick and only when you do something: a light-up on press, screens that
+     rise in, sheets that slide, bars that grow when a screen opens, panels that open
+     smoothly. Background syncs re-render without animating. With Reduce Motion on,
+     the CSS turns every animation off and these helpers do nothing. */
+  function calm() { return !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  function restartClass(el, cls) { if (!el) return; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  var enterTimer = null;
+  function enterScreen() {
+    var c = $("content");
+    restartClass(c, "enter"); restartClass(c, "grow-in");
+    clearTimeout(enterTimer);
+    enterTimer = setTimeout(function () { c.classList.remove("enter"); c.classList.remove("grow-in"); }, 700);
+  }
+  /* Animate an element from its old height to its new one (after a re-render). */
+  function easeHeight(el, from) {
+    if (!el || calm() || from == null) return;
+    var to = el.offsetHeight;
+    if (Math.abs(to - from) < 2) return;
+    el.style.height = from + "px"; el.style.overflow = "hidden";
+    void el.offsetHeight;
+    el.style.transition = "height 240ms cubic-bezier(.2, .7, .2, 1)";
+    el.style.height = to + "px";
+    setTimeout(function () { el.style.height = ""; el.style.overflow = ""; el.style.transition = ""; }, 260);
+  }
+  /* Slide items from where they were to where they are now (after a re-render). */
+  function slideFrom(sel, keyAttr, before) {
+    if (calm()) return;
+    document.querySelectorAll(sel).forEach(function (el) {
+      var dy = before[el.getAttribute(keyAttr)] - el.getBoundingClientRect().top;
+      if (!dy || !isFinite(dy)) return;
+      el.style.transition = "none"; el.style.transform = "translateY(" + dy + "px)";
+      requestAnimationFrame(function () { requestAnimationFrame(function () { el.style.transition = "transform 240ms cubic-bezier(.2, .7, .2, 1)"; el.style.transform = ""; }); });
+    });
+  }
+  function tops(sel, keyAttr) {
+    var o = {};
+    document.querySelectorAll(sel).forEach(function (el) { o[el.getAttribute(keyAttr)] = el.getBoundingClientRect().top; });
+    return o;
+  }
+  /* Sheets slide up when they open (CSS) and slide down before they hide. */
+  var sheetTimers = {};
+  function showSheet(id) { var s = $(id); clearTimeout(sheetTimers[id]); s.classList.remove("closing"); s.hidden = false; }
+  function hideSheet(id) {
+    var s = $(id);
+    if (s.hidden) return;
+    if (calm()) { s.hidden = true; return; }
+    s.classList.add("closing");
+    clearTimeout(sheetTimers[id]);
+    sheetTimers[id] = setTimeout(function () { s.hidden = true; s.classList.remove("closing"); }, 200);
+  }
+  /* The LCARS light-up on every button press. */
+  document.addEventListener("pointerdown", function (e) {
+    var b = e.target.closest && e.target.closest(".nav, .elbow, .btn, .chip, .ov-more, .status, .topbtn");
+    if (b && !b.disabled) restartClass(b, "flash");
+  }, true);
+
+  /* ---------- Standby ---------- */
+  /* After a stretch without a touch (Systems → Standby, default 15 minutes) or from
+     STANDBY in the top bar, the screen fades to a dim clock with weather, next up,
+     the condition and the next key date. The screen is kept awake while standby is
+     on (iPadOS releases that whenever the app is closed; it's asked for again on
+     return). The first tap only wakes the screen. Night look from 22:00 to 06:00. */
+  var STANDBY_CHOICES = [0, 5, 15, 30];
+  var sb = { on: false, last: Date.now(), clock: null, drift: null, step: 0, wake: null, wakeState: "off" };
+  function standbyMins() { var v = lsGet(LS_STANDBY); return STANDBY_CHOICES.indexOf(v) > -1 ? v : 15; }
+  function noteTouch() { sb.last = Date.now(); }
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (t) { document.addEventListener(t, noteTouch, { capture: true, passive: true }); });
+  function holdAwake() {
+    if (sb.wake || document.hidden || standbyMins() === 0) return;
+    if (!("wakeLock" in navigator)) { sb.wakeState = "unsupported"; return; }
+    navigator.wakeLock.request("screen").then(function (lock) {
+      sb.wake = lock; sb.wakeState = "on";
+      lock.addEventListener("release", function () { sb.wake = null; if (sb.wakeState === "on") sb.wakeState = "released"; });
+    }).catch(function () { sb.wakeState = "refused"; });
+  }
+  function letSleep() { if (sb.wake) { sb.wakeState = "off"; sb.wake.release().catch(function () {}); sb.wake = null; } else sb.wakeState = "off"; }
+  document.addEventListener("pointerdown", function () { if (!sb.wake && standbyMins()) holdAwake(); }, true);   /* some iPadOS versions want a tap first */
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) { noteTouch(); holdAwake(); } });
+
+  function typing() { var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
+  function checkIdle() {
+    var mins = standbyMins();
+    if (sb.on || !mins || !state.conn || document.hidden || typing()) return;
+    if (Date.now() - sb.last >= mins * 60000) enterStandby();
+  }
+  setInterval(checkIdle, 15000);
+
+  function standbyHtml(now) {
+    var today = ymd(now), list = visible(eventsFor(bridgeRange())), html = "";
+    var timed = dayEvents(list, now).timed.filter(function (e) { return e._e > now; }).sort(function (a, b) { return a._s - b._s; });
+    var cur = timed.filter(function (e) { return e._s <= now; })[0], up = timed.filter(function (e) { return e._s > now; });
+    var tomorrow = up.length ? [] : dayEvents(list, addDays(sod(now), 1)).timed.sort(function (a, b) { return a._s - b._s; });
+    var j = wxData(), pl = place();
+    html += '<div class="sb-clock"><span class="tm tnum">' + hm(now) + '</span><span class="dt">' + DOWL[now.getDay()] + " " + p2(now.getDate()) + " " + MONL[now.getMonth()] + "</span></div>";
+    html += '<div class="sb-right">';
+    if (j && j.current) {
+      var dly = j.daily, di = Math.max(0, dly.time.indexOf(today));
+      html += '<div class="sb-wx"><span class="sb-lbl">' + esc(((pl && pl.name) || "OUTSIDE").toUpperCase()) + ' · NOW</span><b class="tnum">' + Math.round(j.current.temperature_2m) + "°</b><span>" + esc(wxText(j.current.weather_code)) +
+        " · H " + Math.round(dly.temperature_2m_max[di]) + "° L " + Math.round(dly.temperature_2m_min[di]) + "°</span></div>";
+    }
+    var line = function (e, label) {
+      return '<div class="sb-next a-' + e.area + '"><span class="st"></span><span><span class="in">' + label + '</span><b>' + hm(e._s) + " " + esc(e.title) + "</b></span></div>";
+    };
+    html += '<div><span class="sb-lbl">' + (cur ? "NOW" : "NEXT UP") + "</span>";
+    if (cur) html += line(cur, "ENDS IN " + durLabel((cur._e - now) / 60000).toUpperCase());
+    else if (up.length) html += line(up[0], "IN " + durLabel((up[0]._s - now) / 60000).toUpperCase());
+    else if (tomorrow.length) html += line(tomorrow[0], "TOMORROW");
+    else html += '<div class="sb-then">Nothing else on the calendar.</div>';
+    var after = cur ? up[0] : up[1];
+    if (after) html += '<div class="sb-then">Then ' + hm(after._s) + " " + esc(after.title) + "</div>";
+    html += "</div></div>";
+    var items = conditions(now, today, eventsFor(bridgeRange()));
+    var level = items.some(function (i) { return i.lvl === "bad"; }) ? "red" : items.length ? "yellow" : "green";
+    var kd = canDates() && state.dates ? occurrences(today, ymd(addDays(now, 366))).filter(function (o) { return o.e >= today; })[0] : null;
+    var kdTxt = "";
+    if (kd) {
+      var running = kd.s < today, n = running ? daysBetween(today, kd.e) : daysBetween(today, kd.s);
+      kdTxt = "◆ " + esc(kd.d.title.toUpperCase()) + " · " + (running ? n + " D LEFT" : n === 0 ? "TODAY" : n + " D");
+    }
+    html += '<div class="sb-foot"><span><span class="sb-dot ' + level + '"></span>CONDITION ' + level.toUpperCase() + (items.length ? " · " + items.length + (items.length === 1 ? " ITEM" : " ITEMS") : "") + "</span><span>" + kdTxt + "</span></div>";
+    return html;
+  }
+  function paintStandby() {
+    var now = new Date(), el = $("standby"), h = now.getHours();
+    el.classList.toggle("night", h >= 22 || h < 6);
+    $("sbBody").innerHTML = standbyHtml(now);
+  }
+  function enterStandby() {
+    if (sb.on || !state.conn) return;
+    sb.on = true;
+    var el = $("standby");
+    paintStandby();
+    el.hidden = false;
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add("on"); }); });
+    sb.clock = setInterval(paintStandby, 15000);
+    sb.step = 0;
+    sb.drift = setInterval(function () {   /* a few pixels each minute, so nothing burns into an OLED screen */
+      var o = [[0, 0], [7, -5], [-6, 6], [5, 7], [-7, -4]][++sb.step % 5];
+      $("sbBody").style.transform = "translate(" + o[0] + "px, " + o[1] + "px)";
+    }, 60000);
+    holdAwake();
+  }
+  function exitStandby() {
+    if (!sb.on) return;
+    sb.on = false; noteTouch();
+    clearInterval(sb.clock); clearInterval(sb.drift);
+    var el = $("standby");
+    el.classList.remove("on");
+    $("sbBody").style.transform = "";
+    setTimeout(function () { if (!sb.on) el.hidden = true; }, calm() ? 0 : 360);
+    if (state.screen === "bridge" || state.screen === "today") render(true);
+  }
+  /* The wake tap lands on the standby layer itself, so nothing underneath is pressed. */
+  $("standby").addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); exitStandby(); });
+  document.addEventListener("keydown", function (e) { if (sb.on) { e.preventDefault(); exitStandby(); } }, true);
+  $("idleBtn").addEventListener("click", function () { enterStandby(); });
+
+  function standbySection() {
+    var mins = standbyMins();
+    var ws = { on: "Yes, while TimothyOS is open.", released: "Released when the app went to the background; asked for again on your next tap.", refused: "iPadOS declined. When docked, set Settings → Display & Brightness → Auto-Lock → Never.",
+      unsupported: "This iPadOS version can't keep a web app's screen on. When docked, set Auto-Lock to Never.", off: mins ? "Asked for on your next tap." : "No: standby is off, so the iPad locks as usual." }[sb.wakeState] || "";
+    return "<section>" + phead("STANDBY", mins ? "AFTER " + mins + " MIN" : "OFF") +
+      '<dl class="kv"><dt>STANDBY AFTER</dt><dd><div class="chips">' + STANDBY_CHOICES.map(function (m) {
+        return '<button type="button" class="chip" data-standby="' + m + '" aria-pressed="' + (m === mins) + '">' + (m ? m + " MIN" : "OFF") + "</button>";
+      }).join("") + "</div></dd><dt>SCREEN ON</dt><dd>" + ws + "</dd></dl>" +
+      '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="standbynow">STANDBY NOW</button></div>' +
+      '<small class="muted">Without a touch for that long, the screen fades to a dim clock with weather, next up and the condition. Tap anywhere to wake; that tap only wakes the screen. STANDBY in the top bar does the same any time. Night look 22:00 to 06:00. A web app can\'t turn the backlight down, so keep the iPad plugged in when docked.</small></section>';
+  }
+
   /* ---------- Top spacing below the status bar ---------- */
   function topGap() { var g = lsGet(LS_TOPGAP); return TOP_GAPS.some(function (x) { return x[0] === g; }) ? g : TOP_GAPS[0][0]; }
   function applyTopGap() { document.documentElement.style.setProperty("--top-gap", topGap() + "px"); }
@@ -3016,6 +3199,7 @@
     if (anchor) state.anchor = sod(anchor);
     render(false);
     $("content").scrollTop = 0;
+    enterScreen();
     refresh(false);
   }
   function page(dir) {
@@ -3024,6 +3208,7 @@
     else if (state.screen === "week" || state.screen === "review") state.anchor = addDays(a, 7 * dir);
     else state.anchor = new Date(a.getFullYear(), a.getMonth() + dir, 1);
     render(false);
+    enterScreen();
     refresh(false);
   }
 
@@ -3055,7 +3240,14 @@
     else if (b.dataset.topgap) { lsSet(LS_TOPGAP, +b.dataset.topgap); applyTopGap(); render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
-    else if (b.dataset.more) { bridgeOpen[b.dataset.more] = !bridgeOpen[b.dataset.more]; lsSet(LS_BOPEN, bridgeOpen); render(true); var again = document.querySelector('[data-more="' + b.dataset.more + '"]'); if (again) again.focus(); }
+    else if (b.dataset.more) {
+      var mk = b.dataset.more, pnlSel = '[data-panel="' + mk + '"]', h0 = document.querySelector(pnlSel) ? document.querySelector(pnlSel).offsetHeight : null;
+      bridgeOpen[mk] = !bridgeOpen[mk]; lsSet(LS_BOPEN, bridgeOpen); render(true);
+      var pnlNow = document.querySelector(pnlSel);
+      easeHeight(pnlNow, h0);
+      if (pnlNow && bridgeOpen[mk]) restartClass(pnlNow, "opening");
+      var again = document.querySelector('[data-more="' + mk + '"]'); if (again) { restartClass(again, "turn"); again.focus(); }
+    }
     else if (b.dataset.act === "review") go("review", defaultReviewWeek());
     else if (b.dataset.rweek) go("review", parseYmd(b.dataset.rweek));
     else if (b.dataset.act === "patterns") findPatterns();
@@ -3069,6 +3261,8 @@
       queueSend({ action: "queuebought", id: b.dataset.qyes, day: ymd(new Date()) }, qname + " marked bought. Log it in YNAB as usual.");
     }
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
+    else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
+    else if (b.dataset.act === "standbynow") enterStandby();
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") writeSummary();

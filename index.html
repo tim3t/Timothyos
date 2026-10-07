@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.3.2">
+<link rel="stylesheet" href="css/app.css?v=2.4.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.3</span><span id="topNote">CALENDAR CORE</span></div>
+    <div class="topbar"><span>TIMOTHYOS 2.4</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -133,7 +133,11 @@
 
 <button class="update" id="updateBtn" type="button" hidden>UPDATE READY · TAP TO LOAD</button>
 <div class="toast" id="toast" role="status" hidden></div>
+<div class="standby" id="standby" hidden aria-label="Standby. Tap anywhere to wake.">
+  <div class="sb-body" id="sbBody"></div>
+  <span class="sb-hint">TAP ANYWHERE TO WAKE</span>
+</div>
 
-<script src="js/app.js?v=2.3.2"></script>
+<script src="js/app.js?v=2.4.0"></script>
 </body>
 </html>
