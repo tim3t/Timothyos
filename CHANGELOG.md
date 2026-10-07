@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.1 · 2026-10-07 (bridge 1.10.1 optional)
+- **Import that finishes on its own:** a request that doesn't go through is retried automatically with growing pauses (10 s up to 2 min), and the screen says so. Only a PIN or setup problem stops it.
+- **True progress:** IMPORT shows **IN NOTION: X of 278 · N to go**, counted from the days Notion actually holds. Pasting the same export again sends only what's left (**IMPORT THE N LEFT**).
+- Smaller requests (3 days each instead of 5), which fail less often.
+- Bridge 1.10.1: if Google's settings store answers empty for a moment, the bridge reads the access key again instead of refusing a good request with "The access key doesn't match".
+
 ## 2.5.0 · 2026-10-07 (needs bridge 1.10.0 + LOG_PIN; Captain's Log connected in Notion)
 - **LOG:** a plain journal in the left panel. A calendar of days (a dot where you've written) and a blank page for each day, stored as one page per day in the new **📓 Captain's Log** database in Notion. No reminders, no streaks, no counts.
   - **PIN:** opening LOG always asks for your 6-digit PIN (Script Property `LOG_PIN`), on a keypad or a keyboard. The bridge checks it; five wrong tries lock the log for 15 minutes.

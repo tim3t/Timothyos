@@ -78,7 +78,7 @@ QUEUE = [
   {"id": "q3", "title": "Rain barrels", "cost": None, "priority": 30, "note": "", "link": "", "bought": None, "created": "2026-10-03"},
   {"id": "q4", "title": "Hive tool", "cost": 25, "priority": 5, "note": "", "link": "", "bought": "2026-09-20", "created": "2026-09-01"}]
 QCIDS = {}; QPOSTS = []
-PIN = "135790"; LOGFAIL = [0]; LOGSAVES = []; LOGACTS = []
+PIN = "135790"; LOGFAIL = [0]; FLAKY = [0]; LOGSAVES = []; LOGACTS = []
 LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A September page.", "2026-10-01": "Added in Notion with a photo.", "2025-11-13": "The very first page."}
 LOGOTHER = {"2026-10-01"}
 def logparas(t): return [p.strip("\n").rstrip() for p in __import__("re").split(r"\n[ \t]*\n+", t.replace("\r\n", "\n")) if p.strip()]
@@ -100,6 +100,8 @@ def logact(b):
         if p: LOG[d] = "\n\n".join(p)
         elif d in LOG: LOG[d] = ""
         return {"ok": True, "date": d, "created": True, "saved": "2026-10-07T13:20:00Z"}
+    if act == "logimport" and FLAKY[0] > 0:
+        FLAKY[0] -= 1; return {"ok": False, "error": "unauthorized"}
     if act == "logimport":
         cr, sk = [], []
         for e in b.get("entries", []):
@@ -171,6 +173,7 @@ class H(BaseHTTPRequestHandler):
             body = {"ok": True, "version": "1.7.0", "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
             if UNSHARED: body = {"ok": False, "error": "notion_not_shared"}
             RLISTS.append(1)
+        elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS}
         else: body = {"ok": False, "error": "unknown_action"}
         b = json.dumps(body).encode()

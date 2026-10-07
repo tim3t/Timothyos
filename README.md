@@ -253,7 +253,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 4. Run **setup**. The log should show `Captain's Log: OK (0 days written). PIN set` and end with `Bridge version 1.10.0`.
 5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, **SYSTEMS → REFRESH NOW**, and open **LOG**.
 
-**Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In TimothyOS open **LOG**, enter the PIN, tap **IMPORT**, paste, **CHECK**. It shows how many days it found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends five days at a time, about 1 minute per 60 days; keep TimothyOS open until it says done. Days that already have a page are skipped, so if it stops, run it again.
+**Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In TimothyOS open **LOG**, enter the PIN, tap **IMPORT**, paste, **CHECK**. It shows how many days it found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends three days at a time and shows how many are in Notion so far. A request that fails is retried on its own. Keep TimothyOS open until it says done; if it stops (the app went to the background), paste again and it sends only what's left.
 
 **How it works**
 - **Opening LOG always asks for the PIN.** The bridge checks it; five wrong tries lock the log for 15 minutes.

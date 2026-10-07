@@ -58,7 +58,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.10.0';
+var VERSION = '1.10.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -174,9 +174,15 @@ function rotateKey() {
 
 // ---- Internals -------------------------------------------------------------
 
+/** Read the key again if the properties store answers empty for a moment, rather than refuse a good request. */
 function keyMatches_(given) {
-  var key = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-  return !!key && typeof given === 'string' && given === key;
+  if (typeof given !== 'string' || !given) return false;
+  for (var i = 0; i < 3; i++) {
+    var key = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
+    if (key) return given === key;
+    if (i < 2) Utilities.sleep(250);
+  }
+  return false;
 }
 
 function json_(obj) {

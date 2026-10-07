@@ -116,11 +116,21 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.fill('#clImp', exp); await p.click('[data-lact="impcheck"]'); await p.waitForTimeout(200);
   const sum = await txt(p, '.cl-page');
   console.log('import check:', sum.slice(0, 260));
-  assert.ok(sum.includes('ENTRIES 4') && sum.includes('ALREADY HERE 1'));
+  assert.ok(sum.includes('ENTRIES 4') && sum.includes('IN NOTION 1 of 4 · 3 to go'), 'counts what Notion already holds');
+  assert.ok(sum.includes('IMPORT THE 3 LEFT'));
   assert.ok(sum.includes('appears twice') && sum.includes('headed Wednesday') && sum.includes('Text before the first date'));
   assert.ok(!(await stored(p)).includes('First imported page'), 'pasted text not stored');
-  await p.click('[data-lact="imprun"]'); await p.waitForTimeout(2000);
-  assert.ok((await txt(p, '.cl-page')).includes('3 added · 1 already there'));
+  // the first request is refused (as Google sometimes does): it retries on its own and finishes
+  await fetch('http://127.0.0.1:8101/x/exec?action=flaky&n=1&key=' + K);
+  await p.click('[data-lact="imprun"]'); await p.waitForTimeout(1500);
+  const mid = await txt(p, '.cl-page');
+  console.log('mid-import:', mid.slice(0, 200));
+  assert.ok(mid.includes("didn't go through") && mid.includes('on its own'), 'says it will retry');
+  assert.ok(mid.includes('IN NOTION 1 of 4'));
+  await p.waitForTimeout(11500);
+  const fin = await txt(p, '.cl-page');
+  assert.ok(fin.includes('All 4 days are in Notion (3 added just now)'), fin.slice(0, 200));
+  assert.strictEqual((await stats()).logactions.filter(a => a === 'logimport').length, 2, 'one refused + one batch of three');
   s = await stats();
   assert.strictEqual(s.log['2026-03-08'], 'A short one.\n\n· · ·\n\nA second note the same day.');
   assert.strictEqual(s.log['2026-03-10'], 'Headed on the wrong weekday.', 'iPad sign-off dropped');

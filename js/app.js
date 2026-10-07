@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.5.0";
+  var VERSION = "2.5.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3185,7 +3185,7 @@
   var LS_LDRAFT = "tos.ldraft.v1";       /* Log: writing not yet saved to Notion, per day */
   var LOG_SAVE_MS = 5000;                /* save this long after you stop typing */
   var LOG_IDLE_MS = 10 * 60 * 1000;      /* lock after this long without a touch */
-  var LOG_BATCH = 5;                     /* entries per import request */
+  var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
   function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null }; }
@@ -3354,19 +3354,28 @@
     out.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
     return { entries: out, notes: notes };
   }
+  /* Progress is counted from what Notion actually holds (days with a page), so a
+     re-paste after any interruption shows exactly what's left and sends only that.
+     A failed request is retried on its own, with growing pauses; only a PIN or setup
+     problem stops it. Every request is safe to repeat: days already written are skipped. */
+  var LOG_RETRY_MS = [10000, 20000, 40000, 60000, 90000, 120000];
+  var LOG_STOP = ["bad_pin", "log_locked", "log_pin_not_set", "notion_not_shared", "notion_unauthorized", "unknown_action"];
   function logImportCheck() {
-    var f = $("clImp"), r = parseDiary(f ? f.value : "");
-    lg.imp = { stage: r.entries.length ? "ready" : "paste", entries: r.entries, notes: r.notes, done: 0, created: 0, skipped: 0, err: null };
+    var f = $("clImp"), r = parseDiary(f ? f.value : ""), have = {};
+    r.entries.forEach(function (e) { if (lg.dates && lg.dates[e.date]) have[e.date] = true; });
+    lg.imp = { stage: r.entries.length ? "ready" : "paste", entries: r.entries, notes: r.notes, have: have, created: 0, fails: 0, retryAt: 0, err: null };
     if (f) f.value = "";
     render(true);
   }
+  function impLeft(imp) { return imp.entries.filter(function (e) { return !imp.have[e.date]; }); }
   function logImportRun() {
     var imp = lg.imp, pin = lg.pin;
     if (!imp || !pin) return;
-    imp.stage = "running"; imp.err = null; render(true);
+    imp.stage = "running"; imp.err = null; imp.fails = 0; imp.retryAt = 0; render(true);
     (function next() {
       if (lg.pin !== pin || lg.imp !== imp) return;
-      if (imp.done >= imp.entries.length) {
+      var left = impLeft(imp);
+      if (!left.length) {
         imp.stage = "done";
         return apiPost({ action: "logdates", pin: pin }).then(function (j) {
           if (lg.pin !== pin) return;
@@ -3374,16 +3383,25 @@
           lg.entries = {};
         }).catch(function () { /* the calendar catches up on the next unlock */ }).then(function () { if (state.screen === "log") render(true); });
       }
-      var batch = imp.entries.slice(imp.done, imp.done + LOG_BATCH);
+      var batch = left.slice(0, LOG_BATCH);
       apiPost({ action: "logimport", pin: pin, entries: batch }, 120000).then(function (j) {
-        imp.created += (j.created || []).length; imp.skipped += (j.skipped || []).length;
-        (j.created || []).forEach(function (d) { if (lg.dates) lg.dates[d] = true; });
-        imp.done += batch.length;
+        (j.created || []).concat(j.skipped || []).forEach(function (d) { imp.have[d] = true; if (lg.dates && (j.created || []).indexOf(d) > -1) lg.dates[d] = true; });
+        imp.created += (j.created || []).length;
+        imp.fails = 0; imp.err = null; imp.retryAt = 0;
         noteTouch();
         if (state.screen === "log") render(true);
         next();
       }).catch(function (err) {
-        imp.stage = "ready"; imp.err = logErrText(err.code) || describe(err);
+        if (lg.pin !== pin || lg.imp !== imp) return;
+        var why = logErrText(err.code) || describe(err);
+        if (LOG_STOP.indexOf(err.code) > -1 || imp.fails >= LOG_RETRY_MS.length) {
+          imp.stage = "ready"; imp.err = why; imp.retryAt = 0;
+        } else {
+          var wait = LOG_RETRY_MS[imp.fails++];
+          imp.err = why; imp.retryAt = Date.now() + wait;
+          noteTouch();
+          setTimeout(next, wait);
+        }
         if (state.screen === "log") render(true);
       });
     })();
@@ -3391,26 +3409,26 @@
   function logImportHtml() {
     var imp = lg.imp, n = imp.entries.length, first = n ? imp.entries[0].date : null, last = n ? imp.entries[n - 1].date : null;
     var range = n ? dLabel(parseYmd(first)) + " " + first.slice(0, 4) + " TO " + dLabel(parseYmd(last)) + " " + last.slice(0, 4) : "";
-    var html = phead("IMPORT", imp.stage === "running" ? imp.done + " OF " + n : imp.stage === "done" ? "DONE" : "FROM A DIARY EXPORT", "chrome-c");
+    var inN = n - impLeft(imp).length, left = n - inN;
+    var html = phead("IMPORT", imp.stage === "running" ? inN + " OF " + n + " IN NOTION" : imp.stage === "done" ? "DONE" : "FROM A DIARY EXPORT", "chrome-c");
     if (imp.stage === "paste") {
       return html + (imp.notes.length ? '<div class="errtxt cl-note">' + esc(imp.notes.join(" ")) + "</div>" : "") +
         '<label class="ov-sub" for="clImp">PASTE THE TEXT EXPORT</label><textarea id="clImp" rows="10" spellcheck="false" placeholder="Each day starting with a line like: Thursday, November 13, 2025"></textarea>' +
         '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="impcheck">CHECK</button><button type="button" class="btn ghost" data-lact="impcancel">CANCEL</button></div>' +
         '<small class="muted">Read on this iPad and sent straight to Notion. Nothing is kept here. Days that already have a page are skipped.</small>';
     }
-    var have = imp.entries.filter(function (e) { return lg.dates && lg.dates[e.date]; }).length;
     html += '<dl class="kv"><dt>ENTRIES</dt><dd class="tnum">' + n + "</dd><dt>FROM</dt><dd>" + range + "</dd>" +
-      (have && imp.stage === "ready" ? "<dt>ALREADY HERE</dt><dd>" + have + " (skipped)</dd>" : "") +
-      (imp.stage !== "ready" ? '<dt>PROGRESS</dt><dd><span class="cl-bar"><i style="width:' + Math.round(100 * imp.done / n) + '%"></i></span></dd>' : "") + "</dl>";
+      '<dt>IN NOTION</dt><dd class="tnum">' + inN + " of " + n + (left && imp.stage !== "done" ? " · " + left + " to go" : "") + "</dd>" +
+      '<dt>PROGRESS</dt><dd><span class="cl-bar"><i style="width:' + (n ? Math.round(100 * inN / n) : 0) + '%"></i></span></dd></dl>';
     if (imp.notes.length) html += '<ul class="cl-notes">' + imp.notes.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>";
-    if (imp.err) html += '<div class="errtxt cl-note">' + imp.err + (imp.done ? " Imported so far stays; IMPORT picks up where it stopped." : "") + "</div>";
-    if (imp.stage === "ready") html += '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="imprun">' + (imp.done ? "CONTINUE" : "IMPORT " + n + (n === 1 ? " ENTRY" : " ENTRIES")) + '</button><button type="button" class="btn ghost" data-lact="impcancel">CANCEL</button></div>' +
-      '<small class="muted">About ' + Math.max(1, Math.round(n / LOG_BATCH * 5 / 60)) + " min. Keep TimothyOS open until it finishes; it locks if the app goes to the background.</small>";
-    if (imp.stage === "running") html += '<small class="muted">Writing to Notion…</small>';
-    if (imp.stage === "done") html += '<div class="cl-note">' + imp.created + " added" + (imp.skipped ? " · " + imp.skipped + " already there" : "") + '.</div><div class="btnrow cl-row"><button type="button" class="btn" data-lact="impcancel">BACK TO THE PAGE</button></div>';
+    if (imp.stage === "running" && imp.retryAt) html += '<div class="cl-note muted">That request didn\'t go through (' + esc(imp.err) + "). Trying again in " + Math.max(1, Math.round((imp.retryAt - Date.now()) / 1000)) + " s, on its own.</div>";
+    else if (imp.stage === "ready" && imp.err) html += '<div class="errtxt cl-note">' + imp.err + " Everything already in Notion stays; IMPORT sends only what's left.</div>";
+    if (imp.stage === "ready") html += '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="imprun"' + (left ? "" : " disabled") + ">" + (inN ? "IMPORT THE " + left + " LEFT" : "IMPORT " + n + (n === 1 ? " ENTRY" : " ENTRIES")) + '</button><button type="button" class="btn ghost" data-lact="impcancel">CANCEL</button></div>' +
+      '<small class="muted">About ' + Math.max(1, Math.round(left / LOG_BATCH * 4 / 60)) + " min. Keep TimothyOS open until it finishes; it locks if the app goes to the background. If it does, paste again: only what's left is sent.</small>";
+    if (imp.stage === "running" && !imp.retryAt) html += '<small class="muted">Writing to Notion…</small>';
+    if (imp.stage === "done") html += '<div class="cl-note">All ' + n + " days are in Notion" + (imp.created ? " (" + imp.created + " added just now)" : "") + '.</div><div class="btnrow cl-row"><button type="button" class="btn" data-lact="impcancel">BACK TO THE PAGE</button></div>';
     return html;
   }
-
   function renderLog() {
     var html = '<div class="cl">';
     if (!canLog()) { $("content").innerHTML = html + "<section>" + phead("CAPTAIN'S LOG", "") + stubBox("The log needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section></div>"; return; }
@@ -3598,7 +3616,7 @@
       else if (la === "save") { if (lg.timer) { clearTimeout(lg.timer); lg.timer = null; } if (logDrafts[lg.day]) logSave(lg.pin); else toast("Already saved"); }
       else if (la === "bearings") logInsertBearings();
       else if (la === "retry") { delete lg.err[lg.day]; loadLogDay(lg.day); render(true); }
-      else if (la === "import") { lg.imp = { stage: "paste", entries: [], notes: [], done: 0, created: 0, skipped: 0, err: null }; render(true); }
+      else if (la === "import") { lg.imp = { stage: "paste", entries: [], notes: [], have: {}, created: 0, fails: 0, retryAt: 0, err: null }; render(true); }
       else if (la === "impcheck") logImportCheck();
       else if (la === "imprun") logImportRun();
       else if (la === "impcancel") { lg.imp = null; loadLogDay(lg.day); render(true); }

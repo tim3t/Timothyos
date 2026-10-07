@@ -4,7 +4,7 @@
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = { ACCESS_KEY: 'k'.repeat(64), NOTION_TOKEN: 'ntn_test' }; const cache = {};
 const DB = '4c395160e1a84702a3a6861c20ddf748', DS = 'ds-log';
-const pages = [], blocks = {}; let n = 0, calls = [], busyOnce = false;
+const pages = [], blocks = {}; let n = 0, calls = [], busyOnce = false, blip = 0;
 const id = p => p + String(++n).padStart(30, '0');
 function mock(url, opts) {
   const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase(), body = opts.payload ? JSON.parse(opts.payload) : null;
@@ -35,7 +35,7 @@ function mock(url, opts) {
 }
 const ctx = {
   console: { log: () => {} },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperty: k => (k === 'ACCESS_KEY' && blip > 0 && blip--) ? null : props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
   Utilities: { getUuid: () => require('crypto').randomUUID(), sleep: () => {}, formatDate: d => d.toISOString().slice(0, 10) },
@@ -123,4 +123,7 @@ assert.ok(!Object.keys(cache).some(k => /Quiet morning|First page/.test(cache[k]
 const src = fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8');
 const askPart = src.slice(src.indexOf('// ---- Ask Claude'));
 assert.ok(!/log(Day|Dates|Save|Import|Blocks|Source)_/.test(askPart), 'Ask code never calls the log');
+// The properties store answering empty for a moment doesn't turn a good key away.
+blip = 1; assert.ok(post({ action: 'logdates', pin }).ok, 'momentary empty read retried');
+blip = 5; assert.strictEqual(post({ action: 'logdates', pin }).error, 'unauthorized', 'a lasting gap still refuses'); blip = 0;
 console.log('bridge log: all checks passed');
