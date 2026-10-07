@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.3 · 2026-10-08
+- Standby: when nothing is left on today's calendar it reads **Clear for the rest of the day**, with tomorrow's first item in small print below. Tomorrow's items take the main line only after midnight.
+- Tests: the sync-recovery check now waits for the app's retry (30 s, then 60 s) instead of checking at a fixed moment; under load it occasionally checked too early.
+
 ## 2.4.2 · 2026-10-08
 - **Calmer standby:** one centered column, one typeface and three sizes (the clock, the event title, small spaced capitals). The date and weather share one line under the clock; a short rule; next up as time and countdown, the title on one line, then what follows; condition and key date on one quiet line. The calendar color is a small dot, like the condition. Same information, less clutter.
 

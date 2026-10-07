@@ -68,7 +68,10 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.strictEqual(await p.locator('#content .err').count(), 0, 'no red errors over saved data');
   console.log('stale notes:', await p.locator('.stale').count(), '| cond:', await p.getAttribute('.ov-cond', 'class'));
   await p.screenshot({ path: D + 'sync-outage.png' });
-  mode = 'pass'; await wait(70000); await settle();
+  // the app retries 30 s, then 60 s, after each failed attempt; give it up to 4 simulated minutes rather than a fixed moment
+  mode = 'pass';
+  for (let i = 0; i < 24 && /RETRYING/.test(await p.textContent('#status')); i++) { await p.clock.runFor(10000); await p.waitForTimeout(150); }
+  await settle();
   console.log('recovered status:', (await p.textContent('#status')).trim());
   assert.ok((await p.textContent('#status')).replace(/\s+/g, ' ').includes('SYNCED'));
   assert.ok(!(await p.textContent('#status')).includes('RETRYING'));

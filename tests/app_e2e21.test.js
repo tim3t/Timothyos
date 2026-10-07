@@ -104,6 +104,9 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   assert.ok(await p.isHidden('#standby'), 'not before 5 minutes');
   await p.clock.runFor(70000); await p.waitForTimeout(300);
   assert.ok(await p.isVisible('#standby') && await has(p, '#standby', 'night'), 'after 5 minutes, night look at 23:15');
+  const night = (await p.innerText('#standby')).replace(/\s+/g, ' ');
+  console.log('night standby:', night);
+  assert.ok(night.includes('REST OF TODAY Clear for the rest of the day NEXT · TOMORROW 08:30 · STANDUP'), 'nothing left today: clear, with tomorrow in small print');
   await p.clock.runFor(2000); await p.waitForTimeout(1900);   /* the fade runs on real time */
   await p.screenshot({ path: D + 'standby-night.png' });
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('standby')).opacity), '1', 'the black layer is fully opaque at night');
