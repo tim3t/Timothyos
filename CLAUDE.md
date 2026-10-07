@@ -100,7 +100,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 
 ## Testing
 
-`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v17`, in America/Chicago time with a fixed clock. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
+`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v18`, in America/Chicago time with a fixed clock (deliberately not Timothy's Eastern time, so time-zone bugs show up). The app itself always uses the iPad's own time zone. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
 
 Limit: the runner fails on crashes, page errors and timeouts, but most tests print their key values (event counts, toasts, saved items) instead of asserting them. Run `VERBOSE=1 tests/run.sh` and read the output after any change, and convert printed checks to `assert` calls when touching a test.
 

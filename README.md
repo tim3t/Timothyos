@@ -215,7 +215,7 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 
 A third Google calendar for farm and bee work. Once linked, it sits beside Work and Personal everywhere (Today, Week, Month, the Bridge, Review hours) in amber, labeled with the calendar's own name. **CAPTURE** and **ASK** can add to it. Work stays read-only.
 
-1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it, time zone **Central Time**, **Create calendar**.
+1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it, time zone **Eastern Time** (yours), **Create calendar**.
 2. **Copy its ID:** **Settings** → under *Settings for my calendars* pick the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
 3. **Update the bridge to 1.8:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
 4. **Add the ID:** Project Settings (gear) → **Script Properties** → **Add script property**: name `FARM_CALENDAR_ID`, value the Calendar ID. (It lives there, not in the code, so code updates keep it.)
