@@ -243,6 +243,26 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - **Freshness:** YNAB figures refresh every 10 minutes at most; past months are kept for 6 hours. That stays far below YNAB's 200 requests an hour.
 - **Ask Claude:** your finances are never sent with questions unless you choose **SYSTEMS → LEDGER → SHARE WITH ASK**.
 
+## Captain's Log (bridge 1.10)
+
+**LOG** is a plain journal: a calendar of days and a blank page. Each day is one page in the **📓 Captain's Log** database in Notion, with the entry as the page body, so it reads naturally there too. No reminders, no streaks, no counts.
+
+1. **In Notion:** open **📓 Captain's Log** (in your Life Hub) as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
+2. **Update the bridge to 1.10:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+3. **Choose your PIN:** Project Settings (gear) → **Script Properties** → **Add script property**: name `LOG_PIN`, value **six digits**. Change it there any time; nothing on the iPad needs updating.
+4. Run **setup**. The log should show `Captain's Log: OK (0 days written). PIN set` and end with `Bridge version 1.10.0`.
+5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, **SYSTEMS → REFRESH NOW**, and open **LOG**.
+
+**Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In TimothyOS open **LOG**, enter the PIN, tap **IMPORT**, paste, **CHECK**. It shows how many days it found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends five days at a time, about 1 minute per 60 days; keep TimothyOS open until it says done. Days that already have a page are skipped, so if it stops, run it again.
+
+**How it works**
+- **Opening LOG always asks for the PIN.** The bridge checks it; five wrong tries lock the log for 15 minutes.
+- **It locks** when you leave LOG, tap **LOCK**, the app goes to the background, standby starts, or after 10 minutes without a touch.
+- **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. Until Notion has it, your writing is kept on this iPad; once saved it is removed from the iPad.
+- **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something the LOG can't show (a photo, a table) opens read-only; edit it in Notion.
+- **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
+- **Ask Claude never sees the log.** It isn't in the snapshot and Ask has no way to read it.
+
 ## Daily use
 
 | Do | How |
@@ -316,8 +336,9 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 - In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
+- **Captain's Log:** every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and are never sent to Ask. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
 - **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own monthly budget.
-- **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Captain's Log are stored on the iPad and never go to the bridge or this repository.
+- **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
 
 ## Project layout
 

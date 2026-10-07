@@ -27,6 +27,7 @@ run bridge_calendar.test.js
 run bridge_notion.test.js
 run bridge_ask.test.js
 run bridge_ledger.test.js
+run bridge_log.test.js
 [ "${1:-}" = "bridge" ] && exit $fail
 
 echo "== App (browser, against simulated bridges)"
@@ -43,6 +44,7 @@ python3 mock_v16.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.6: + Ask (scripted
 python3 mock_v17.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.7: + review log        :8098
 python3 mock_v18.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.8: + farm calendar     :8099
 python3 mock_v19.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.9: + ledger + queue    :8100
+python3 mock_v20.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.10: + Captain's Log    :8101
 sleep 1.5
 
 run app_e2e.test.js       # linking, Day/Week/Month, detail, offline cache, phone width
@@ -59,6 +61,7 @@ run app_e2e16.test.js     # Weekly Review: Sunday reminder, screen, drafts, save
 run app_e2e18.test.js     # Review log: landing page, trends, list by month, patterns, four questions
 run app_e2e19.test.js     # farm calendar: standby until linked, then live everywhere, captures, review hours
 run app_e2e20.test.js     # Ledger: YNAB figures, average spend, Replicator Queue, finances kept out of Ask
+run app_e2e22.test.js     # Captain's Log: PIN, calendar, write/autosave, edit, locks, import, kept out of Ask
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

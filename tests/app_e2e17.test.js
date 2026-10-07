@@ -36,7 +36,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   assert.ok(a.ctx.startsWith('NOW: TUESDAY 2026-10-06 07:40'));
   assert.ok(/CONDITION: RED · Overdue, High priority \(Order spring bulbs\)/.test(a.ctx), 'condition in plain text');
   assert.ok(/\[[0-9a-f]{32}\] Order spring bulbs/.test(a.ctx), 'task ids for proposals');
-  assert.ok(a.ctx.includes("CAPTAIN'S LOG, TODAY'S INTENT: Deep work before noon"));
+  assert.ok(a.ctx.includes("TODAY'S INTENT: Deep work before noon"));
   assert.ok(a.ctx.includes('LIFE AREAS: ') && a.ctx.includes('KEY DATE TYPES: '));
   assert.ok(!a.ctx.includes('Away block'), 'ignored events not sent');
   const bot = await p.innerText('.amsg.bot');

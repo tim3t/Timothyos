@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.4.3";
+  var VERSION = "2.5.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -17,7 +17,7 @@
   var LS_PLACE = "tos.place.v1";       /* { lat, lon } rounded, for weather */
   var LS_WX = "tos.wx.v1";             /* last Open-Meteo forecast */
   var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
-  var LS_LOG = "tos.log.v1";           /* Captain's Log: one intent line per day, last 30 days */
+  var LS_LOG = "tos.log.v1";           /* Bridge: one intent line per day, last 30 days (the journal itself is the LOG screen) */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
   var LS_WEEKS = "tos.weeks.v1";       /* Review: last few weeks fetched (finished + picked tasks, saved review) */
   var LS_RSAVED = "tos.rsaved.v1";     /* Review: weeks saved to Notion, for the Bridge reminder */
@@ -270,7 +270,7 @@
     return r.text().then(function (txt) {
       var j;
       try { j = JSON.parse(txt); } catch (x) { var e1 = new Error("bad_json"); e1.code = "bad_json"; throw e1; }
-      if (!j || j.ok !== true) { var e2 = new Error((j && j.error) || "bad_response"); e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; throw e2; }
+      if (!j || j.ok !== true) { var e2 = new Error((j && j.error) || "bad_response"); e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left; throw e2; }
       return j;
     });
   }
@@ -482,9 +482,9 @@
   function renderHeader() {
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
-    $("todayBtn").hidden = state.screen === "review";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = state.screen === "review" || state.screen === "log";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -519,6 +519,7 @@
       t.textContent = weekLabel(rw0).replace(/^WEEK \d+ · /, "");
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
     else if (state.screen === "ledger") { e.textContent = "FINANCES · YNAB" + (state.ledger ? " · SYNCED " + stamp(state.ledger.fetched) : ""); t.textContent = "LEDGER"; }
+    else if (state.screen === "log") { e.textContent = "JOURNAL · " + (logOpen() ? "OPEN" : "LOCKED"); t.textContent = "CAPTAIN'S LOG"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
@@ -729,6 +730,7 @@
 
     html += aiSection();
     html += ledgerSection();
+    html += logSection();
     html += standbySection();
     html += bridgeSection();
     html += captureSection();
@@ -1911,7 +1913,7 @@
   }
   function logPanel(today) {
     var log = lsGet(LS_LOG) || {}, b = bearingFor(today);
-    return phead("CAPTAIN'S LOG", dLabel(parseYmd(today)) + " · ON THIS IPAD") + '<div class="ov-log"><div><label class="ov-sub" for="logIntent">TODAY\'S INTENT</label>' +
+    return phead("INTENT + BEARING", dLabel(parseYmd(today)) + " · ON THIS IPAD") + '<div class="ov-log"><div><label class="ov-sub" for="logIntent">TODAY\'S INTENT</label>' +
       '<input type="text" id="logIntent" maxlength="160" placeholder="One line: what makes today a good day?" autocomplete="off" enterkeyhint="done" value="' + esc(log[today] || "") + '"></div>' +
       (b ? '<button type="button" class="ov-bearing" data-act="bearing">BEARING<b>' + esc(b) + "</b>TAP TO ROTATE</button>"
         : '<button type="button" class="ov-bearing" data-act="systems">BEARING<b>SET IN SYSTEMS</b>YOUR GUIDING WORDS</button>') + "</div>";
@@ -2574,7 +2576,7 @@
         (hv ? "; hive check " + (hv.go ? "GO, " : "HOLD, ") + hv.text.toLowerCase() + " (" + hv.label.toLowerCase() + ")" : "") + (fr ? "; tonight's low " + Math.round(fr.low) + "°F" : ""));
     }
     var log = (lsGet(LS_LOG) || {})[today], b = bearingFor(today);
-    if (log) out.push("CAPTAIN'S LOG, TODAY'S INTENT: " + log);
+    if (log) out.push("TODAY'S INTENT: " + log);
     if (b) out.push("TODAY'S BEARING: " + b);
     if (data) out.push("LIFE AREAS: " + data.areas.join(" | ") + "\nPRIORITY NAMES: " + data.priorities.join(" | "));
     if (state.dates && state.dates.types) out.push("KEY DATE TYPES: " + state.dates.types.join(" | "));
@@ -3131,6 +3133,7 @@
   }
   function enterStandby() {
     if (sb.on || !state.conn) return;
+    if (logOpen() || lg.digits) { lockLog(); if (state.screen === "log") render(false); }
     sb.on = true;
     var el = $("standby");
     paintStandby();
@@ -3171,6 +3174,313 @@
       '<small class="muted">Without a touch for that long, the screen fades to a dim clock with weather, next up and the condition. Tap anywhere to wake; that tap only wakes the screen. STANDBY in the top bar does the same any time. Night look 22:00 to 06:00. A web app can\'t turn the backlight down, so keep the iPad plugged in when docked.</small></section>';
   }
 
+  /* ---------- Captain's Log ---------- */
+  /* A plain journal: a calendar of days and a blank page, one Notion page per day
+     (bridge 1.10). Opening LOG always asks for the 6-digit PIN. The PIN lives in the
+     bridge (Script Property LOG_PIN) and is checked there; here it's held in memory
+     only while the log is open. Entries are never stored on the iPad: leaving LOG,
+     sending the app to the background, standby, or 10 minutes without a touch locks
+     it and drops them. The only thing kept here is writing that hasn't reached Notion
+     yet, removed as soon as it has. No reminders, no streaks, no counts. Never sent to Ask. */
+  var LS_LDRAFT = "tos.ldraft.v1";       /* Log: writing not yet saved to Notion, per day */
+  var LOG_SAVE_MS = 5000;                /* save this long after you stop typing */
+  var LOG_IDLE_MS = 10 * 60 * 1000;      /* lock after this long without a touch */
+  var LOG_BATCH = 5;                     /* entries per import request */
+  var lg = logFresh();
+  var logDrafts = lsGet(LS_LDRAFT) || {};
+  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null }; }
+  function canLog() { return state.caps.indexOf("log") > -1; }
+  function logOpen() { return !!lg.pin; }
+  function logDraftsSave() { lsSet(LS_LDRAFT, logDrafts); }
+  /* The same paragraph rules the bridge uses, so "unchanged" means the same thing on both sides. */
+  function logNorm(t) {
+    return String(t == null ? "" : t).replace(/\r\n?/g, "\n").split(/\n[ \t]*\n+/)
+      .map(function (p) { return p.replace(/^\n+|\s+$/g, ""); }).filter(function (p) { return p.length; }).join("\n\n");
+  }
+  function logText(d) { return logDrafts[d] ? logDrafts[d].text : lg.entries[d] ? lg.entries[d].text : ""; }
+
+  function lockLog() {
+    var pin = lg.pin;
+    if (lg.timer) { clearTimeout(lg.timer); lg.timer = null; }
+    if (pin && Object.keys(logDrafts).length) logSave(pin);   /* finish what was written, then forget the PIN */
+    lg = logFresh();
+    var f = document.activeElement;
+    if (f && /^clText-/.test(f.id)) f.blur();
+  }
+  function logErrText(code, left) {
+    return ({
+      bad_pin: "Not that one." + (left ? " " + left + (left === 1 ? " try" : " tries") + " left before a 15-minute lock." : ""),
+      log_locked: "Locked for 15 minutes after five wrong tries.",
+      log_pin_not_set: "No PIN set yet. In Apps Script: Project Settings → Script Properties → add LOG_PIN with six digits. Steps are in the README under Captain's Log.",
+      notion_not_shared: "The Captain's Log database isn't connected. In Notion: Captain's Log → ••• → Connections → add TimothyOS bridge.",
+      unknown_action: "The bridge is out of date. Deploy the latest Code.gs (1.10)."
+    })[code] || null;
+  }
+  function logPress(k) {
+    if (lg.busy) return;
+    lg.msg = "";
+    if (k === "del") lg.digits = lg.digits.slice(0, -1);
+    else if (lg.digits.length < 6) lg.digits += k;
+    render(true);
+    if (lg.digits.length === 6) logUnlock(lg.digits);
+  }
+  function logUnlock(pin) {
+    lg.busy = true; render(true);
+    apiPost({ action: "logunlock", pin: pin }).then(function (j) {
+      if (state.screen !== "log") return;
+      lg.pin = pin; lg.digits = ""; lg.dates = {};
+      (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
+      var t = ymd(new Date());
+      lg.day = t; lg.month = som(new Date());
+      noteTouch();
+      loadLogDay(t);
+      if (Object.keys(logDrafts).length) logSave(pin);   /* anything left from last time */
+    }).catch(function (err) {
+      lg.digits = "";
+      lg.msg = logErrText(err.code, err && err.left) || describe(err);
+    }).then(function () { lg.busy = false; if (state.screen === "log") { render(true); enterScreen(); } });
+  }
+  function loadLogDay(d) {
+    if (!lg.pin || d in lg.entries || lg.loading[d]) return;
+    if (!lg.dates[d]) { lg.entries[d] = null; return; }
+    var pin = lg.pin;
+    lg.loading[d] = true; delete lg.err[d];
+    apiPost({ action: "logday", pin: pin, date: d }).then(function (j) {
+      if (lg.pin !== pin) return;
+      lg.entries[d] = j.entry ? { text: j.entry.text || "", url: j.entry.url || "", other: !!j.entry.other, saved: j.entry.saved } : null;
+    }).catch(function (err) {
+      if (lg.pin === pin) lg.err[d] = logErrText(err.code) || describe(err);
+    }).then(function () {
+      if (lg.pin !== pin) return;
+      delete lg.loading[d];
+      if (state.screen === "log" && lg.day === d) render(true);
+    });
+  }
+  function logPick(d) {
+    lg.day = d; lg.imp = null;
+    var dt = parseYmd(d); if (dt.getMonth() !== lg.month.getMonth() || dt.getFullYear() !== lg.month.getFullYear()) lg.month = som(dt);
+    loadLogDay(d);
+    render(true);
+  }
+  function logStatusText(d) {
+    if (lg.saving) return "SAVING…";
+    if (logDrafts[d]) return lg.saveErr ? "NOT SAVED YET · KEPT ON THIS IPAD" : "UNSAVED · KEPT ON THIS IPAD";
+    var e = lg.entries[d];
+    return e && e.saved ? "SAVED " + esc(stamp(Date.parse(e.saved))) : e ? "IN NOTION" : "";
+  }
+  function logStatus() { var el = $("clStatus"); if (el && lg.day) el.textContent = logStatusText(lg.day); var er = $("clErr"); if (er) er.textContent = lg.saveErr || ""; }
+  function onLogInput(d, value) {
+    var server = lg.entries[d] ? lg.entries[d].text : "";
+    if (logNorm(value) === server) delete logDrafts[d]; else logDrafts[d] = { text: value, at: Date.now() };
+    logDraftsSave();
+    lg.saveErr = null;
+    logStatus();
+    if (lg.timer) clearTimeout(lg.timer);
+    lg.timer = setTimeout(function () { lg.timer = null; if (lg.pin) logSave(lg.pin); }, LOG_SAVE_MS);
+  }
+  /* Send unsaved writing to Notion, one day at a time. Writing kept here until it lands. */
+  function logSave(pin) {
+    if (lg.saving) { lg.again = true; return; }
+    var d = Object.keys(logDrafts).sort()[0];
+    if (!d || !pin) return;
+    var text = logDrafts[d].text, mine = lg;
+    mine.saving = true; logStatus();
+    apiPost({ action: "logsave", pin: pin, date: d, text: text }).then(function (j) {
+      if (logDrafts[d] && logDrafts[d].text === text) { delete logDrafts[d]; logDraftsSave(); }
+      var norm = logNorm(text);
+      mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: norm, saved: j.saved || new Date().toISOString() });
+      if (mine.dates) { if (norm) mine.dates[d] = true; else delete mine.dates[d]; }
+      mine.saveErr = null;
+    }).catch(function (err) {
+      if (err.code === "log_edit_in_notion") {
+        mine.saveErr = "This page holds things the LOG can't show (a photo or table, say), so it's edited in Notion only. Your text here is kept on this iPad.";
+        return;
+      }
+      mine.saveErr = logErrText(err.code) || describe(err);
+      if (err.code === "bad_pin" || err.code === "log_locked") return;
+      if (lg === mine) setTimeout(function () { if (lg === mine && lg.pin) logSave(lg.pin); }, 30000);
+    }).then(function () {
+      mine.saving = false;
+      if (lg !== mine) return;
+      logStatus();
+      if (state.screen === "log" && !(document.activeElement && /^clText-/.test(document.activeElement.id))) render(true);
+      var more = Object.keys(logDrafts).some(function (k) { return k !== d || logDrafts[k].text !== text; });
+      if ((mine.again || more) && !mine.saveErr) { mine.again = false; logSave(pin); }
+    });
+  }
+  function logInsertBearings() {
+    var d = lg.day, ta = $("clText-" + d), words = bearings();
+    if (!ta || !words.length) return;
+    var add = "—\n\n" + words.map(function (w) { return w + ": "; }).join("\n\n");
+    var v = ta.value.replace(/\s+$/, "");
+    ta.value = (v ? v + "\n\n" : "") + add;
+    onLogInput(d, ta.value);
+    growLog(ta);
+    ta.focus();
+    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (x) { /* not a text field */ }
+  }
+  function growLog(ta) {
+    if (!ta) return;
+    var c = $("content"), top = c.scrollTop;
+    ta.style.height = "auto";
+    ta.style.height = Math.max(ta.scrollHeight + 4, 320) + "px";
+    c.scrollTop = top;
+  }
+
+  /* --- importing old entries ---
+     Paste a text export from a diary app: days headed by lines like
+     "Thursday, November 13, 2025". Read here, sent five days at a time; days that
+     already have a page are skipped, so running it twice adds nothing twice. */
+  var DAYSL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTHSL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function parseDiary(raw) {
+    var text = String(raw || "").replace(/\r\n?/g, "\n").replace(/ /g, " ");
+    var re = new RegExp("^[ \\t]*(" + DAYSL.join("|") + "),[ \\t]+(" + MONTHSL.join("|") + ")[ \\t]+(\\d{1,2}),[ \\t]+(\\d{4})[ \\t]*$", "gm");
+    var heads = [], m, out = [], notes = [], by = {};
+    while ((m = re.exec(text))) heads.push({ at: m.index, end: m.index + m[0].length, wd: m[1], mo: MONTHSL.indexOf(m[2]), d: +m[3], y: +m[4] });
+    if ((heads.length ? text.slice(0, heads[0].at) : text).trim()) notes.push(heads.length ? "Text before the first date is left out." : "No dated days found. Each day should start with a line like “Thursday, November 13, 2025”.");
+    heads.forEach(function (h, i) {
+      var body = text.slice(h.end, i + 1 < heads.length ? heads[i + 1].at : text.length)
+        .replace(/\n[ \t]*Sent from my (iPad|iPhone)[ \t]*\s*$/, "\n")
+        .split("\n").map(function (l) { return l.replace(/[ \t]+$/, ""); }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      var dt = new Date(h.y, h.mo, h.d);
+      if (dt.getDate() !== h.d) { notes.push("Skipped an impossible date: " + h.wd + ", " + MONTHSL[h.mo] + " " + h.d + ", " + h.y + "."); return; }
+      var d = ymd(dt), label = dLabel(dt) + " " + h.y;
+      if (DAYSL[dt.getDay()] !== h.wd) notes.push(label + " is headed " + h.wd + "; imported on the date as written.");
+      if (by[d]) { notes.push(label + " appears twice; both join one page, in order."); if (body) by[d].text += (by[d].text ? "\n\n· · ·\n\n" : "") + body; return; }
+      by[d] = { date: d, text: body }; out.push(by[d]);
+    });
+    out = out.filter(function (e) { if (!e.text) notes.push(dLabel(parseYmd(e.date)) + " is empty and is left out."); return !!e.text; });
+    out.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+    return { entries: out, notes: notes };
+  }
+  function logImportCheck() {
+    var f = $("clImp"), r = parseDiary(f ? f.value : "");
+    lg.imp = { stage: r.entries.length ? "ready" : "paste", entries: r.entries, notes: r.notes, done: 0, created: 0, skipped: 0, err: null };
+    if (f) f.value = "";
+    render(true);
+  }
+  function logImportRun() {
+    var imp = lg.imp, pin = lg.pin;
+    if (!imp || !pin) return;
+    imp.stage = "running"; imp.err = null; render(true);
+    (function next() {
+      if (lg.pin !== pin || lg.imp !== imp) return;
+      if (imp.done >= imp.entries.length) {
+        imp.stage = "done";
+        return apiPost({ action: "logdates", pin: pin }).then(function (j) {
+          if (lg.pin !== pin) return;
+          lg.dates = {}; (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
+          lg.entries = {};
+        }).catch(function () { /* the calendar catches up on the next unlock */ }).then(function () { if (state.screen === "log") render(true); });
+      }
+      var batch = imp.entries.slice(imp.done, imp.done + LOG_BATCH);
+      apiPost({ action: "logimport", pin: pin, entries: batch }, 120000).then(function (j) {
+        imp.created += (j.created || []).length; imp.skipped += (j.skipped || []).length;
+        (j.created || []).forEach(function (d) { if (lg.dates) lg.dates[d] = true; });
+        imp.done += batch.length;
+        noteTouch();
+        if (state.screen === "log") render(true);
+        next();
+      }).catch(function (err) {
+        imp.stage = "ready"; imp.err = logErrText(err.code) || describe(err);
+        if (state.screen === "log") render(true);
+      });
+    })();
+  }
+  function logImportHtml() {
+    var imp = lg.imp, n = imp.entries.length, first = n ? imp.entries[0].date : null, last = n ? imp.entries[n - 1].date : null;
+    var range = n ? dLabel(parseYmd(first)) + " " + first.slice(0, 4) + " TO " + dLabel(parseYmd(last)) + " " + last.slice(0, 4) : "";
+    var html = phead("IMPORT", imp.stage === "running" ? imp.done + " OF " + n : imp.stage === "done" ? "DONE" : "FROM A DIARY EXPORT", "chrome-c");
+    if (imp.stage === "paste") {
+      return html + (imp.notes.length ? '<div class="errtxt cl-note">' + esc(imp.notes.join(" ")) + "</div>" : "") +
+        '<label class="ov-sub" for="clImp">PASTE THE TEXT EXPORT</label><textarea id="clImp" rows="10" spellcheck="false" placeholder="Each day starting with a line like: Thursday, November 13, 2025"></textarea>' +
+        '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="impcheck">CHECK</button><button type="button" class="btn ghost" data-lact="impcancel">CANCEL</button></div>' +
+        '<small class="muted">Read on this iPad and sent straight to Notion. Nothing is kept here. Days that already have a page are skipped.</small>';
+    }
+    var have = imp.entries.filter(function (e) { return lg.dates && lg.dates[e.date]; }).length;
+    html += '<dl class="kv"><dt>ENTRIES</dt><dd class="tnum">' + n + "</dd><dt>FROM</dt><dd>" + range + "</dd>" +
+      (have && imp.stage === "ready" ? "<dt>ALREADY HERE</dt><dd>" + have + " (skipped)</dd>" : "") +
+      (imp.stage !== "ready" ? '<dt>PROGRESS</dt><dd><span class="cl-bar"><i style="width:' + Math.round(100 * imp.done / n) + '%"></i></span></dd>' : "") + "</dl>";
+    if (imp.notes.length) html += '<ul class="cl-notes">' + imp.notes.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>";
+    if (imp.err) html += '<div class="errtxt cl-note">' + imp.err + (imp.done ? " Imported so far stays; IMPORT picks up where it stopped." : "") + "</div>";
+    if (imp.stage === "ready") html += '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="imprun">' + (imp.done ? "CONTINUE" : "IMPORT " + n + (n === 1 ? " ENTRY" : " ENTRIES")) + '</button><button type="button" class="btn ghost" data-lact="impcancel">CANCEL</button></div>' +
+      '<small class="muted">About ' + Math.max(1, Math.round(n / LOG_BATCH * 5 / 60)) + " min. Keep TimothyOS open until it finishes; it locks if the app goes to the background.</small>";
+    if (imp.stage === "running") html += '<small class="muted">Writing to Notion…</small>';
+    if (imp.stage === "done") html += '<div class="cl-note">' + imp.created + " added" + (imp.skipped ? " · " + imp.skipped + " already there" : "") + '.</div><div class="btnrow cl-row"><button type="button" class="btn" data-lact="impcancel">BACK TO THE PAGE</button></div>';
+    return html;
+  }
+
+  function renderLog() {
+    var html = '<div class="cl">';
+    if (!canLog()) { $("content").innerHTML = html + "<section>" + phead("CAPTAIN'S LOG", "") + stubBox("The log needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section></div>"; return; }
+    if (!logOpen()) {
+      var dots = ""; for (var i = 0; i < 6; i++) dots += '<i class="' + (i < lg.digits.length ? "on" : "") + '"></i>';
+      var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
+      $("content").innerHTML = html + '<section class="cl-lock">' + phead("CAPTAIN'S LOG", "LOCKED", "chrome-c") +
+        '<div class="cl-dots" aria-label="' + lg.digits.length + ' of 6 digits">' + dots + "</div>" +
+        '<div class="cl-msg" role="status">' + (lg.busy ? "CHECKING…" : lg.msg ? esc(lg.msg) : "ENTER YOUR PIN") + "</div>" +
+        '<div class="cl-pad">' + keys.map(function (k) {
+          return k === "" ? "<span></span>" : '<button type="button" class="cl-key' + (k === "del" ? " del" : "") + '" data-lpin="' + k + '"' + (lg.busy ? " disabled" : "") + ' aria-label="' + (k === "del" ? "Delete" : k) + '">' + (k === "del" ? "⌫" : k) + "</button>";
+        }).join("") + "</div></section></div>";
+      return;
+    }
+    var today = ymd(new Date()), mo = lg.month, g = sow(mo), cells = "";
+    for (var c = 0; c < 42; c++) {
+      var dd = addDays(g, c), k2 = ymd(dd), inMo = dd.getMonth() === mo.getMonth();
+      if (c === 35 && !inMo) break;
+      cells += '<button type="button" class="cl-day' + (inMo ? "" : " out") + (lg.dates[k2] || logDrafts[k2] ? " has" : "") + (k2 === today ? " today" : "") + '"' +
+        (k2 === lg.day ? ' aria-current="date"' : "") + (k2 > today ? " disabled" : ' data-lday="' + k2 + '"') + ' aria-label="' + dLabel(dd) + (lg.dates[k2] ? ", written" : "") + '">' + dd.getDate() + "</button>";
+    }
+    var thisMo = mo.getFullYear() === new Date().getFullYear() && mo.getMonth() === new Date().getMonth();
+    html += '<section class="cl-cal">' + phead("CAPTAIN'S LOG", "OPEN", "chrome-c") +
+      '<div class="cl-mon"><button type="button" class="chip" data-lmon="-1" aria-label="Previous month"><span class="tri l"></span></button><b>' + MONL[mo.getMonth()] + " " + mo.getFullYear() +
+      '</b><button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
+      '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
+      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button></div></section>';
+    html += '<section class="cl-page">';
+    if (lg.imp) html += logImportHtml();
+    else {
+      var d = lg.day, dt = parseYmd(d), e = lg.entries[d], loading = lg.dates[d] && !(d in lg.entries), intent = (lsGet(LS_LOG) || {})[d];
+      html += phead(DOWL[dt.getDay()], p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear() + ' · <span id="clStatus">' + logStatusText(d) + "</span>", "chrome-c");
+      if (intent) html += '<div class="cl-intent"><span>INTENT</span>' + esc(intent) + "</div>";
+      if (lg.err[d] && !logDrafts[d]) html += '<div class="errtxt cl-note">' + lg.err[d] + ' <button type="button" class="chip" data-lact="retry">TRY AGAIN</button></div>';
+      else if (loading && !logDrafts[d]) html += '<div class="empty">Opening the page…</div>';
+      else {
+        var b = bearings();
+        if (e && e.other) html += '<div class="cl-note muted">This page also holds things the LOG can\'t show (a photo or table, say). Read it here; change it in Notion.</div>';
+        html += '<textarea class="cl-text" id="clText-' + d + '" aria-label="Entry for ' + dLabel(dt) + '"' + (e && e.other ? " readonly" : "") + ' spellcheck="true" autocapitalize="sentences">' + esc(logText(d)) + "</textarea>" +
+          '<div class="cl-err errtxt" id="clErr">' + (lg.saveErr || "") + "</div>" +
+          '<div class="btnrow cl-row">' + (e && e.other ? "" : '<button type="button" class="btn" data-lact="save">SAVE</button>') +
+          (b.length && !(e && e.other) ? '<button type="button" class="btn ghost" data-lact="bearings">+ BEARINGS</button>' : "") +
+          (e && e.url ? '<a class="btn ghost" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
+      }
+    }
+    $("content").innerHTML = html + "</section></div>";
+    growLog($("clText-" + lg.day));
+  }
+  function logSection() {
+    var html = "<section>" + phead("CAPTAIN'S LOG", canLog() ? "PIN-LOCKED" : "SETUP");
+    if (!canLog()) return html + stubBox("Needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section>";
+    var pinSet = state.caps.indexOf("logpin") > -1, nd = Object.keys(logDrafts).length;
+    return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">Set. Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
+      '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
+      '<small class="muted">Entries open only after the PIN and are never stored on this iPad; leaving LOG, the background, standby or 10 minutes without a touch locks it. ' +
+      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + "The log is never sent to Ask.</small></section>";
+  }
+  document.addEventListener("keydown", function (e) {
+    if (state.screen !== "log" || logOpen() || !canLog() || sb.on || e.metaKey || e.ctrlKey) return;
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); logPress(e.key); }
+    else if (e.key === "Backspace") { e.preventDefault(); logPress("del"); }
+  });
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden && (logOpen() || lg.digits)) { lockLog(); if (state.screen === "log") render(false); }
+  });
+  setInterval(function () {
+    if (logOpen() && Date.now() - sb.last >= LOG_IDLE_MS) { lockLog(); if (state.screen === "log") render(false); }
+  }, 15000);
+
   /* ---------- Top spacing below the status bar ---------- */
   function topGap() { var g = lsGet(LS_TOPGAP); return TOP_GAPS.some(function (x) { return x[0] === g; }) ? g : TOP_GAPS[0][0]; }
   function applyTopGap() { document.documentElement.style.setProperty("--top-gap", topGap() + "px"); }
@@ -3185,6 +3495,8 @@
       ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
     /* Text typed into any field since the last draw survives a redraw (a sync landing while you
        fill in a form), not just the field in use. A field you haven't touched shows fresh data. */
+    /* Writing in the log: a background redraw would cost the keyboard its place. Leave the page alone. */
+    if (keepScroll && state.screen === "log" && active && /^clText-/.test(active.id)) { setAreas(); renderHeader(); renderStatus(); return; }
     var typed = {};
     $("content").querySelectorAll("input[id], textarea[id]").forEach(function (f) {
       if ((f.tagName === "TEXTAREA" || /^(text|search|url|tel|email|number|)$/.test(f.type)) && f.value !== f.defaultValue) typed[f.id] = f.value;
@@ -3194,7 +3506,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     if (typing && $(typing.id)) {
       var el = $(typing.id);
@@ -3208,6 +3520,7 @@
     if (head && w2) head.style.paddingRight = (w2.offsetWidth - w2.clientWidth) + "px";
   }
   function go(screen, anchor) {
+    if (screen === "log" || state.screen === "log") lockLog();   /* opening LOG always asks for the PIN */
     state.screen = screen;
     if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
@@ -3275,6 +3588,21 @@
       queueSend({ action: "queuebought", id: b.dataset.qyes, day: ymd(new Date()) }, qname + " marked bought. Log it in YNAB as usual.");
     }
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
+    else if (b.dataset.lpin) logPress(b.dataset.lpin);
+    else if (b.dataset.lday) logPick(b.dataset.lday);
+    else if (b.dataset.lmon) { lg.month = new Date(lg.month.getFullYear(), lg.month.getMonth() + +b.dataset.lmon, 1); render(true); enterScreen(); }
+    else if (b.dataset.lact) {
+      var la = b.dataset.lact;
+      if (la === "lock") { lockLog(); render(false); }
+      else if (la === "today") { lg.month = som(new Date()); logPick(ymd(new Date())); }
+      else if (la === "save") { if (lg.timer) { clearTimeout(lg.timer); lg.timer = null; } if (logDrafts[lg.day]) logSave(lg.pin); else toast("Already saved"); }
+      else if (la === "bearings") logInsertBearings();
+      else if (la === "retry") { delete lg.err[lg.day]; loadLogDay(lg.day); render(true); }
+      else if (la === "import") { lg.imp = { stage: "paste", entries: [], notes: [], done: 0, created: 0, skipped: 0, err: null }; render(true); }
+      else if (la === "impcheck") logImportCheck();
+      else if (la === "imprun") logImportRun();
+      else if (la === "impcancel") { lg.imp = null; loadLogDay(lg.day); render(true); }
+    }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); render(true); }
@@ -3318,6 +3646,7 @@
   });
   $("content").addEventListener("input", function (e) {
     if (e.target.id === "logIntent") saveLog(e.target.value.trim());
+    else if (/^clText-/.test(e.target.id) && logOpen()) { onLogInput(e.target.id.slice(7), e.target.value); growLog(e.target); }
     else if (e.target.dataset.rv && state.screen === "review") saveDraft(ymd(sow(state.anchor)), e.target.dataset.rv, e.target.value);
   });
   $("content").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur(); });

@@ -1,5 +1,5 @@
 /**
- * TimothyOS bridge, v1.9
+ * TimothyOS bridge, v1.10
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal, plus your farm calendar once linked
@@ -12,12 +12,17 @@
  *    Lists saved reviews for the Review log and its trends.
  *  - Ledger: reads your YNAB plan (Script Property YNAB_TOKEN; read-only, it never
  *    writes to YNAB) and the Replicator Queue in Notion (add, reorder, mark bought).
+ *  - Captain's Log: one Notion page per day, the entry in its body. Every log
+ *    request must carry your 6-digit PIN (Script Property LOG_PIN); five wrong
+ *    tries lock the log for 15 minutes. Editing an entry rewrites only that
+ *    entry's own text. Ask never sees the log.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
  *    Nothing else in Notion is touched.
  *
- * The work calendar can never be written to. Nothing is ever deleted.
+ * The work calendar can never be written to. Nothing is ever deleted, except
+ * paragraphs you remove from your own log entry when you edit it.
  * Your Notion key lives in Script Properties (NOTION_TOKEN), never in this code.
  * Setup and update steps are in README.md.
  */
@@ -46,17 +51,20 @@ var CONFIG = {
   NOTION_REVIEWS_DATABASE: '459bcacdc38d4bad9f58b4579fa9f4fd',
 
   // Your Notion Replicator Queue (things to buy once the Discretionary category allows).
-  NOTION_QUEUE_DATABASE: '6f9b8c3888f74ec18a503bd197f37c8c'
+  NOTION_QUEUE_DATABASE: '6f9b8c3888f74ec18a503bd197f37c8c',
+
+  // Your Notion Captain's Log (one page per day). Its PIN is Script Property LOG_PIN.
+  NOTION_LOG_DATABASE: '4c395160e1a84702a3a6861c20ddf748'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.9.2';
+var VERSION = '1.10.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log'] : [], logPin_() ? ['logpin'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -110,6 +118,7 @@ function doPost(e) {
     if (body.action === 'ask') return json_(ask_(body));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
+    if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
@@ -150,6 +159,7 @@ function setup() {
   var lg = ledgerStatus_();
   console.log('Ledger (YNAB): ' + lg.ynab);
   console.log('Notion replicator queue: ' + lg.queue);
+  console.log("Captain's Log: " + logStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK. This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -877,6 +887,200 @@ function ledgerStatus_() {
   try { var q = queueRows_(); out.queue = 'OK (' + q.items.length + ' waiting)'; }
   catch (e2) { out.queue = 'NOT READY: ' + (e2.notion || 'notion_error') + (e2.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to the Replicator Queue (... > Connections)' : ''); }
   return out;
+}
+
+// ---- Captain's Log ---------------------------------------------------------
+// One page per day in the Captain's Log database; the entry is the page body,
+// one paragraph block per paragraph. Every request needs the 6-digit PIN in
+// Script Property LOG_PIN. Nothing here is cached with its text, and Ask has no
+// way in: the log is not in its snapshot and it has no tool that reads it.
+var LOG_FAIL_LIMIT = 5, LOG_LOCK_SECONDS = 900, LOG_MAX_CHARS = 120000;
+var LOG_TEXT_BLOCKS = ['paragraph', 'bulleted_list_item', 'numbered_list_item', 'quote', 'heading_1', 'heading_2', 'heading_3', 'to_do'];
+var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+function logPin_() {
+  var p = String(PropertiesService.getScriptProperties().getProperty('LOG_PIN') || '').trim();
+  return /^\d{6}$/.test(p) ? p : '';
+}
+function logSource_() { return sourceFor_(CONFIG.NOTION_LOG_DATABASE, 'NOTION_LOG_SOURCE'); }
+function logGen_() { return CacheService.getScriptCache().get('lgen') || '0'; }
+function logTouched_() { CacheService.getScriptCache().put('lgen', String(Date.now()), 21600); }
+
+/** PIN check with a lockout. Compares every digit so timing says nothing. */
+function logGate_(pin) {
+  var want = logPin_();
+  if (!want) return { ok: false, error: 'log_pin_not_set' };
+  var cache = CacheService.getScriptCache(), fails = Number(cache.get('logfail') || 0);
+  if (fails >= LOG_FAIL_LIMIT) return { ok: false, error: 'log_locked' };
+  var given = String(pin == null ? '' : pin), diff = given.length === want.length ? 0 : 1;
+  for (var i = 0; i < want.length; i++) diff |= (given.charCodeAt(i) || 0) ^ want.charCodeAt(i);
+  if (diff) {
+    fails++;
+    cache.put('logfail', String(fails), LOG_LOCK_SECONDS);
+    return { ok: false, error: fails >= LOG_FAIL_LIMIT ? 'log_locked' : 'bad_pin', left: Math.max(0, LOG_FAIL_LIMIT - fails) };
+  }
+  if (fails) cache.remove('logfail');
+  return null;
+}
+
+function logAction_(body) {
+  var shut = logGate_(body.pin);
+  if (shut) return shut;
+  if (body.action === 'logunlock' || body.action === 'logdates') return logDates_();
+  if (body.action === 'logday') return logDay_(String(body.date || ''));
+  if (body.action === 'logsave') return logSave_(String(body.date || ''), body.text);
+  if (body.action === 'logimport') return logImport_(body.entries);
+  return { ok: false, error: 'unknown_action' };
+}
+
+/** "Wednesday, October 7, 2026" for a yyyy-mm-dd. */
+function longDay_(ymd) {
+  var d = new Date(ymd + 'T12:00:00Z');
+  return WEEKDAYS[d.getUTCDay()] + ', ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+}
+function realDay_(ymd) { var d = YMD.test(ymd) ? new Date(ymd + 'T12:00:00Z') : null; return !!d && !isNaN(d) && d.toISOString().slice(0, 10) === ymd; }
+
+/** Text into paragraphs: blank lines separate them, single line breaks stay inside. */
+function logParas_(text) {
+  return String(text == null ? '' : text).replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/)
+    .map(function (p) { return p.replace(/^\n+|\s+$/g, ''); }).filter(function (p) { return p.length; });
+}
+function logRich_(text) {
+  var out = [];
+  for (var i = 0; i < text.length && out.length < 100; i += 2000) out.push({ type: 'text', text: { content: text.slice(i, i + 2000) } });
+  return out;
+}
+function logBlock_(p) { return { object: 'block', type: 'paragraph', paragraph: { rich_text: logRich_(p) } }; }
+
+/** Notion asks callers to slow down now and then; a log save waits and tries again. */
+function logNotion_(method, path, payload) {
+  for (var i = 0; ; i++) {
+    try { return notion_(method, path, payload); } catch (e) {
+      if (e.notion !== 'notion_busy' || i >= 3) throw e;
+      Utilities.sleep(800 * (i + 1));
+    }
+  }
+}
+
+function logFind_(ds, ymd) { return queryAll_(ds, { property: 'Date', date: { equals: ymd } }, 1)[0] || null; }
+
+/** Every day that has an entry (no text), for the calendar. */
+function logDates_() {
+  var cache = CacheService.getScriptCache(), key = 'logdates:' + logGen_(), hit = cache.get(key);
+  if (hit) return { ok: true, version: VERSION, dates: JSON.parse(hit) };
+  var seen = {};
+  queryAll_(logSource_(), null, 40, [{ property: 'Date', direction: 'ascending' }]).forEach(function (pg) {
+    var d = day_((pg.properties || {}).Date); if (d) seen[d] = true;
+  });
+  var dates = Object.keys(seen).sort();
+  try { cache.put(key, JSON.stringify(dates), 21600); } catch (x) { /* too large to cache */ }
+  return { ok: true, version: VERSION, dates: dates };
+}
+
+/** A page's body as blocks we can read back as text. */
+function logBlocks_(pageId) {
+  var out = [], cursor = null;
+  for (var i = 0; i < 20; i++) {
+    var r = notion_('get', '/blocks/' + pageId + '/children?page_size=100' + (cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''));
+    (r.results || []).forEach(function (b) {
+      var t = b.type, inner = b[t] || {}, txt = LOG_TEXT_BLOCKS.indexOf(t) > -1 ? plain_(inner.rich_text) : null;
+      if (txt !== null && t === 'bulleted_list_item') txt = '- ' + txt;
+      if (txt !== null && t === 'to_do') txt = (inner.checked ? '[x] ' : '[ ] ') + txt;
+      out.push({ id: b.id, type: t, text: txt, kids: !!b.has_children });
+    });
+    if (!r.has_more) break;
+    cursor = r.next_cursor;
+  }
+  return out;
+}
+
+/** One day's entry. other = the page also holds things the LOG can't show (images, tables); edit those in Notion. */
+function logDay_(ymd) {
+  if (!realDay_(ymd)) return { ok: false, error: 'bad_request' };
+  var pg = logFind_(logSource_(), ymd);
+  if (!pg) return { ok: true, version: VERSION, date: ymd, entry: null };
+  var blocks = logBlocks_(pg.id);
+  var other = blocks.some(function (b) { return b.text === null || b.kids; });
+  var text = blocks.filter(function (b) { return b.text !== null; }).map(function (b) { return b.text; }).join('\n\n');
+  return { ok: true, version: VERSION, date: ymd, entry: { id: pg.id, url: pg.url, text: text, saved: pg.last_edited_time || null, other: other } };
+}
+
+/** Create or update one day's entry. Unchanged paragraphs are left alone. Safe to repeat. */
+function logSave_(ymd, text) {
+  if (!realDay_(ymd) || typeof text !== 'string') return { ok: false, error: 'bad_request' };
+  if (text.length > LOG_MAX_CHARS) return { ok: false, error: 'too_long' };
+  var paras = logParas_(text);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ds = logSource_(), pg = logFind_(ds, ymd), created = false;
+    if (!pg) {
+      if (!paras.length) return { ok: true, version: VERSION, date: ymd, saved: null, created: false };
+      pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
+        properties: { Name: { title: rt_(longDay_(ymd)) }, Date: { date: { start: ymd } }, Source: { select: { name: 'Bridge' } } },
+        children: paras.slice(0, 100).map(logBlock_) });
+      created = true;
+      paras = paras.slice(100);
+      if (paras.length) logAppend_(pg.id, paras);
+    } else {
+      var old = logBlocks_(pg.id);
+      if (old.some(function (b) { return b.text === null || b.kids; })) return { ok: false, error: 'log_edit_in_notion' };
+      var k = 0;
+      while (k < old.length && k < paras.length && old[k].type === 'paragraph' && old[k].text === paras[k]) k++;
+      var j = k;
+      while (j < old.length && j < paras.length && old[j].type === 'paragraph') {
+        logNotion_('patch', '/blocks/' + old[j].id, { paragraph: { rich_text: logRich_(paras[j]) } });
+        j++;
+      }
+      for (var x = j; x < old.length; x++) logNotion_('delete', '/blocks/' + old[x].id);
+      if (j < paras.length) logAppend_(pg.id, paras.slice(j));
+    }
+    logTouched_();
+    return { ok: true, version: VERSION, date: ymd, created: created, saved: new Date().toISOString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function logAppend_(pageId, paras) {
+  for (var i = 0; i < paras.length; i += 100) logNotion_('patch', '/blocks/' + pageId + '/children', { children: paras.slice(i, i + 100).map(logBlock_) });
+}
+
+/** Bring in old entries, up to 10 per request. Days that already have a page are skipped, so a resent batch adds nothing twice. */
+function logImport_(entries) {
+  if (!Array.isArray(entries) || !entries.length || entries.length > 10) return { ok: false, error: 'bad_request' };
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i] || {};
+    if (!realDay_(String(e.date || '')) || typeof e.text !== 'string' || e.text.length > LOG_MAX_CHARS) return { ok: false, error: 'bad_request' };
+  }
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ds = logSource_(), sorted = entries.map(function (e) { return e.date; }).sort(), have = {};
+    queryAll_(ds, { and: [{ property: 'Date', date: { on_or_after: sorted[0] } }, { property: 'Date', date: { on_or_before: sorted[sorted.length - 1] } }] }, 2)
+      .forEach(function (pg) { var d = day_((pg.properties || {}).Date); if (d) have[d] = true; });
+    var created = [], skipped = [];
+    entries.forEach(function (e) {
+      var paras = logParas_(e.text);
+      if (have[e.date] || !paras.length) { skipped.push(e.date); return; }
+      var pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
+        properties: { Name: { title: rt_(longDay_(e.date)) }, Date: { date: { start: e.date } }, Source: { select: { name: 'Diary import' } } },
+        children: paras.slice(0, 100).map(logBlock_) });
+      if (paras.length > 100) logAppend_(pg.id, paras.slice(100));
+      have[e.date] = true;
+      created.push(e.date);
+    });
+    if (created.length) logTouched_();
+    return { ok: true, version: VERSION, created: created, skipped: skipped };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function logStatus_() {
+  var pin = logPin_() ? 'PIN set' : 'NO PIN: add LOG_PIN (6 digits) in Script Properties';
+  try { var n = logDates_().dates.length; return 'OK (' + n + ' days written). ' + pin; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '') + '. ' + pin; }
 }
 
 // ---- Ask Claude ---------------------------------------------------------------

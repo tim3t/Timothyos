@@ -44,14 +44,18 @@ Current versions: **app 2.0.0**, **bridge 1.6.0**.
 | POST | `queueadd` `item{cid,title,cost,note,link}` | new Replicator Queue item at the bottom | cid cache 6 h |
 | POST | `queueorder` `ids[]` | sets Priority 10, 20, 30… top to bottom | only ids in the queue; unchanged ones aren't written |
 | POST | `queuebought` `id` `day\|null` | marks bought, or undoes it | only queue items |
+| POST | `logunlock` / `logdates` `pin` | every day with an entry (`dates[]`, no text) | all `log*` actions need `pin` = Script Property `LOG_PIN`; 5 misses → `log_locked` 15 min; `bad_pin` carries `left` |
+| POST | `logday` `pin` `date` | `entry{id,url,text,saved,other}` or null | text = paragraph blocks joined by blank lines; `other` = page holds blocks the LOG can't show |
+| POST | `logsave` `pin` `date` `text` | create (Source Bridge) or update in place | unchanged paragraphs untouched; changed ones patched, extra ones deleted; `log_edit_in_notion` if `other` |
+| POST | `logimport` `pin` `entries[≤10]{date,text}` | new pages (Source Diary import) | days that already have a page skipped, so resending is safe |
 | POST | `ask` `{cid, mode: fast\|deep\|summary\|patterns, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`, `reviewlog` and `queue` (once `NOTION_TOKEN` is set), `ledger` (once `YNAB_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`, `reviewlog` and `queue` (once `NOTION_TOKEN` is set), `log` (with `NOTION_TOKEN`), `logpin` (once `LOG_PIN` is set), `ledger` (once `YNAB_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
 - **Secrets never go in code, chat, or commits.** The access key and `NOTION_TOKEN` live only in the bridge's Script Properties (and the key in the iPad app). The repo is public.
-- **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to the two databases above; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
+- **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to Master Task List, Key Dates, Weekly Reviews, Replicator Queue and Captain's Log; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
 - **Work calendar is read-only forever.** Don't add write paths for it.
 - **Farm calendar** (bridge 1.8): area `farm`, ID only in Script Property `FARM_CALENDAR_ID` (never in code: its name is personal). `sources_()` leaves it out until set. The app's `setAreas()` moves `farm` from STANDBY_AREAS to LIVE when the bridge lists it, labels it with the calendar's name, and adds it to Capture's `WRITABLE`. Tests: `mock_v18.py` + `app_e2e19`.
 - **Don't change Notion schemas or create databases** without asking first.
@@ -64,7 +68,7 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 
 - **Condition rules** live in `conditions()`: thresholds are constants at the top of the section (`HEAVY_HOURS`, `KD_WARN_DAYS`, `PICK_BY_HOUR`, `STALE_SYNC_MS`, `HIVE`). Keep README's rule table in step when they change.
 - **Weather** is fetched from the iPad straight to Open-Meteo (`loadWeather()`), only when a location is set in Systems. Coordinates are rounded to 2 decimals.
-- **Device-only data** (never sent to the bridge, never in the repo): `tos.place.v1`, `tos.bearings.v1`, `tos.log.v1`. Bearings have no defaults on purpose: they are Timothy's own words and the repo is public.
+- **Device-only data** (never sent to the bridge, never in the repo): `tos.place.v1`, `tos.bearings.v1`, `tos.log.v1` (the Bridge's one-line intent, not the journal). Bearings have no defaults on purpose: they are Timothy's own words and the repo is public.
 - `render()` keeps focus and caret in a text field across re-renders (the Bridge re-renders every minute).
 - **Visual rules:** use the type scale tokens in `css/app.css` (`--t-hero` 40, `--t-count` 28, `--t-title` 19, `--t-body` 17, `--t-sub` 15, `--t-label` 13, `--ls-label`). Each panel shows essentials; secondary readouts get class `ov-extra` and appear when its + (`moreBtn(key)`, state in `tos.bopen.v1`) is open. Don't add new font sizes.
 
@@ -77,6 +81,10 @@ Review log: `state.rvLog` picks the landing page (`renderReviewLog()`) over one 
 ## Ledger
 
 Bridge: `ynab_()` is the only YNAB call and only GETs; there is never a YNAB write path. `ynabLedger_()` caches 10 min, `ledgerMonth_()` caches each past month 6 h (reduced to age of money + spend per category). Spending leaves out deleted, hidden and internal categories and the Credit Card Payments group. The fund category is found by name (`LEDGER_FUND_CATEGORY`, default Discretionary). Replicator Queue: Notion DB `NOTION_QUEUE_DATABASE` (Name, Cost, Priority, Note, Link, Bought). App: `renderLedger()`, `avgSpend()` (skips months with no spending), `queueSend()`; finances reach Ask only through `ledgerBrief()` when `tos.aifin.v1` is set (off by default; Timothy's decision). Tests: `bridge_ledger.test.js`, `mock_v19.py` + `app_e2e20`.
+
+## Captain's Log
+
+Notion DB `NOTION_LOG_DATABASE` (Name = "Wednesday, October 7, 2026", Date, Source: Diary import / Bridge); the entry is the page body, one paragraph block per paragraph (blank lines separate them; `logParas_()` and the app's `logNorm()` must stay identical). The journal is Timothy's most private data: **never put entry text in the repo, tests, commits or chat summaries**, never cache it in the bridge, never store it on the iPad beyond `tos.ldraft.v1` (unsaved writing only, deleted once saved), and **never give Ask a path to it**. `bridge_log.test.js` asserts Ask's code doesn't call the log. App: `lg` state, `lockLog()` (called by `go()` entering or leaving LOG, `visibilitychange` hidden, `enterStandby()`, 10 min idle; flushes unsaved writing first), `renderLog()`, `logSave(pin)` (5 s debounce), `parseDiary()` for imports (headers like "Thursday, November 13, 2025"; same parser checked against the real export once, locally, never committed). `render()` skips redrawing LOG while its textarea has focus. The Bridge panel holding the daily intent is now titled INTENT + BEARING. Tests: `mock_v20.py` (PIN 135790) + `app_e2e22`.
 
 ## Motion and standby
 
@@ -114,7 +122,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 
 ## Testing
 
-`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v19`, in America/Chicago time with a fixed clock (deliberately not Timothy's Eastern time, so time-zone bugs show up). The app itself always uses the iPad's own time zone. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
+`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v20`, in America/Chicago time with a fixed clock (deliberately not Timothy's Eastern time, so time-zone bugs show up). The app itself always uses the iPad's own time zone. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
 
 Limit: the runner fails on crashes, page errors and timeouts, but most tests print their key values (event counts, toasts, saved items) instead of asserting them. Run `VERBOSE=1 tests/run.sh` and read the output after any change, and convert printed checks to `assert` calls when touching a test.
 

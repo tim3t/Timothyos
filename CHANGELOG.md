@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.0 · 2026-10-07 (needs bridge 1.10.0 + LOG_PIN; Captain's Log connected in Notion)
+- **LOG:** a plain journal in the left panel. A calendar of days (a dot where you've written) and a blank page for each day, stored as one page per day in the new **📓 Captain's Log** database in Notion. No reminders, no streaks, no counts.
+  - **PIN:** opening LOG always asks for your 6-digit PIN (Script Property `LOG_PIN`), on a keypad or a keyboard. The bridge checks it; five wrong tries lock the log for 15 minutes.
+  - **Locks** when you leave LOG, tap LOCK, the app goes to the background, standby starts, or after 10 minutes without a touch. Entries are never stored on the iPad.
+  - **Saves** 5 seconds after you stop typing, on SAVE, and when it locks. Unsaved writing stays on the iPad until Notion has it. Editing an earlier day changes only the paragraphs you changed.
+  - **+ BEARINGS** adds your bearings as a closing block. Today's intent from the Bridge shows above today's page.
+  - **IMPORT:** paste a diary app's text export; it checks the days, then brings them in five at a time, skipping days already written.
+  - **Never sent to Ask.**
+- The Bridge panel for the daily intent and bearing is now titled **INTENT + BEARING**, so it isn't confused with the journal.
+
 ## 2.4.3 · 2026-10-08
 - Standby: when nothing is left on today's calendar it reads **Clear for the rest of the day**, with tomorrow's first item in small print below. Tomorrow's items take the main line only after midnight.
 - Tests: the sync-recovery check now waits for the app's retry (30 s, then 60 s) instead of checking at a fixed moment; under load it occasionally checked too early.
