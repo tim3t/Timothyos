@@ -50,7 +50,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.9.0';
+var VERSION = '1.9.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -678,19 +678,38 @@ function ynabToken_() { return PropertiesService.getScriptProperties().getProper
 function ynabPlan_() { return String(PropertiesService.getScriptProperties().getProperty('YNAB_PLAN_ID') || 'last-used').trim(); }
 function fundName_() { return String(PropertiesService.getScriptProperties().getProperty('LEDGER_FUND_CATEGORY') || 'Discretionary').trim(); }
 
-/** Read one YNAB resource for the plan. GET only: there is no write path to YNAB. */
-function ynab_(path) {
+/** One GET to YNAB. Returns { code, body }; never throws for HTTP errors. GET only: there is no write path to YNAB. */
+function ynabGet_(url) {
   var token = ynabToken_();
   if (!token) { var e0 = new Error('No YNAB_TOKEN in Script Properties'); e0.ynab = 'ynab_not_configured'; throw e0; }
-  var res = UrlFetchApp.fetch(YNAB_BASE + '/plans/' + encodeURIComponent(ynabPlan_()) + path, { method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token } });
-  var code = res.getResponseCode(), body = {};
+  var res = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token } });
+  var body = {};
   try { body = JSON.parse(res.getContentText() || '{}'); } catch (x) { body = {}; }
-  if (code >= 300) {
-    var e = new Error((body.error && body.error.detail) || ('YNAB HTTP ' + code));
-    e.ynab = code === 401 ? 'ynab_unauthorized' : code === 404 ? 'ynab_not_found' : code === 429 ? 'ynab_busy' : 'ynab_error';
+  return { code: res.getResponseCode(), body: body };
+}
+/** YNAB renamed budgets to plans (API 1.79). Use /plans, and fall back to the older /budgets if an account only answers there. */
+function ynabPrefix_() { return CacheService.getScriptCache().get('ynab:prefix') || 'plans'; }
+/** Read one YNAB resource for the plan. */
+function ynab_(path) {
+  var plan = encodeURIComponent(ynabPlan_()), prefix = ynabPrefix_();
+  var r = ynabGet_(YNAB_BASE + '/' + prefix + '/' + plan + path);
+  if (r.code === 404 && prefix === 'plans' && !/^\/months\//.test(path)) {
+    var old = ynabGet_(YNAB_BASE + '/budgets/' + plan + path);
+    if (old.code < 300) { CacheService.getScriptCache().put('ynab:prefix', 'budgets', 21600); r = old; }
+  }
+  if (r.code >= 300) {
+    var e = new Error(((r.body.error && r.body.error.detail) || ('YNAB HTTP ' + r.code)) + ' (reading ' + path.replace(/^\//, '') + ')');
+    e.ynab = r.code === 401 ? 'ynab_unauthorized' : r.code === 404 ? 'ynab_not_found' : r.code === 429 ? 'ynab_busy' : 'ynab_error';
     throw e;
   }
-  return body.data || {};
+  return r.body.data || {};
+}
+/** Your plans (name and ID), to help pick YNAB_PLAN_ID. */
+function ynabPlans_() {
+  var r = ynabGet_(YNAB_BASE + '/plans');
+  if (r.code >= 300) r = ynabGet_(YNAB_BASE + '/budgets');
+  var d = r.body.data || {};
+  return (d.plans || d.budgets || []).map(function (b) { return { id: b.id, name: b.name, last: b.last_modified_on || '' }; });
 }
 
 /** yyyy-mm-01 for this month and the n months before it, oldest first. */
@@ -710,7 +729,10 @@ function spendable_(c) { return !c.deleted && !c.hidden && !c.internal && SKIP_G
 function ledgerMonth_(month) {
   var cache = CacheService.getScriptCache(), key = 'ym:' + ynabPlan_() + ':' + month, hit = cache.get(key);
   if (hit) return JSON.parse(hit);
-  var m = ynab_('/months/' + month).month || {}, out = { age: typeof m.age_of_money === 'number' ? m.age_of_money : null, spend: {} };
+  var m = {};
+  try { m = ynab_('/months/' + month).month || {}; }
+  catch (e) { if (e.ynab !== 'ynab_not_found') throw e; }   // a month before the plan began
+  var out = { age: typeof m.age_of_money === 'number' ? m.age_of_money : null, spend: {} };
   (m.categories || []).forEach(function (c) { if (spendable_(c) && c.activity) out.spend[c.id] = -money_(c.activity); });
   try { cache.put(key, JSON.stringify(out), MONTH_SECONDS); } catch (x) { /* too large to cache */ }
   return out;
@@ -841,7 +863,14 @@ function ledgerStatus_() {
       CacheService.getScriptCache().remove('ynab:' + ynabPlan_());
       var y = ynabLedger_();
       out.ynab = 'OK. ' + y.checking.length + ' checking, ' + y.savings.length + ' savings, ' + y.loans.length + ' loan accounts. Fund category "' + y.fundName + '": ' + (y.fund ? 'found' : 'NOT FOUND (create it in YNAB, or set LEDGER_FUND_CATEGORY)');
-    } catch (e) { out.ynab = 'PROBLEM: ' + (e.ynab || 'ynab_error') + '. ' + e.message; }
+    } catch (e) {
+      out.ynab = 'PROBLEM: ' + (e.ynab || 'ynab_error') + '. ' + e.message;
+      if (e.ynab === 'ynab_not_found') {
+        try {
+          out.ynab += '. Plans this token can see (add YNAB_PLAN_ID with the right ID): ' + (ynabPlans_().map(function (b) { return b.name + ' -> ' + b.id; }).join(' | ') || 'none');
+        } catch (x) { /* listing failed too */ }
+      }
+    }
   }
   try { var q = queueRows_(); out.queue = 'OK (' + q.items.length + ' waiting)'; }
   catch (e2) { out.queue = 'NOT READY: ' + (e2.notion || 'notion_error') + (e2.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to the Replicator Queue (... > Connections)' : ''); }

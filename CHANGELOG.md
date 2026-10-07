@@ -1,5 +1,10 @@
 # Changelog
 
+## Bridge 1.9.1 · 2026-10-07 (app unchanged)
+- Fix: a YNAB plan younger than 12 months stopped the Ledger with "ynab_not_found". Months before the plan began are now skipped.
+- If an account only answers on YNAB's older `/budgets` address, the bridge falls back to it and remembers.
+- Setup names the YNAB request that failed and, for "not found", lists the plans the token can see with their IDs (for `YNAB_PLAN_ID`).
+
 ## 2.3.0 · 2026-10-07 (needs bridge 1.9.0 + YNAB_TOKEN; Replicator Queue connected in Notion)
 - **LEDGER** (new screen in the left panel): your finances from YNAB at a glance. Read-only; YNAB stays where you budget.
   - **Accounts:** checking in large type, age of money with its 12-month trend, savings, and loans with % paid off.

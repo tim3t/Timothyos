@@ -282,6 +282,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
 | "Couldn't reach the script" | URL must end in `/exec`; deployment access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
+| Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add Script Property `YNAB_PLAN_ID` with the right id, run setup again, deploy a new version |
 | LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB → replace `YNAB_TOKEN` → run setup |
 | Replicator Queue says not connected | Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
