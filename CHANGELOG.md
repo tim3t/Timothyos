@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.4.1 · 2026-10-08
+- Fix: text typed into a form could vanish when a sync landed mid-entry. The screen redraws when fresh data arrives, and it kept only the field in use: adding "New glasses" with a price, then tapping the note field, cleared the item and price. Everything typed since the last redraw now survives in every field on every screen. A field you haven't touched still shows fresh data, and the Replicator Queue form clears once the item is added.
+
 ## 2.4.0 · 2026-10-08
 - **Standby:** after 15 minutes without a touch, the screen fades to a dim clock with the date, weather (high and low), **Next up** with a countdown and what follows, the condition and the next key date. Amber and dimmer from 22:00 to 06:00. Tap anywhere to wake; that tap only wakes the screen. Content drifts a few pixels each minute so nothing burns into an OLED screen.
   - **STANDBY** at the right end of the top bar starts it any time, like a screensaver.

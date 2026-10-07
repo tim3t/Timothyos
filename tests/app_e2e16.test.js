@@ -63,6 +63,8 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   await p.click('.rl-card.due'); await p.waitForTimeout(1200);
   assert.strictEqual(await p.inputValue('#rv-wentWell'), 'Shipped the deck early', 'draft kept on the iPad');
   await p.fill('#rv-nextFocus', 'Hive winter prep');
+  await p.evaluate(() => window.dispatchEvent(new Event('online'))); await p.waitForTimeout(900);
+  assert.strictEqual(await p.inputValue('#rv-nextFocus'), 'Hive winter prep', 'review text kept through a redraw');
   await p.screenshot({ path: D + 'review-ipad.png', fullPage: false });
 
   // --- save, then update

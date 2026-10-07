@@ -68,8 +68,15 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.ok(q[0].includes('Honey extractor') && q[0].includes('$110 TO GO') && q[1].includes('$280 TO GO'), 'funding follows the new order');
   assert.strictEqual(await p.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Move Honey extractor down', 'focus stays on the moved item (up is disabled at the top)');
 
-  await p.fill('#qName', 'Pruning saw'); await p.fill('#qCost', '$129'); await p.fill('#qNote', 'For the orchard');
+  // regression (2.4.1): a redraw while filling the form kept only the field in use
+  await p.fill('#qName', 'Pruning saw'); await p.fill('#qCost', '$129');
+  await p.click('#qNote');
+  await p.evaluate(() => window.dispatchEvent(new Event('online'))); await p.waitForTimeout(900);   /* a sync lands and redraws */
+  assert.strictEqual(await p.inputValue('#qName'), 'Pruning saw', 'item kept through a redraw');
+  assert.strictEqual(await p.inputValue('#qCost'), '$129', 'cost kept through a redraw');
+  await p.fill('#qNote', 'For the orchard');
   await p.click('#qForm button[type="submit"]'); await p.waitForTimeout(800);
+  assert.deepStrictEqual([await p.inputValue('#qName'), await p.inputValue('#qCost'), await p.inputValue('#qNote')], ['', '', ''], 'form clears once added');
   q = await items(); assert.ok(q[3].startsWith('4 Pruning saw') && q[3].includes('For the orchard') && q[3].includes('$129'));
   s = await stats(); assert.ok(s.queue.some(x => x[0] === 'Pruning saw' && x[1] === 40));
 

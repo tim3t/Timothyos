@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.4.0";
+  var VERSION = "2.4.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2604,6 +2604,7 @@
     render(true);
     apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [{ role: "user", text: "Write my weekly summary for " + weekLabel(w0) + "." }], context: lines.join("\n"), ignore: ignoreList }, 150000).then(function (j) {
       saveDraft(wk, "summary", j.reply);
+      if ($("rv-summary")) $("rv-summary").value = j.reply;   /* replaces anything typed there, on purpose */
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       toast("Summary written (" + money(j.cost) + "). Edit it, then save.");
     }).catch(function (err) { toast(describeAi(err)); }).then(function () { state.summaryBusy = false; render(true); });
@@ -2715,7 +2716,11 @@
       state.queue.push(item); saveQueue(); flushQueue(true); finish(true, "Saving to your " + areaName(area) + " calendar.");
     } else if (p.kind === "review_draft") {
       var wk = ymd(sow(parseYmd(i.week_start)));
-      [["went_well", "wentWell"], ["drained", "drained"], ["next_focus", "nextFocus"], ["bearing", "bearing"], ["summary", "summary"]].forEach(function (f) { if (i[f[0]]) saveDraft(wk, f[1], i[f[0]]); });
+      [["went_well", "wentWell"], ["drained", "drained"], ["next_focus", "nextFocus"], ["bearing", "bearing"], ["summary", "summary"]].forEach(function (f) {
+        if (!i[f[0]]) return;
+        saveDraft(wk, f[1], i[f[0]]);
+        if (state.screen === "review" && ymd(sow(state.anchor)) === wk && $("rv-" + f[1])) $("rv-" + f[1]).value = i[f[0]];
+      });
       finish(true, "Placed in Review as a draft. Open REVIEW to check and save.");
     } else finish(false, "Unknown change.");
   }
@@ -2956,6 +2961,7 @@
       if (!j || !j.item || !state.ledger || !state.ledger.queue) return;
       if (!state.ledger.queue.items.some(function (x) { return x.id === j.item.id; })) state.ledger.queue.items.push(j.item);
       lsSet(LS_LEDGER, state.ledger);
+      ["qName", "qCost", "qNote"].forEach(function (id) { if ($(id)) $(id).value = ""; });
       toast("Added to the bottom of the queue. Move it up to fund it sooner.");
       render(true);
       if ($("qName")) $("qName").focus();
@@ -3176,12 +3182,19 @@
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
     var active = document.activeElement, typing = active && active.id && $("content").contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)
       ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
+    /* Text typed into any field since the last draw survives a redraw (a sync landing while you
+       fill in a form), not just the field in use. A field you haven't touched shows fresh data. */
+    var typed = {};
+    $("content").querySelectorAll("input[id], textarea[id]").forEach(function (f) {
+      if ((f.tagName === "TEXTAREA" || /^(text|search|url|tel|email|number|)$/.test(f.type)) && f.value !== f.defaultValue) typed[f.id] = f.value;
+    });
     state.index = {};
     setAreas();
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
     ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     if (typing && $(typing.id)) {
       var el = $(typing.id);
       el.value = typing.value;
