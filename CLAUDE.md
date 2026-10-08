@@ -118,6 +118,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). No
 
 ## Known quirks (already handled; don't "fix" them away)
 
+- **No zoom, ever (2.7.2):** Safari zoomed the whole app on a quick double tap (a PIN with a repeated digit). `touch-action: manipulation` on html, body and controls turns double-tap zoom off without delaying taps; `gesturestart` and two-finger `touchmove` are cancelled; the viewport has `maximum-scale=1`. Don't add a "double-tap guard" that swallows the second touchend: it would drop the repeated digit. `app_e2e22` checks all of it.
 - **Google's result page intermittently 404s** (about 1 in 8 requests) even though the script ran. `withRetry()` re-runs the request twice for `http_404`, `bad_json`, `http_5xx`. Re-fetching the same result URL does not help.
 - **Dropped and background-cut requests:** iPadOS kills in-flight fetches when the app is backgrounded or the screen locks. `withRetry()` waits for `visibilitychange` and re-runs those, and retries `TypeError` drops (3 times). `slot()` caps bridge requests at 2 in parallel. A refresh failure over saved data shows `retrying`, not `offline`, until 3 in a row. `netlog` (Systems → Recent requests) records action, duration and outcome only, never data. `app_e2e14` covers this.
 - **Lost replies:** a write can succeed while the reply is lost. `reconcileQueue()` clears queued items that already appear in loaded data, so they're never re-sent after the 6 h cid cache expires.

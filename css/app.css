@@ -46,6 +46,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; overscroll-behavior: none; }
+/* The screen never zooms: a quick double tap is two taps (a PIN with a repeated digit), not a zoom. */
+html, body, button, a, input, textarea, select, label { touch-action: manipulation; }
 body {
   margin: 0;
   background: var(--bg);

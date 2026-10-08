@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.7.2 · 2026-10-08
+- **The screen no longer zooms.** A quick double tap (a PIN with a repeated digit, say) counts as two taps instead of zooming the whole app, and an accidental pinch is ignored. TimothyOS always stays at its full-screen size. The iPad's own Accessibility Zoom is unaffected.
+
 ## 2.7.1 · 2026-10-08
 - **REVIEW no longer scrolls sideways.** The week numbers under HABITS PER WEEK (ALL REVIEWS) borrowed the Week screen's width and pushed the page wider than the screen.
 - **Replicator Queue, by price.** A new item lands just above the first item that costs more, instead of at the bottom; items with no price yet still go last. The order you set with the arrows is kept as it is. When the queue is out of price order, **PRICE ORDER** sorts it lowest to highest in one tap.

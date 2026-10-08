@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.7.1";
+  var VERSION = "2.7.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4682,6 +4682,9 @@
   }
   setInterval(tick, 60 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tick(); refresh(false); checkForUpdate(true); } });
+  /* TimothyOS stays full screen: Safari's pinch zoom is ignored (double-tap zoom is off in the CSS). */
+  document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+  document.addEventListener("touchmove", function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
   window.addEventListener("online", function () { refresh(true); flushQueue(true); flushHabits(); });
 
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {

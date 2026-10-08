@@ -31,6 +31,16 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   assert.ok(await p.isHidden('#pager')); assert.ok(await p.isHidden('#todayBtn'));
   assert.strictEqual(await p.locator('.cl-key').count(), 11);
   await p.screenshot({ path: D + 'e2e22_lock.png' });
+  // 2.7.2: the screen never zooms. A double tap on a key is two digits; pinch is ignored.
+  const z = await p.evaluate(() => {
+    const ev = new Event('gesturestart', { cancelable: true }); document.dispatchEvent(ev);
+    return [getComputedStyle(document.body).touchAction, getComputedStyle(document.querySelector('[data-lpin="1"]')).touchAction, document.querySelector('meta[name=viewport]').content, ev.defaultPrevented];
+  });
+  assert.deepStrictEqual(z, ['manipulation', 'manipulation', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover', true]);
+  await p.dblclick('[data-lpin="1"]'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.locator('.cl-dots i.on').count(), 2, 'a double tap enters the digit twice');
+  await p.keyboard.press('Backspace'); await p.keyboard.press('Backspace');
+  assert.strictEqual(await p.locator('.cl-dots i.on').count(), 0);
   // a wrong PIN on the keypad
   for (const k of '111111') await p.click('[data-lpin="' + k + '"]');
   await p.waitForTimeout(700);
