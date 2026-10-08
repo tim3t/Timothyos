@@ -499,6 +499,20 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .newtask select { min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px; padding: 6px 12px; color: var(--fg); font-size: 15px; max-width: 190px; }
 .newtask .btn { min-height: 48px; }
 
+/* ---------- Time Loom ---------- */
+.lm { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 28px; height: 100%; min-height: 0; }
+.lm-stage { position: relative; min-height: 420px; border-radius: 18px; overflow: hidden; touch-action: pan-y; cursor: grab;
+  background: radial-gradient(120% 90% at 50% 55%, #10111a 0%, var(--bg) 70%); }
+.lm-stage.drag { cursor: grabbing; }
+.lm-stage:focus-visible { outline: 3px solid var(--chrome-b); outline-offset: 2px; }
+.lm-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lm-side { min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 26px; padding-bottom: 12px; }
+.lm-side .kd .dt { font-size: 15px; }
+@media (max-width: 860px) {
+  .lm { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .lm-stage { height: 460px; min-height: 0; }
+}
+
 /* ---------- Key Dates ---------- */
 .kd {
   display: grid; grid-template-columns: 8px 86px minmax(0, 1fr) auto; gap: 12px; align-items: center;

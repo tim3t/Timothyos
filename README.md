@@ -264,6 +264,16 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
 - **Ask Claude never sees the log.** It isn't in the snapshot and Ask has no way to read it.
 
+## Time Loom (app 2.6)
+
+**LOOM** shows your calendars and key dates on an infinity loop. The focused day sits at the crossing, largest, with its events named beside it.
+
+- **Swipe right** to move forward in time: the coming days ride the top of the right loop and slide down into the crossing. **Swipe left** to go back; the days just past carry on round the lower-left loop. A swipe coasts and settles on a day.
+- The **arrows** beside the title step one day; **TODAY** glides home. With a keyboard: arrow keys, Page Up/Down (a week), T (today).
+- **Beads** are events, in their calendar's color; **diamonds** are key dates. Tap one of the focused day's beads (or a row in the list on the right) for details. Tap any other day to glide to it.
+- On the right: the focused day's events and key dates, and the next four key dates with a countdown.
+- Hidden calendars and ignored titles stay out, as on every screen.
+
 ## Daily use
 
 | Do | How |
@@ -279,6 +289,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 | Plan your day | **PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
 | Plan tomorrow | Go to tomorrow on Today (right arrow), then **PLAN** in the Priorities panel |
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
+| Scroll through time | **LOOM**. Swipe right for the future, left for the past; tap a bead for details |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
 | Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |

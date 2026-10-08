@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 · 2026-10-08
+- **TIME LOOM** (new screen, under LOG): your calendars and key dates on an infinity loop, with the focused day at the crossing. The coming days ride the top of the right loop; the days just past carry on round the lower left. **Swipe right to move forward**, left to go back; it coasts after a swipe and settles on a day. The arrows step a day and **TODAY** glides home.
+- Each day's events hang from it as beads in their calendar's color, and key dates sit below as diamonds. Days near the crossing are large and named; the rest shrink and fade round the loop. Weeks are shaded in turn along the thread.
+- Beside the loom: the focused day's events and key dates (tap one for its details), and the next four key dates with a countdown. Tapping one of today's beads on the loom opens that event; tapping any other day glides to it.
+- Hidden calendars and ignored titles stay out, as everywhere else. Moving a fortnight or more fetches the events around the new day.
+
 ## 2.5.6 · 2026-10-08
 - **Tidier side panel:** the empty block at the foot of the left panel is now the same height as the screen buttons above it; the SYSTEMS block takes up the rest of the space.
 
