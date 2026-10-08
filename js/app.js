@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.5.3";
+  var VERSION = "2.5.4";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2755,7 +2755,7 @@
     if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs bridge 1.6 and ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
     var pct = s ? Math.min(100, Math.round(s.usd / s.budget * 100)) : 0;
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter"><span style="width:' + pct + '%" class="' + (pct >= 90 ? "hot" : pct >= 60 ? "warm" : "") + '"></span></div><span class="tnum">$' + s.usd.toFixed(2) + " of $" + s.budget.toFixed(2) + " · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
-      "<dt>MODELS</dt><dd>Haiku 4.5 for questions · Sonnet 5.5 for THINK HARDER and weekly summaries</dd>" +
+      "<dt>MODELS</dt><dd>Haiku 5.5 for questions · Sonnet 5.5 for THINK HARDER and weekly summaries</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the budget above (AI_BUDGET_USD). Claude Console spend limit and prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd></dl>" +
       '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
     return html;

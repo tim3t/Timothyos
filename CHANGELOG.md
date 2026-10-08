@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.4 · 2026-10-08 (bridge 1.12.0)
+- **Ask runs on Claude Haiku 5.5** for everyday questions, at low effort: newer, better at following instructions and using the app's tools, with a 1M-token window, at about a tenth of Haiku 4.5's price ($0.10 / $0.50 per million tokens, against $1 / $5). THINK HARDER and summaries stay on Sonnet 5.5.
+- The bridge counts Haiku 5.5 at its own price in the monthly budget, leaves room for its brief thinking (answers up to 4,000 tokens), and sends none of the settings it rejects.
+- **compareModels** in the script editor asks five everyday questions of Haiku 4.5 and Haiku 5.5 (low and medium effort) with your real calendar and tasks, and logs answers, time and cost side by side. Nothing is changed; proposals are only listed.
+- **Switch back any time:** Script Property `AI_FAST_MODEL` = `claude-haiku-4-5`.
+
 ## 2.5.3 · 2026-10-08 (bridge 1.11.0)
 - **Steadier LOG.** Opening the log, reading a day and the list of written days now travel as plain GET requests (the access key and PIN in the address), the same way every calendar sync does. POST requests could lose their details on a Google redirect, which the bridge reported as "The access key doesn't match".
 - The bridge now tells apart a request that arrived **without** its key (`no_key`), a moment when Google's settings store didn't answer (`key_unreadable`), and a genuinely **wrong** key (`unauthorized`). The app retries the first two on its own, everywhere in the app; only a wrong key shows the access key message.

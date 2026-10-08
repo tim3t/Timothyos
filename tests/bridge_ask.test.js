@@ -46,17 +46,21 @@ assert.ok(get({ action: 'ping', key }).capabilities.includes('ask'));
 // a two-step answer: read tasks, then propose a task and answer
 const usage = { input_tokens: 3000, output_tokens: 200, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 script = [
-  { model: 'claude-haiku-4-5', stop_reason: 'tool_use', usage, content: [{ type: 'text', text: 'Checking.' }, { type: 'tool_use', id: 'tu1', name: 'get_tasks', input: { day: '2026-10-06' } }] },
-  { model: 'claude-haiku-4-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: '🌿 SkyGarden Farm', focus_day: '2026-10-06' } },
+  { model: 'claude-haiku-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-1' }, { type: 'text', text: 'Checking.' }, { type: 'tool_use', id: 'tu1', name: 'get_tasks', input: { day: '2026-10-06' } }] },
+  { model: 'claude-haiku-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: '🌿 SkyGarden Farm', focus_day: '2026-10-06' } },
     { type: 'tool_use', id: 'tu3', name: 'propose_set_focus', input: { task_id: 'a'.repeat(32), task_title: 'Order spring bulbs', day: '2026-10-06' } }] },
-  { model: 'claude-haiku-4-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Order spring bulbs first, Captain. It is overdue. I proposed picking it and adding a call to the co-op.' }] }
+  { model: 'claude-haiku-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-3' }, { type: 'text', text: 'Order spring bulbs first, Captain. It is overdue. I proposed picking it and adding a call to the co-op.' }] }
 ];
 const cid = 'ask-fixed-0001';
 const r1 = ask({ cid });
 console.log('reply:', r1.reply, '| proposals', JSON.stringify(r1.proposals), '| cost', r1.cost, '| spend', JSON.stringify(r1.spend));
 assert.ok(r1.ok); assert.strictEqual(r1.proposals.length, 2); assert.strictEqual(r1.proposals[0].kind, 'add_task');
 assert.strictEqual(sent.length, 3, 'three model calls');
-assert.strictEqual(sent[0].model, 'claude-haiku-4-5'); assert.ok(!sent[0].thinking && !sent[0].output_config, 'no thinking or effort on Haiku');
+assert.strictEqual(sent[0].model, 'claude-haiku-5-5', 'everyday questions on Haiku 5.5');
+assert.deepStrictEqual(sent[0].output_config, { effort: 'low' }, 'low effort'); assert.strictEqual(sent[0].max_tokens, 4000, 'room for thinking');
+assert.ok(!sent[0].thinking && !('temperature' in sent[0]) && !('top_p' in sent[0]) && !sent[0].fallbacks, 'no thinking budget, sampling or fallbacks (Haiku 5.5 rejects them)');
+assert.ok(!r1.reply.includes('sig-') && r1.reply.startsWith('Order spring bulbs'), 'reply read from text blocks, thinking skipped');
+assert.deepStrictEqual(sent[1].messages[1].content[0], { type: 'thinking', thinking: '', signature: 'sig-1' }, 'thinking block passed back unchanged with the tool results');
 assert.deepStrictEqual(sent[0].cache_control, { type: 'ephemeral' });
 assert.ok(sent[0].system[0].text.includes('never change anything directly'));
 assert.ok(sent[0].tools.every(t => !/work/i.test(t.name)) && !sent[0].tools.some(t => /web/.test(t.name)), 'no web tool, no work-calendar tool');
@@ -65,11 +69,18 @@ console.log('tool result sent back:', tr.content.split('\n').slice(0, 3).join(' 
 assert.ok(tr.content.includes('[' + 'a'.repeat(32) + '] Order spring bulbs'));
 assert.ok(sent[2].messages[4].content[0].content.includes('Nothing changes until he taps CONFIRM'));
 assert.strictEqual(anthropicHeaders[0]['x-api-key'], 'sk-ant-test'); assert.strictEqual(anthropicHeaders[0]['anthropic-version'], '2023-06-01');
-const expected = 3 * (3000 * 1 + 200 * 5) / 1e6;
-assert.ok(Math.abs(r1.cost - expected) < 1e-4, 'cost at Haiku prices');
+const expected = 3 * (3000 * 0.10 + 200 * 0.50) / 1e6;
+assert.ok(Math.abs(r1.cost - expected) < 1e-6, 'cost at Haiku 5.5 prices');
 // repeat with the same cid: no new model call
 const before = sent.length; const r1b = ask({ cid });
 assert.strictEqual(sent.length, before); assert.strictEqual(r1b.reply, r1.reply);
+// one Script Property switches everyday questions back to Haiku 4.5, without effort (it rejects it)
+props.AI_FAST_MODEL = 'claude-haiku-4-5'; sent = [];
+script = [{ model: 'claude-haiku-4-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+ask({ cid: 'ask-rollback-01' });
+assert.strictEqual(sent[0].model, 'claude-haiku-4-5'); assert.ok(!sent[0].output_config, 'no effort on Haiku 4.5');
+props.AI_FAST_MODEL = 'gpt-4'; sent = []; script = [{ model: 'claude-haiku-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+ask({ cid: 'ask-rollback-02' }); assert.strictEqual(sent[0].model, 'claude-haiku-5-5', 'unknown values ignored'); delete props.AI_FAST_MODEL;
 
 // deep mode: Sonnet 5.5, medium effort, server-side fallback; thinking blocks passed back unchanged
 sent = [];
@@ -124,4 +135,11 @@ props.AI_BUDGET_USD = '20'; assert.strictEqual(get({ action: 'aispend', key }).a
 props.AI_SPEND = JSON.stringify({ month: '2026-09', usd: 9.5, calls: 900 });
 assert.strictEqual(get({ action: 'aispend', key }).ai.usd, 0, 'a new month starts at zero');
 console.log('setup log with AI on:'); ctx.setup();
+// compareModels (editor): five questions on three setups, each request shaped for its model
+props.AI_SPEND = JSON.stringify({ month: '2026-10', usd: 0, calls: 0 }); sent = [];
+script = []; for (let i = 0; i < 15; i++) script.push(body => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify({ model: body.model, stop_reason: 'end_turn', usage: { input_tokens: 1500, output_tokens: 120 }, content: [{ type: 'text', text: 'Answer from ' + body.model }] }) }));
+ctx.compareModels();
+assert.strictEqual(sent.length, 15, 'fifteen model calls');
+assert.deepStrictEqual(sent.map(b => b.model + ':' + ((b.output_config || {}).effort || '-')).slice(0, 3), ['claude-haiku-4-5:-', 'claude-haiku-5-5:low', 'claude-haiku-5-5:medium']);
+assert.ok(sent.every(b => b.system[1].text.includes('use your tools')), 'editor run says the snapshot is missing');
 console.log('ALL ASK CHECKS PASSED');

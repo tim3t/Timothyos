@@ -206,7 +206,7 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 **How it works**
 - Each question goes with a snapshot of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your log line and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the bridge.
 - **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm calendar, once linked), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
-- **Models:** Haiku 4.5 by default (about 1 to 2¢ a question). **THINK HARDER** uses Sonnet 5.5 (about 3 to 5¢). **WRITE SUMMARY** on Review uses Sonnet 5.5.
+- **Models:** Haiku 5.5 by default, at low effort (well under 1¢ a question; Script Property `AI_FAST_MODEL` = `claude-haiku-4-5` switches back). To compare the two on your own data, select **compareModels** in the script editor and Run (about 2 to 8¢). **THINK HARDER** uses Sonnet 5.5 (about 3 to 5¢). **WRITE SUMMARY** on Review uses Sonnet 5.5.
 - **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far. At the budget the bridge stops calling Claude until the 1st.
 - **OPEN IN CLAUDE** copies the snapshot and opens the Claude app (your Pro plan) for longer conversations. If Claude opens empty, paste.
 - The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
