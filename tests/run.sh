@@ -66,6 +66,7 @@ run app_e2e20.test.js     # Ledger: YNAB figures, average spend, Replicator Queu
 run app_e2e22.test.js     # Captain's Log: PIN, calendar, write/autosave, edit, locks, import, kept out of Ask
 run app_e2e23.test.js     # Time Loom: swipe direction, taps, fetching ahead, layout
 run app_e2e24.test.js     # Stations (pins + ALL STATIONS), Habits, Library
+run app_e2e25.test.js     # NEEDS YOU on Systems: steps per error, jump tab, back to green
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

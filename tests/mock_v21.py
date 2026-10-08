@@ -149,7 +149,7 @@ for i in range(1, 60):
     d = (dt.date(2026, 10, 7) - dt.timedelta(days=i)).isoformat()
     if i % 13 == 0: continue                       # a few days never recorded
     HABITS[d] = {"date": d, "med": i % 5 != 0, "walk": i % 3 != 0, "water": [3, 2.5, 3.5, 2, 3][i % 5], "card": "swiped" if i % 4 == 0 else "kept"}
-HSETS = []; HFAIL = [0]
+HSETS = []; HFAIL = [0]; TFAIL = [0, "notion_busy"]
 BOOKS = [
   {"id": "bk1", "url": "https://www.notion.so/bk1", "title": "The Quiet Orchard", "author": "Ada Example", "status": "reading", "started": "2026-09-20", "finished": None, "rating": None, "notes": "", "cover": "", "ol": "", "year": 2019, "created": "2026-09-20T12:00:00Z"},
   {"id": "bk2", "url": "https://www.notion.so/bk2", "title": "Field Notes on Bees", "author": "Ben Sample", "status": "want", "started": None, "finished": None, "rating": None, "notes": "", "cover": "", "ol": "", "year": 2021, "created": "2026-09-01T12:00:00Z"},
@@ -175,6 +175,9 @@ class H(BaseHTTPRequestHandler):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
         elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "habits", "library"], "calendars": CALS}
         elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "habits", "library"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "tfail": TFAIL[0] = int(q.get("n", "1")); TFAIL[1] = q.get("code", "notion_busy"); body = {"ok": True}
+        elif q.get("action") == "tasks" and TFAIL[0] > 0:
+            TFAIL[0] -= 1; body = {"ok": False, "error": TFAIL[1]}
         elif q.get("action") == "tasks":
             d = q.get("day")
             body = {"ok": True, "version": "1.2.0", "day": d, "focus": [t for t in TASKS if t["focus"] == d], "open": sorted([t for t in TASKS if t["status"] != "✅ Done"], key=lambda t: t["due"] or "9999"), "areas": AREAS, "priorities": PRIS}

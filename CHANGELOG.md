@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.10.0 · 2026-10-08
+- **NEEDS YOU on Systems.** A Condition item that sends you to SYSTEMS (task list didn't load, sync failing, captures not saved) now opens on a card at the top saying what happened and the steps back to green, matched to the actual error: connect the database in Notion, check a key, redeploy, or simply try again. The first step is a button (**RETRY NOW**, **REFRESH NOW**, **SEND NOW**), and **DETAILS IN …** jumps to the section below.
+- **A tab on the right edge** (▲ 1 NEEDS YOU) appears once the card is scrolled away and brings you straight back to it.
+- **Fixed?** The card turns green, says whether anything else remains on the Bridge, and offers **BACK TO BRIDGE**. If a try doesn't work, it says so and points to the next step.
+
 ## 2.9.0 · 2026-10-08 (bridge 1.15.0)
 - **Ask now uses Sonnet; THINK HARDER uses Opus.** Questions go to Sonnet 5.5 at low effort (about 1 to 2¢ each), THINK HARDER to Opus 5.5 (about three times that), weekly summaries stay on Sonnet. Haiku is no longer used; `AI_FAST_MODEL` = `claude-haiku-5-5` brings it back.
 - **A reminder at $8, a ceiling at $10.** At $8 Ask pauses and offers **CONTINUE THIS MONTH**; one tap carries on until the Claude Console's own $10 limit stops it. The meter in SYSTEMS runs to $10 with a mark at the reminder.

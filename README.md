@@ -336,6 +336,8 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 
 ## Troubleshooting
 
+When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
+
 | Symptom | Fix |
 |---|---|
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |

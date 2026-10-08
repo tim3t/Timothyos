@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.9.0";
+  var VERSION = "2.10.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -138,6 +138,7 @@
     queue: lsGet(LS_QUEUE) || [],
     tasks: lsGet(LS_TASKS) || {},          /* { "2026-10-06": { fetched, focus, open, areas, priorities } } */
     tasksErr: null,
+    fixBusy: {}, fixSeen: false, fixFocus: null,
     tasksInflight: {},
     taskBusy: {},
     dates: lsGet(LS_DATES),                /* { fetched, dates, areas, types } */
@@ -476,8 +477,9 @@
   function hasFarm() { return LIVE.indexOf("farm") > -1; }
 
   /* ---------- Sync ---------- */
-  function setSync(status, error) {
-    state.sync = { status: status, at: status === "ok" ? Date.now() : state.sync.at, error: error || null };
+  function errCode(err) { return !err ? "" : err.name === "AbortError" ? "timeout" : navigator.onLine === false ? "offline" : isNetworkError(err) ? "network" : String(err.code || err.message || ""); }
+  function setSync(status, error, code) {
+    state.sync = { status: status, at: status === "ok" ? Date.now() : state.sync.at, error: error || null, code: code || null };
     lsSet(LS_SYNC, state.sync);
     renderStatus();
   }
@@ -516,7 +518,7 @@
         renderStatus();
         setTimeout(function () { refresh(true); }, 30000 * state.syncFails);
       } else {
-        setSync(isNetworkError(err) || offline ? "offline" : "error", describe(err));
+        setSync(isNetworkError(err) || offline ? "offline" : "error", describe(err), errCode(err));
       }
       if (state.screen === "systems") render(true);
     }).then(function () { delete state.inflight[k]; });
@@ -754,7 +756,7 @@
     var standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
     var pill = !c ? '<span class="pill bad">NOT LINKED</span>' : st.status === "error" ? '<span class="pill bad">ERROR</span>' :
       st.status === "offline" ? '<span class="pill">OFFLINE</span>' : '<span class="pill ok">LINKED</span>';
-    var html = '<div class="sys"><section>' + phead("CONNECTION", "") + '<dl class="kv">' +
+    var html = '<div class="sys">' + fixPanel() + '<section id="sec-conn">' + phead("CONNECTION", "") + '<dl class="kv">' +
       "<dt>STATUS</dt><dd>" + pill + (st.error && c ? ' <span class="muted">' + esc(st.error) + "</span>" : "") + "</dd>" +
       "<dt>BRIDGE URL</dt><dd>" + (c ? esc(maskUrl(c.url)) : '<span class="muted">Not set</span>') + "</dd>" +
       "<dt>ACCESS KEY</dt><dd>" + (c ? "•••• " + esc(c.key.slice(-4)) : '<span class="muted">Not set</span>') + "</dd>" +
@@ -805,6 +807,92 @@
   /* Recent bridge requests: how long each took and how it ended. */
   /* REFRESH NOW spins until every request it set off (and any retries) has finished, then says so. */
   var refreshing = false, refreshTimer = null, refreshDone = false;
+  /* ---------- NEEDS YOU: Condition items that are fixed here, each with its steps ---------- */
+  /* The Bridge's condition sends three kinds of trouble to Systems (task list, sync, captures).
+     Each gets a card at the top: what happened, what to do, a button that does the first step,
+     and a jump to the section below with the details. A right-edge tab brings you back. */
+  function fixSteps(code, retry) {
+    if (code === "unauthorized") return ["In Apps Script, run <b>setup</b> and copy the access key from the log.", "Here, tap <b>UNLINK</b> under CONNECTION, then link again with that key."];
+    if (code === "notion_not_shared") return ["In Notion, open the Master Task List, tap <b>•••</b> → <b>Connections</b>, and add <b>TimothyOS</b>.", "Come back and tap <b>" + retry + "</b>."];
+    if (code === "notion_unauthorized" || code === "notion_not_configured") return ["In Apps Script: <b>Project Settings → Script Properties</b>. Check <b>NOTION_TOKEN</b> is there and current.", "Tap <b>" + retry + "</b>."];
+    if (code === "unknown_action" || /^http_(40[0-3]|405)$/.test(code || "")) return ["The bridge is out of date or its deployment changed. Paste the latest Code.gs, run <b>setup</b>, then <b>Deploy → New version</b> (README: Update the bridge).", "Tap <b>" + retry + "</b>."];
+    if (code === "offline") return ["Check the iPad's Wi-Fi.", "Tap <b>" + retry + "</b> once you're back online."];
+    return ["Tap <b>" + retry + "</b>. Most of these clear on the next try.", "Still failing? Google or Notion is slow. Wait a few minutes; TimothyOS also retries on its own.", "Failing for an hour or more? Open <b>script.google.com → Executions</b> and look for red errors."];
+  }
+  function fixTickets() {
+    var now = new Date();
+    return conditions(now, ymd(now), eventsFor(bridgeRange())).filter(function (i) { return i.fix; }).map(function (i) {
+      var t = { id: i.fix, lvl: i.lvl, ic: i.ic, txt: i.txt, busy: !!state.fixBusy[i.fix] };
+      if (i.fix === "tasks") { t.why = esc(state.tasksErr.msg); t.btn = ["fixtasks", "RETRY NOW"]; t.steps = fixSteps(state.tasksErr.code, "RETRY NOW"); t.sec = ["sec-notion", "NOTION"]; }
+      else if (i.fix === "sync") { t.why = esc(state.sync.error || "The bridge hasn't answered."); t.btn = ["fixsync", "REFRESH NOW"]; t.steps = fixSteps(state.sync.code, "REFRESH NOW"); t.sec = ["sec-conn", "CONNECTION"]; }
+      else { t.why = i.sub; t.btn = ["fixqueue", "SEND NOW"]; t.sec = ["sec-capture", "CAPTURE"];
+        t.steps = ["Tap <b>SEND NOW</b> to try every waiting capture again.", "A capture that still fails shows the reason under CAPTURE. Fix it there, or <b>DISCARD</b> it and capture again."]; }
+      return t;
+    });
+  }
+  function fixPanel() {
+    var tk = fixTickets(), now = new Date();
+    if (tk.length) state.fixSeen = true;
+    if (!tk.length) {
+      if (!state.fixSeen) return "";
+      var left = conditions(now, ymd(now), eventsFor(bridgeRange())).length;
+      return '<section class="fix ok" id="fixPanel">' + phead("NEEDS YOU", "ALL FIXED", "ok") + '<div class="fix-card ok"><div class="fix-head"><span class="ic">●</span><b>' +
+        (left ? "Fixed here. " + left + (left === 1 ? " item remains" : " items remain") + " on the Bridge." : "Condition green. Nothing needs you here.") +
+        '</b></div><div class="btnrow"><button type="button" class="btn" data-act="fixdone">BACK TO BRIDGE</button></div></div></section>';
+    }
+    var others = conditions(now, ymd(now), eventsFor(bridgeRange())).length - tk.length;
+    return '<section class="fix" id="fixPanel">' + phead("NEEDS YOU", tk.length + (tk.length === 1 ? " ITEM" : " ITEMS") + " TO FIX HERE" + (others > 0 ? " · " + others + " MORE ON THE BRIDGE" : ""), tk.some(function (t) { return t.lvl === "bad"; }) ? "bad" : "warn") +
+      tk.map(function (t) {
+        return '<div class="fix-card ' + t.lvl + (state.fixFocus === t.id ? " focus" : "") + '" id="fix-' + t.id + '"><div class="fix-head"><span class="ic">' + t.ic + "</span><b>" + t.txt + '</b><span class="pill ' + (t.lvl === "bad" ? "bad" : "warn") + '">' + (t.lvl === "bad" ? "RED" : "YELLOW") + "</span></div>" +
+          '<p class="fix-why">' + t.why + '</p><div class="ov-sub">TO RETURN TO GREEN</div><ol class="fix-steps">' + t.steps.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>" +
+          '<div class="btnrow"><button type="button" class="btn' + (t.busy ? " busy" : "") + '" data-act="' + t.btn[0] + '"' + (t.busy ? ' aria-busy="true" disabled' : "") + ">" + (t.busy ? '<span class="spin" aria-hidden="true"></span>TRYING…' : t.btn[1]) + "</button>" +
+          '<button type="button" class="btn ghost" data-jump="' + t.sec[0] + '">DETAILS IN ' + t.sec[1] + " ↓</button></div></div>";
+      }).join("") + "</section>";
+  }
+  function fixRun(id, work, okMsg) {
+    state.fixBusy[id] = true; render(true);
+    Promise.resolve(work()).catch(function () { /* the card shows what's still wrong */ }).then(function () {
+      setTimeout(function () {
+        delete state.fixBusy[id];
+        var still = fixTickets().some(function (t) { return t.id === id; });
+        toast(still ? "Still not working. Try the next step." : okMsg);
+        render(true); fixJumpPaint();
+      }, 300);
+    });
+  }
+  function fixTasks() { fixRun("tasks", function () { return loadTasks(ymd(new Date()), true); }, "Task list loaded"); }
+  function fixSync() {
+    fixRun("sync", function () {
+      refresh(true);
+      return new Promise(function (res) { var n = 0, t = setInterval(function () { if (++n > 120 || (state.sync.status !== "syncing" && state.sync.status !== "retrying")) { clearInterval(t); res(); } }, 250); });
+    }, "Synced");
+  }
+  function fixQueue() {
+    fixRun("queue", function () {
+      state.queue.forEach(function (q) { if (q.failed || (q.attempts || 0) >= 2) { delete q.failed; q.attempts = 0; q.lastError = ""; } });
+      saveQueue(); flushQueue(true);
+      return new Promise(function (res) { var n = 0, t = setInterval(function () { if (++n > 120 || !state.flushing) { clearInterval(t); res(); } }, 250); });
+    }, "Captures saved");
+  }
+  function fixJump(id) {
+    var el = $(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
+    restartClass(el, "flash");
+  }
+  /* The right-edge tab: on Systems while something needs fixing and the panel is scrolled away. */
+  function fixJumpPaint() {
+    var b = $("fixJump");
+    if (!b) return;
+    var tk = state.screen === "systems" && state.conn ? fixTickets() : [], p = $("fixPanel");
+    var away = p && p.getBoundingClientRect().bottom < $("content").getBoundingClientRect().top + 40;
+    b.hidden = !tk.length || !away;
+    if (tk.length) {
+      b.className = "fix-jump " + (tk.some(function (t) { return t.lvl === "bad"; }) ? "bad" : "warn");
+      b.innerHTML = '<span aria-hidden="true">▲</span>' + tk.length + (tk.length === 1 ? " NEEDS" : " NEED") + " YOU";
+    }
+  }
+
   function refreshBtn() {
     return '<button type="button" class="btn' + (refreshing ? " busy" : refreshDone ? " done" : "") + '" id="refreshBtn" data-act="refresh"' + (refreshing ? ' aria-busy="true" disabled' : "") + ">" +
       (refreshing ? '<span class="spin" aria-hidden="true"></span>REFRESHING…' : refreshDone ? "SYNCED ✓" : "REFRESH NOW") + "</button>";
@@ -1040,7 +1128,7 @@
   }
 
   function captureSection() {
-    var html = "<section>" + phead("CAPTURE", canCreate() ? "SAVES TO PERSONAL" : "BRIDGE UPDATE NEEDED");
+    var html = '<section id="sec-capture">' + phead("CAPTURE", canCreate() ? "SAVES TO PERSONAL" : "BRIDGE UPDATE NEEDED");
     if (!canCreate()) {
       html += '<div class="stubbox"><span class="pill">UPDATE</span><span>Your bridge is version ' + esc(state.bridgeVersion || "1.0") +
         ". Capture needs bridge 1.1: paste the latest Code.gs, run <b>setup</b>, then deploy a new version. Steps are in the README.</span></div>";
@@ -1354,12 +1442,12 @@
     if (!force && have && Date.now() - have.fetched < TASKS_FRESH_MS) return;
     if (!force && state.tasksErr && Date.now() - state.tasksErr.at < FRESH_MS) return;
     state.tasksInflight[day] = true;
-    api({ action: "tasks", day: day }).then(function (j) {
+    return api({ action: "tasks", day: day }).then(function (j) {
       state.tasks[day] = { fetched: Date.now(), focus: j.focus || [], open: j.open || [], areas: j.areas || [], priorities: j.priorities || [] };
       state.tasksErr = null;
       saveTasks();
     }).catch(function (err) {
-      state.tasksErr = { at: Date.now(), msg: describeTasks(err) };
+      state.tasksErr = { at: Date.now(), msg: describeTasks(err), code: errCode(err) };
     }).then(function () {
       delete state.tasksInflight[day];
       if (plan && plan.day === day) renderPlan();
@@ -1422,7 +1510,7 @@
 
   function notionSection() {
     var data = state.tasks[ymd(new Date())];
-    var html = "<section>" + phead("NOTION", canPlan() ? "MASTER TASK LIST" : "NOT LINKED");
+    var html = '<section id="sec-notion">' + phead("NOTION", canPlan() ? "MASTER TASK LIST" : "NOT LINKED");
     if (!canPlan()) {
       html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need bridge 1.2 and a Notion key in its Script Properties. Steps are in the README under <b>Notion link</b>.</span></div>';
     } else if (state.tasksErr) {
@@ -1728,11 +1816,11 @@
     if (fr && fr.low <= 32) items.push({ lvl: "warn", ic: "▼", txt: "Frost tonight", sub: "Low " + Math.round(fr.low) + "°F around " + fr.at, act: "none", go: "" });
     var st = state.sync;
     if (state.conn && (st.status === "error" || st.status === "offline") && (!st.at || Date.now() - st.at > STALE_SYNC_MS)) {
-      items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", go: "SYSTEMS" });
+      items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", fix: "sync", go: "SYSTEMS" });
     }
     var stuck = state.queue.filter(function (q) { return q.failed || (q.attempts || 0) >= 2; });
-    if (stuck.length) items.push({ lvl: "warn", ic: "▲", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", go: "SYSTEMS" });
-    if (canPlan() && state.tasksErr && !data) items.push({ lvl: "warn", ic: "◌", txt: "Task list didn't load", sub: esc(state.tasksErr.msg), act: "systems", go: "SYSTEMS" });
+    if (stuck.length) items.push({ lvl: "warn", ic: "▲", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", fix: "queue", go: "SYSTEMS" });
+    if (canPlan() && state.tasksErr && !data) items.push({ lvl: "warn", ic: "◌", txt: "Task list didn't load", sub: esc(state.tasksErr.msg), act: "systems", fix: "tasks", go: "SYSTEMS" });
     items.sort(function (a, b) { return (a.lvl === "bad" ? 0 : 1) - (b.lvl === "bad" ? 0 : 1); });
     return items;
   }
@@ -1748,7 +1836,7 @@
       body = '<div class="ov-nominal"><b>ALL SYSTEMS NOMINAL</b><small>' + esc(facts.join(" · ")) + "</small></div>";
     } else {
       body = items.map(function (i) {
-        var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"';
+        var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"' + (i.fix ? ' data-fix="' + i.fix + '"' : "");
         return '<button type="button" class="ov-alert ' + i.lvl + '"' + attrs + '><span class="ic">' + i.ic + "</span><span class=\"tx\"><b>" + i.txt + "</b><small>" + i.sub + "</small></span>" +
           (i.go ? '<span class="go">' + i.go + "</span>" : "") + "</button>";
       }).join("");
@@ -4510,6 +4598,7 @@
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
     ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
+    fixJumpPaint();
     if (typing && $(typing.id)) {
       var el = $(typing.id);
       el.value = typing.value;
@@ -4526,12 +4615,14 @@
     if (screen === "loom" && state.screen !== "loom") { lm.t = calm() ? 0 : -5; lm.target = null; lm.vel = 0; lm.base = 0; }   /* arrive with a short glide into today */
     if (screen === "habits" && state.screen !== "habits" && !anchor) anchor = new Date();
     if (state.launch) openLaunch(false);
+    if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
     state.screen = screen;
     if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
     render(false);
     if (screen === "loom") lmGo(0);
     $("content").scrollTop = 0;
+    fixJumpPaint();
     enterScreen();
     refresh(false);
   }
@@ -4551,6 +4642,9 @@
     b.addEventListener("click", function () { go(b.dataset.screen, b.dataset.screen === "today" ? new Date() : null); });
   });
   $("status").addEventListener("click", function () { go("systems"); });
+  $("fixJump").addEventListener("click", function () { fixJump("fixPanel"); });
+  var fixRaf = 0;
+  $("content").addEventListener("scroll", function () { if (state.screen !== "systems" || fixRaf) return; fixRaf = requestAnimationFrame(function () { fixRaf = 0; fixJumpPaint(); }); }, { passive: true });
   $("prevBtn").addEventListener("click", function () { page(-1); });
   $("nextBtn").addEventListener("click", function () { page(1); });
   $("logBtn").addEventListener("click", function () { go("review"); });
@@ -4572,7 +4666,12 @@
     else if (b.dataset.act === "adddate") openCapture(null, null, "date");
     else if (b.dataset.kdf !== undefined) { state.kdFilter = b.dataset.kdf || null; render(false); }
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
-    else if (b.dataset.act === "systems") go("systems");
+    else if (b.dataset.act === "systems") { state.fixFocus = b.dataset.fix || null; go("systems"); if (state.fixFocus) setTimeout(function () { var c = $("fix-" + state.fixFocus); if (c) restartClass(c, "flash"); }, 350); }
+    else if (b.dataset.act === "fixtasks") fixTasks();
+    else if (b.dataset.act === "fixsync") fixSync();
+    else if (b.dataset.act === "fixqueue") fixQueue();
+    else if (b.dataset.act === "fixdone") go("bridge");
+    else if (b.dataset.jump) fixJump(b.dataset.jump);
     else if (b.dataset.act === "bearing") { state.wmShift++; render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
