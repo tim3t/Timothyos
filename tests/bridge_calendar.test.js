@@ -20,7 +20,7 @@ const work = { getName:()=>'Work', getTimeZone:()=>'America/Chicago', getId:()=>
 const ctx = {
   console: { log(){} },
   PropertiesService: { getScriptProperties: ()=>({ getProperty:k=>props[k]||null, setProperty:(k,v)=>{props[k]=v}, deleteProperty:k=>{delete props[k]} }) },
-  CacheService: { getScriptCache: ()=>({ get:k=>cache[k]||null, put:(k,v)=>{cache[k]=v} }) },
+  CacheService: { getScriptCache: ()=>({ get:k=>cache[k]||null, put:(k,v)=>{cache[k]=v}, remove:k=>{delete cache[k]} }) },
   ContentService: { MimeType:{JSON:'json'}, createTextOutput: t=>({ text:t, setMimeType(){ return this; } }) },
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
   Session: { getScriptTimeZone: ()=>'America/Chicago' },

@@ -58,7 +58,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.10.1';
+var VERSION = '1.11.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -86,7 +86,9 @@ function sources_() { return SOURCES.filter(function (src) { return !src.optiona
 function doGet(e) {
   var p = (e && e.parameter) || {};
   try {
-    if (!keyMatches_(p.key)) return json_({ ok: false, error: 'unauthorized' });
+    var refused = keyRefusal_(p.key);
+    if (refused) return json_({ ok: false, error: refused });
+    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
     if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
     if (p.action === 'aispend') return json_({ ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null });
     if (p.action === 'events') return json_(events_(Number(p.from), Number(p.to)));
@@ -108,7 +110,8 @@ function doPost(e) {
   var body;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return json_({ ok: false, error: 'bad_request' }); }
   try {
-    if (!keyMatches_(body.key)) return json_({ ok: false, error: 'unauthorized' });
+    var refusedP = keyRefusal_(body.key);
+    if (refusedP) return json_({ ok: false, error: refusedP });
     if (body.action === 'create') return json_(create_(body.item || {}));
     if (body.action === 'focus') return json_(setFocus_(body.id, body.day));
     if (body.action === 'status') return json_(setStatus_(body.id, body.status));
@@ -174,16 +177,24 @@ function rotateKey() {
 
 // ---- Internals -------------------------------------------------------------
 
-/** Read the key again if the properties store answers empty for a moment, rather than refuse a good request. */
-function keyMatches_(given) {
-  if (typeof given !== 'string' || !given) return false;
+/**
+ * null when the key matches; otherwise why not. The three refusals are told apart so the
+ * app can retry the two that aren't your fault:
+ *  - no_key: the request arrived without its details (Google can turn a POST into an
+ *    empty GET on a redirect), so the key never reached us;
+ *  - key_unreadable: Google's settings store answered empty for a moment;
+ *  - unauthorized: a key arrived and it's the wrong one.
+ */
+function keyRefusal_(given) {
+  if (typeof given !== 'string' || !given) return 'no_key';
   for (var i = 0; i < 3; i++) {
     var key = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-    if (key) return given === key;
-    if (i < 2) Utilities.sleep(250);
+    if (key) return given === key ? null : 'unauthorized';
+    if (i < 2) Utilities.sleep(300);
   }
-  return false;
+  return 'key_unreadable';
 }
+function keyMatches_(given) { return keyRefusal_(given) === null; }
 
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
@@ -910,8 +921,14 @@ function logPin_() {
   return /^\d{6}$/.test(p) ? p : '';
 }
 function logSource_() { return sourceFor_(CONFIG.NOTION_LOG_DATABASE, 'NOTION_LOG_SOURCE'); }
-function logGen_() { return CacheService.getScriptCache().get('lgen') || '0'; }
-function logTouched_() { CacheService.getScriptCache().put('lgen', String(Date.now()), 21600); }
+/** The list of written days is kept for 6 hours and updated in place when a day is added,
+    so opening the log rarely has to read all of Notion. setup() clears it. */
+function logDatesAdd_(days) {
+  var cache = CacheService.getScriptCache(), hit = cache.get('logdates');
+  if (!hit) return;
+  var seen = {}; JSON.parse(hit).concat(days).forEach(function (d) { seen[d] = true; });
+  try { cache.put('logdates', JSON.stringify(Object.keys(seen).sort()), 21600); } catch (x) { cache.remove('logdates'); }
+}
 
 /** PIN check with a lockout. Compares every digit so timing says nothing. */
 function logGate_(pin) {
@@ -973,7 +990,7 @@ function logFind_(ds, ymd) { return queryAll_(ds, { property: 'Date', date: { eq
 
 /** Every day that has an entry (no text), for the calendar. */
 function logDates_() {
-  var cache = CacheService.getScriptCache(), key = 'logdates:' + logGen_(), hit = cache.get(key);
+  var cache = CacheService.getScriptCache(), key = 'logdates', hit = cache.get(key);
   if (hit) return { ok: true, version: VERSION, dates: JSON.parse(hit) };
   var seen = {};
   queryAll_(logSource_(), null, 40, [{ property: 'Date', direction: 'ascending' }]).forEach(function (pg) {
@@ -1042,7 +1059,7 @@ function logSave_(ymd, text) {
       for (var x = j; x < old.length; x++) logNotion_('delete', '/blocks/' + old[x].id);
       if (j < paras.length) logAppend_(pg.id, paras.slice(j));
     }
-    logTouched_();
+    if (created) logDatesAdd_([ymd]);
     return { ok: true, version: VERSION, date: ymd, created: created, saved: new Date().toISOString() };
   } finally {
     lock.releaseLock();
@@ -1076,7 +1093,7 @@ function logImport_(entries) {
       have[e.date] = true;
       created.push(e.date);
     });
-    if (created.length) logTouched_();
+    if (created.length) logDatesAdd_(created);
     return { ok: true, version: VERSION, created: created, skipped: skipped };
   } finally {
     lock.releaseLock();
@@ -1084,6 +1101,7 @@ function logImport_(entries) {
 }
 
 function logStatus_() {
+  CacheService.getScriptCache().remove('logdates');
   var pin = logPin_() ? 'PIN set' : 'NO PIN: add LOG_PIN (6 digits) in Script Properties';
   try { var n = logDates_().dates.length; return 'OK (' + n + ' days written). ' + pin; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '') + '. ' + pin; }

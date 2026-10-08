@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.5.2";
+  var VERSION = "2.5.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -184,7 +184,9 @@
   var MAX_PARALLEL = 2;                 /* bridge requests at once; more just queue inside Google */
   function transient(err) {
     var code = err && err.code;
-    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "") || (!!err && err.name === "TypeError");
+    /* no_key: Google delivered the request without its details (a redirect turned it into an empty GET);
+       key_unreadable: Google's settings store answered empty for a moment. Neither is a wrong key. */
+    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "") || code === "no_key" || code === "key_unreadable" || code === "notion_busy" || (!!err && err.name === "TypeError");
   }
   /* iPadOS cuts off requests when the screen locks or you switch apps. */
   var lastHidden = 0;
@@ -278,6 +280,8 @@
   function describe(err) {
     var code = err && (err.code || err.message);
     if (code === "unauthorized") return "The access key doesn't match. Copy it again from the Apps Script log (run setup).";
+    if (code === "no_key") return "Google delivered the request without its details, even after retrying. Usually temporary; try again in a moment.";
+    if (code === "key_unreadable") return "Google's settings store didn't answer, even after retrying. Usually temporary; try again in a moment.";
     if (code === "server_error") return "The script hit an error: " + (err.detail || "unknown") + ".";
     if (code === "bad_json") return "Google sent an error page instead of data, even after retrying. Usually temporary. If it persists, check that the URL ends in /exec.";
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
@@ -3190,6 +3194,11 @@
   var logDrafts = lsGet(LS_LDRAFT) || {};
   function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
+  /* Reads go as GET (bridge 1.11): the key and PIN ride in the address, which survives Google's
+     redirects; a POST body sometimes doesn't. An older bridge only takes POST, so fall back. */
+  function logRead(params) {
+    return api(params).catch(function (err) { if (err && err.code === "unknown_action") return apiPost(params); throw err; });
+  }
   function logOpen() { return !!lg.pin; }
   function logDraftsSave() { lsSet(LS_LDRAFT, logDrafts); }
   /* The same paragraph rules the bridge uses, so "unchanged" means the same thing on both sides. */
@@ -3226,7 +3235,7 @@
   }
   function logUnlock(pin) {
     lg.busy = true; render(true);
-    apiPost({ action: "logunlock", pin: pin }).then(function (j) {
+    logRead({ action: "logunlock", pin: pin }).then(function (j) {
       if (state.screen !== "log") return;
       lg.pin = pin; lg.digits = ""; lg.dates = {};
       (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
@@ -3245,7 +3254,7 @@
     if (!lg.dates[d]) { lg.entries[d] = null; return; }
     var pin = lg.pin;
     lg.loading[d] = true; delete lg.err[d];
-    apiPost({ action: "logday", pin: pin, date: d }).then(function (j) {
+    logRead({ action: "logday", pin: pin, date: d }).then(function (j) {
       if (lg.pin !== pin) return;
       lg.entries[d] = j.entry ? { text: j.entry.text || "", url: j.entry.url || "", other: !!j.entry.other, saved: j.entry.saved } : null;
     }).catch(function (err) {
@@ -3393,7 +3402,7 @@
       var left = impLeft(imp);
       if (!left.length) {
         imp.stage = "done";
-        return apiPost({ action: "logdates", pin: pin }).then(function (j) {
+        return logRead({ action: "logdates", pin: pin }).then(function (j) {
           if (lg.pin !== pin) return;
           lg.dates = {}; (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
           lg.entries = {};

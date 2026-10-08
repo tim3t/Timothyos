@@ -55,7 +55,9 @@ assert.strictEqual(post({ action: 'logunlock', pin: '123456' }).error, 'log_pin_
 props.LOG_PIN = '204816';
 assert.ok(ping().capabilities.includes('logpin'));
 // Access key still required.
-assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: 'logunlock', pin: '204816' }) } }).text).error, 'unauthorized');
+assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: 'logunlock', pin: '204816' }) } }).text).error, 'no_key', 'a request that lost its details says so');
+assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: 'x'.repeat(64), action: 'logunlock', pin: '204816' }) } }).text).error, 'unauthorized', 'a wrong key is refused');
+assert.strictEqual(JSON.parse(ctx.doGet({ parameter: {} }).text).error, 'no_key', 'a POST turned into an empty GET is recognisable');
 // Wrong PIN counts down, right PIN resets.
 let r = post({ action: 'logunlock', pin: '111111' }); assert.strictEqual(r.error, 'bad_pin'); assert.strictEqual(r.left, 4);
 r = post({ action: 'logday', pin: '20481', date: '2026-10-07' }); assert.strictEqual(r.error, 'bad_pin'); assert.strictEqual(r.left, 3);
@@ -125,5 +127,16 @@ const askPart = src.slice(src.indexOf('// ---- Ask Claude'));
 assert.ok(!/log(Day|Dates|Save|Import|Blocks|Source)_/.test(askPart), 'Ask code never calls the log');
 // The properties store answering empty for a moment doesn't turn a good key away.
 blip = 1; assert.ok(post({ action: 'logdates', pin }).ok, 'momentary empty read retried');
-blip = 5; assert.strictEqual(post({ action: 'logdates', pin }).error, 'unauthorized', 'a lasting gap still refuses'); blip = 0;
+blip = 5; assert.strictEqual(post({ action: 'logdates', pin }).error, 'key_unreadable', 'a lasting gap is reported as such'); blip = 0;
+// Reads also work as GET (the key and PIN in the address survive a redirect).
+const getL = q => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, q) }).text);
+assert.strictEqual(getL({ action: 'logday', pin, date: '2025-11-13' }).entry.text, 'First page.\n\nSecond paragraph.');
+assert.ok(getL({ action: 'logunlock', pin }).dates.includes('2026-10-07'));
+assert.strictEqual(getL({ action: 'logday', pin: '999999', date: '2025-11-13' }).error, 'bad_pin');
+delete cache.logfail;
+// The list of written days stays cached across saves and picks up new days in place.
+const before = calls.length; getL({ action: 'logdates', pin });
+assert.strictEqual(calls.slice(before).filter(c => /query/.test(c)).length, 0, 'served from cache');
+post({ action: 'logsave', pin, date: '2026-10-11', text: 'A new day.' });
+const b2 = calls.length; assert.ok(getL({ action: 'logdates', pin }).dates.includes('2026-10-11')); assert.strictEqual(calls.slice(b2).filter(c => /query/.test(c)).length, 0);
 console.log('bridge log: all checks passed');

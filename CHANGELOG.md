@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.3 · 2026-10-08 (bridge 1.11.0)
+- **Steadier LOG.** Opening the log, reading a day and the list of written days now travel as plain GET requests (the access key and PIN in the address), the same way every calendar sync does. POST requests could lose their details on a Google redirect, which the bridge reported as "The access key doesn't match".
+- The bridge now tells apart a request that arrived **without** its key (`no_key`), a moment when Google's settings store didn't answer (`key_unreadable`), and a genuinely **wrong** key (`unauthorized`). The app retries the first two on its own, everywhere in the app; only a wrong key shows the access key message.
+- Opening the log is faster: the list of written days is kept by the bridge for 6 hours and updated in place when you write a new day, instead of being re-read from Notion after every save.
+
 ## 2.5.2 · 2026-10-08
 - **LOG, jump to a month:** tap the month name above the calendar. Pick a year (from your first entry to now), then a month; a dot marks months you wrote in, and months still ahead are closed. Tap the name again to close it.
 - **LOG, saving shows:** when a save lands, the bar beside the day's name fills left to right and fades, and the status flashes. Tapping SAVE also reads **SAVED ✓** for a moment. Autosave (5 seconds after you stop typing) shows the same small bar, without stealing the keyboard or the caret.

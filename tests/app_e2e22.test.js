@@ -69,8 +69,11 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   assert.ok((await stats()).log['2026-10-07'].endsWith('Open door: yes'));
 
   // an earlier day: read, edit, save
-  await p.click('[data-lday="2026-10-05"]'); await p.waitForTimeout(700);
+  // Google refusing twice in a row (a request that lost its details): retried quietly, the page still opens
+  await fetch('http://127.0.0.1:8101/x/exec?action=nokey&n=2&key=' + K);
+  await p.click('[data-lday="2026-10-05"]'); await p.waitForTimeout(3500);
   assert.strictEqual(await p.inputValue('#clText-2026-10-05'), 'Planted the garlic.\n\nQuiet evening.');
+  assert.ok((await stats()).logvia.includes('GET logday') && (await stats()).logvia.includes('GET logunlock'), 'reads go as GET');
   assert.ok((await txt(p, '.cl-page')).startsWith('MONDAY'));
   await p.fill('#clText-2026-10-05', 'Planted the garlic. Two beds.\n\nQuiet evening.');
   await p.dispatchEvent('#clText-2026-10-05', 'input');

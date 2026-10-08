@@ -24,7 +24,7 @@ function fetchMock(url, opts) {
 const ctx = {
   console: { log: (...a) => console.log('   log:', ...a) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
   Utilities: { getUuid: () => require('crypto').randomUUID(), formatDate: (d, tz, f) => f === 'yyyy-MM' ? '2026-10' : d.toISOString().slice(0, 16).replace('T', ' '), parseDate: s => new Date(s + 'T05:00:00Z') },
   Session: { getScriptTimeZone: () => 'America/Chicago' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -111,7 +111,7 @@ assert.strictEqual(ask().error, 'ai_console_limit');
 script = [() => ({ getResponseCode: () => 529, getContentText: () => JSON.stringify({ error: { message: 'Overloaded' } }) })];
 assert.strictEqual(ask().error, 'ai_busy');
 assert.strictEqual(ask({ messages: [{ role: 'assistant', text: 'hi' }] }).error, 'bad_request');
-assert.strictEqual(post({ action: 'ask', cid: 'ask-nokey-01', messages: [{ role: 'user', text: 'x' }] }).error, 'unauthorized');
+assert.strictEqual(post({ action: 'ask', cid: 'ask-nokey-01', messages: [{ role: 'user', text: 'x' }] }).error, 'no_key', 'refused without a key');
 
 // budget: pause at the monthly limit without calling the model
 props.AI_SPEND = JSON.stringify({ month: '2026-10', usd: 7.999, calls: 400 });

@@ -44,11 +44,13 @@ Current versions: **app 2.0.0**, **bridge 1.6.0**.
 | POST | `queueadd` `item{cid,title,cost,note,link}` | new Replicator Queue item at the bottom | cid cache 6 h |
 | POST | `queueorder` `ids[]` | sets Priority 10, 20, 30… top to bottom | only ids in the queue; unchanged ones aren't written |
 | POST | `queuebought` `id` `day\|null` | marks bought, or undoes it | only queue items |
-| POST | `logunlock` / `logdates` `pin` | every day with an entry (`dates[]`, no text) | all `log*` actions need `pin` = Script Property `LOG_PIN`; 5 misses → `log_locked` 15 min; `bad_pin` carries `left` |
-| POST | `logday` `pin` `date` | `entry{id,url,text,saved,other}` or null | text = paragraph blocks joined by blank lines; `other` = page holds blocks the LOG can't show |
+| GET (or POST) | `logunlock` / `logdates` `pin` | every day with an entry (`dates[]`, no text) | all `log*` actions need `pin` = Script Property `LOG_PIN`; 5 misses → `log_locked` 15 min; `bad_pin` carries `left` |
+| GET (or POST) | `logday` `pin` `date` | `entry{id,url,text,saved,other}` or null | text = paragraph blocks joined by blank lines; `other` = page holds blocks the LOG can't show |
 | POST | `logsave` `pin` `date` `text` | create (Source Bridge) or update in place | unchanged paragraphs untouched; changed ones patched, extra ones deleted; `log_edit_in_notion` if `other` |
 | POST | `logimport` `pin` `entries[≤10]{date,text}` | new pages (Source Diary import) | days that already have a page skipped, so resending is safe |
 | POST | `ask` `{cid, mode: fast\|deep\|summary\|patterns, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
+
+Key refusals are distinct: `no_key` (request arrived without its details; a POST can become an empty GET on a Google redirect), `key_unreadable` (settings store answered empty), `unauthorized` (wrong key). The app's `transient()` retries the first two. Log reads go as GET via `logRead()` (falls back to POST on `unknown_action`). The written-days list is cached 6 h under `logdates` and updated in place by `logDatesAdd_()`; setup clears it.
 
 Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`, `reviewlog` and `queue` (once `NOTION_TOKEN` is set), `log` (with `NOTION_TOKEN`), `logpin` (once `LOG_PIN` is set), `ledger` (once `YNAB_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 

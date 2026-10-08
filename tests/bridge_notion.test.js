@@ -61,7 +61,7 @@ function notionMock(url, opts) {
 const ctx = {
   console: { log: (...a) => console.log('   log:', ...a) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
   Utilities: { getUuid: () => require('crypto').randomUUID(), formatDate: d => d.toISOString().slice(0, 10), parseDate: s => new Date(s + 'T05:00:00Z') },
   Session: { getScriptTimeZone: () => 'America/Chicago' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
@@ -142,7 +142,7 @@ const s2 = post({ key, action: 'savereview', review: Object.assign({}, R, { next
 assert.ok(s2.ok && !s2.created, 'second save updates the same page'); assert.strictEqual(rpages.length, 1);
 assert.strictEqual(get(W).review.nextFocus, 'Hive winter prep, then rest', 'week returns the saved review (cache refreshed)');
 assert.strictEqual(post({ key, action: 'savereview', review: { week: 'oops' } }).error, 'bad_request');
-assert.strictEqual(post({ action: 'savereview', review: R }).error, 'unauthorized');
+assert.strictEqual(post({ action: 'savereview', review: R }).error, 'no_key', 'refused without a key');
 assert.ok(get({ action: 'ping', key }).capabilities.includes('reviews') && get({ action: 'ping', key }).capabilities.includes('reviewlog'));
 post({ key, action: 'savereview', review: { week: '2026-09-28', title: 'Week 40', wentWell: 'Quiet week', hoursWork: 30 } });
 const list = get({ action: 'reviews', key });
