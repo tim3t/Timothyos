@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.5.6 · 2026-10-08
+- **Tidier side panel:** the empty block at the foot of the left panel is now the same height as the screen buttons above it; the SYSTEMS block takes up the rest of the space.
+
 ## 2.5.5 · 2026-10-08 (bridge 1.13.0)
 - **REFRESH NOW shows it's working:** a turning ring and REFRESHING… until every request it started (and any retries) has finished, then SYNCED ✓ for a moment.
 - **Fewer of Google's lost answers:** reads asked for at the same moment, such as on returning to the app, now travel together as one request (shown as SYNC in Systems), so Google runs one execution instead of five. Google's servers sometimes run a request and then lose the answer (HTTP 404); five requests at once made that far more likely. Each read still answers on its own. An older bridge gets them one at a time as before.

@@ -217,11 +217,11 @@ h1 {
 }
 .nav small { font-size: 11px; letter-spacing: .2em; font-weight: 400; }
 .nav[aria-current="page"] { background: var(--fg); }
-.fill { flex: 1; min-height: 40px; background: var(--chrome-c); }   /* never a thin sliver above SYSTEMS */
+.fill { flex: 0 1 auto; height: 62px; min-height: 40px; background: var(--chrome-c); }   /* the same size as a screen button; SYSTEMS takes what's left */
 .status {
   border: 0;
-  flex: none;
-  min-height: 92px;
+  flex: 1 0 auto;
+  min-height: 70px;
   background: var(--chrome-a);
   border-bottom-left-radius: 72px 56px;
   color: var(--ink);
