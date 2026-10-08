@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.2 · 2026-10-08
+- **LOG, jump to a month:** tap the month name above the calendar. Pick a year (from your first entry to now), then a month; a dot marks months you wrote in, and months still ahead are closed. Tap the name again to close it.
+- **LOG, saving shows:** when a save lands, the bar beside the day's name fills left to right and fades, and the status flashes. Tapping SAVE also reads **SAVED ✓** for a moment. Autosave (5 seconds after you stop typing) shows the same small bar, without stealing the keyboard or the caret.
+
 ## 2.5.1 · 2026-10-07 (bridge 1.10.1 optional)
 - **Import that finishes on its own:** a request that doesn't go through is retried automatically with growing pauses (10 s up to 2 min), and the screen says so. Only a PIN or setup problem stops it.
 - **True progress:** IMPORT shows **IN NOTION: X of 278 · N to go**, counted from the days Notion actually holds. Pasting the same export again sends only what's left (**IMPORT THE N LEFT**).

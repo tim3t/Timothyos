@@ -966,6 +966,24 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .cl-day.today { color: var(--chrome-c); font-weight: 700; }
 .cl-day[aria-current="date"] { background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--chrome-c); }
 .cl-row { margin-top: 14px; }
+.cl-title { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border: 0; border-radius: 24px; background: transparent; font-family: var(--display); font-size: var(--t-title); letter-spacing: var(--ls-label); font-weight: 600; cursor: pointer; }
+.cl-title .tri { color: var(--chrome-c); }
+.cl-title:active, .cl-title[aria-expanded="true"] { background: var(--panel-2); }
+.cl-pick { display: grid; gap: 14px; }
+.cl-years { display: flex; gap: 8px; flex-wrap: wrap; --c: var(--chrome-c); }
+.cl-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.cl-mo { position: relative; min-height: 56px; border: 2px solid var(--line); border-radius: 28px; background: transparent; font-family: var(--display); font-size: var(--t-sub); letter-spacing: var(--ls-label); cursor: pointer; }
+.cl-mo:disabled { opacity: .25; cursor: default; }
+.cl-mo.has::after { content: ""; position: absolute; left: 50%; bottom: 7px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--chrome-c); }
+.cl-mo[aria-current="date"] { border-color: var(--chrome-c); color: var(--chrome-c); }
+.cl-mo:not(:disabled):active { background: var(--chrome-c); color: var(--ink); }
+/* a save landing: the bar fills left to right and fades; the status flashes; SAVE reads SAVED ✓ */
+.cl-page .phead .rule { position: relative; overflow: hidden; }
+@keyframes clFill { 0% { transform: scaleX(0); opacity: 1; } 55% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+.cl-page .phead .rule.swept::after { content: ""; position: absolute; inset: 0; background: var(--chrome-c); border-radius: inherit; transform-origin: left; animation: clFill 900ms var(--ease-out) both; }
+@keyframes clOk { from { color: var(--chrome-c); } }
+#clStatus.ok { animation: clOk 1200ms var(--ease-out); }
+.btn.saved { background: var(--chrome-c); animation: pop 300ms var(--ease-out); }
 .cl-intent { display: flex; gap: 12px; align-items: baseline; color: var(--dim); margin: 2px 0 12px; font-size: var(--t-sub); }
 .cl-intent span { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--chrome-c); }
 .cl-text { display: block; width: 100%; min-height: 320px; resize: none; overflow: hidden; font-size: var(--t-body); line-height: 1.6; padding: 16px 18px; }

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.5.1";
+  var VERSION = "2.5.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3188,7 +3188,7 @@
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null }; }
+  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
   function logOpen() { return !!lg.pin; }
   function logDraftsSave() { lsSet(LS_LDRAFT, logDrafts); }
@@ -3291,7 +3291,10 @@
       mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: norm, saved: j.saved || new Date().toISOString() });
       if (mine.dates) { if (norm) mine.dates[d] = true; else delete mine.dates[d]; }
       mine.saveErr = null;
+      if (lg === mine && mine.day === d) logSavedFx(mine.manual);
+      mine.manual = false;
     }).catch(function (err) {
+      mine.manual = false;
       if (err.code === "log_edit_in_notion") {
         mine.saveErr = "This page holds things the LOG can't show (a photo or table, say), so it's edited in Notion only. Your text here is kept on this iPad.";
         return;
@@ -3303,10 +3306,23 @@
       mine.saving = false;
       if (lg !== mine) return;
       logStatus();
-      if (state.screen === "log" && !(document.activeElement && /^clText-/.test(document.activeElement.id))) render(true);
+      var cell = document.querySelector('[data-lday="' + d + '"]');   /* update in place so the save animation and the caret survive */
+      if (cell && mine.dates) cell.classList.toggle("has", !!mine.dates[d] || !!logDrafts[d]);
+      var er = $("clErr"); if (er) er.textContent = mine.saveErr || "";
       var more = Object.keys(logDrafts).some(function (k) { return k !== d || logDrafts[k].text !== text; });
       if ((mine.again || more) && !mine.saveErr) { mine.again = false; logSave(pin); }
     });
+  }
+  /* A save landing: the page's bar fills left to right and the status flashes. SAVE
+     itself also reads SAVED ✓ for a moment. Done in place, never by redrawing, so the
+     keyboard and caret stay where they are. */
+  function logSavedFx(manual) {
+    var bar = document.querySelector(".cl-page .phead .rule"), st = $("clStatus"), btn = document.querySelector('[data-lact="save"]');
+    restartClass(bar, "swept"); restartClass(st, "ok");
+    if (manual && btn) {
+      btn.textContent = "SAVED ✓"; restartClass(btn, "saved");
+      setTimeout(function () { if (btn.isConnected) { btn.textContent = "SAVE"; btn.classList.remove("saved"); } }, 1600);
+    }
   }
   function logInsertBearings() {
     var d = lg.day, ta = $("clText-" + d), words = bearings();
@@ -3452,9 +3468,10 @@
     }
     var thisMo = mo.getFullYear() === new Date().getFullYear() && mo.getMonth() === new Date().getMonth();
     html += '<section class="cl-cal">' + phead("CAPTAIN'S LOG", "OPEN", "chrome-c") +
-      '<div class="cl-mon"><button type="button" class="chip" data-lmon="-1" aria-label="Previous month"><span class="tri l"></span></button><b>' + MONL[mo.getMonth()] + " " + mo.getFullYear() +
-      '</b><button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
-      '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>" +
+      '<div class="cl-mon"><button type="button" class="chip" data-lmon="-1" aria-label="Previous month"' + (lg.pick ? " disabled" : "") + '><span class="tri l"></span></button>' +
+      '<button type="button" class="cl-title" data-lact="pick" aria-expanded="' + lg.pick + '" aria-label="Jump to a month">' + MONL[mo.getMonth()] + " " + mo.getFullYear() + '<span class="tri ' + (lg.pick ? "u" : "d") + '"></span></button>' +
+      '<button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo || lg.pick ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
+      (lg.pick ? logPickerHtml() : '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>") +
       '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
       '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button></div></section>';
     html += '<section class="cl-page">';
@@ -3477,6 +3494,19 @@
     }
     $("content").innerHTML = html + "</section></div>";
     growLog($("clText-" + lg.day));
+  }
+  /* Jump to a month: years you've written in, then the twelve months of the chosen one.
+     A dot marks months with entries; months still ahead are closed. */
+  function logPickerHtml() {
+    var now = new Date(), cy = now.getFullYear(), have = {}, first = cy;
+    Object.keys(lg.dates || {}).forEach(function (d) { have[d.slice(0, 7)] = true; first = Math.min(first, +d.slice(0, 4)); });
+    var y = lg.pickYear || lg.month.getFullYear(), years = "";
+    for (var yy = first; yy <= cy; yy++) years += '<button type="button" class="chip" data-lyear="' + yy + '" aria-pressed="' + (yy === y) + '">' + yy + "</button>";
+    var months = MON.map(function (m, i) {
+      var key = y + "-" + p2(i + 1), ahead = y > cy || (y === cy && i > now.getMonth()), cur = y === lg.month.getFullYear() && i === lg.month.getMonth();
+      return '<button type="button" class="cl-mo' + (have[key] ? " has" : "") + '"' + (cur ? ' aria-current="date"' : "") + (ahead ? " disabled" : ' data-ljump="' + key + '"') + ' aria-label="' + MONL[i] + " " + y + (have[key] ? ", written" : "") + '">' + m + "</button>";
+    }).join("");
+    return '<div class="cl-pick"><div class="chips cl-years">' + years + '</div><div class="cl-months">' + months + "</div></div>";
   }
   function logSection() {
     var html = "<section>" + phead("CAPTAIN'S LOG", canLog() ? "PIN-LOCKED" : "SETUP");
@@ -3608,12 +3638,15 @@
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
     else if (b.dataset.lpin) logPress(b.dataset.lpin);
     else if (b.dataset.lday) logPick(b.dataset.lday);
+    else if (b.dataset.lyear) { lg.pickYear = +b.dataset.lyear; render(true); }
+    else if (b.dataset.ljump) { var jp = b.dataset.ljump.split("-"); lg.month = new Date(+jp[0], +jp[1] - 1, 1); lg.pick = false; lg.pickYear = null; render(true); enterScreen(); }
     else if (b.dataset.lmon) { lg.month = new Date(lg.month.getFullYear(), lg.month.getMonth() + +b.dataset.lmon, 1); render(true); enterScreen(); }
     else if (b.dataset.lact) {
       var la = b.dataset.lact;
       if (la === "lock") { lockLog(); render(false); }
+      else if (la === "pick") { lg.pick = !lg.pick; lg.pickYear = null; render(true); }
       else if (la === "today") { lg.month = som(new Date()); logPick(ymd(new Date())); }
-      else if (la === "save") { if (lg.timer) { clearTimeout(lg.timer); lg.timer = null; } if (logDrafts[lg.day]) logSave(lg.pin); else toast("Already saved"); }
+      else if (la === "save") { if (lg.timer) { clearTimeout(lg.timer); lg.timer = null; } if (logDrafts[lg.day]) { lg.manual = true; logSave(lg.pin); } else { logSavedFx(true); toast("Already saved"); } }
       else if (la === "bearings") logInsertBearings();
       else if (la === "retry") { delete lg.err[lg.day]; loadLogDay(lg.day); render(true); }
       else if (la === "import") { lg.imp = { stage: "paste", entries: [], notes: [], have: {}, created: 0, fails: 0, retryAt: 0, err: null }; render(true); }

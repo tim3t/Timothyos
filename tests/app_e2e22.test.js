@@ -74,8 +74,14 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   assert.ok((await txt(p, '.cl-page')).startsWith('MONDAY'));
   await p.fill('#clText-2026-10-05', 'Planted the garlic. Two beds.\n\nQuiet evening.');
   await p.dispatchEvent('#clText-2026-10-05', 'input');
-  await p.click('[data-lact="save"]'); await p.waitForTimeout(800);
+  await p.click('[data-lact="save"]'); await p.waitForTimeout(500);
   assert.strictEqual((await stats()).log['2026-10-05'], 'Planted the garlic. Two beds.\n\nQuiet evening.');
+  // the save shows: the bar fills, the status flashes, SAVE reads SAVED for a moment
+  assert.ok(await p.evaluate(() => document.querySelector('.cl-page .phead .rule').classList.contains('swept')));
+  assert.ok(await p.evaluate(() => document.getElementById('clStatus').classList.contains('ok')));
+  assert.strictEqual(await p.textContent('[data-lact="save"]'), 'SAVED ✓');
+  await p.waitForTimeout(1800);
+  assert.strictEqual(await p.textContent('[data-lact="save"]'), 'SAVE');
   // a page with a photo added in Notion: read here, change it in Notion
   await p.click('[data-lday="2026-10-01"]'); await p.waitForTimeout(700);
   assert.ok(await p.getAttribute('#clText-2026-10-01', 'readonly') !== null);
@@ -87,6 +93,20 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.click('[data-lday="2026-09-14"]'); await p.waitForTimeout(700);
   assert.strictEqual(await p.inputValue('#clText-2026-09-14'), 'A September page.');
   await p.screenshot({ path: D + 'e2e22_open.png' });
+  // jump to a month: tap the month name, pick a year and a month
+  await p.click('[data-lact="pick"]'); await p.waitForTimeout(200);
+  assert.deepStrictEqual(await p.$$eval('[data-lyear]', b => b.map(x => x.textContent)), ['2025', '2026'], 'years with writing through now');
+  assert.ok(await p.isDisabled('.cl-mo >> text="NOV"'), 'months ahead closed');
+  assert.ok((await p.getAttribute('[data-ljump="2026-10"]', 'class')).includes('has'));
+  await p.screenshot({ path: D + 'e2e22_pick.png' });
+  await p.click('[data-lyear="2025"]');
+  assert.ok((await p.getAttribute('[data-ljump="2025-11"]', 'class')).includes('has'));
+  assert.ok(!(await p.getAttribute('[data-ljump="2025-03"]', 'class')).includes('has'));
+  await p.click('[data-ljump="2025-11"]'); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '.cl-mon')).includes('NOVEMBER 2025'));
+  assert.ok((await p.getAttribute('[data-lday="2025-11-13"]', 'class')).includes('has'));
+  await p.click('[data-lday="2025-11-13"]'); await p.waitForTimeout(700);
+  assert.strictEqual(await p.inputValue('#clText-2025-11-13'), 'The very first page.');
 
   // leaving LOG locks it and drops the text; nothing written stays on the iPad
   await p.click('[data-screen="today"].nav'); await p.waitForTimeout(400);
