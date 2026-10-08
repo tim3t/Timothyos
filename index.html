@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.6.0">
+<link rel="stylesheet" href="css/app.css?v=2.7.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.6</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
+    <div class="topbar"><span>TIMOTHYOS 2.7</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -42,18 +42,12 @@
   </header>
   <nav class="side" aria-label="Screens">
     <button class="nav navbridge" data-screen="bridge" style="--c: var(--chrome-a)" type="button">BRIDGE</button>
-    <button class="nav" data-screen="today" style="--c: var(--chrome-b)" type="button">TODAY</button>
-    <button class="nav" data-screen="week" style="--c: var(--chrome-a)" type="button">WEEK</button>
-    <button class="nav" data-screen="month" style="--c: var(--chrome-b)" type="button">MONTH</button>
-    <button class="nav" data-screen="dates" style="--c: var(--chrome-c)" type="button">DATES</button>
-    <button class="nav" data-screen="review" style="--c: var(--chrome-b)" type="button">REVIEW</button>
-    <button class="nav" data-screen="ledger" style="--c: var(--chrome-a)" type="button">LEDGER</button>
-    <button class="nav" data-screen="log" style="--c: var(--chrome-c)" type="button">LOG</button>
-    <button class="nav" data-screen="loom" style="--c: var(--chrome-b)" type="button">LOOM</button>
-    <div class="fill" aria-hidden="true"></div>
+    <div class="pins" id="pins"></div>
+    <button class="nav st-all" id="allBtn" type="button" aria-expanded="false"></button>
     <button class="status" id="status" type="button" aria-label="Sync status. Opens Systems."></button>
   </nav>
   <main class="content" id="content"></main>
+  <section class="launch" id="launch" aria-label="All stations" hidden></section>
 </div>
 
 <div class="scrim capscrim" id="capScrim" hidden>
@@ -140,6 +134,6 @@
   <span class="sb-hint">TAP ANYWHERE TO WAKE</span>
 </div>
 
-<script src="js/app.js?v=2.6.0"></script>
+<script src="js/app.js?v=2.7.0"></script>
 </body>
 </html>

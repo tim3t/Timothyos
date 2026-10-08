@@ -23,9 +23,9 @@ function place(d, W, H) {
   await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"today"'); }, conn(8101));
   await p.reload(); await p.waitForTimeout(1500);
 
-  // the button sits right under LOG
-  const navs = await p.$$eval('.side .nav', bs => bs.map(x => x.textContent.trim()));
-  assert.deepStrictEqual(navs.slice(-2), ['LOG', 'LOOM']);
+  // LOOM is in the bar by default (2.7 pins)
+  const navs = await p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim()));
+  assert.ok(navs.includes('LOOM') && navs.indexOf('LOOM') < navs.indexOf('LOG'), 'LOOM is pinned by default');
   await p.click('[data-screen="loom"].nav'); await p.waitForTimeout(1800);
   assert.strictEqual(await p.textContent('#title'), 'WED 07 OCT');
   assert.ok((await p.textContent('#eyebrow')).startsWith('TIME LOOM · TODAY'));

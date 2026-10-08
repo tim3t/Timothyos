@@ -274,6 +274,28 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - On the right: the focused day's events and key dates, and the next four key dates with a countdown.
 - Hidden calendars and ignored titles stay out, as on every screen.
 
+## Habits + Library (app 2.7, bridge 1.14)
+
+Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **📚 Library** (one page per book). They already exist; the bridge needs to be let in and updated.
+
+1. **In Notion:** open **🔁 Habits** as a full page → **•••** → **Connections** → add **TimothyOS bridge**. Do the same for **📚 Library**.
+2. **Update the bridge to 1.14:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+3. Run **setup**. The log should show `Notion habits: OK` and `Notion library: OK`, and end with `Bridge version 1.14.0`.
+4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, and **SYSTEMS → REFRESH NOW**.
+
+**Habits**
+- **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EVENING WALK**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
+- It saves to Notion a moment after your last tap. Without a connection it waits on the iPad and goes when you're back.
+- **Water goal:** the chips under the tiles (2 to 4 L, 3 L to start). Streaks and the grid count a day as won at the goal or more.
+- Earlier days: the arrows beside the title, or tap a square in **LAST 12 WEEKS**.
+- **REVIEW** shows the week's habits day by day; **ALL REVIEWS** shows them week by week.
+
+**Library**
+- **+ ADD BOOK:** type a title or author; pick **WANT**, **READING NOW** or **ALREADY READ**. Not listed? Add it by hand from the same sheet.
+- **FINISHED** on a book you're reading files it under **READ** with today's date; tap it to rate it.
+- Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
+- Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
+
 ## Daily use
 
 | Do | How |
@@ -289,6 +311,9 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 | Plan your day | **PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
 | Plan tomorrow | Go to tomorrow on Today (right arrow), then **PLAN** in the Priorities panel |
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
+| Open a screen that isn't in the bar | **ALL STATIONS** (the block under the buttons). **EDIT PINS** there picks the seven in the bar |
+| Record habits | **HABITS**, or the strip on the Bridge |
+| Add or finish a book | **LIBRARY** |
 | Scroll through time | **LOOM**. Swipe right for the future, left for the past; tap a bead for details |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |

@@ -32,11 +32,11 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8098/x/exec?acti
   assert.strictEqual(await p.textContent('#eyebrow'), 'WEEK 40 · LAST WEEK');
   assert.ok(await p.isHidden('#todayBtn'), 'ALL REVIEWS takes the place of THIS WEEK');
   // on Timothy's iPad width the header stays one line, so the sidebar matches every other screen
-  const dims = () => p.evaluate(() => [document.querySelector('.top').getBoundingClientRect().height, document.querySelector('.fill').getBoundingClientRect().height]);
+  const dims = () => p.evaluate(() => [document.querySelector('.top').getBoundingClientRect().height, document.querySelector('#allBtn').getBoundingClientRect().height]);
   const hr = await dims();
   await p.click('[data-screen="week"].nav'); await p.waitForTimeout(300);
   const hw = await dims();
-  console.log('header + fill, review week vs Week screen:', hr, hw);
+  console.log('header + ALL STATIONS, review week vs Week screen:', hr, hw);
   assert.deepStrictEqual(hr, hw, 'sidebar identical to other screens');
   // narrower (Split View): the header may wrap, but the left bar never collapses to a sliver
   await p.click('.elbow'); await p.waitForTimeout(300); await p.click('.ov-alert:has-text("Weekly review due")'); await p.waitForTimeout(800);

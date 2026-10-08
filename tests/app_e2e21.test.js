@@ -12,6 +12,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   const b = await chromium.launch(); const errs = [];
   // --- motion, with a fixed clock
   let ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await ctx.addInitScript(() => { if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
   let p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-07T08:14:00-05:00'));
   await p.goto('http://localhost:8080/');
@@ -81,6 +82,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
 
   // --- Reduce Motion: sheets close at once, nothing rises in
   ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', reducedMotion: 'reduce' });
+  await ctx.addInitScript(() => { if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
   p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-07T08:14:00-05:00'));
   await p.goto('http://localhost:8080/');
@@ -94,6 +96,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
 
   // --- idle timeout, at night, on a running clock
   ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await ctx.addInitScript(() => { if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
   p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-10-07T23:10:00-05:00') });
   await p.goto('http://localhost:8080/');

@@ -3,6 +3,7 @@ const D = __dirname + '/out/';
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago' });
+  await ctx.addInitScript(() => { if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
   const p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push('pageerror ' + e.message));

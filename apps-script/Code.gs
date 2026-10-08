@@ -54,17 +54,23 @@ var CONFIG = {
   NOTION_QUEUE_DATABASE: '6f9b8c3888f74ec18a503bd197f37c8c',
 
   // Your Notion Captain's Log (one page per day). Its PIN is Script Property LOG_PIN.
-  NOTION_LOG_DATABASE: '4c395160e1a84702a3a6861c20ddf748'
+  NOTION_LOG_DATABASE: '4c395160e1a84702a3a6861c20ddf748',
+
+  // Your Notion Habits database (one page per day).
+  NOTION_HABITS_DATABASE: '441619b34ada41d49e05bed92372589b',
+
+  // Your Notion Library (one page per book).
+  NOTION_LIBRARY_DATABASE: '47fdad1d1217402fa84731a8aa146cba'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.13.0';
+var VERSION = '1.14.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log'] : [], logPin_() ? ['logpin'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -98,7 +104,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -108,6 +114,8 @@ function read_(p) {
   if (p.action === 'week') return week_(String(p.week || ''), String(p.from || ''), String(p.to || ''));
   if (p.action === 'reviews') return reviews_(p.limit);
   if (p.action === 'ledger') return ledger_();
+  if (p.action === 'habits') return habits_(p.from, p.to);
+  if (p.action === 'library') return library_();
   return null;
 }
 function readError_(err) {
@@ -147,6 +155,9 @@ function doPost(e) {
     if (body.action === 'ask') return json_(ask_(body));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
+    if (body.action === 'habitset') return json_(habitSet_(body.day));
+    if (body.action === 'booksave') return json_(bookSave_(body.book));
+    if (body.action === 'bookremove') return json_(bookRemove_(body.id));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
@@ -189,6 +200,8 @@ function setup() {
   console.log('Ledger (YNAB): ' + lg.ynab);
   console.log('Notion replicator queue: ' + lg.queue);
   console.log("Captain's Log: " + logStatus_());
+  console.log('Notion habits: ' + habitsStatus_());
+  console.log('Notion library: ' + libraryStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK (everyday model ' + aiFast_() + '). This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -1171,6 +1184,156 @@ function logStatus_() {
   var pin = logPin_() ? 'PIN set' : 'NO PIN: add LOG_PIN (6 digits) in Script Properties';
   try { var n = logDates_().dates.length; return 'OK (' + n + ' days written). ' + pin; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '') + '. ' + pin; }
+}
+
+// ---- Habits ----------------------------------------------------------------
+// One page per day in the Habits database: Meditated and Evening Walk (checkboxes),
+// Water (L) in half-litre steps (a 1 L bottle), Debit Card (Did Not Swipe / Swiped).
+// The app sends the whole day at once, so a repeat is harmless.
+var HABIT_CARD = { kept: 'Did Not Swipe', swiped: 'Swiped' }, HABIT_MAX_DAYS = 400;
+function habitsSource_() { return sourceFor_(CONFIG.NOTION_HABITS_DATABASE, 'NOTION_HABITS_SOURCE'); }
+function toHabit_(pg) {
+  var p = pg.properties || {}, w = p['Water (L)'], card = sel_(p['Debit Card']);
+  return {
+    id: pg.id, date: day_(p.Date),
+    med: !!(p.Meditated && p.Meditated.checkbox), walk: !!(p['Evening Walk'] && p['Evening Walk'].checkbox),
+    water: w && typeof w.number === 'number' ? w.number : null,
+    card: card === HABIT_CARD.kept ? 'kept' : card === HABIT_CARD.swiped ? 'swiped' : null
+  };
+}
+function habitsGen_() { return CacheService.getScriptCache().get('hgen') || '0'; }
+function habitsBump_() { CacheService.getScriptCache().put('hgen', Utilities.getUuid().slice(0, 8), 21600); }
+/** Recorded days from `from` to `to` (yyyy-mm-dd, inclusive, at most 400 days). */
+function habits_(from, to) {
+  from = String(from || ''); to = String(to || '');
+  if (!realDay_(from) || !realDay_(to) || to < from || (new Date(to) - new Date(from)) / 86400000 > HABIT_MAX_DAYS) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), key = 'habits:' + habitsGen_() + ':' + from + ':' + to, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var rows = queryAll_(habitsSource_(), { and: [{ property: 'Date', date: { on_or_after: from } }, { property: 'Date', date: { on_or_before: to } }] }, 5)
+    .map(toHabit_).filter(function (h) { return h.date; });
+  var out = { ok: true, version: VERSION, from: from, to: to, days: rows };
+  try { cache.put(key, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+/** One day's habits, whole: creates the day's page if there is none, otherwise sets every field. */
+function habitSet_(d) {
+  d = d || {};
+  var date = String(d.date || '');
+  if (!realDay_(date)) return { ok: false, error: 'bad_request' };
+  var water = d.water === null || d.water === undefined || d.water === '' ? null : Number(d.water);
+  if (water !== null && (!isFinite(water) || water < 0 || water > 12 || Math.round(water * 2) !== water * 2)) return { ok: false, error: 'bad_request' };
+  if (d.card !== null && d.card !== undefined && !HABIT_CARD[d.card]) return { ok: false, error: 'bad_request' };
+  var props = {
+    Meditated: { checkbox: d.med === true }, 'Evening Walk': { checkbox: d.walk === true },
+    'Water (L)': { number: water }, 'Debit Card': { select: d.card ? { name: HABIT_CARD[d.card] } : null }
+  };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = habitsSource_(), found = queryAll_(ds, { property: 'Date', date: { equals: date } }, 1)[0], pg;
+    if (found) pg = notion_('patch', '/pages/' + found.id, { properties: props });
+    else {
+      props.Name = { title: rt_(longDay_(date)) };
+      props.Date = { date: { start: date } };
+      pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    }
+    habitsBump_();
+    return { ok: true, version: VERSION, day: toHabit_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function habitsStatus_() {
+  try { var n = queryAll_(habitsSource_(), null, 1).length; return 'OK (' + (n >= 100 ? '100+' : n) + ' days recorded)'; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Habits (... > Connections)' : ''); }
+}
+
+// ---- Library -----------------------------------------------------------------
+// One page per book. The app finds books on Open Library itself (titles, authors,
+// cover links); the bridge only keeps the shelf in Notion.
+var BOOK_STATUS = { want: 'Want to Read', reading: 'Reading', read: 'Read', aside: 'Set Aside' };
+function librarySource_() { return sourceFor_(CONFIG.NOTION_LIBRARY_DATABASE, 'NOTION_LIBRARY_SOURCE'); }
+function toBook_(pg) {
+  var p = pg.properties || {}, st = sel_(p.Status), status = 'want';
+  Object.keys(BOOK_STATUS).forEach(function (k) { if (BOOK_STATUS[k] === st) status = k; });
+  var num = function (x) { return x && typeof x.number === 'number' ? x.number : null; };
+  return {
+    id: pg.id, url: pg.url, title: plain_(p.Title && p.Title.title) || 'Untitled', author: plain_(p.Author && p.Author.rich_text),
+    status: status, started: day_(p.Started), finished: day_(p.Finished), rating: num(p.Rating), notes: plain_(p.Notes && p.Notes.rich_text),
+    cover: (p.Cover && p.Cover.url) || '', ol: (p['Open Library'] && p['Open Library'].url) || '', year: num(p.Published), created: pg.created_time || ''
+  };
+}
+function libraryGen_() { return CacheService.getScriptCache().get('lgen') || '0'; }
+function library_() {
+  var cache = CacheService.getScriptCache(), key = 'library:' + libraryGen_(), hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var out = { ok: true, version: VERSION, books: queryAll_(librarySource_(), null, 10).map(toBook_) };
+  try { cache.put(key, JSON.stringify(out), 300); } catch (x) { /* too large to cache */ }
+  return out;
+}
+var OL_COVER = /^https:\/\/covers\.openlibrary\.org\/[\w\/.-]+$/, OL_PAGE = /^https:\/\/openlibrary\.org\/[\w\/.-]+$/;
+/** Add a book (with cid) or change one (with id). Only the fields sent are written. */
+function bookSave_(b) {
+  b = b || {};
+  var props = {}, has = function (k) { return Object.prototype.hasOwnProperty.call(b, k); };
+  if (has('title') || !b.id) {
+    var title = String(b.title || '').trim();
+    if (!title || title.length > 200) return { ok: false, error: 'bad_title' };
+    props.Title = { title: rt_(title) };
+  }
+  if (has('author')) { var au = String(b.author || '').trim(); if (au.length > 200) return { ok: false, error: 'bad_request' }; props.Author = { rich_text: au ? rt_(au) : [] }; }
+  if (has('status') || !b.id) { if (!BOOK_STATUS[b.status || 'want']) return { ok: false, error: 'bad_request' }; props.Status = { select: { name: BOOK_STATUS[b.status || 'want'] } }; }
+  var dates = { started: 'Started', finished: 'Finished' }, bad = false;
+  Object.keys(dates).forEach(function (k) {
+    if (!has(k)) return;
+    if (b[k] !== null && !realDay_(String(b[k]))) bad = true;
+    props[dates[k]] = { date: b[k] ? { start: String(b[k]) } : null };
+  });
+  if (has('rating')) { var r = b.rating === null ? null : Number(b.rating); if (r !== null && !(r >= 1 && r <= 5 && Math.round(r) === r)) bad = true; props.Rating = { number: r }; }
+  if (has('notes')) { var nt = String(b.notes || ''); if (nt.length > 4000) bad = true; props.Notes = { rich_text: nt.trim() ? rt_(nt.trim()) : [] }; }
+  if (has('cover')) { var cv = String(b.cover || ''); if (cv && !OL_COVER.test(cv)) bad = true; props.Cover = { url: cv || null }; }
+  if (has('ol')) { var ol = String(b.ol || ''); if (ol && !OL_PAGE.test(ol)) bad = true; props['Open Library'] = { url: ol || null }; }
+  if (has('year')) { var y = b.year === null ? null : Number(b.year); if (y !== null && !(y > 0 && y < 3000 && Math.round(y) === y)) bad = true; props.Published = { number: y }; }
+  if (bad) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = librarySource_(), cache = CacheService.getScriptCache(), pg;
+    if (b.id) {
+      var cur = notion_('get', '/pages/' + String(b.id));
+      if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== ds.replace(/-/g, '')) return { ok: false, error: 'not_writable' };
+      pg = notion_('patch', '/pages/' + cur.id, { properties: props });
+    } else {
+      if (!/^[A-Za-z0-9-]{8,64}$/.test(String(b.cid || ''))) return { ok: false, error: 'bad_request' };
+      var seen = cache.get('bcid:' + b.cid);
+      if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+      pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    }
+    cache.put('lgen', Utilities.getUuid().slice(0, 8), 21600);
+    var out = { ok: true, version: VERSION, book: toBook_(pg) };
+    if (!b.id) cache.put('bcid:' + b.cid, JSON.stringify(out), 21600);
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** Take a book off the shelf (to Notion's trash, where it can be restored). */
+function bookRemove_(id) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = librarySource_(), cur = notion_('get', '/pages/' + String(id || ''));
+    if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== ds.replace(/-/g, '')) return { ok: false, error: 'not_writable' };
+    notion_('patch', '/pages/' + cur.id, { in_trash: true });
+    CacheService.getScriptCache().put('lgen', Utilities.getUuid().slice(0, 8), 21600);
+    return { ok: true, version: VERSION, removed: cur.id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function libraryStatus_() {
+  try { var n = library_().books.length; return 'OK (' + n + (n === 1 ? ' book)' : ' books)'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Library (... > Connections)' : ''); }
 }
 
 // ---- Ask Claude ---------------------------------------------------------------
