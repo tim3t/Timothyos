@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.7.2";
+  var VERSION = "2.7.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -32,8 +32,7 @@
   var LS_AISPEND = "tos.aispend.v1";   /* Ask: this month's spend as last reported by the bridge */
   var LS_BOPEN = "tos.bopen.v1";       /* Bridge panels opened with + */
   var LS_IGNORE = "tos.ignore.v1";     /* event titles left out everywhere, e.g. blocks that only exist to stop bookings */
-  var LS_TOPGAP = "tos.topgap.v1";     /* extra space below the iPad status bar, in px */
-  var TOP_GAPS = [[14, "STANDARD"], [30, "MORE"], [48, "MOST"]];
+  var LS_TOPGAP = "tos.topgap.v1";     /* retired in 2.7.3: the space below the iPad status bar is fixed (30 px, CSS --top-gap) */
   var MAX_ATTEMPTS = 10;
   var FRESH_MS = 60 * 1000;          /* don't refetch a range newer than this */
   var TASKS_FRESH_MS = 5 * 60 * 1000; /* background refresh of the task list; your own actions refresh at once */
@@ -799,9 +798,7 @@
     html += "<section>" + phead("APP", "") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
       "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) : '<span class="muted">Unknown</span>') + "</dd>" +
       "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd>" +
-      '<dt>TOP SPACING</dt><dd><div class="chips">' + TOP_GAPS.map(function (g) {
-        return '<button type="button" class="chip" data-topgap="' + g[0] + '" aria-pressed="' + (topGap() === g[0]) + '">' + g[1] + "</button>";
-      }).join("") + '</div><small class="muted">Space between the iPad status bar and the top of the app. Status bar height here: ' + safeTop() + " px.</small></dd></dl></section></div>";
+      "</dl></section></div>";
     $("content").innerHTML = html;
   }
 
@@ -4446,10 +4443,17 @@
   document.addEventListener("error", function (e) { var t = e.target; if (t && t.tagName === "IMG" && t.parentNode && t.parentNode.classList && t.parentNode.classList.contains("lb-cover")) t.remove(); }, true);
 
   /* ---------- Top spacing below the status bar ---------- */
-  function topGap() { var g = lsGet(LS_TOPGAP); return TOP_GAPS.some(function (x) { return x[0] === g; }) ? g : TOP_GAPS[0][0]; }
-  function applyTopGap() { document.documentElement.style.setProperty("--top-gap", topGap() + "px"); }
-  function safeTop() { return Math.round(parseFloat(getComputedStyle(document.body, "::before").height) || 0); }
-  applyTopGap();
+  /* Panels (ASK, CAPTURE, details) sit inside the part of the screen you can actually see: below the
+     status bar and, while typing, above the keyboard. iPadOS shrinks the visual viewport for the keyboard
+     and may scroll it; the scrims follow it through --vv-top and --vv-h. */
+  lsDel(LS_TOPGAP);
+  function fitViewport() {
+    var v = window.visualViewport, r = document.documentElement.style;
+    if (!v) return;
+    r.setProperty("--vv-top", Math.max(0, v.offsetTop) + "px");
+    r.setProperty("--vv-h", v.height + "px");
+  }
+  if (window.visualViewport) { visualViewport.addEventListener("resize", fitViewport); visualViewport.addEventListener("scroll", fitViewport); fitViewport(); }
 
   /* ---------- Render + navigation ---------- */
   function render(keepScroll) {
@@ -4535,7 +4539,6 @@
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.act === "systems") go("systems");
     else if (b.dataset.act === "bearing") { state.wmShift++; render(true); }
-    else if (b.dataset.topgap) { lsSet(LS_TOPGAP, +b.dataset.topgap); applyTopGap(); render(true); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
     else if (b.dataset.more) {

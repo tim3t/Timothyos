@@ -360,7 +360,6 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Review says it needs bridge 1.5 | Follow **Weekly Review (bridge 1.5)** above |
 | "Weekly Reviews isn't connected" | 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge |
 | Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
-| Top line hidden under the clock and battery | **SYSTEMS → APP → TOP SPACING → MORE** (or **MOST**) |
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |

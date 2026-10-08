@@ -112,6 +112,17 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   assert.ok(wk.includes('MEDITATED 3 / 3') && wk.includes('2.8 L AVG'), wk);
   await p.screenshot({ path: D + 'e2e24_review.png', fullPage: true });
 
+  // ---- ASK opens below the status bar strip (2.7.3)
+  await p.click('#askBtn'); await p.waitForTimeout(500);
+  const askTop = await p.evaluate(() => document.querySelector('#askScrim .sheet').getBoundingClientRect().top);
+  assert.ok(askTop >= 30, 'ASK starts below the top clearance: ' + askTop);
+  await p.click('#askClose'); await p.waitForTimeout(300);
+  // with little room (as with the keyboard up) it still starts below the clearance and fits
+  await p.setViewportSize({ width: 1180, height: 460 }); await p.click('#askBtn'); await p.waitForTimeout(500);
+  const ab = await p.evaluate(() => { const r = document.querySelector('#askScrim .sheet').getBoundingClientRect(); return [r.top, r.bottom]; });
+  assert.ok(ab[0] >= 30 && ab[1] <= 460, 'ASK fits a short screen: ' + ab);
+  await p.click('#askClose'); await p.waitForTimeout(300); await p.setViewportSize({ width: 1180, height: 820 });
+
   // ---- LIBRARY
   await p.click('[data-screen="library"].nav'); await p.waitForTimeout(1500);
   const st = await txt(p, '.lb-stats');

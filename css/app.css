@@ -40,7 +40,7 @@
   --t-sub: 15px;       /* second line, dim */
   --t-label: 13px; --t-money: 64px;     /* uppercase labels and readouts */
   --ls-label: .14em;
-  --top-gap: 14px;     /* clearance below the iPad status bar; SYSTEMS → APP → TOP SPACING */
+  --top-gap: 30px;     /* clearance below the iPad status bar (fixed since 2.7.3; Timothy's choice) */
   --safe-top: env(safe-area-inset-top, 0px);
 }
 * { box-sizing: border-box; }
@@ -694,14 +694,15 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .netlog span:nth-child(4n+2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Overlays ---------- */
-.scrim { position: fixed; inset: 0; background: rgba(4, 4, 8, .72); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.scrim { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100%); background: rgba(4, 4, 8, .72); z-index: 20; display: flex; align-items: center; justify-content: center;
+  padding: calc(var(--safe-top) + var(--top-gap)) 16px 16px; }   /* never under the status bar; above the keyboard while typing */
 .sheet { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--panel); border-radius: 0 0 24px 24px; padding: 0 0 20px; }
 .sheet .sbar { height: 30px; background: var(--c, var(--fg)); border-radius: 15px 15px 0 0; display: flex; align-items: center; padding: 0 18px; justify-content: space-between; }
 .sheet .sbar span { font-family: var(--display); color: var(--ink); letter-spacing: .16em; font-weight: 600; font-size: 15px; }
 .sheet .sbody { padding: 18px 22px 0; display: grid; gap: 14px; }
 .sheet h3 { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.15; }
 .sheet .sfoot { display: flex; justify-content: flex-end; padding: 16px 22px 0; }
-.capscrim { align-items: flex-start; padding-top: max(40px, 6vh); }
+.capscrim { align-items: flex-start; padding-top: max(calc(var(--safe-top) + var(--top-gap) + 10px), 6vh); }
 .capscrim .sheet { width: min(720px, 100%); }
 .capnote { border: 2px dashed var(--warn); border-radius: 12px; padding: 10px 14px; color: var(--warn); }
 .frow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; }

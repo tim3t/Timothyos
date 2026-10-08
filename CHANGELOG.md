@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.3 · 2026-10-08
+- **ASK (and every other panel) stays below the iPad's status bar.** Panels now fit the part of the screen you can see: below the faded top strip, and above the keyboard while you type.
+- **TOP SPACING is gone from Systems.** The space below the status bar is fixed at the MORE setting you chose.
+
 ## 2.7.2 · 2026-10-08
 - **The screen no longer zooms.** A quick double tap (a PIN with a repeated digit, say) counts as two taps instead of zooming the whole app, and an accidental pinch is ignored. TimothyOS always stays at its full-screen size. The iPad's own Accessibility Zoom is unaffected.
 
