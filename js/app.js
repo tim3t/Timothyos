@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.5.4";
+  var VERSION = "2.5.5";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -204,8 +204,9 @@
       var started = Date.now();
       return run().catch(function (err) {
         /* Cut off by the iPad going to sleep or to another app: try again once it's back. */
-        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; return waitVisible().then(go); }
+        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(go); }
         if (navigator.onLine === false || !transient(err) || attempt >= RETRY_DELAYS.length) throw err;
+        markRetried(err);
         var wait = RETRY_DELAYS[attempt++];
         return new Promise(function (res) { setTimeout(res, wait); }).then(go);
       });
@@ -231,27 +232,60 @@
   function logged(action, started, p) {
     return p.then(function (j) { note(action, started, "ok"); return j; }, function (err) {
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error";
-      note(action, started, r + (document.hidden || lastHidden >= started ? " · in background" : ""));
+      if (err && typeof err === "object") err.netEntry = note(action, started, r + (document.hidden || lastHidden >= started ? " · in background" : ""));
       throw err;
     });
   }
   function note(action, started, result) {
-    netlog.push({ t: started, a: action || "?", ms: Date.now() - started, r: result });
+    var n = { t: started, a: action || "?", ms: Date.now() - started, r: result };
+    netlog.push(n);
     netlog = netlog.slice(-30);
     lsSet(LS_NETLOG, netlog);
+    return n;
   }
-  function api(params, conn) { return withRetry(function () { return apiOnce(params, conn); }); }
-  function apiPost(body, timeoutMs) { return withRetry(function () { return apiPostOnce(body, timeoutMs); }); }
-  function apiOnce(params, conn) {
+  /* A failed attempt that is tried again isn't a failure yet: the log shows it as RETRIED. */
+  function markRetried(err) { if (err && err.netEntry) { err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); } }
+  /* Requests still on their way, counting retries and pauses: REFRESH NOW spins until this is 0. */
+  var netPending = 0;
+  function tracked(p) { netPending++; p.then(function () { netPending--; }, function () { netPending--; }); return p; }
+  /* Reads asked for at the same moment (returning to the app, REFRESH NOW) travel together as one
+     request (bridge 1.13), so Google runs one execution instead of five. Fewer requests, fewer of
+     Google's lost answers (HTTP 404). An older bridge doesn't know "batch": then each goes alone. */
+  var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger"];
+  var batchQ = null, batchOk = true;
+  function api(params, conn) {
+    if (conn || !batchOk || BATCHABLE.indexOf(params.action) === -1) return tracked(withRetry(function () { return apiOnce(params, conn); }));
+    return tracked(new Promise(function (res, rej) {
+      if (!batchQ) { batchQ = []; setTimeout(flushBatch, 40); }
+      batchQ.push({ params: params, res: res, rej: rej });
+    }));
+  }
+  function flushBatch() {
+    var q = batchQ; batchQ = null;
+    var alone = function (x) { withRetry(function () { return apiOnce(x.params); }).then(x.res, x.rej); };
+    if (q.length === 1) { alone(q[0]); return; }
+    var calls = q.map(function (x) { return x.params; });
+    withRetry(function () { return apiOnce({ action: "batch", calls: JSON.stringify(calls) }, null, "sync: " + calls.map(function (c) { return c.action; }).join(", "), 90000); }).then(function (j) {
+      q.forEach(function (x, i) {
+        var r = j.results && j.results[i];
+        if (r && r.ok === true) x.res(r); else x.rej(replyError(r));
+      });
+    }, function (err) {
+      if (err && err.code === "unknown_action") { batchOk = false; markRetried(err); q.forEach(alone); return; }   /* older bridge: each goes alone instead */
+      q.forEach(function (x) { x.rej(err); });
+    });
+  }
+  function apiPost(body, timeoutMs) { return tracked(withRetry(function () { return apiPostOnce(body, timeoutMs); })); }
+  function apiOnce(params, conn, label, timeoutMs) {
     conn = conn || state.conn;
     var u = new URL(conn.url);
     u.searchParams.set("key", conn.key);
     Object.keys(params).forEach(function (k) { u.searchParams.set(k, params[k]); });
     return slot(function () {
       var ctrl = typeof AbortController === "function" ? new AbortController() : null;
-      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 45000) : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 45000) : null;
       /* Plain GET with no custom headers, so Apps Script answers without a CORS preflight. */
-      return logged(params.action, Date.now(), fetch(u.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+      return logged(label || params.action, Date.now(), fetch(u.toString(), { method: "GET", redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
         .then(readReply)
         .finally(function () { if (timer) clearTimeout(timer); }));
     });
@@ -272,9 +306,14 @@
     return r.text().then(function (txt) {
       var j;
       try { j = JSON.parse(txt); } catch (x) { var e1 = new Error("bad_json"); e1.code = "bad_json"; throw e1; }
-      if (!j || j.ok !== true) { var e2 = new Error((j && j.error) || "bad_response"); e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left; throw e2; }
+      if (!j || j.ok !== true) throw replyError(j);
       return j;
     });
+  }
+  function replyError(j) {
+    var e2 = new Error((j && j.error) || "bad_response");
+    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left;
+    return e2;
   }
   function isNetworkError(err) { return !!err && (err.name === "TypeError" || err.name === "AbortError"); }
   function describe(err) {
@@ -287,7 +326,7 @@
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
     if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs.";
     if (/^http_/.test(code || "")) return "The script answered with " + code.replace("http_", "HTTP ") + ". Check the deployment.";
-    if (err && err.name === "AbortError") return "Google took too long to answer (45 seconds), even after retrying. Usually temporary.";
+    if (err && err.name === "AbortError") return "Google took too long to answer, even after retrying. Usually temporary.";
     if (isNetworkError(err)) return navigator.onLine === false ? "No connection. Showing saved data." : "Couldn't reach the script, even after retrying. If this keeps happening, check that the URL ends in /exec and access is set to Anyone.";
     return "Sync failed (" + esc(code) + ").";
   }
@@ -707,7 +746,7 @@
       "<dt>ACCESS KEY</dt><dd>" + (c ? "•••• " + esc(c.key.slice(-4)) : '<span class="muted">Not set</span>') + "</dd>" +
       "<dt>LAST SYNC</dt><dd class=\"tnum\">" + (st.at ? esc(stamp(st.at)) : '<span class="muted">Never</span>') + "</dd>" +
       "</dl><div class=\"btnrow\" style=\"margin-top:14px\">" +
-      (c ? '<button type="button" class="btn" data-act="refresh">REFRESH NOW</button>' +
+      (c ? refreshBtn() +
         '<button type="button" class="btn ghost" data-act="disconnect">' + (Date.now() - state.disarmAt < 4000 ? "TAP AGAIN TO UNLINK" : "UNLINK") + "</button>"
         : '<button type="button" class="btn capture" data-act="setup">LINK CALENDARS</button>') +
       "</div></section>";
@@ -752,16 +791,37 @@
   }
 
   /* Recent bridge requests: how long each took and how it ended. */
+  /* REFRESH NOW spins until every request it set off (and any retries) has finished, then says so. */
+  var refreshing = false, refreshTimer = null, refreshDone = false;
+  function refreshBtn() {
+    return '<button type="button" class="btn' + (refreshing ? " busy" : refreshDone ? " done" : "") + '" id="refreshBtn" data-act="refresh"' + (refreshing ? ' aria-busy="true" disabled' : "") + ">" +
+      (refreshing ? '<span class="spin" aria-hidden="true"></span>REFRESHING…' : refreshDone ? "SYNCED ✓" : "REFRESH NOW") + "</button>";
+  }
+  function paintRefresh() { var b = $("refreshBtn"); if (b) b.outerHTML = refreshBtn(); }
+  function refreshNow() {
+    if (refreshing) return;
+    refreshing = true; refreshDone = false;
+    refresh(true);
+    paintRefresh();
+    clearInterval(refreshTimer);
+    var ticks = 0;
+    refreshTimer = setInterval(function () {
+      if (++ticks < 3 || netPending > 0 || batchQ) return;   /* at least ¾ s, so a quick answer still registers */
+      clearInterval(refreshTimer); refreshing = false; refreshDone = true;
+      paintRefresh();
+      setTimeout(function () { refreshDone = false; paintRefresh(); }, 1600);
+    }, 250);
+  }
   function netSection() {
     if (!state.conn || !netlog.length) return "";
-    var hour = netlog.filter(function (n) { return Date.now() - n.t < 3600000; }), bad = hour.filter(function (n) { return n.r !== "ok"; });
+    var hour = netlog.filter(function (n) { return Date.now() - n.t < 3600000; }), bad = hour.filter(function (n) { return n.r !== "ok" && !n.retried; }), again = hour.filter(function (n) { return n.retried; });
     var slow = netlog.filter(function (n) { return n.r === "ok"; }).map(function (n) { return n.ms; }).sort(function (a, b) { return a - b; });
     var median = slow.length ? (slow[Math.floor(slow.length / 2)] / 1000).toFixed(1) + " s" : "–";
-    return "<section>" + phead("RECENT REQUESTS", hour.length ? bad.length + " OF " + hour.length + " FAILED IN THE LAST HOUR · TYPICAL " + median : "TYPICAL " + median) +
+    return "<section>" + phead("RECENT REQUESTS", hour.length ? hour.length + " IN THE LAST HOUR · " + (bad.length ? bad.length + " FAILED" : "NONE FAILED") + (again.length ? " · " + again.length + " RETRIED" : "") + " · TYPICAL " + median : "TYPICAL " + median) +
       '<div class="netlog tnum">' + netlog.slice(-12).reverse().map(function (n) {
         return '<span>' + hm(new Date(n.t)) + "</span><span>" + esc(String(n.a).toUpperCase()) + "</span><span>" + (n.ms / 1000).toFixed(1) + " s</span>" +
-          '<span class="' + (n.r === "ok" ? "okmsg" : "errtxt") + '">' + esc(n.r === "ok" ? "OK" : n.r.toUpperCase()) + "</span>";
-      }).join("") + '</div><small class="muted">DROPPED: the connection was cut. TIMEOUT: no answer in 45 s. IN BACKGROUND: the iPad slept or switched apps mid-request; those are retried when you come back.</small></section>';
+          '<span class="' + (n.r === "ok" ? "okmsg" : n.retried ? "warntxt" : "errtxt") + '">' + esc(n.r === "ok" ? "OK" : n.r.toUpperCase() + (n.retried ? " · RETRIED" : "")) + "</span>";
+      }).join("") + '</div><small class="muted">RETRIED: that attempt failed and was tried again on its own; the next line for it shows how it ended. HTTP_404: Google ran the request but lost the answer on the way back, a known Google quirk. DROPPED: the connection was cut. TIMEOUT: no answer in 45 s. IN BACKGROUND: the iPad slept or switched apps mid-request. SYNC: several reads sent together as one request. Only red lines are real failures.</small></section>';
   }
 
   /* ---------- First-run link ---------- */
@@ -3675,7 +3735,7 @@
     }
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
-    else if (b.dataset.act === "refresh") refresh(true);
+    else if (b.dataset.act === "refresh") refreshNow();
     else if (b.dataset.act === "flush") flushQueue(true);
     else if (b.dataset.qretry) retryCapture(b.dataset.qretry);
     else if (b.dataset.qdiscard) discardCapture(b.dataset.qdiscard);

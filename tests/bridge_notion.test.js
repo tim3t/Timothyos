@@ -106,6 +106,15 @@ console.log('bad type:', JSON.stringify(post({ key, action: 'adddate', date: { c
 console.log('no key:', JSON.stringify(post({ action: 'adddate', date: kd })));
 console.log('after adds:', get({ action: 'dates', key }).dates.length);
 
+const assertB = require('assert');
+// several reads in one request: each answers on its own, a bad one doesn't stop the rest
+const bt = get({ action: 'batch', key, calls: JSON.stringify([{ action: 'tasks', day: '2026-10-06' }, { action: 'dates' }, { action: 'ping' }, { action: 'nope' }]) });
+assertB.ok(bt.ok); assertB.strictEqual(bt.results.length, 4);
+assertB.ok(bt.results[0].ok && Array.isArray(bt.results[0].focus)); assertB.ok(bt.results[1].ok && Array.isArray(bt.results[1].dates));
+assertB.strictEqual(bt.results[2].error, 'bad_request', 'only everyday reads'); assertB.strictEqual(bt.results[3].error, 'bad_request');
+assertB.strictEqual(get({ action: 'batch', key, calls: 'not json' }).error, 'bad_request');
+assertB.strictEqual(get({ action: 'batch', key, calls: JSON.stringify(new Array(9).fill({ action: 'dates' })) }).error, 'bad_request');
+assertB.strictEqual(get({ action: 'batch', calls: '[]' }).error, 'no_key');
 console.log('--- balance (done) ---');
 const assert = require('assert');
 const RealDate = Date; ctx.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : ['2026-10-06T12:00:00Z'])); } static now() { return new RealDate('2026-10-06T12:00:00Z').getTime(); } };

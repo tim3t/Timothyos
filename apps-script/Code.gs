@@ -58,7 +58,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.12.0';
+var VERSION = '1.13.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -90,19 +90,45 @@ function doGet(e) {
     if (refused) return json_({ ok: false, error: refused });
     if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
     if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
-    if (p.action === 'aispend') return json_({ ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null });
-    if (p.action === 'events') return json_(events_(Number(p.from), Number(p.to)));
-    if (p.action === 'tasks') return json_(tasks_(String(p.day || '')));
-    if (p.action === 'dates') return json_(dates_());
-    if (p.action === 'done') return json_(done_(p.days));
-    if (p.action === 'week') return json_(week_(String(p.week || ''), String(p.from || ''), String(p.to || '')));
-    if (p.action === 'reviews') return json_(reviews_(p.limit));
-    if (p.action === 'ledger') return json_(ledger_());
-    return json_({ ok: false, error: 'unknown_action' });
+    if (p.action === 'batch') return json_(batch_(p.calls));
+    return json_(read_(p) || { ok: false, error: 'unknown_action' });
   } catch (err) {
-    if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
-    return json_({ ok: false, error: 'server_error', detail: String((err && err.message) || err) });
+    return json_(readError_(err));
   }
+}
+
+/** The everyday reads, by action. Null for anything else. */
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger'];
+function read_(p) {
+  if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null };
+  if (p.action === 'events') return events_(Number(p.from), Number(p.to));
+  if (p.action === 'tasks') return tasks_(String(p.day || ''));
+  if (p.action === 'dates') return dates_();
+  if (p.action === 'done') return done_(p.days);
+  if (p.action === 'week') return week_(String(p.week || ''), String(p.from || ''), String(p.to || ''));
+  if (p.action === 'reviews') return reviews_(p.limit);
+  if (p.action === 'ledger') return ledger_();
+  return null;
+}
+function readError_(err) {
+  if (err && err.notion) return { ok: false, error: err.notion, detail: err.message };
+  return { ok: false, error: 'server_error', detail: String((err && err.message) || err) };
+}
+
+/**
+ * Several reads in one request (calls = JSON list of {action, ...}). The app bundles the reads it
+ * needs at the same moment, such as on returning to the app, so Google runs one execution instead
+ * of five: fewer chances for its result page to go missing. Each read answers on its own; one
+ * failing doesn't stop the others.
+ */
+function batch_(raw) {
+  var calls;
+  try { calls = JSON.parse(String(raw || '')); } catch (x) { return { ok: false, error: 'bad_request' }; }
+  if (!Array.isArray(calls) || !calls.length || calls.length > 8) return { ok: false, error: 'bad_request' };
+  return { ok: true, version: VERSION, results: calls.map(function (c) {
+    if (!c || BATCH_READS.indexOf(c.action) === -1) return { ok: false, error: 'bad_request' };
+    try { return read_(c); } catch (err) { return readError_(err); }
+  }) };
 }
 
 /** Write requests (Capture). The body is JSON: { key, action: "create", item }. */

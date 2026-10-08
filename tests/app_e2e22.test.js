@@ -182,6 +182,22 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.screenshot({ path: D + 'e2e22_phone.png', fullPage: true });
   await p.setViewportSize({ width: 1180, height: 820 });
 
+  // Systems: REFRESH NOW spins until everything it started has finished, then says SYNCED; reads go as one request
+  await p.click('#status'); await p.waitForTimeout(800);
+  const b0 = (await stats()).batches.length;
+  await p.click('#refreshBtn'); await p.waitForTimeout(60);
+  assert.ok((await p.textContent('#refreshBtn')).includes('REFRESHING'), 'spinner shows');
+  assert.strictEqual(await p.locator('#refreshBtn .spin').count(), 1); assert.ok(await p.isDisabled('#refreshBtn'));
+  await p.waitForFunction(() => document.getElementById('refreshBtn').textContent.includes('SYNCED ✓'), null, { timeout: 8000 });   // then says so
+  await p.waitForTimeout(1900);
+  assert.strictEqual(await p.textContent('#refreshBtn'), 'REFRESH NOW');
+  const bs = (await stats()).batches.slice(b0);
+  console.log('batched reads:', JSON.stringify(bs));
+  assert.ok(bs.some(x => x.length >= 2), 'several reads in one request');
+  assert.ok((await txt(p, '.netlog')).includes('SYNC:'), 'shown as one SYNC line');
+  await p.click('[data-screen="log"].nav'); await p.waitForTimeout(300);
+  await p.keyboard.type('135790'); await p.waitForTimeout(1000);
+
   // five misses lock it, even for the right PIN
   await p.click('[data-lact="lock"]');
   for (let i = 0; i < 5; i++) { await p.keyboard.type('000000'); await p.waitForTimeout(500); }

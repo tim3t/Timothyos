@@ -54,7 +54,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   const log = await p.locator('.netlog').innerText();
   console.log('request log:', log.replace(/\s+/g, ' ').slice(0, 300));
   assert.ok(/IN BACKGROUND/.test(log), 'log marks requests cut off in the background');
-  assert.ok(/FAILED IN THE LAST HOUR/.test(await p.textContent('.phead:has-text("RECENT REQUESTS")')));
+  assert.ok(/IN THE LAST HOUR · (NONE FAILED|\d+ FAILED)/.test(await p.textContent('.phead:has-text("RECENT REQUESTS")')));
 
   // 3. an outage over good saved data: stays quiet (SYNCED · RETRYING), panels show a muted note, not red errors
   await p.evaluate(() => document.querySelector('.elbow').click()); await settle();

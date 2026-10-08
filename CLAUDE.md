@@ -52,6 +52,8 @@ Current versions: **app 2.0.0**, **bridge 1.6.0**.
 
 Key refusals are distinct: `no_key` (request arrived without its details; a POST can become an empty GET on a Google redirect), `key_unreadable` (settings store answered empty), `unauthorized` (wrong key). The app's `transient()` retries the first two. Log reads go as GET via `logRead()` (falls back to POST on `unknown_action`). The written-days list is cached 6 h under `logdates` and updated in place by `logDatesAdd_()`; setup clears it.
 
+Batched reads: `api()` holds batchable reads for 40 ms and sends them as GET `batch` (`calls` = JSON list, ≤ 8) when more than one is waiting; the bridge's `batch_()` runs each through `read_()` and returns `results[]`, each with its own ok/error. Falls back to single requests on `unknown_action`. `netPending` counts requests in flight (REFRESH NOW's spinner); `markRetried()` flags netlog entries for attempts `withRetry()` tried again.
+
 Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`, `reviewlog` and `queue` (once `NOTION_TOKEN` is set), `log` (with `NOTION_TOKEN`), `logpin` (once `LOG_PIN` is set), `ledger` (once `YNAB_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules

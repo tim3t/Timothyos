@@ -78,6 +78,7 @@ QUEUE = [
   {"id": "q3", "title": "Rain barrels", "cost": None, "priority": 30, "note": "", "link": "", "bought": None, "created": "2026-10-03"},
   {"id": "q4", "title": "Hive tool", "cost": 25, "priority": 5, "note": "", "link": "", "bought": "2026-09-20", "created": "2026-09-01"}]
 QCIDS = {}; QPOSTS = []
+BATCHES = []
 PIN = "135790"; LOGFAIL = [0]; FLAKY = [0]; NOKEY = [0]; LOGVIA = []; LOGSAVES = []; LOGACTS = []
 LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A September page.", "2026-10-01": "Added in Notion with a photo.", "2025-11-13": "The very first page."}
 LOGOTHER = {"2026-10-01"}
@@ -149,6 +150,13 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+        if q.get("action") == "batch" and q.get("key") == KEY:
+            calls = json.loads(q.get("calls", "[]")); BATCHES.append([c.get("action") for c in calls])
+            body = {"ok": True, "version": "1.13.0", "results": [self.answer(dict(c, key=KEY)) for c in calls]}
+        else: body = self.answer(q)
+        b = json.dumps(body).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
+    def answer(self, q):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
         elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS}
         elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
@@ -177,10 +185,9 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
         elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
-        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA}
+        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "batches": BATCHES}
         else: body = {"ok": False, "error": "unknown_action"}
-        b = json.dumps(body).encode()
-        self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
+        return body
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0)); raw = self.rfile.read(n).decode()
         POSTS.append(self.headers.get("Content-Type"))

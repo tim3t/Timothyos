@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.5 · 2026-10-08 (bridge 1.13.0)
+- **REFRESH NOW shows it's working:** a turning ring and REFRESHING… until every request it started (and any retries) has finished, then SYNCED ✓ for a moment.
+- **Fewer of Google's lost answers:** reads asked for at the same moment, such as on returning to the app, now travel together as one request (shown as SYNC in Systems), so Google runs one execution instead of five. Google's servers sometimes run a request and then lose the answer (HTTP 404); five requests at once made that far more likely. Each read still answers on its own. An older bridge gets them one at a time as before.
+- **Recent requests tells retries from failures:** a failed attempt that was tried again is marked RETRIED in amber; only red lines are real failures, and the header counts them separately.
+
 ## 2.5.4 · 2026-10-08 (bridge 1.12.0)
 - **Ask runs on Claude Haiku 5.5** for everyday questions, at low effort: newer, better at following instructions and using the app's tools, with a 1M-token window, at about a tenth of Haiku 4.5's price ($0.10 / $0.50 per million tokens, against $1 / $5). THINK HARDER and summaries stay on Sonnet 5.5.
 - The bridge counts Haiku 5.5 at its own price in the monthly budget, leaves room for its brief thinking (answers up to 4,000 tokens), and sends none of the settings it rejects.

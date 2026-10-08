@@ -24,5 +24,13 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   console.log('capture with 404 on first POST -> toast:', await p.textContent('#toast'), '| created on server:', st.created.filter(t => t === 'Retry test event').length, '| queue', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length));
   await p.click('.prio >> nth=0'); await p.waitForTimeout(3000);
   console.log('check-off with 404 on first POST -> toast:', await p.textContent('#toast'));
+  // the log calls a failed attempt that was tried again RETRIED (amber), not a failure
+  const nl = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.netlog.v1')));
+  const t404 = nl.filter(n => n.a === 'tasks' && /http_404/.test(n.r));
+  require('assert').ok(t404.length >= 2 && t404.every(n => n.retried), 'retried 404s marked');
+  await p.click('#status'); await p.waitForTimeout(500);
+  const head = (await p.textContent('.sys')).replace(/\s+/g, ' ');
+  console.log('requests header:', head.match(/RECENT REQUESTS[^T]*/)[0]);
+  require('assert').ok(/NONE FAILED · \d+ RETRIED/.test(head), 'nothing counted as failed when retries succeeded');
   console.log('errors', errs); await b.close();
 })();
