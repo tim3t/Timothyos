@@ -674,6 +674,14 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 
 .lg-sortrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 4px 0 10px; }
 
+.aimeter i { position: absolute; top: -3px; bottom: -3px; left: var(--mark, 80%); width: 2px; background: var(--fg); opacity: .7; }   /* the reminder */
+.ai-match { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-match input { flex: 1; min-width: 160px; max-width: 280px; }
+.ai-log { display: flex; flex-direction: column; }
+.ai-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto 60px; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; align-items: baseline; }
+.ai-row > span:last-child { text-align: right; }
+@media (max-width: 520px) { .ai-row { grid-template-columns: 70px minmax(0, 1fr) 54px; } .ai-row > span:nth-child(3) { display: none; } }
+
 /* ---------- Key Dates ---------- */
 .kd {
   display: grid; grid-template-columns: 8px 86px minmax(0, 1fr) auto; gap: 12px; align-items: center;
@@ -1074,8 +1082,8 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 #askText { width: 100%; min-height: 64px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 18px; resize: none; }
 #askText:focus { border-color: var(--chrome-a); outline: none; }
 .chip[aria-pressed="true"]#askDeep { background: var(--chrome-a); border-color: var(--chrome-a); color: var(--ink); }
-.aimeter { height: 12px; background: var(--panel-2); border-radius: 0 6px 6px 0; overflow: hidden; margin-bottom: 6px; max-width: 360px; }
-.aimeter span { display: block; height: 100%; background: var(--ok); }
+.aimeter { position: relative; height: 12px; background: var(--panel-2); border-radius: 0 6px 6px 0; margin-bottom: 6px; max-width: 360px; }   /* no overflow clip: the reminder mark sits proud of the bar */
+.aimeter span { display: block; height: 100%; max-width: 100%; border-radius: inherit; background: var(--ok); }
 .aimeter span.warm { background: var(--warn); }
 .aimeter span.hot { background: var(--bad); }
 

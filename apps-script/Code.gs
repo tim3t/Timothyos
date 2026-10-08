@@ -64,7 +64,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.14.0';
+var VERSION = '1.15.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -106,7 +106,7 @@ function doGet(e) {
 /** The everyday reads, by action. Null for anything else. */
 var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library'];
 function read_(p) {
-  if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null };
+  if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
   if (p.action === 'tasks') return tasks_(String(p.day || ''));
   if (p.action === 'dates') return dates_();
@@ -153,6 +153,8 @@ function doPost(e) {
     if (body.action === 'adddate') return json_(addDate_(body.date || {}));
     if (body.action === 'savereview') return json_(saveReview_(body.review || {}));
     if (body.action === 'ask') return json_(ask_(body));
+    if (body.action === 'aicontinue') return json_(aiContinue_());
+    if (body.action === 'aispendset') return json_(aiSpendSet_(body.usd));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
     if (body.action === 'habitset') return json_(habitSet_(body.day));
@@ -203,7 +205,7 @@ function setup() {
   console.log('Notion habits: ' + habitsStatus_());
   console.log('Notion library: ' + libraryStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
-  console.log('Ask Claude: ' + (ai ? 'OK (everyday model ' + aiFast_() + '). This month $' + ai.usd.toFixed(2) + ' of $' + ai.budget.toFixed(2) + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
+  console.log('Ask Claude: ' + (ai ? 'OK (questions ' + aiFast_() + ', THINK HARDER ' + AI.DEEP + '). This month $' + ai.usd.toFixed(2) + ', reminder at $' + ai.budget.toFixed(2) + (ai.cont ? ' (continued)' : '') + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
 }
@@ -215,10 +217,11 @@ function rotateKey() {
 }
 
 /**
- * Run this from the editor (select "compareModels", then Run) to see everyday Ask on
- * Haiku 4.5 next to Haiku 5.5 (low and medium effort) with your own calendar and tasks.
- * Five questions, three setups: about 2 to 8 cents in total, counted in this month's
- * Ask spend. Nothing is changed: proposals are only listed. Results stay in this log.
+ * Run this from the editor (select "compareModels", then Run) to see Ask on Sonnet 5.5
+ * (low effort, everyday), Opus 5.5 (medium, THINK HARDER) and Haiku 5.5 (low) side by
+ * side with your own calendar and tasks. Five questions, three setups: roughly 30 to 70
+ * cents in total, counted in this month's Ask spend. Nothing is changed: proposals are
+ * only listed. Results stay in this log.
  */
 function compareModels() {
   if (!aiKey_()) { console.log('Add ANTHROPIC_API_KEY first.'); return; }
@@ -231,7 +234,7 @@ function compareModels() {
     'Remind me Friday at 3pm to call the vet.',
     'How busy is my next week compared with this one?'
   ];
-  var setups = [{ model: 'claude-haiku-4-5' }, { model: 'claude-haiku-5-5', effort: 'low' }, { model: 'claude-haiku-5-5', effort: 'medium' }];
+  var setups = [{ model: 'claude-sonnet-5-5', effort: 'low' }, { model: 'claude-opus-5-5', effort: 'medium' }, { model: 'claude-haiku-5-5', effort: 'low' }];
   var totals = setups.map(function () { return { usd: 0, ms: 0, ok: 0 }; });
   questions.forEach(function (q, qi) {
     console.log('\n=== Q' + (qi + 1) + ': ' + q);
@@ -1342,20 +1345,33 @@ function libraryStatus_() {
 // Timothy confirms in the app. No web, no work-calendar writes, no code.
 // The API key lives in Script Properties (ANTHROPIC_API_KEY), never in this file.
 var AI = {
-  FAST: 'claude-haiku-5-5',    // everyday questions (Script Property AI_FAST_MODEL = claude-haiku-4-5 switches back)
-  FAST_EFFORT: 'low',          // Haiku 5.5 thinks a little by default; low keeps everyday answers quick and cheap
-  DEEP: 'claude-sonnet-5-5',   // THINK HARDER and weekly summaries
-  BUDGET_USD: 8,               // monthly pause point; override with Script Property AI_BUDGET_USD
+  FAST: 'claude-sonnet-5-5',   // everyday questions (Script Property AI_FAST_MODEL = claude-haiku-5-5 or claude-haiku-4-5 steps down)
+  FAST_EFFORT: 'low',          // quick, plain answers; Sonnet 5.5 recalibrated its levels, low suits chat
+  DEEP: 'claude-opus-5-5',     // THINK HARDER
+  DEEP_EFFORT: 'medium',       // Opus 5.5's own default
+  SUMMARY: 'claude-sonnet-5-5',// weekly summaries and patterns
+  BUDGET_USD: 8,               // monthly pause and reminder; CONTINUE carries on until the Claude Console stops it. Script Property AI_BUDGET_USD
+  CAP_USD: 10,                 // the real ceiling is the Console (prepaid credit, spend limit); shown for reference. Script Property AI_CAP_USD
   MAX_STEPS: 6                 // model calls per question, at most
 };
-// US$ per million tokens: input, output, cache write (5 min), cache read.
-var AI_PRICES = {
-  'claude-haiku-5-5': [0.10, 0.50, 0.125, 0.01],   // prompts up to 100K tokens; Ask stays far below that
-  'claude-haiku-4-5': [1, 5, 1.25, 0.10],
-  'claude-sonnet-5-5': [2, 10, 2.5, 0.20],
-  'claude-sonnet-5': [2, 10, 2.5, 0.20]
-};
-var AI_PRICE_OTHER = [5, 25, 6.25, 0.50];   // anything unexpected is counted at a high rate
+// US$ per million tokens: input, output, cache write (5 min), cache read. Matched by model family, longest first,
+// so a dated or regional model name is priced like its family rather than at the catch-all rate.
+var AI_PRICES = [
+  ['claude-opus-5-5', [4, 20, 5, 0.20]],
+  ['claude-opus-5', [5, 25, 6.25, 0.50]],
+  ['claude-opus-4', [5, 25, 6.25, 0.50]],
+  ['claude-sonnet-5-5', [2, 10, 2.5, 0.20]],
+  ['claude-sonnet-5', [2, 10, 2.5, 0.20]],
+  ['claude-sonnet-4', [3, 15, 3.75, 0.30]],
+  ['claude-haiku-5-5', [0.10, 0.50, 0.125, 0.01]],   // prompts up to 100K tokens; Ask stays far below that
+  ['claude-haiku-4-5', [1, 5, 1.25, 0.10]]
+];
+var AI_PRICE_OTHER = [10, 50, 12.5, 1];   // a model not listed is counted high, and marked in the log
+function aiPrice_(model) {
+  var m = String(model || '').replace(/^[a-z]+\./, '');
+  for (var i = 0; i < AI_PRICES.length; i++) if (m.indexOf(AI_PRICES[i][0]) === 0) return AI_PRICES[i][1];
+  return null;
+}
 
 var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
@@ -1369,21 +1385,39 @@ var AI_RULES = [
 
 function aiKey_() { return PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'); }
 function aiBudget_() { var b = Number(PropertiesService.getScriptProperties().getProperty('AI_BUDGET_USD')); return isFinite(b) && b > 0 ? b : AI.BUDGET_USD; }
+function aiCap_() { var b = Number(PropertiesService.getScriptProperties().getProperty('AI_CAP_USD')); return isFinite(b) && b > 0 ? b : AI.CAP_USD; }
 function aiMonth_() { return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM'); }
 /** This month's spend, kept in Script Properties: { month, usd, calls }. */
 function aiSpend_() {
   var s = {};
   try { s = JSON.parse(PropertiesService.getScriptProperties().getProperty('AI_SPEND') || '{}'); } catch (e) { s = {}; }
   if (s.month !== aiMonth_()) s = { month: aiMonth_(), usd: 0, calls: 0 };
-  return { month: s.month, usd: Math.round((s.usd || 0) * 10000) / 10000, calls: s.calls || 0, budget: aiBudget_() };
+  var cont = PropertiesService.getScriptProperties().getProperty('AI_CONTINUE') === s.month;
+  return { month: s.month, usd: Math.round((s.usd || 0) * 10000) / 10000, calls: s.calls || 0, budget: aiBudget_(), cap: aiCap_(), cont: cont };
+}
+/** Paused at the monthly reminder, unless Timothy chose CONTINUE this month. */
+function aiPaused_(s) { return s.usd >= s.budget && !s.cont; }
+/** The last 25 questions: when, which mode and model, tokens and cost. No text. */
+function aiLog_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('AI_LOG') || '[]'); } catch (e) { return []; } }
+function aiLogAdd_(entry) { var l = aiLog_(); l.unshift(entry); PropertiesService.getScriptProperties().setProperty('AI_LOG', JSON.stringify(l.slice(0, 25))); }
+/** CONTINUE past the reminder for the rest of this month. */
+function aiContinue_() { PropertiesService.getScriptProperties().setProperty('AI_CONTINUE', aiMonth_()); return { ok: true, version: VERSION, spend: aiSpend_() }; }
+/** Set this month's total to the figure the Claude Console shows, so the two agree from here on. */
+function aiSpendSet_(usd) {
+  usd = Number(usd);
+  if (!isFinite(usd) || usd < 0 || usd > 10000) return { ok: false, error: 'bad_request' };
+  var s = aiSpend_();
+  PropertiesService.getScriptProperties().setProperty('AI_SPEND', JSON.stringify({ month: s.month, usd: usd, calls: s.calls }));
+  aiLogAdd_({ t: new Date().toISOString(), mode: 'matched', usd: Math.round(usd * 10000) / 10000 });
+  return { ok: true, version: VERSION, spend: aiSpend_() };
 }
 /** The everyday model: Haiku 5.5 unless Script Property AI_FAST_MODEL picks Haiku 4.5. */
 function aiFast_() {
   var m = String(PropertiesService.getScriptProperties().getProperty('AI_FAST_MODEL') || '').trim();
-  return m === 'claude-haiku-4-5' || m === 'claude-haiku-5-5' ? m : AI.FAST;
+  return m === 'claude-haiku-4-5' || m === 'claude-haiku-5-5' || m === 'claude-sonnet-5-5' ? m : AI.FAST;
 }
 function aiCost_(model, u) {
-  var p = AI_PRICES[model] || AI_PRICE_OTHER;
+  var p = aiPrice_(model) || AI_PRICE_OTHER;
   u = u || {};
   return ((u.input_tokens || 0) * p[0] + (u.output_tokens || 0) * p[1] + (u.cache_creation_input_tokens || 0) * p[2] + (u.cache_read_input_tokens || 0) * p[3]) / 1e6;
 }
@@ -1518,22 +1552,25 @@ function ask_(body, test) {
   while (turns.length && turns[0].role !== 'user') turns.shift();
 
   var spend = aiSpend_();
-  if (spend.usd >= spend.budget) return { ok: false, error: 'ai_budget', spend: spend };
+  if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
 
-  var model = test && test.model ? test.model : mode === 'fast' ? aiFast_() : AI.DEEP;
+  var model = test && test.model ? test.model : mode === 'fast' ? aiFast_() : mode === 'deep' ? AI.DEEP : AI.SUMMARY;
   var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." :
       mode === 'patterns' ? "\nTask: read the saved weekly reviews in the snapshot and name the patterns across them: what keeps draining him, what reliably goes well, focus areas that keep coming back or slipping, how he holds his bearing, and any trend in the numbers. 4 to 6 lines starting with '- ', each one concrete and tied to specific weeks. End with one suggestion. Don't use tools." : '') },
     { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
-  // Haiku 5.5 thinks by default and thinking counts toward max_tokens, so the everyday cap leaves room for it.
-  var payload = { model: model, max_tokens: mode === 'fast' ? 4000 : 8000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
-  if (model === 'claude-haiku-5-5') payload.output_config = { effort: (test && test.effort) || AI.FAST_EFFORT };   // Haiku 4.5 rejects effort; no fallbacks exist for Haiku 5.5
+  // Current models think by default and thinking counts toward max_tokens, so each cap leaves room for it.
+  var payload = { model: model, max_tokens: mode === 'fast' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
+  var effort = (test && test.effort) || (mode === 'fast' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
+  if (model !== 'claude-haiku-4-5') payload.output_config = { effort: effort };   // Haiku 4.5 rejects effort
   if (mode === 'fast' || mode === 'deep') payload.tools = AI_TOOLS;
   var betas = [];
-  if (model === AI.DEEP) { payload.output_config = { effort: 'medium' }; payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+  // A decline by a safety classifier is retried on a suitable model in the same call (Sonnet 5.5 and Opus 5.5; Haiku has none).
+  if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
 
   var ctx = { ignore: Array.isArray(body.ignore) ? body.ignore.slice(0, 30) : [], proposals: [] }, cost = 0, res, served = model;
+  var tok = { in: 0, out: 0, cw: 0, cr: 0 }, unknown = false;
   for (var step = 0; step < AI.MAX_STEPS; step++) {
-    if (step > 0 && aiSpend_().usd >= aiSpend_().budget) break;
+    if (step > 0 && aiPaused_(aiSpend_())) break;
     try {
       res = claude_(payload, betas);
     } catch (e) {
@@ -1541,6 +1578,9 @@ function ask_(body, test) {
       return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
     }
     served = res.model || model;
+    var u = res.usage || {};
+    tok.in += u.input_tokens || 0; tok.out += u.output_tokens || 0; tok.cw += u.cache_creation_input_tokens || 0; tok.cr += u.cache_read_input_tokens || 0;
+    if (!aiPrice_(served)) unknown = true;
     var c = aiCost_(served, res.usage);
     cost += c;
     spend = aiAddSpend_(c);
@@ -1557,6 +1597,7 @@ function ask_(body, test) {
   if (res && res.stop_reason === 'refusal') text = "That's outside what I can help with here.";
   else if (res && res.stop_reason === 'tool_use') text = (text ? text + '\n\n' : '') + "(Stopped after " + AI.MAX_STEPS + " steps. Ask again more narrowly.)";
   else if (res && res.stop_reason === 'max_tokens') text += '\n\n(Answer cut short.)';
+  if (!test) aiLogAdd_({ t: new Date().toISOString(), mode: mode, model: served, steps: step + 1, in: tok.in, out: tok.out, cw: tok.cw, cr: tok.cr, usd: Math.round(cost * 100000) / 100000, unknown: unknown || undefined });
   var out = { ok: true, version: VERSION, reply: text || '(No answer.)', proposals: ctx.proposals, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
   if (test) { out.stop = res && res.stop_reason; out.steps = step + 1; out.costExact = cost; }
   try { cache.put('ask:' + body.cid, JSON.stringify(out), 600); } catch (x) { /* too large to cache */ }

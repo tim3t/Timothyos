@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.8.1";
+  var VERSION = "2.9.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1620,6 +1620,17 @@
   $("askOpen").addEventListener("click", openInClaude);
   $("askNew").addEventListener("click", function () { askState = null; freshAsk(); $("askErr").textContent = ""; renderAsk(); $("askText").focus(); });
   $("askDeep").addEventListener("click", function () { freshAsk(); askState.deep = !askState.deep; saveAsk(); renderAsk(); });
+  /* At the monthly reminder: CONTINUE for the rest of the month (the Claude Console's own limit still applies), then send again. */
+  $("askErr").addEventListener("click", function (e) {
+    if (!e.target.closest("#askContinue")) return;
+    e.target.closest("#askContinue").disabled = true;
+    apiPost({ action: "aicontinue" }).then(function (j) {
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      $("askErr").textContent = "";
+      renderAsk();
+      askSend();
+    }).catch(function (err) { $("askErr").textContent = describeAi(err); });
+  });
   $("askText").addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); askSend(); } });
   $("askScrim").addEventListener("click", function (e) {
     if (e.target === $("askScrim")) { closeAsk(); return; }
@@ -2605,13 +2616,13 @@
     saveAsk();
   }
   function money(usd) { return usd < 1 ? (Math.round(usd * 1000) / 10) + "¢" : "$" + usd.toFixed(2); }
-  function spendLine(s) { return s ? "$" + s.usd.toFixed(2) + " OF $" + s.budget.toFixed(2) + " THIS MONTH" : ""; }
-  function modelName(m) { return /haiku/.test(m || "") ? "HAIKU" : /sonnet/.test(m || "") ? "SONNET" : String(m || "").toUpperCase(); }
+  function spendLine(s) { return s ? "$" + s.usd.toFixed(2) + " THIS MONTH · " + (s.usd >= s.budget && s.cont ? "CONTINUED PAST $" + s.budget.toFixed(2) : "REMINDER AT $" + s.budget.toFixed(2)) : ""; }
+  function modelName(m) { return /haiku/.test(m || "") ? "HAIKU" : /sonnet/.test(m || "") ? "SONNET" : /opus/.test(m || "") ? "OPUS" : String(m || "").toUpperCase(); }
   function describeAi(err) {
     var code = err && (err.code || err.message), s = state.aiSpend;
     return {
       ai_not_configured: "Ask isn't set up yet. Add ANTHROPIC_API_KEY to the bridge's Script Properties (README, Ask Claude).",
-      ai_budget: "Ask is paused: this month's budget" + (s ? " ($" + s.budget.toFixed(2) + ")" : "") + " is used. It resumes on the 1st, or raise AI_BUDGET_USD in Script Properties.",
+      ai_budget: "Ask paused at this month's reminder" + (s ? " ($" + s.usd.toFixed(2) + " of $" + s.budget.toFixed(2) + ")" : "") + ". CONTINUE carries on for the rest of the month, until the Claude Console stops it" + (s && s.cap ? " (your $" + s.cap.toFixed(0) + " ceiling there)" : "") + ".",
       ai_console_limit: "The spend limit in the Claude Console was reached. It resumes next month, or raise it at platform.claude.com.",
       ai_no_credit: "Your Claude Console credit is used up. Add credit at platform.claude.com (auto-reload stays off).",
       ai_unauthorized: "Claude didn't accept the API key. Check ANTHROPIC_API_KEY in Script Properties.",
@@ -2723,7 +2734,7 @@
     var log = $("askLog"), html = "";
     if (!askState.msgs.length) {
       html = '<div class="askhint"><b>Ask anything about your days.</b><br>For example: What needs me today? · What did I get done this week? · Remind me to call the vet Thursday at 3 · Add a task to order hive frames.' +
-        '<br><span class="muted">Answers use your calendars, tasks and key dates. Nothing changes until you tap CONFIRM. THINK HARDER uses a stronger model at about twice the cost.</span></div>';
+        '<br><span class="muted">Answers use your calendars, tasks and key dates. Nothing changes until you tap CONFIRM. Questions use Sonnet; THINK HARDER uses Opus, about three times the cost.</span></div>';
     }
     askState.msgs.forEach(function (m, mi) {
       if (m.role === "user") { html += '<div class="amsg user">' + esc(m.text) + "</div>"; return; }
@@ -2763,6 +2774,7 @@
       $("askText").value = text;
       if (err && err.spend) state.aiSpend = err.spend;
       $("askErr").textContent = describeAi(err);
+      if (err && err.code === "ai_budget") $("askErr").insertAdjacentHTML("beforeend", ' <button type="button" class="btn sm" id="askContinue">CONTINUE THIS MONTH</button>');
     }).then(function () {
       askBusy = false;
       saveAsk(); renderAsk();
@@ -2821,6 +2833,7 @@
     aiSpendAt = Date.now();
     api({ action: "aispend" }).then(function (j) {
       if (j.ai) { state.aiSpend = j.ai; lsSet(LS_AISPEND, j.ai); }
+      state.aiLog = j.log || null;
       if (!$("askScrim").hidden) renderAsk();
       if (state.screen === "systems") render(true);
     }).catch(function () { /* shown next time */ });
@@ -2828,12 +2841,32 @@
   function aiSection() {
     var s = state.aiSpend, html = "<section>" + phead("ASK CLAUDE", canAsk() ? "ON" : "OFF");
     if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs bridge 1.6 and ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
-    var pct = s ? Math.min(100, Math.round(s.usd / s.budget * 100)) : 0;
-    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter"><span style="width:' + pct + '%" class="' + (pct >= 90 ? "hot" : pct >= 60 ? "warm" : "") + '"></span></div><span class="tnum">$' + s.usd.toFixed(2) + " of $" + s.budget.toFixed(2) + " · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
-      "<dt>MODELS</dt><dd>Haiku 5.5 for questions · Sonnet 5.5 for THINK HARDER and weekly summaries</dd>" +
-      "<dt>SAFEGUARDS</dt><dd>Pauses at the budget above (AI_BUDGET_USD). Claude Console spend limit and prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd></dl>" +
-      '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
+    var cap = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / cap * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / cap * 100)) : 80;
+    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
+      "<dt>MODELS</dt><dd>Sonnet 5.5 for questions and weekly summaries · Opus 5.5 for THINK HARDER</dd>" +
+      "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
+      '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
+      '<small class="muted">The count here is worked out from each answer\'s tokens at list prices. Enter the Console\'s figure to line the two up; new questions add on from there.</small></dd></dl>';
+    var log = state.aiLog;
+    if (log && log.length) html += '<div class="ov-sub" style="margin-top:14px">RECENT QUESTIONS</div><div class="ai-log">' + log.slice(0, 8).map(function (x) {
+      var d = new Date(x.t), when = DOW[d.getDay()] + " " + hm(d);
+      if (x.mode === "matched") return '<div class="ai-row"><span class="tnum">' + when + "</span><span>MATCHED TO THE CONSOLE</span><span></span><span class=\"tnum\">$" + Number(x.usd).toFixed(2) + "</span></div>";
+      var k = function (n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "K" : String(n || 0); };
+      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
+        '</span><span class="muted tnum">' + k((x.in || 0) + (x.cw || 0) + (x.cr || 0)) + " in · " + k(x.out) + ' out</span><span class="tnum">' + money(x.usd || 0) + "</span></div>";
+    }).join("") + "</div>";
+    html += '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
     return html;
+  }
+  function aiMatch() {
+    var v = parseFloat(String(($("aiMatch") || {}).value || "").replace(/[^0-9.]/g, ""));
+    if (!isFinite(v)) { toast("Type the Console's figure for this month, like 0.01."); return; }
+    apiPost({ action: "aispendset", usd: v }).then(function (j) {
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      toast("Matched: $" + v.toFixed(2) + " this month");
+      loadAiSpend(true);
+      render(true);
+    }).catch(function (err) { toast("Not matched: " + describeAi(err)); });
   }
 
   /* ---------- Ledger (YNAB, read-only) + Replicator Queue (Notion) ---------- */
@@ -4535,6 +4568,7 @@
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);
     else if (b.dataset.act === "dates") go("dates");
+    else if (b.dataset.act === "aimatch") aiMatch();
     else if (b.dataset.act === "adddate") openCapture(null, null, "date");
     else if (b.dataset.kdf !== undefined) { state.kdFilter = b.dataset.kdf || null; render(false); }
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));

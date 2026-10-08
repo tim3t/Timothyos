@@ -59,7 +59,9 @@ KDATES = [
 KTYPES = ["⏰ Deadline", "🌦️ Window", "🎂 Birthday", "💍 Anniversary", "📍 Event", "🔔 Reminder"]
 DCIDS = {}
 REVIEWS = {}; RPOSTS = []; UNSHARED = []
-ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8}
+ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8, "cap": 10}
+LOG = [{"t": "2026-10-06T13:10:00Z", "mode": "fast", "model": "claude-sonnet-5-5", "steps": 1, "in": 5200, "out": 310, "cw": 0, "cr": 0, "usd": 0.0135},
+       {"t": "2026-10-06T12:40:00Z", "mode": "deep", "model": "claude-opus-5-5", "steps": 2, "in": 9800, "out": 1400, "cw": 0, "cr": 4000, "usd": 0.068}]
 WEEKDONE = {"2026-10-05": [
   {"id": "w1", "title": "Send Q4 deck draft", "area": "🎯 Work & Calling", "status": "✅ Done", "at": "2026-10-07T18:00:00Z"},
   {"id": "w2", "title": "Inspect Hive 1", "area": "🐝 Beekeeping", "status": "✅ Done", "at": "2026-10-09T18:00:00Z"},
@@ -89,7 +91,7 @@ class H(BaseHTTPRequestHandler):
                     "picked": [t for t in TASKS if t["focus"] and wk <= t["focus"] < nxt],
                     "review": None if UNSHARED else REVIEWS.get(wk), "reviewsError": "notion_not_shared" if UNSHARED else None}
         elif q.get("action") == "aispend":
-            body = {"ok": True, "ai": SPEND}
+            body = {"ok": True, "ai": SPEND, "log": LOG}
         elif q.get("action") == "unshare":
             UNSHARED.append(1); body = {"ok": True}
         elif q.get("action") == "done":
@@ -118,12 +120,16 @@ class H(BaseHTTPRequestHandler):
                 if not tk: body = {"ok": False, "error": "not_writable"}
                 elif b.get("status") not in ["⬜ To Do", "🔄 In Progress", "✅ Done", "🚫 Blocked"]: body = {"ok": False, "error": "bad_request"}
                 else: tk["status"] = b["status"]; body = {"ok": True, "task": tk}
+            elif act == "aicontinue":
+                SPEND["cont"] = True; body = {"ok": True, "spend": SPEND}
+            elif act == "aispendset":
+                SPEND["usd"] = float(b.get("usd", 0)); LOG.insert(0, {"t": "2026-10-06T14:00:00Z", "mode": "matched", "usd": SPEND["usd"]}); body = {"ok": True, "spend": SPEND}
             elif act == "ask":
                 msgs = b.get("messages", []); last = msgs[-1]["text"] if msgs else ""; mode = b.get("mode")
                 ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:4000], "ignore": b.get("ignore")})
-                model = "claude-haiku-4-5" if mode == "fast" else "claude-sonnet-5-5"; cost = 0.012 if mode == "fast" else 0.035
+                model = "claude-opus-5-5" if mode == "deep" else "claude-sonnet-5-5"; cost = 0.012 if mode == "fast" else 0.035
                 props = []
-                if "BUDGET" in last: body = {"ok": False, "error": "ai_budget", "spend": dict(SPEND, usd=8.0)}
+                if "BUDGET" in last and not SPEND.get("cont"): SPEND["usd"] = 8.0; body = {"ok": False, "error": "ai_budget", "spend": SPEND}
                 else:
                     if mode == "summary": reply = "A steady week, Captain. The deck shipped and the hives were checked; bulbs slipped again."
                     elif "remind" in last.lower():

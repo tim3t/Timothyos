@@ -41,15 +41,15 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   assert.ok(!a.ctx.includes('Away block'), 'ignored events not sent');
   const bot = await p.innerText('.amsg.bot');
   console.log('answer:', bot.replace(/\s+/g, ' '));
-  assert.ok(bot.includes('Order spring bulbs first') && bot.includes('HAIKU · 1.2¢'));
-  assert.ok((await p.textContent('#askMeter')).includes('$0.43 OF $8.00'));
+  assert.ok(bot.includes('Order spring bulbs first') && bot.includes('SONNET · 1.2¢'));
+  assert.ok((await p.textContent('#askMeter')).includes('$0.43 THIS MONTH · REMINDER AT $8.00'));
 
-  // --- THINK HARDER: Sonnet, conversation history sent
+  // --- THINK HARDER: Opus, conversation history sent
   await p.click('#askDeep'); assert.strictEqual(await p.getAttribute('#askDeep', 'aria-pressed'), 'true');
   await p.fill('#askText', 'And after that?'); await p.click('#askSend'); await p.waitForTimeout(1200);
   s = await stats(); a = s.asks[s.asks.length - 1];
   assert.strictEqual(a.mode, 'deep'); assert.strictEqual(a.turns, 3, 'previous question and answer go along');
-  assert.ok((await p.locator('.amsg.bot .ameta').last().textContent()).startsWith('SONNET'));
+  assert.ok((await p.locator('.amsg.bot .ameta').last().textContent()).startsWith('OPUS'));
   await p.click('#askDeep');
 
   // --- proposals: nothing happens until CONFIRM
@@ -92,8 +92,15 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   // --- budget pause shows a clear message and keeps the question
   await p.fill('#askText', 'BUDGET test'); await p.click('#askSend'); await p.waitForTimeout(1000);
   console.log('budget msg:', await p.textContent('#askErr'));
-  assert.ok((await p.textContent('#askErr')).includes("Ask is paused: this month's budget ($8.00) is used"));
+  assert.ok((await p.textContent('#askErr')).includes("Ask paused at this month's reminder ($8.00 of $8.00)"));
+  assert.ok((await p.textContent('#askErr')).includes('until the Claude Console stops it (your $10 ceiling there)'));
   assert.strictEqual(await p.inputValue('#askText'), 'BUDGET test');
+  // CONTINUE carries on for the month and resends the question
+  await p.click('#askContinue'); await p.waitForTimeout(1500);
+  assert.ok((await stats()).spend.cont, 'continue recorded');
+  assert.strictEqual(await p.locator('#askContinue').count(), 0);
+  assert.ok((await p.textContent('#askMeter')).includes('CONTINUED PAST $8.00'));
+  await p.click('#askNew');
 
   // --- OPEN IN CLAUDE
   await p.fill('#askText', 'Help me plan the weekend');
@@ -122,7 +129,16 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
   await p.click('#status'); await p.waitForTimeout(800);
   const sys = (await p.innerText('section:has(.phead:has-text("ASK CLAUDE"))')).replace(/\s+/g, ' ');
   console.log('systems:', sys.slice(0, 200));
-  assert.ok(/\$0\.\d\d of \$8\.00 · \d+ calls/.test(sys));
+  assert.ok(/\$\d\.\d\d · reminder at \$8\.00 \(continued\) · \$10 ceiling in the Claude Console · \d+ calls/.test(sys), 'meter line');
+  assert.ok(sys.includes('Sonnet 5.5 for questions') && sys.includes('Opus 5.5 for THINK HARDER'));
+  assert.ok(sys.includes('RECENT QUESTIONS') && sys.includes('QUESTION · SONNET') && sys.includes('THINK HARDER · OPUS'), 'per-question log');
+  const mk = await p.evaluate(() => { const m = document.querySelector('.aimeter'), i = m.querySelector('i'); return { m: m.getBoundingClientRect().width, x: i.getBoundingClientRect().left - m.getBoundingClientRect().left, h: i.getBoundingClientRect().height }; });
+  assert.ok(Math.abs(mk.x / mk.m - 0.8) < 0.02 && mk.h > 12, 'reminder mark at 80%, not clipped');
+  await p.fill('#aiMatch', '$0.01'); await p.click('[data-act="aimatch"]'); await p.waitForTimeout(1200);
+  assert.strictEqual((await stats()).spend.usd, 0.01, 'matched to the Console');
+  const sys2 = (await p.innerText('section:has(.phead:has-text("ASK CLAUDE"))')).replace(/\s+/g, ' ');
+  assert.ok(sys2.includes('$0.01 · reminder at $8.00') && sys2.includes('MATCHED TO THE CONSOLE'), sys2.slice(0, 300));
+  await p.screenshot({ path: D + 'ask-systems.png' });
 
   // --- phone width
   await p.setViewportSize({ width: 400, height: 860 });

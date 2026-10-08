@@ -199,15 +199,15 @@ Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life
 1. **Console safeguards** at platform.claude.com: prepaid credit, **auto-reload off**, and **Settings → Billing → Spend limits** set to your monthly ceiling.
 2. **Update the bridge to 1.6:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
 3. **Add the key:** Project Settings (gear) → **Script Properties** → **Add script property**: name `ANTHROPIC_API_KEY`, value your API key. Never paste it anywhere else.
-4. Optional: add `AI_BUDGET_USD` to change the pause point (default **8**, so Ask pauses before a $10 Console limit).
-5. Run **setup**. The log should show `Ask Claude: OK. This month $0.00 of $8.00` and `Bridge version 1.6.0`.
+4. Optional: `AI_BUDGET_USD` sets the reminder (default **8**) and `AI_CAP_USD` the ceiling shown beside it (default **10**; match it to the Console spend limit).
+5. Run **setup**. The log should show `Ask Claude: OK.` with this month's spend, the two models, and the current `Bridge version`.
 6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**. **ASK** lights up.
 
 **How it works**
 - Each question goes with a snapshot of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your log line and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the bridge.
 - **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm calendar, once linked), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
-- **Models:** Haiku 5.5 by default, at low effort (well under 1¢ a question; Script Property `AI_FAST_MODEL` = `claude-haiku-4-5` switches back). To compare the two on your own data, select **compareModels** in the script editor and Run (about 2 to 8¢). **THINK HARDER** uses Sonnet 5.5 (about 3 to 5¢). **WRITE SUMMARY** on Review uses Sonnet 5.5.
-- **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far. At the budget the bridge stops calling Claude until the 1st.
+- **Models:** Sonnet 5.5 at low effort for questions (about 1 to 2¢). **THINK HARDER** uses Opus 5.5 (about three times that). **WRITE SUMMARY** on Review uses Sonnet 5.5. To spend less, Script Property `AI_FAST_MODEL` = `claude-haiku-5-5` (or `claude-haiku-4-5`) moves questions back to Haiku. **compareModels** in the script editor runs Sonnet, Opus and Haiku side by side on your own data (about 10¢).
+- **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far against the $10 ceiling, with the last eight questions (model, tokens, cost; never the text). At the **$8 reminder** Ask pauses; **CONTINUE THIS MONTH** carries on until the Claude Console's spend limit stops it. The count is worked out from each answer's tokens at list prices, so it can drift from the Console a little; **MATCH THE CONSOLE** sets it to the Console's figure.
 - **OPEN IN CLAUDE** copies the snapshot and opens the Claude app (your Pro plan) for longer conversations. If Claude opens empty, paste.
 - The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
 
@@ -355,7 +355,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
 | ASK says SETUP | Follow **Ask Claude (bridge 1.6)** above |
-| "Ask is paused" | The monthly budget is used. It resumes on the 1st, or raise `AI_BUDGET_USD` |
+| "Ask paused at this month's reminder" | Tap **CONTINUE THIS MONTH** to carry on to the Console limit, or wait for the 1st |
 | "Claude Console credit is used up" | Add credit at platform.claude.com (keep auto-reload off) |
 | Review says it needs bridge 1.5 | Follow **Weekly Review (bridge 1.5)** above |
 | "Weekly Reviews isn't connected" | 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge |
@@ -373,7 +373,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
 - **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and are never sent to Ask. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
-- **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own monthly budget.
+- **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
 
 ## Project layout

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.0 · 2026-10-08 (bridge 1.15.0)
+- **Ask now uses Sonnet; THINK HARDER uses Opus.** Questions go to Sonnet 5.5 at low effort (about 1 to 2¢ each), THINK HARDER to Opus 5.5 (about three times that), weekly summaries stay on Sonnet. Haiku is no longer used; `AI_FAST_MODEL` = `claude-haiku-5-5` brings it back.
+- **A reminder at $8, a ceiling at $10.** At $8 Ask pauses and offers **CONTINUE THIS MONTH**; one tap carries on until the Claude Console's own $10 limit stops it. The meter in SYSTEMS runs to $10 with a mark at the reminder.
+- **A spend count closer to the Console.** Costs are worked out at each model's current list price, including dated model names; a model with no known price is flagged instead of guessed high.
+- **RECENT QUESTIONS** in SYSTEMS → ASK CLAUDE lists the last eight: when, which model, tokens in and out, and cost (never the question itself).
+- **MATCH THE CONSOLE:** type the month's figure from the Claude Console and the count lines up with it from there.
+
 ## 2.8.1 · 2026-10-08
 - **LOOM reads top to bottom.** Each day's beads now run in time order from the top: the morning's first event is highest and the day's last sits on the loop, matching the list beside it.
 
