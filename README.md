@@ -239,7 +239,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 **How it works**
 - **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
 - **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages. **+** shows the smaller categories. Card payments, hidden and internal categories are left out.
-- **Replicator Queue:** reorder with ▲ ▼, **ADD** with a rough cost and note, **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
+- **Replicator Queue:** **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
 - **Freshness:** YNAB figures refresh every 10 minutes at most; past months are kept for 6 hours. That stays far below YNAB's 200 requests an hour.
 - **Ask Claude:** your finances are never sent with questions unless you choose **SYSTEMS → LEDGER → SHARE WITH ASK**.
 

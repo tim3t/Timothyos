@@ -105,6 +105,7 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   // REVIEW: the week's habits, day by day; the log's trends gain a habits row
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(1200);
   assert.ok((await txt(p, '#content')).includes('HABITS PER WEEK'), 'trends row');
+  assert.ok(await p.evaluate(() => { const c = document.getElementById('content'); return c.scrollWidth <= c.clientWidth; }), 'ALL REVIEWS does not scroll sideways (2.7.1)');
   await p.click('.rl-row:has-text("WEEK 41")'); await p.waitForTimeout(1500);
   const wk = await txt(p, 'section:has(.hb-wk)');
   console.log('review week:', wk.slice(0, 160));

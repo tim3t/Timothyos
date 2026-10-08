@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.1 · 2026-10-08
+- **REVIEW no longer scrolls sideways.** The week numbers under HABITS PER WEEK (ALL REVIEWS) borrowed the Week screen's width and pushed the page wider than the screen.
+- **Replicator Queue, by price.** A new item lands just above the first item that costs more, instead of at the bottom; items with no price yet still go last. The order you set with the arrows is kept as it is. When the queue is out of price order, **PRICE ORDER** sorts it lowest to highest in one tap.
+
 ## 2.7.0 · 2026-10-08 (bridge 1.14.0)
 - **Stations.** The bar now holds the seven stations you pin. The block below them is **ALL STATIONS**: every screen in three groups (TIME, REFLECT, RESOURCES), with AUDIO and MEALS waiting under STANDBY. **EDIT PINS** there swaps what sits in the bar; it changes as you tap and is kept on this iPad. While you're on a screen that isn't pinned, ALL STATIONS lights up and names it. Starts with TODAY, WEEK, LOOM, REVIEW, LOG, HABITS, LIBRARY (MONTH, DATES and LEDGER are one tap further in).
 - **HABITS** (new): meditated, evening walk, water in 1 L bottles (half-bottle steps; goal 3 L, change it under the tiles) and the debit card (DID NOT SWIPE or SWIPED). One tap each; the day saves to a new 🔁 Habits database in Notion a moment later, and taps made offline wait on the iPad until they land. Streaks (now, best, 30-day rate) and a 12-week grid; tap a square or use the arrows for an earlier day. A day you don't touch stays blank, never counted as a miss.

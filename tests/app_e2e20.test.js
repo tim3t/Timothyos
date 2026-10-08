@@ -78,8 +78,18 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.fill('#qNote', 'For the orchard');
   await p.click('#qForm button[type="submit"]'); await p.waitForTimeout(800);
   assert.deepStrictEqual([await p.inputValue('#qName'), await p.inputValue('#qCost'), await p.inputValue('#qNote')], ['', '', ''], 'form clears once added');
-  q = await items(); assert.ok(q[3].startsWith('4 Pruning saw') && q[3].includes('For the orchard') && q[3].includes('$129'));
-  s = await stats(); assert.ok(s.queue.some(x => x[0] === 'Pruning saw' && x[1] === 40));
+  // 2.7.1: a new item lands by price (above the first that costs more); your own order is kept for the rest
+  q = await items(); assert.ok(q[0].startsWith('1 Pruning saw') && q[0].includes('For the orchard') && q[0].includes('$129'), q.join(' | '));
+  const waiting = st => st.queue.filter(x => !x[2]).sort((a, c) => a[1] - c[1]).map(x => x[0]);
+  s = await stats(); assert.deepStrictEqual(waiting(s), ['Pruning saw', 'Honey extractor', 'New glasses', 'Rain barrels']);
+  assert.ok((await txt(p, '#toast')).includes('Added at #1 of 4, by price'));
+  // PRICE ORDER: shown while the queue is out of price order; sorts lowest to highest once
+  await p.click('[data-qprice]'); await p.waitForTimeout(800);
+  s = await stats(); assert.deepStrictEqual(waiting(s), ['Pruning saw', 'New glasses', 'Honey extractor', 'Rain barrels']);
+  assert.strictEqual(await p.locator('[data-qprice]').count(), 0, 'gone once in price order');
+  // no price: the bottom
+  await p.fill('#qName', 'Garden cart'); await p.click('#qForm button[type="submit"]'); await p.waitForTimeout(800);
+  s = await stats(); assert.deepStrictEqual(waiting(s).slice(-1), ['Garden cart']);
 
   await p.click('[data-qbought="q1"]'); await p.waitForTimeout(150);
   assert.ok((await txt(p, '[data-qid="q1"]')).includes('BOUGHT? YES NO'));

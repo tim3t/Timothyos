@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.7.0";
+  var VERSION = "2.7.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2978,6 +2978,8 @@
         (fund ? '<b class="tnum">' + usd(fund.balance) + '</b> <span class="muted lg-note">available</span>' : '<span class="muted lg-note">' + (y ? 'No category called "' + esc(y.fundName) + '" in YNAB yet. Create it and the bars below fill from it.' : "Shows once YNAB is connected.") + "</span>") +
         '</span><span class="muted lg-note lg-fundhint">Bars fill down the queue<br>in priority order</span></div><div class="lg-queue">';
       if (!L.queue.items.length) html += '<div class="empty">The queue is empty. Add something below so you don\'t forget it.</div>';
+      var inPrice = priceSorted(L.queue.items).every(function (x, i) { return x === L.queue.items[i]; });
+      if (L.queue.items.length > 1 && !inPrice) html += '<div class="lg-sortrow"><span class="muted lg-note">Your own order. New items still land by price.</span><button type="button" class="btn ghost sm" data-qprice="1"' + (busy ? " disabled" : "") + ">PRICE ORDER</button></div>";
       L.queue.items.forEach(function (w, i) {
         var cost = typeof w.cost === "number" ? w.cost : 0, got = fund && cost ? Math.min(cost, Math.max(0, left)) : 0;
         left -= cost;
@@ -3043,13 +3045,41 @@
     var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: note.slice(0, 200) };
     queueSend({ action: "queueadd", item: item }).then(function (j) {
       if (!j || !j.item || !state.ledger || !state.ledger.queue) return;
-      if (!state.ledger.queue.items.some(function (x) { return x.id === j.item.id; })) state.ledger.queue.items.push(j.item);
+      var q = state.ledger.queue;
+      q.items = q.items.filter(function (x) { return x.id !== j.item.id; });
+      /* A new item goes where its price puts it: just above the first item that costs more (unpriced ones
+         stay at the bottom). Everything already in the queue keeps the order you gave it. */
+      var at = priceSlot(q.items, j.item.cost);
+      q.items.splice(at, 0, j.item);
       lsSet(LS_LEDGER, state.ledger);
       ["qName", "qCost", "qNote"].forEach(function (id) { if ($(id)) $(id).value = ""; });
-      toast("Added to the bottom of the queue. Move it up to fund it sooner.");
-      render(true);
+      var where = "Added at #" + (at + 1) + " of " + q.items.length + (typeof j.item.cost === "number" ? ", by price" : ", at the bottom (no price yet)") + ". Move it to change.";
+      if (at < q.items.length - 1) queueSend({ action: "queueorder", ids: q.items.map(function (x) { return x.id; }) }, where);
+      else { toast(where); render(true); }
       if ($("qName")) $("qName").focus();
     });
+  }
+  /* Where a cost belongs in the queue as it stands: before the first item that costs more or has no price. */
+  function priceSlot(items, cost) {
+    if (typeof cost !== "number") return items.length;
+    for (var i = 0; i < items.length; i++) if (typeof items[i].cost !== "number" || items[i].cost > cost) return i;
+    return items.length;
+  }
+  function priceSorted(items) {
+    return items.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) {
+      var ca = typeof a.x.cost === "number" ? a.x.cost : Infinity, cb = typeof b.x.cost === "number" ? b.x.cost : Infinity;
+      return ca - cb || a.i - b.i;
+    }).map(function (o) { return o.x; });
+  }
+  /* PRICE ORDER: lowest to highest, once; any moves after that are remembered as usual. */
+  function queuePriceOrder() {
+    var q = state.ledger && state.ledger.queue;
+    if (!q) return;
+    var before = tops(".lg-witem", "data-qid");
+    q.items = priceSorted(q.items);
+    var sent = queueSend({ action: "queueorder", ids: q.items.map(function (x) { return x.id; }) }, "Sorted lowest to highest. Move anything to set your own order.");
+    slideFrom(".lg-witem", "data-qid", before);
+    return sent;
   }
 
   /* For Ask, only when turned on in Systems: the figures on this screen, in plain text. */
@@ -4162,7 +4192,7 @@
           for (var k = 0; k < 7; k++) { var key = ymd(addDays(x.w0, k)); if (key > t) break; var y = hWin(h.id, hDay(key)); if (y !== null) { c++; if (y) w++; } }
           return '<span class="c tnum" style="--c: var(--' + h.c + '); --f: ' + (c ? Math.round(w / c * 100) : 0) + '%"' + (c ? "" : ' data-none="1"') + ' title="Week ' + isoWeek(x.w0) + ": " + w + " of " + c + '">' + (c ? w : "") + "</span>";
         }).join("");
-      }).join("") + '<span></span>' + win.map(function (x) { return '<span class="wk tnum">' + isoWeek(x.w0) + "</span>"; }).join("") + "</div></div>";
+      }).join("") + '<span></span>' + win.map(function (x) { return '<span class="wkn tnum">' + isoWeek(x.w0) + "</span>"; }).join("") + "</div></div>";
   }
   function habitsClick(b) {
     var key = state.screen === "habits" ? ymd(state.anchor) : ymd(new Date()), d = hDay(key) || {};
@@ -4522,6 +4552,7 @@
     else if (b.dataset.lrange) { lsSet(LS_LEDGERRANGE, +b.dataset.lrange); render(true); }
     else if (b.dataset.lcat) { state.ledgerCat = state.ledgerCat === b.dataset.lcat ? null : b.dataset.lcat; render(true); }
     else if (b.dataset.qmove) queueMove(+b.dataset.qi, +b.dataset.qmove);
+    else if (b.dataset.qprice) queuePriceOrder();
     else if (b.dataset.qbought) { state.queueConfirm = b.dataset.qbought; render(true); }
     else if (b.dataset.qno) { state.queueConfirm = null; render(true); }
     else if (b.dataset.qyes) {

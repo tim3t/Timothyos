@@ -609,7 +609,7 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .hb-trend .c { height: 26px; border-radius: 5px; display: grid; place-items: center; font-family: var(--display); font-size: 13px; color: var(--fg);
   background: color-mix(in srgb, var(--c) var(--f), var(--panel-2)); }
 .hb-trend .c[data-none] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
-.hb-trend .wk { font-family: var(--display); font-size: 11px; letter-spacing: .1em; color: var(--dim); text-align: center; }
+.hb-trend .wkn { font-family: var(--display); font-size: 11px; letter-spacing: .1em; color: var(--dim); text-align: center; }
 
 /* ---------- Library ---------- */
 .lb { max-width: 1180px; display: flex; flex-direction: column; gap: 26px; }
@@ -659,6 +659,8 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .lb-starpick { display: flex; gap: 2px; }
 .lb-starpick button { border: 0; background: none; font-size: 30px; color: var(--line); padding: 0 3px; line-height: 1; min-height: 44px; }
 .lb-starpick button.on { color: var(--chrome-b); }
+
+.lg-sortrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 4px 0 10px; }
 
 /* ---------- Key Dates ---------- */
 .kd {
