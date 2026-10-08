@@ -270,7 +270,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 
 - **Swipe right** to move forward in time: the coming days ride the top of the right loop and slide down into the crossing. **Swipe left** to go back; the days just past carry on round the lower-left loop. A swipe coasts and settles on a day.
 - The **arrows** beside the title step one day; **TODAY** glides home. With a keyboard: arrow keys, Page Up/Down (a week), T (today).
-- **Beads** are events, in their calendar's color; **diamonds** are key dates. Tap one of the focused day's beads (or a row in the list on the right) for details. Tap any other day to glide to it.
+- **Beads** are events, in their calendar's color, read top to bottom in time order (the day's last sits on the loop); **diamonds** are key dates. Tap one of the focused day's beads (or a row in the list on the right) for details. Tap any other day to glide to it.
 - On the right: the focused day's events and key dates, and the next four key dates with a countdown.
 - Hidden calendars and ignored titles stay out, as on every screen.
 

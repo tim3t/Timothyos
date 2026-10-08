@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.8.0";
+  var VERSION = "2.8.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3730,18 +3730,19 @@
       // events hang from the day like beads on a warp thread; past seven, the column stops growing
       var ev = info.ev, show = ev.slice(0, 7), back = near < .5 ? 1 : Math.min(1, .4 + .6 * (near - .5) / 1.5);   /* the days beside the crossing step back */
       cx.globalAlpha = p.a * back;
+      /* read top to bottom, start of the day to its end: the earliest bead is highest, the latest sits on the loop */
       show.forEach(function (e, i) {
-        var by = p.y - gap * (i + 1) - 4 * U, br = (2.2 + 6.8 * p.s) * U;
+        var by = p.y - gap * (show.length - i) - 4 * U, br = (2.2 + 6.8 * p.s) * U;
         cx.fillStyle = C[e.area] || C.c;
         cx.beginPath(); cx.arc(p.x, by, br, 0, TAU); cx.fill();
-        top = by - br;
+        if (i === 0) top = by - br;
         if (near < .5) {
           beads.push({ x: p.x - br, y: by - br, w: br * 2, h: br * 2 });
           lm.hits.push({ ev: e.ev, x: p.x, y: by, r: Math.max(br, 14) });
           if (p.s > .5) labels.push({ t: e.time + "  " + bare(e.ev.title || "Busy"), x: p.x - br - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: p.a, pr: 200 - i * .1, plate: true });
         }
       });
-      if (ev.length > show.length && p.s > .5) labels.push({ t: "+" + (ev.length - show.length), x: p.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: p.a, pr: near < .5 ? 190 : 40 });
+      if (ev.length > show.length && p.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: p.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: p.a, pr: near < .5 ? 190 : 40 });
       cx.globalAlpha = p.a;
       // a key date sits below the day as a diamond
       var o = (16 + 14 * p.s) * U;

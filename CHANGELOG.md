@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.8.1 · 2026-10-08
+- **LOOM reads top to bottom.** Each day's beads now run in time order from the top: the morning's first event is highest and the day's last sits on the loop, matching the list beside it.
+
 ## 2.8.0 · 2026-10-08
 - **Command Gold.** The BRIDGE corner and the bar across the top are now gold, warming into apricot to the right: one piece, on every screen, and the only place the color appears. On the Bridge they carry a faint glow (they used to turn cream).
 - **Apricot joins the side bar** as a fourth LCARS color, so no two neighbouring buttons match. It also marks the RESOURCES group in ALL STATIONS, the Replicator Queue, Systems → APP and the Library's typical-book figure.

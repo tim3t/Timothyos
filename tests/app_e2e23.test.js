@@ -70,13 +70,18 @@ function place(d, W, H) {
   console.log('after swipes left:', eb);
   assert.ok(/DAYS AGO|YESTERDAY/.test(eb), 'swipe left moves back');
 
-  // TODAY glides home; a tap on today's first bead opens it; a tap on a coming day glides to it
+  // TODAY glides home; a tap on one of today's beads opens it; a tap on a coming day glides to it
   await p.click('#todayBtn'); await p.waitForTimeout(1500);
   const U = Math.max(.75, Math.min(1.3, Math.min(box.width, box.height * 1.4) / 640));
+  // 2.8.1: beads read top to bottom in time order, so the one on the loop is the day's last event
   await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2 - 26 * U);
   await p.waitForTimeout(400);
   assert.ok(await p.isVisible('#detailScrim'), 'bead opens the event');
-  assert.ok((await txt(p, '#detailSheet')).includes('Standup'));
+  assert.ok((await txt(p, '#detailSheet')).includes('Roadmap review'), 'nearest the loop: the latest event');
+  await p.click('#detailClose'); await p.waitForTimeout(300);
+  await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2 - 48 * U);
+  await p.waitForTimeout(400);
+  assert.ok((await txt(p, '#detailSheet')).includes('Standup'), 'highest: the earliest event');
   await p.click('#detailClose'); await p.waitForTimeout(300);
   const two = place(2, box.width, box.height);
   await p.mouse.click(box.x + two.x, box.y + two.y); await p.waitForTimeout(1500);
