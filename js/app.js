@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.7.3";
+  var VERSION = "2.8.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -795,7 +795,7 @@
     html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
       STANDBY_MODULES.map(function (m) { return '<div class="stubbox"><span><b style="color:var(--fg)">' + m[0] + "</b><br>" + m[1] + "</span></div>"; }).join("") + "</div></section>";
 
-    html += "<section>" + phead("APP", "") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
+    html += "<section>" + phead("APP", "", "chrome-d") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
       "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) : '<span class="muted">Unknown</span>') + "</dd>" +
       "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd>" +
       "</dl></section></div>";
@@ -2966,7 +2966,7 @@
     }
 
     /* replicator queue */
-    html += "<section>" + phead("REPLICATOR QUEUE", L.queue ? L.queue.items.length + (L.queue.items.length === 1 ? " ITEM" : " ITEMS") + " · TOP OF THE QUEUE IS FUNDED FIRST" : "", "ok");
+    html += "<section>" + phead("REPLICATOR QUEUE", L.queue ? L.queue.items.length + (L.queue.items.length === 1 ? " ITEM" : " ITEMS") + " · TOP OF THE QUEUE IS FUNDED FIRST" : "", "chrome-d");
     if (!canQueue()) html += stubBox("Needs the Notion link (bridge 1.9). Steps are in the README under <b>Ledger</b>.");
     else if (!L.queue) html += '<div class="err">' + (L.queueError === "notion_not_shared" ? "The Replicator Queue isn't connected to the TimothyOS integration. In Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: L.queueError }))) + "</div>";
     else {
@@ -3903,8 +3903,8 @@
     { id: "audio", name: "AUDIO", g: "STANDBY", sub: "Podcasts from the NAS. Later.", standby: true },
     { id: "meals", name: "MEALS", g: "STANDBY", sub: "Dinners planned and made. Later.", standby: true }
   ];
-  var ST_GROUPS = [["TIME", "chrome-b"], ["REFLECT", "chrome-a"], ["RESOURCES", "chrome-c"], ["STANDBY", "line"]];
-  var BAR_COLORS = ["chrome-b", "chrome-a", "chrome-b", "chrome-c", "chrome-b", "chrome-a", "chrome-c"];
+  var ST_GROUPS = [["TIME", "chrome-b"], ["REFLECT", "chrome-a"], ["RESOURCES", "chrome-d"], ["STANDBY", "line"]];
+  var BAR_COLORS = ["chrome-b", "chrome-d", "chrome-a", "chrome-c", "chrome-b", "chrome-d", "chrome-a"];   /* no two neighbours alike; ALL STATIONS is lavender, SYSTEMS orchid */
   var DEFAULT_PINS = ["today", "week", "loom", "review", "log", "habits", "library"];
   var navSig = "";
   function station(id) { return STATIONS.filter(function (s) { return s.id === id; })[0]; }
@@ -4249,7 +4249,7 @@
     var top = Object.keys(by).sort(function (a, b) { return by[b] - by[a]; })[0];
     var html = '<div class="lb"><div class="lb-stats">' +
       '<div class="lb-stat" style="--c: var(--chrome-b)"><span class="k">READ IN ' + yr + '</span><span class="v tnum">' + thisYear + "<small>" + (thisYear === 1 ? "BOOK" : "BOOKS") + "</small></span></div>" +
-      '<div class="lb-stat" style="--c: var(--chrome-a)"><span class="k">TYPICAL BOOK</span><span class="v tnum">' + (typical === null ? "–" : typical) + "<small>DAYS START TO FINISH</small></span></div>" +
+      '<div class="lb-stat" style="--c: var(--chrome-d)"><span class="k">TYPICAL BOOK</span><span class="v tnum">' + (typical === null ? "–" : typical) + "<small>DAYS START TO FINISH</small></span></div>" +
       '<div class="lb-stat" style="--c: var(--chrome-c)"><span class="k">MOST READ AUTHOR</span><span class="v name">' + (top && by[top] > 1 ? esc(top.toUpperCase()) : "–") + '</span><span class="k">' + (top && by[top] > 1 ? by[top] + " BOOKS READ" : "TWO BOOKS BY ONE AUTHOR TO SHOW") + "</span></div></div>";
     html += '<div class="lb-tools"><div class="chips">' + SHELVES.map(function (s) {
       var n = all.filter(function (b) { return b.status === s[0]; }).length;

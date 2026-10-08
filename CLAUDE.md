@@ -114,6 +114,8 @@ Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no 
 
 ## Life areas and colors
 
+Chrome (2.8): `--chrome-a` orchid, `--chrome-b` tan, `--chrome-c` lavender, `--chrome-d` apricot (bar rhythm `BAR_COLORS`, RESOURCES group, a few section caps). `--hero` Command Gold is for the arm only (`.elbow` and `.topbar`, via `--arm`, `--arm-bar`, `--arm-glow`): keep the corner and the bar's left end the same color and never filter or shade one part alone, or a seam shows. Don't use gold or apricot for anything that means something (areas, status).
+
 App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8); the Hobbies calendar is still standby.
 
 ## Known quirks (already handled; don't "fix" them away)

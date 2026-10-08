@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.0 · 2026-10-08
+- **Command Gold.** The BRIDGE corner and the bar across the top are now gold, warming into apricot to the right: one piece, on every screen, and the only place the color appears. On the Bridge they carry a faint glow (they used to turn cream).
+- **Apricot joins the side bar** as a fourth LCARS color, so no two neighbouring buttons match. It also marks the RESOURCES group in ALL STATIONS, the Replicator Queue, Systems → APP and the Library's typical-book figure.
+- **CAPTURE's date field fits again.** Since 2.7.0 it stretched to full width and ran past the edge of the sheet on the iPad.
+
 ## 2.7.3 · 2026-10-08
 - **ASK (and every other panel) stays below the iPad's status bar.** Panels now fit the part of the screen you can see: below the faded top strip, and above the keyboard while you type.
 - **TOP SPACING is gone from Systems.** The space below the status bar is fixed at the MORE setting you chose.

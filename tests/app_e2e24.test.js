@@ -24,6 +24,18 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8102/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(2000);
 
+  // ---- 2.8: Command Gold on the BRIDGE corner and top bar, one piece; a faint halo only on the Bridge
+  const arm = await p.evaluate(() => { const e = getComputedStyle(document.querySelector('.elbow')), t = getComputedStyle(document.querySelector('.topbar'));
+    return [e.backgroundColor, t.backgroundImage.slice(0, 60), e.boxShadow !== 'none', document.getElementById('app').classList.contains('on-bridge')]; });
+  console.log('arm:', JSON.stringify(arm));
+  assert.strictEqual(arm[0], 'rgb(246, 198, 107)'); assert.ok(arm[1].startsWith('linear-gradient(90deg, rgb(246, 198, 107)'), 'the bar starts in the corner\'s gold');
+  assert.ok(arm[2] && arm[3], 'halo on the Bridge');
+  // the CAPTURE date field stays inside its sheet (2.8)
+  await p.click('#capBtn'); await p.waitForTimeout(400);
+  const cd = await p.evaluate(() => [document.querySelector('#capScrim .sheet').getBoundingClientRect().right, document.getElementById('capDate').getBoundingClientRect().right]);
+  assert.ok(cd[1] <= cd[0] - 10, 'date field inside the sheet: ' + cd);
+  await p.click('#capCancel').catch(async () => { await p.keyboard.press('Escape'); }); await p.waitForTimeout(300);
+
   // ---- the bar: seven pins, ALL STATIONS where the empty block was
   assert.deepStrictEqual(await navs(p), ['TODAY', 'WEEK', 'LOOM', 'REVIEW', 'LOG', 'HABITS', 'LIBRARY']);
   assert.ok((await p.textContent('#allBtn')).includes('ALL STATIONS'));
@@ -55,6 +67,7 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   // ---- HABITS
   await p.click('[data-screen="habits"].nav'); await p.waitForTimeout(1500);
   assert.strictEqual(await p.textContent('#title'), 'WED 07 OCT');
+  assert.strictEqual(await p.evaluate(() => getComputedStyle(document.querySelector('.elbow')).boxShadow), 'none', 'no halo away from the Bridge');
   assert.ok((await p.textContent('#eyebrow')).startsWith('HABITS · TODAY'));
   assert.ok((await txt(p, '[data-hbool="med"]')).includes('NOT YET 4-DAY STREAK'));
   const before = (await stats()).hsets.length;

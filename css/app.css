@@ -19,6 +19,9 @@
   --chrome-a: #c99bc4;
   --chrome-b: #dcc6a0;
   --chrome-c: #9a86b5;
+  --chrome-d: #e8a27a;   /* apricot (2.8): the fourth LCARS color */
+  --hero: #f6c66b;       /* Command Gold (2.8): only the BRIDGE corner and the top bar */
+  --hero-bar: linear-gradient(90deg, #f6c66b 0%, #f0b46f 45%, #e8a27a 100%);
   --work: #9db0ff;
   --farm: #f3a83b;
   --hobby: #ff8b70;
@@ -74,8 +77,11 @@ button:disabled { cursor: not-allowed; }
 /* ---------- Frame ---------- */
 /* The elbow, its inner curve and the top bar are one arm: they always share a color.
    On the Bridge the whole arm lights up, like a selected nav button. */
-.app { --arm: var(--chrome-a); }
-.app.on-bridge { --arm: var(--fg); }
+/* The arm (BRIDGE corner + top bar) wears Command Gold on every screen: the corner and the bar's left end
+   are the same gold, and the bar warms into apricot to the right, so they read as one piece. Nothing is
+   applied to one part alone. On the Bridge both carry the same faint halo. */
+.app { --arm: var(--hero); --arm-bar: var(--hero-bar); --arm-glow: none; }
+.app.on-bridge { --arm-glow: 0 0 14px rgba(246, 198, 107, .22); }
 .app {
   height: 100%;
   display: grid;
@@ -86,6 +92,8 @@ button:disabled { cursor: not-allowed; }
 .elbow {
   grid-area: 1 / 1;
   background: var(--arm);
+  box-shadow: var(--arm-glow);
+  transition: box-shadow 400ms ease;
   border-top-left-radius: 72px 56px;
   min-height: 108px;
   display: flex;
@@ -113,7 +121,9 @@ button.elbow { border: 0; flex-direction: column; }
 }
 .topbar {
   height: 26px;
-  background: var(--arm);
+  background: var(--arm-bar);
+  box-shadow: var(--arm-glow);
+  transition: box-shadow 400ms ease;
   border-radius: 0 13px 13px 0;
   display: flex;
   align-items: stretch;
@@ -458,7 +468,7 @@ button.arow:active { filter: brightness(1.2); }
 .connect { max-width: 680px; display: grid; gap: 18px; }
 .connect ol { margin: 0; padding-left: 22px; display: grid; gap: 6px; color: var(--dim); }
 .connect label { font-family: var(--display); letter-spacing: .14em; color: var(--chrome-b); font-size: 15px; display: block; margin-bottom: 6px; }
-input[type="text"], input[type="url"], input[type="password"], input[type="search"], input[type="date"] {
+input[type="text"], input[type="url"], input[type="password"], input[type="search"], .lb-dates input[type="date"] {
   width: 100%;
   min-height: 54px;
   background: var(--panel);
@@ -708,6 +718,7 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .frow { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; }
 .frow > span { font-family: var(--display); letter-spacing: .14em; color: var(--dim); font-size: 15px; }
 #capText { font-size: 20px; min-height: 58px; }
+#capDate, #capUntil { max-width: 100%; min-width: 0; }   /* iPadOS gives date fields a wide minimum; keep them inside the sheet */
 #capDate, #capTime, #capUntil, #capLifeArea, #capKdType {
   min-height: 48px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 24px;
   padding: 6px 14px; font-family: var(--display); font-size: 16px; letter-spacing: .08em; color: var(--fg);
