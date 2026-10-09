@@ -109,7 +109,7 @@ button:disabled { cursor: not-allowed; }
   line-height: 1.05;
 }
 button.elbow { border: 0; flex-direction: column; }
-.elbow:not([aria-current]):active { filter: brightness(1.15); }
+/* no :active tint on the corner alone: a press lights the whole arm (.flash + .top.armflash) */
 .navbridge { display: none !important; }
 .top { grid-area: 1 / 2; position: relative; display: flex; flex-direction: column; min-width: 0; }
 .top::before {
@@ -1296,6 +1296,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 :root { --ease-out: cubic-bezier(.2, .7, .2, 1); --night: #d08a2e; }
 @keyframes lcarsFlash { from { filter: brightness(1.45); } to { filter: none; } }
 .flash { animation: lcarsFlash 260ms var(--ease-out); }
+.top.armflash::before { animation: lcarsFlash 260ms var(--ease-out); }
 .btn, .chip, .nav { transition: transform 160ms var(--ease-out); }
 .btn:not(:disabled):active, .chip:not(:disabled):active, .nav:not(:disabled):active { transform: scale(.97); }
 

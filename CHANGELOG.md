@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.14.1 · 2026-10-09
+- **No seam when you tap BRIDGE.** The tap's light-up brightened the corner alone, so for a moment you could see where it meets the top bar. The corner, its inner curve and the bar now light up together, as one piece.
+
 ## 2.14.0 · 2026-10-09 (bridge 1.19.0)
 - **Bulleted lists in the Captain's Log and REVIEW.** Type **- ** at the start of a line and it becomes **• **. Return starts the next bullet; Return on an empty bullet ends the list. **• LIST** (beside SAVE in the LOG, and beside each REVIEW question) turns the current line, or the lines you've selected, into bullets and back, without hiding the keyboard. Undo works as usual.
 - **In Notion, LOG bullets are real list items** (bridge 1.19), so a page reads as a proper list there too, and lists made in Notion now open and edit in the LOG. When an entry is reopened, a list sits a blank line apart from the paragraphs around it. REVIEW answers keep their bullets as lines of text in the week's Notion page.

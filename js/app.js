@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.14.0";
+  var VERSION = "2.14.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3322,7 +3322,11 @@
   /* The LCARS light-up on every button press. */
   document.addEventListener("pointerdown", function (e) {
     var b = e.target.closest && e.target.closest(".nav, .elbow, .btn, .chip, .ov-more, .status, .topbtn");
-    if (b && !b.disabled) restartClass(b, "flash");
+    if (!b || b.disabled) return;
+    /* The BRIDGE corner, its inner curve and the top bar are one piece of colour: they light up
+       together, or the join between them shows for a moment (2.14.1). */
+    if (b.classList.contains("elbow")) { restartClass(b, "flash"); restartClass(document.querySelector(".topbar"), "flash"); restartClass(document.querySelector(".top"), "armflash"); }
+    else restartClass(b, "flash");
   }, true);
 
   /* ---------- Standby ---------- */

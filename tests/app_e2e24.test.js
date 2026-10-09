@@ -30,6 +30,15 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   console.log('arm:', JSON.stringify(arm));
   assert.strictEqual(arm[0], 'rgb(246, 198, 107)'); assert.ok(arm[1].startsWith('linear-gradient(90deg, rgb(246, 198, 107)'), 'the bar starts in the corner\'s gold');
   assert.ok(arm[2] && arm[3], 'halo on the Bridge');
+  // 2.14.1: a press lights the corner, its inner curve and the top bar together (no seam mid-flash)
+  const eb = await p.locator('.elbow').boundingBox();
+  await p.mouse.move(eb.x + 40, eb.y + 60); await p.mouse.down();
+  const lit = await p.evaluate(() => { document.getAnimations().filter(a => a.animationName === 'lcarsFlash').forEach(a => { a.pause(); a.currentTime = 30; });
+    return [getComputedStyle(document.querySelector('.elbow')).filter, getComputedStyle(document.querySelector('.topbar')).filter, getComputedStyle(document.querySelector('.top'), '::before').filter]; });
+  await p.mouse.up();
+  await p.evaluate(() => document.getAnimations().filter(a => a.animationName === 'lcarsFlash').forEach(a => a.finish()));
+  console.log('arm mid-flash:', JSON.stringify(lit));
+  assert.ok(lit[0] !== 'none' && lit[0] === lit[1] && lit[1] === lit[2], 'one piece when pressed');
   // the CAPTURE date field stays inside its sheet (2.8)
   await p.click('#capBtn'); await p.waitForTimeout(400);
   const cd = await p.evaluate(() => [document.querySelector('#capScrim .sheet').getBoundingClientRect().right, document.getElementById('capDate').getBoundingClientRect().right]);
