@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.12.2";
+  var VERSION = "2.13.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -604,6 +604,7 @@
     else if (st.status === "offline") { cls = "offline"; line1 = "OFFLINE"; line2 = at ? "CACHED " + at : "NO DATA YET"; }
     else if (st.status === "error") { cls = "error"; line1 = "SYNC ERROR"; line2 = "SEE SYSTEMS"; }
     else { cls = "ok"; line1 = at ? "SYNCED" : "WAITING"; line2 = at; }
+    if (Date.now() < egg.sdUntil) { line1 = "STARDATE"; line2 = stardate(new Date()); }
     var waiting = queued().length, failed = state.queue.length - waiting;
     if (state.conn && failed) { cls = "error"; line1 = "NOT SAVED"; line2 = failed + (failed === 1 ? " CAPTURE" : " CAPTURES"); }
     else if (state.conn && waiting) line2 = waiting + " QUEUED";
@@ -2880,6 +2881,7 @@
   function askSend() {
     var text = $("askText").value.trim();
     if (!text || askBusy) return;
+    if (askEgg(text)) { $("askText").value = ""; return; }
     freshAsk();
     askState.msgs.push({ role: "user", text: text.slice(0, 2000) });
     $("askText").value = "";
@@ -3191,6 +3193,7 @@
   function queueAddSubmit() {
     var name = $("qName").value.trim(), costRaw = $("qCost").value.trim(), note = $("qNote").value.trim();
     if (!name) { toast("Type what you want to add first."); $("qName").focus(); return; }
+    if (isEarlGrey(name)) { var qn = $("qName"); qn.value = ""; qn.defaultValue = ""; $("qCost").value = ""; $("qNote").value = ""; qn.blur(); replicate(); return; }
     var cost = costRaw ? parseFloat(costRaw.replace(/[^0-9.]/g, "")) : null;
     if (costRaw && !isFinite(cost)) { toast("The cost should be a number, like 280."); $("qCost").focus(); return; }
     var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: note.slice(0, 200) };
@@ -4170,6 +4173,101 @@
     });
   }
 
+  /* ---------- Easter eggs (2.13) ---------- */
+  /* Six small things for fun, deliberately left out of the README and the app's own text.
+     None changes any data, each dismisses with a tap, and Reduce Motion turns them into fades.
+       1. "Tea, Earl Grey, hot" typed as a Replicator Queue item: replicated, not added.
+       2. Hold the CONDITION block on the Bridge for 3 seconds: Red Alert, then stand down.
+       3. Hold the SYNCED block for a moment: the time as a stardate.
+       4. "Make it so" or "Engage" in ASK: warp streaks. Never sent to Claude.
+       5. "Computer, end program" in ASK: the holodeck grid, then Standby. Never sent.
+       6. About one launch in 500: Q drops by. */
+  var egg = { timer: null, sdUntil: 0, audio: null };
+  function eggNorm(t) { return String(t || "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function eggLayer(cls, html, ms, after) {
+    var el = $("egg");
+    clearTimeout(egg.timer);
+    el.className = "egg " + cls; el.innerHTML = html; el.hidden = false;
+    var done = function () { clearTimeout(egg.timer); el.hidden = true; el.className = "egg"; el.innerHTML = ""; el.onclick = null; if (after) { var a = after; after = null; a(); } };
+    el.onclick = done;
+    egg.timer = setTimeout(done, ms);
+  }
+  /* A soft synthesized tone: created inside the touch that asked for it, so iPadOS lets it play. */
+  function eggAudio() {
+    try { if (!egg.audio) egg.audio = new (window.AudioContext || window.webkitAudioContext)(); if (egg.audio.state === "suspended") egg.audio.resume(); } catch (x) { egg.audio = null; }
+    return egg.audio;
+  }
+  function eggKlaxon(n) {
+    var a = egg.audio; if (!a) return;
+    for (var i = 0; i < n; i++) {
+      var t = a.currentTime + i * 0.95, o = a.createOscillator(), g = a.createGain();
+      o.type = "sawtooth"; o.frequency.setValueAtTime(380, t); o.frequency.exponentialRampToValueAtTime(820, t + 0.55);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.75);
+    }
+  }
+  /* 1. the replicator */
+  function isEarlGrey(name) { return /^(computer )?tea earl gr[ae]y hot$/.test(eggNorm(name)); }
+  function replicate() {
+    eggLayer("rep", '<div class="egg-rep" role="status"><div class="egg-beam" aria-hidden="true"></div><svg class="egg-cup" viewBox="0 0 64 64" aria-hidden="true">' +
+      '<path class="steam" d="M24 18c-3-4 3-6 0-10M32 18c-3-4 3-6 0-10M40 18c-3-4 3-6 0-10"/>' +
+      '<path class="cup" d="M14 24h32v14a14 14 0 0 1-14 14h-4a14 14 0 0 1-14-14z"/><path class="cup" d="M46 28h4a6 6 0 0 1 0 12h-5"/><path class="cup" d="M10 56h40"/></svg>' +
+      "<b>TEA. EARL GREY. HOT.</b></div>", 5200);
+  }
+  /* 2. red alert */
+  function redAlert() {
+    var real = (document.querySelector(".ov-cond") || {}).className || "", lv = (real.match(/\b(green|yellow|red)\b/) || ["", "green"])[1];
+    eggKlaxon(3);
+    eggLayer("red", '<div class="egg-ra"><b>RED ALERT</b><span>ALL HANDS TO BATTLE STATIONS</span></div>', 5200, function () {
+      eggLayer("stand", '<div class="egg-ra"><span>STANDING DOWN · CONDITION ' + lv.toUpperCase() + "</span></div>", 1400);
+    });
+  }
+  var raHold = null;
+  $("content").addEventListener("pointerdown", function (e) {
+    if (!e.target.closest(".ov-cond .lvl")) return;
+    eggAudio();
+    var x = e.clientX, y = e.clientY;
+    clearTimeout(raHold);
+    raHold = setTimeout(function () { raHold = null; redAlert(); }, 3000);
+    var stop = function (ev) { if (ev.type === "pointermove" && Math.hypot(ev.clientX - x, ev.clientY - y) < 12) return; clearTimeout(raHold); raHold = null; ["pointerup", "pointercancel", "pointermove"].forEach(function (t) { document.removeEventListener(t, stop); }); };
+    ["pointerup", "pointercancel", "pointermove"].forEach(function (t) { document.addEventListener(t, stop); });
+  });
+  /* 3. stardate: the year since 1946 in thousands, plus how far through the year, to a tenth */
+  function stardate(d) {
+    var y0 = new Date(d.getFullYear(), 0, 1), y1 = new Date(d.getFullYear() + 1, 0, 1);
+    return ((d.getFullYear() - 1946) * 1000 + (d - y0) / (y1 - y0) * 1000).toFixed(1);
+  }
+  var sdHold = null, sdFired = false;
+  $("status").addEventListener("pointerdown", function () {
+    sdFired = false; clearTimeout(sdHold);
+    sdHold = setTimeout(function () { sdFired = true; egg.sdUntil = Date.now() + 6000; renderStatus(); setTimeout(renderStatus, 6100); }, 700);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (t) { $("status").addEventListener(t, function () { clearTimeout(sdHold); }); });
+  /* 4 and 5: said to ASK, answered here */
+  function askEgg(text) {
+    var t = eggNorm(text);
+    if (/^(make it so|engage)( number one| mr [a-z]+| ensign)?$/.test(t)) {
+      closeAsk();
+      var streaks = ""; for (var i = 0; i < 48; i++) streaks += '<i style="--a:' + (i * 7.5 + (i % 3) * 2) + "deg;--d:" + (0.15 + (i % 5) * 0.12).toFixed(2) + 's"></i>';
+      eggLayer("warp", '<div class="egg-warp" aria-hidden="true">' + streaks + '</div><div class="egg-ra small"><span>ENGAGING</span></div>', 2600);
+      return true;
+    }
+    if (/^(computer )?end program$/.test(t)) {
+      closeAsk();
+      eggLayer("holo", '<div class="egg-grid" aria-hidden="true"></div><div class="egg-ra small"><span>PROGRAM ENDED</span></div>', 2800, function () { enterStandby(); });
+      return true;
+    }
+    return false;
+  }
+  /* 6. Q */
+  function maybeQ() {
+    if (Math.random() >= 1 / 500) return;
+    setTimeout(function () {
+      if (sb.on || !$("egg").hidden || document.hidden) return;
+      eggLayer("q", '<div class="egg-flash" aria-hidden="true"></div><div class="egg-q"><span>Mon Capitaine. Still playing with your little calendar?</span><b>Q</b></div>', 9000);
+    }, 4500);
+  }
+
   /* ---------- Stations: the pinned side bar and ALL STATIONS ---------- */
   /* The bar holds up to seven stations Timothy picks (EDIT PINS in ALL STATIONS); every station,
      pinned or not, is in the launcher. BRIDGE always keeps the corner. Pins live on this iPad. */
@@ -4805,7 +4903,7 @@
   document.querySelectorAll(".navbridge[data-screen], .elbow[data-screen]").forEach(function (b) {
     b.addEventListener("click", function () { go(b.dataset.screen, b.dataset.screen === "today" ? new Date() : null); });
   });
-  $("status").addEventListener("click", function () { go("systems"); });
+  $("status").addEventListener("click", function () { if (sdFired) { sdFired = false; return; } go("systems"); });   /* a hold shows the stardate instead */
   $("fixJump").addEventListener("click", function () { fixJump("fixPanel"); });
   var fixRaf = 0;
   $("content").addEventListener("scroll", function () { if (state.screen !== "systems" || fixRaf) return; fixRaf = requestAnimationFrame(function () { fixRaf = 0; fixJumpPaint(); }); }, { passive: true });
@@ -5006,4 +5104,5 @@
   refresh(false);
   flushQueue(false);
   setTimeout(function () { checkForUpdate(true); }, 3000);
+  if (state.conn) maybeQ();
 })();

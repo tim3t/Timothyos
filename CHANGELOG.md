@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.13.0 · 2026-10-09
+- A few things aboard for the crew to discover.
+
 ## 2.12.2 · 2026-10-09
 - **Fixed: Plan Day stuck on "Loading your Master Task List…".** The iPad keeps task lists for a few days, and it kept the four latest dates. Once lists for later days were stored (from looking ahead on TODAY, say), today's list was dropped the moment it arrived, so Plan Day went back to loading while the app fetched it again and again. It now always keeps today's list and the day you're planning, then the most recently fetched (up to eight, nothing older than three days). A safety net also stops any repeat fetch of the same day within 15 seconds unless you ask for it.
 
