@@ -1,5 +1,5 @@
 // Time Loom (2.6.0): the LOOM screen under LOG. An infinity loop with the focused day at the crossing:
-// swipe right (or the right arrow) moves forward, TODAY glides back, the side list shows the focused
+// swipe left (or the right arrow) moves forward, TODAY glides back, the side list shows the focused
 // day's events and key dates, a tap on today's bead opens its details, and moving a fortnight on
 // fetches the events around the new day. Runs against the simulated bridge 1.10 (invented data).
 const { chromium } = require('playwright');
@@ -53,22 +53,22 @@ function place(d, W, H) {
   assert.strictEqual(await p.textContent('#title'), 'FRI 09 OCT');
   await p.click('#prevBtn'); await p.click('#prevBtn'); await p.waitForTimeout(1300);
   assert.strictEqual(await p.textContent('#title'), 'WED 07 OCT');
-  // swipe right: forward in time
+  // swipe left: forward in time (2.10.1; it was swipe right until then)
   await p.click('#todayBtn'); await p.waitForTimeout(1300);
   assert.strictEqual(await p.textContent('#title'), 'WED 07 OCT');
   const cx = box.x + box.width / 2, cy = box.y + box.height * .8;
-  await p.mouse.move(cx - 180, cy); await p.mouse.down(); await p.mouse.move(cx + 180, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
+  await p.mouse.move(cx + 180, cy); await p.mouse.down(); await p.mouse.move(cx - 180, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
   await p.waitForTimeout(2500);
   let eb = await p.textContent('#eyebrow');
-  console.log('after swipe right:', eb);
-  assert.ok(/IN \d+ DAYS|TOMORROW/.test(eb), 'swipe right moves forward');
-  // swipe left: back in time
-  await p.mouse.move(cx + 200, cy); await p.mouse.down(); await p.mouse.move(cx - 200, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
-  await p.mouse.move(cx + 200, cy); await p.mouse.down(); await p.mouse.move(cx - 200, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
+  console.log('after swipe left:', eb);
+  assert.ok(/IN \d+ DAYS|TOMORROW/.test(eb), 'swipe left moves forward');
+  // swipe right: back in time
+  await p.mouse.move(cx - 200, cy); await p.mouse.down(); await p.mouse.move(cx + 200, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
+  await p.mouse.move(cx - 200, cy); await p.mouse.down(); await p.mouse.move(cx + 200, cy, { steps: 14 }); await p.waitForTimeout(150); await p.mouse.up();
   await p.waitForTimeout(2500);
   eb = await p.textContent('#eyebrow');
-  console.log('after swipes left:', eb);
-  assert.ok(/DAYS AGO|YESTERDAY/.test(eb), 'swipe left moves back');
+  console.log('after swipes right:', eb);
+  assert.ok(/DAYS AGO|YESTERDAY/.test(eb), 'swipe right moves back');
 
   // TODAY glides home; a tap on one of today's beads opens it; a tap on a coming day glides to it
   await p.click('#todayBtn'); await p.waitForTimeout(1500);

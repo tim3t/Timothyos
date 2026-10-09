@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.10.0";
+  var VERSION = "2.10.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3767,7 +3767,7 @@
   /* ---------- Time Loom ---------- */
   /* An infinity loop with the focused day at the crossing. The coming days ride the top of the right
      loop and slide down into the crossing; the days just past carry on round the lower-left loop.
-     Swipe right to move forward. Events hang from each day as beads in their calendar's color; key
+     Swipe left to move forward (the finger pulls the coming days in from the right); swipe right goes back. Events hang from each day as beads in their calendar's color; key
      dates sit below as diamonds. Drawn on a canvas, and only while something moves. */
   var LM_N = 24, LM_REACH = 12, LM_BLOCK = 14;
   var lm = { t: 0, vel: 0, target: null, drag: null, base: 0, raf: 0, days: {}, hits: [], col: null, W: 0, H: 0, U: 1, dpr: 1, shownK: null };
@@ -3965,9 +3965,9 @@
     st.addEventListener("pointermove", function (e) {
       var g = lm.drag; if (!g) return;
       if (Math.abs(e.clientX - g.x) > 4) g.moved = true;
-      lm.t = g.t + (e.clientX - g.x) / pxDay();   /* finger right: forward in time */
+      lm.t = g.t - (e.clientX - g.x) / pxDay();   /* finger left: forward in time (Timothy's thumb, 2.10.1) */
       var now = performance.now();
-      lm.vel = (e.clientX - g.lx) / pxDay() * (16 / Math.max(1, now - g.lt));
+      lm.vel = (g.lx - e.clientX) / pxDay() * (16 / Math.max(1, now - g.lt));
       g.lx = e.clientX; g.lt = now;
       lmKick();
     });
@@ -3993,7 +3993,7 @@
     st.addEventListener("pointerup", release);
     st.addEventListener("pointercancel", release);
     st.addEventListener("wheel", function (e) {
-      var dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY;
+      var dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;   /* trackpad matches the finger: swipe left, forward */
       if (!dx) return;
       e.preventDefault(); lm.target = null;
       if (calm()) { lmGo(Math.round(lm.t) + (dx > 0 ? 1 : -1)); return; }

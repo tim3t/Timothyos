@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.10.1 · 2026-10-09
+- **LOOM: swipe left for the future, right for the past.** Your finger now pulls the coming days in from the right, where they wait on the loop. Everything else is unchanged: the layout, the arrows (right still steps forward) and TODAY.
+
 ## 2.10.0 · 2026-10-08
 - **NEEDS YOU on Systems.** A Condition item that sends you to SYSTEMS (task list didn't load, sync failing, captures not saved) now opens on a card at the top saying what happened and the steps back to green, matched to the actual error: connect the database in Notion, check a key, redeploy, or simply try again. The first step is a button (**RETRY NOW**, **REFRESH NOW**, **SEND NOW**), and **DETAILS IN …** jumps to the section below.
 - **A tab on the right edge** (▲ 1 NEEDS YOU) appears once the card is scrolled away and brings you straight back to it.
