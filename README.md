@@ -262,6 +262,7 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - **Jump to a month:** tap the month name above the calendar, pick a year, then a month.
 - **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. The bar beside the day's name fills when a save lands. Until Notion has it, your writing is kept on this iPad; once saved it is removed from the iPad.
 - **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something the LOG can't show (a photo, a table) opens read-only; edit it in Notion.
+- **Lists:** type **- ** at the start of a line for a bullet; Return carries it on, Return on an empty bullet ends the list. **• LIST** turns lines into bullets and back. In Notion they're real list items (bridge 1.19). REVIEW's questions work the same way.
 - **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
 - **Ask Claude never sees the log.** It isn't in the snapshot and Ask has no way to read it.
 

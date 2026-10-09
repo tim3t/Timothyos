@@ -85,6 +85,27 @@ LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A S
        "2026-09-02": "First homework night of the school year. The kids groaned; I did too.\n\nLater: more homework, a spelling list this time.", "2025-12-04": "No homework tonight, so we watched a film.", "2025-11-20": "Homeworks and chores. Busy.", "2024-03-11": "Helped with homework. Science fair poster."}
 UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []
 LOGOTHER = {"2026-10-01"}
+def logcanon(t):
+    # the bridge's 1.19 block rules: blank lines between paragraphs, "• " / "- " lines are list items, one per line
+    import re
+    out, prev = "", None
+    def put(kind, text):
+        nonlocal out, prev
+        if prev: out += "\n" if kind == "b" and prev == "b" else "\n\n"
+        out += ("• " + text) if kind == "b" else text; prev = kind
+    for chunk in re.split(r"\n[ \t]*\n+", t.replace("\r\n", "\n")):
+        run = []
+        def flush():
+            p = "\n".join(run).lstrip("\n").rstrip()
+            if p: put("p", p)
+            run.clear()
+        for line in chunk.split("\n"):
+            m = re.match(r"^[ \t]*[•\-][ \t]+(.*)$", line)
+            if not m: run.append(line); continue
+            flush()
+            if m.group(1).rstrip(): put("b", m.group(1).rstrip())
+        flush()
+    return out
 def logparas(t): return [p.strip("\n").rstrip() for p in __import__("re").split(r"\n[ \t]*\n+", t.replace("\r\n", "\n")) if p.strip()]
 def logact(b):
     act = b.get("action"); LOGACTS.append(act)
@@ -102,8 +123,8 @@ def logact(b):
     if act == "logsave":
         d = b.get("date"); LOGSAVES.append([d, b.get("text")])
         if d in LOGOTHER: return {"ok": False, "error": "log_edit_in_notion"}
-        p = logparas(b.get("text", ""))
-        if p: LOG[d] = "\n\n".join(p)
+        c = logcanon(b.get("text", ""))
+        if c: LOG[d] = c
         elif d in LOG: LOG[d] = ""
         return {"ok": True, "date": d, "created": True, "saved": "2026-10-07T13:20:00Z"}
     if act == "logsearch":

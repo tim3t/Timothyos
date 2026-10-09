@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.13.0";
+  var VERSION = "2.14.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2355,10 +2355,10 @@
     html += "<section>" + phead("REFLECTION", "4 QUESTIONS · " + (saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET"));
     REVIEW_FIELDS.forEach(function (f) {
       var v = draft[f[0]] !== undefined ? draft[f[0]] : saved ? saved[f[0]] || "" : "";
-      html += '<label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + '</label><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
+      html += '<div class="rv-lab"><label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + "</label>" + bulChip("rv-" + f[0]) + '</div><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
     });
     var bad = w && w.reviewsError, sumV = draft.summary !== undefined ? draft.summary : saved ? saved.summary || "" : "";
-    html += '<label class="ov-sub" for="rv-summary">CLAUDE SUMMARY</label><textarea id="rv-summary" data-rv="summary" rows="5" maxlength="4000" placeholder="' +
+    html += '<div class="rv-lab"><label class="ov-sub" for="rv-summary">CLAUDE SUMMARY</label>' + bulChip("rv-summary") + '</div><textarea id="rv-summary" data-rv="summary" rows="5" maxlength="4000" placeholder="' +
       (canAsk() ? "Tap WRITE SUMMARY for a short summary of the week. Edit it as you like." : "Needs Ask Claude (bridge 1.6). You can also write your own.") + '">' + esc(sumV) + "</textarea>";
     html += '<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ask" data-act="writesummary"' + (!canAsk() || state.summaryBusy || navigator.onLine === false ? " disabled" : "") + ">" +
       (state.summaryBusy ? "WRITING…" : "WRITE SUMMARY") + (canAsk() ? "<small>CLAUDE · ABOUT 5¢</small>" : "<small>SETUP</small>") + "</button>" +
@@ -3480,10 +3480,25 @@
   }
   function logOpen() { return !!lg.pin; }
   function logDraftsSave() { lsSet(LS_LDRAFT, logDrafts); }
-  /* The same paragraph rules the bridge uses, so "unchanged" means the same thing on both sides. */
+  /* The same block rules the bridge uses (logParas_ / logJoin_), so "unchanged" means the same thing
+     on both sides: paragraphs a blank line apart, a "• " or "- " line is a list item, list items one
+     per line (2.14). */
   function logNorm(t) {
-    return String(t == null ? "" : t).replace(/\r\n?/g, "\n").split(/\n[ \t]*\n+/)
-      .map(function (p) { return p.replace(/^\n+|\s+$/g, ""); }).filter(function (p) { return p.length; }).join("\n\n");
+    var out = "", prev = null;
+    String(t == null ? "" : t).replace(/\r\n?/g, "\n").split(/\n[ \t]*\n+/).forEach(function (chunk) {
+      var run = [];
+      var put = function (kind, text) { if (prev) out += kind === "b" && prev === "b" ? "\n" : "\n\n"; out += kind === "b" ? "• " + text : text; prev = kind; };
+      var flush = function () { var p = run.join("\n").replace(/^\n+|\s+$/g, ""); if (p.length) put("p", p); run = []; };
+      chunk.split("\n").forEach(function (line) {
+        var m = line.match(/^[ \t]*[•\-][ \t]+(.*)$/);
+        if (!m) { run.push(line); return; }
+        flush();
+        var tx = m[1].replace(/\s+$/, "");
+        if (tx.length) put("b", tx);
+      });
+      flush();
+    });
+    return out;
   }
   function logText(d) { return logDrafts[d] ? logDrafts[d].text : lg.entries[d] ? lg.entries[d].text : ""; }
 
@@ -3888,7 +3903,7 @@
         if (e && e.other) html += '<div class="cl-note muted">This page also holds things the LOG can\'t show (a photo or table, say). Read it here; change it in Notion.</div>';
         html += '<textarea class="cl-text" id="clText-' + d + '" aria-label="Entry for ' + dLabel(dt) + '"' + (e && e.other ? " readonly" : "") + ' spellcheck="true" autocapitalize="sentences">' + esc(logText(d)) + "</textarea>" +
           '<div class="cl-err errtxt" id="clErr">' + (lg.saveErr || "") + "</div>" +
-          '<div class="btnrow cl-row">' + (e && e.other ? "" : '<button type="button" class="btn" data-lact="save">SAVE</button>') +
+          '<div class="btnrow cl-row">' + (e && e.other ? "" : '<button type="button" class="btn" data-lact="save">SAVE</button>' + bulChip("clText-" + d)) +
           (b.length && !(e && e.other) ? '<button type="button" class="btn ghost" data-lact="bearings">+ BEARINGS</button>' : "") +
           (e && e.url ? '<a class="btn ghost" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
       }
@@ -4172,6 +4187,69 @@
       else if (e.key === "t" || e.key === "T" || e.key === "Home") { e.preventDefault(); lmGo(0); }
     });
   }
+
+  /* ---------- Bulleted lists in the LOG and REVIEW boxes (2.14) ---------- */
+  /* Plain text boxes, so a bullet is the character "• ". Typing "- " at the start of a line makes
+     one; Return on a bullet starts the next; Return on an empty bullet ends the list; • LIST turns
+     the current or selected lines into bullets and back. Edits go through execCommand so they
+     fire the usual input event (drafts and saves) and stay undoable; setRangeText if it's missing. */
+  function bulletBox(el) { return !!el && el.tagName === "TEXTAREA" && (/^clText-/.test(el.id) || !!el.dataset.rv); }
+  function bulReplace(el, from, to, text) {
+    var want = el.value.slice(0, from) + text + el.value.slice(to);
+    el.focus();
+    el.setSelectionRange(from, to);
+    try { document.execCommand(text ? "insertText" : "delete", false, text); } catch (x) { /* checked below */ }
+    if (el.value !== want) {   /* no execCommand, or it did something else: set it directly */
+      el.value = want;
+      el.setSelectionRange(from + text.length, from + text.length);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  }
+  function bulLine(el) {
+    var v = el.value, pos = el.selectionStart, a = v.lastIndexOf("\n", pos - 1) + 1, b = v.indexOf("\n", pos);
+    return { start: a, end: b < 0 ? v.length : b, text: v.slice(a, b < 0 ? v.length : b), pos: pos };
+  }
+  /* "- " at the start of a line becomes "• " */
+  function bulOnInput(e) {
+    var el = e.target;
+    if (!bulletBox(el) || e.inputType !== "insertText" || e.data !== " ") return;
+    var L = bulLine(el), head = el.value.slice(L.start, L.pos);
+    if (/^[ \t]*- $/.test(head)) bulReplace(el, L.pos - 2, L.pos, "• ");
+  }
+  function bulOnKey(e) {
+    var el = e.target;
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || !bulletBox(el) || el.selectionStart !== el.selectionEnd) return;
+    var L = bulLine(el), m = L.text.match(/^([ \t]*)• (.*)$/);
+    if (!m) return;
+    e.preventDefault();
+    if (!m[2].trim() && L.pos === L.end) bulReplace(el, L.start, L.end, "");   /* an empty bullet: the list ends here */
+    else bulReplace(el, L.pos, L.pos, "\n" + m[1] + "• ");
+  }
+  function bulToggle(el) {
+    if (!bulletBox(el)) return;
+    var v = el.value, s0 = el.selectionStart, s1 = el.selectionEnd;
+    var a = v.lastIndexOf("\n", s0 - 1) + 1, bEnd = v.indexOf("\n", Math.max(s1 - (s1 > s0 && v[s1 - 1] === "\n" ? 1 : 0), s0)), b = bEnd < 0 ? v.length : bEnd;
+    var lines = v.slice(a, b).split("\n"), filled = lines.filter(function (l) { return l.trim(); });
+    var all = filled.length && filled.every(function (l) { return /^[ \t]*• /.test(l); });
+    var next = lines.map(function (l) {
+      if (all) return l.replace(/^([ \t]*)• /, "$1");
+      if (!l.trim()) return lines.length === 1 ? "• " : l;
+      return /^[ \t]*• /.test(l) ? l : l.replace(/^([ \t]*)(?:- )?/, "$1• ");
+    }).join("\n");
+    bulReplace(el, a, b, next);
+    if (lines.length > 1) el.setSelectionRange(a, a + next.length);
+  }
+  function bulChip(target) {
+    return '<button type="button" class="chip bulchip" data-bul="' + target + '" aria-label="Bulleted list">• LIST</button>';
+  }
+  /* The chip acts on pointerdown and keeps the box's focus, so the keyboard stays up. */
+  $("content").addEventListener("pointerdown", function (e) {
+    var c = e.target.closest("[data-bul]"); if (!c) return;
+    e.preventDefault();
+    bulToggle($(c.dataset.bul));
+  });
+  $("content").addEventListener("click", function (e) { if (e.target.closest("[data-bul]")) { e.preventDefault(); e.stopPropagation(); } }, true);
+  $("content").addEventListener("keydown", bulOnKey);
 
   /* ---------- Easter eggs (2.13) ---------- */
   /* Six small things for fun, deliberately left out of the README and the app's own text.
@@ -5025,6 +5103,7 @@
     else if (e.target.id === "qForm") { e.preventDefault(); queueAddSubmit(); }
   });
   $("content").addEventListener("input", function (e) {
+    bulOnInput(e);   /* may rewrite "- " as "• " first; that edit fires its own input event */
     if (e.target.id === "logIntent") saveLog(e.target.value.trim());
     else if (/^clText-/.test(e.target.id) && logOpen()) { onLogInput(e.target.id.slice(7), e.target.value); growLog(e.target); }
     else if (e.target.dataset.rv && state.screen === "review") saveDraft(ymd(sow(state.anchor)), e.target.dataset.rv, e.target.value);

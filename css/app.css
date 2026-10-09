@@ -1413,3 +1413,8 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .egg-cup .steam { fill: none; stroke: var(--dim); stroke-width: 2; stroke-linecap: round; animation: eggSteam 2.2s ease-in-out 1.6s infinite; }
 @keyframes eggSteam { 50% { transform: translateY(-3px); opacity: .5; } }
 @media (prefers-reduced-motion: reduce) { .egg-cup, .egg-rep b { opacity: 1; } .egg-beam, .egg-warp, .egg-flash { display: none; } }   /* eggs as plain fades */
+/* ---------- Bulleted lists (2.14) ---------- */
+.rv-lab { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.rv-lab .ov-sub { flex: 1; min-width: 0; }
+.rv-lab .bulchip { margin: 0 0 6px; }
+.bulchip { min-height: 36px; padding: 0 14px; font-size: 13px; letter-spacing: .14em; }

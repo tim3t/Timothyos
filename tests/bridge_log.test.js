@@ -30,7 +30,7 @@ function mock(url, opts) {
   mm = path.match(/^\/blocks\/([^/?]+)$/);
   if (mm) { for (const k in blocks) { const i = blocks[k].findIndex(b => b.id === mm[1]); if (i > -1) {
     if (m === 'delete') { blocks[k].splice(i, 1); return res(200, {}); }
-    if (m === 'patch') { blocks[k][i].paragraph.rich_text = body.paragraph.rich_text.map(r => ({ plain_text: r.text.content })); return res(200, {}); } } } }
+    if (m === 'patch') { const t = Object.keys(body)[0]; if (t !== blocks[k][i].type) return res(400, { message: 'type change' }); blocks[k][i][t].rich_text = body[t].rich_text.map(r => ({ plain_text: r.text.content })); return res(200, {}); } } } }
   return res(400, { message: 'unexpected ' + m + ' ' + path });
 }
 const ctx = {
@@ -140,6 +140,33 @@ assert.strictEqual(calls.slice(before).filter(c => /query/.test(c)).length, 0, '
 post({ action: 'logsave', pin, date: '2026-10-11', text: 'A new day.' });
 const b2 = calls.length; assert.ok(getL({ action: 'logdates', pin }).dates.includes('2026-10-11')); assert.strictEqual(calls.slice(b2).filter(c => /query/.test(c)).length, 0);
 
+// Bulleted lists (bridge 1.19): "• " or "- " lines are Notion list items, read back one per line.
+props.LOG_PIN = '204816';
+const LISTED = 'Morning chores:\n- feed the hens\n• check the hives\n\nThen coffee.';
+r = post({ action: 'logsave', pin, date: '2026-10-12', text: LISTED }); assert.ok(r.ok && r.created);
+let lp = pages.find(x => x.properties.Date.date.start === '2026-10-12');
+assert.deepStrictEqual(blocks[lp.id].map(b => b.type), ['paragraph', 'bulleted_list_item', 'bulleted_list_item', 'paragraph']);
+assert.strictEqual(blocks[lp.id][1].bulleted_list_item.rich_text[0].plain_text, 'feed the hens');
+const back = post({ action: 'logday', pin, date: '2026-10-12' }).entry.text;
+assert.strictEqual(back, 'Morning chores:\n\n• feed the hens\n• check the hives\n\nThen coffee.', 'list items one per line, a blank line around the list');
+// Saving that text again changes nothing; editing one item patches only it.
+calls = []; post({ action: 'logsave', pin, date: '2026-10-12', text: back });
+assert.deepStrictEqual(calls.filter(c => /patch|delete/.test(c)), [], 'unchanged');
+calls = []; post({ action: 'logsave', pin, date: '2026-10-12', text: back.replace('check the hives', 'check the hives twice') });
+assert.deepStrictEqual(calls.filter(c => /patch|delete/.test(c)), ['patch /blocks/' + blocks[lp.id][2].id]);
+assert.strictEqual(blocks[lp.id][2].bulleted_list_item.rich_text[0].plain_text, 'check the hives twice');
+// A paragraph turned into a list item is replaced from there on, in order.
+post({ action: 'logsave', pin, date: '2026-10-12', text: 'Morning chores:\n\n• feed the hens\n• check the hives twice\n• then coffee' });
+assert.deepStrictEqual(blocks[lp.id].map(b => b.type), ['paragraph', 'bulleted_list_item', 'bulleted_list_item', 'bulleted_list_item']);
+assert.strictEqual(post({ action: 'logday', pin, date: '2026-10-12' }).entry.text, 'Morning chores:\n\n• feed the hens\n• check the hives twice\n• then coffee');
+// Empty bullets are dropped; a dash inside a sentence isn't a bullet.
+post({ action: 'logsave', pin, date: '2026-10-13', text: '• \nA day - quiet.\n-no space' });
+lp = pages.find(x => x.properties.Date.date.start === '2026-10-13');
+assert.deepStrictEqual(blocks[lp.id].map(b => [b.type, b[b.type].rich_text.map(x => x.plain_text).join('')]), [['paragraph', 'A day - quiet.\n-no space']]);
+// Imports turn dash lines into list items too.
+post({ action: 'logimport', pin, entries: [{ date: '2025-01-02', text: 'Goals:\n- read more\n- walk' }] });
+lp = pages.find(x => x.properties.Date.date.start === '2025-01-02');
+assert.deepStrictEqual(blocks[lp.id].map(b => b.type), ['paragraph', 'bulleted_list_item', 'bulleted_list_item']);
 // Authorization code (bridge 1.17): a Greek code word and four digits, written any of the usual ways.
 props.LOG_PIN = 'omega 1701';
 assert.ok(ping().capabilities.includes('logpin') && ping().capabilities.includes('logcode'));

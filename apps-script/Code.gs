@@ -66,7 +66,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.18.0';
+var VERSION = '1.19.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -1108,17 +1108,43 @@ function longDay_(ymd) {
 }
 function realDay_(ymd) { var d = YMD.test(ymd) ? new Date(ymd + 'T12:00:00Z') : null; return !!d && !isNaN(d) && d.toISOString().slice(0, 10) === ymd; }
 
-/** Text into paragraphs: blank lines separate them, single line breaks stay inside. */
+/** Text into blocks: blank lines separate paragraphs, single line breaks stay inside one, and a
+    line starting "• " or "- " is a bulleted list item of its own (bridge 1.19). The app's logNorm()
+    uses the same rules, so "unchanged" means the same thing on both sides. Returns [{type, text}]. */
+var LOG_BULLET = /^[ \t]*[•\-][ \t]+(.*)$/;
 function logParas_(text) {
-  return String(text == null ? '' : text).replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/)
-    .map(function (p) { return p.replace(/^\n+|\s+$/g, ''); }).filter(function (p) { return p.length; });
+  var out = [];
+  String(text == null ? '' : text).replace(/\r\n?/g, '\n').split(/\n[ \t]*\n+/).forEach(function (chunk) {
+    var run = [];
+    var flush = function () { var p = run.join('\n').replace(/^\n+|\s+$/g, ''); if (p.length) out.push({ type: 'paragraph', text: p }); run = []; };
+    chunk.split('\n').forEach(function (line) {
+      var m = line.match(LOG_BULLET);
+      if (!m) { run.push(line); return; }
+      flush();
+      var t = m[1].replace(/\s+$/, '');
+      if (t.length) out.push({ type: 'bulleted_list_item', text: t });
+    });
+    flush();
+  });
+  return out;
+}
+/** Blocks back into text: list items one per line, everything else a blank line apart. */
+function logJoin_(blocks) {
+  var s = '', prev = null;
+  blocks.forEach(function (b) {
+    var bul = b.type === 'bulleted_list_item';
+    if (prev) s += bul && prev === 'bulleted_list_item' ? '\n' : '\n\n';
+    s += bul ? '• ' + b.raw : b.text;
+    prev = b.type;
+  });
+  return s;
 }
 function logRich_(text) {
   var out = [];
   for (var i = 0; i < text.length && out.length < 100; i += 2000) out.push({ type: 'text', text: { content: text.slice(i, i + 2000) } });
   return out;
 }
-function logBlock_(p) { return { object: 'block', type: 'paragraph', paragraph: { rich_text: logRich_(p) } }; }
+function logBlock_(p) { var b = { object: 'block', type: p.type }; b[p.type] = { rich_text: logRich_(p.text) }; return b; }
 
 /** Notion asks callers to slow down now and then; a log save waits and tries again. */
 function logNotion_(method, path, payload) {
@@ -1151,10 +1177,10 @@ function logBlocks_(pageId) {
   for (var i = 0; i < 20; i++) {
     var r = notion_('get', '/blocks/' + pageId + '/children?page_size=100' + (cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''));
     (r.results || []).forEach(function (b) {
-      var t = b.type, inner = b[t] || {}, txt = LOG_TEXT_BLOCKS.indexOf(t) > -1 ? plain_(inner.rich_text) : null;
-      if (txt !== null && t === 'bulleted_list_item') txt = '- ' + txt;
+      var t = b.type, inner = b[t] || {}, raw = LOG_TEXT_BLOCKS.indexOf(t) > -1 ? plain_(inner.rich_text) : null, txt = raw;
+      if (txt !== null && t === 'bulleted_list_item') txt = '• ' + txt;
       if (txt !== null && t === 'to_do') txt = (inner.checked ? '[x] ' : '[ ] ') + txt;
-      out.push({ id: b.id, type: t, text: txt, kids: !!b.has_children });
+      out.push({ id: b.id, type: t, text: txt, raw: raw, kids: !!b.has_children });
     });
     if (!r.has_more) break;
     cursor = r.next_cursor;
@@ -1162,7 +1188,7 @@ function logBlocks_(pageId) {
   return out;
 }
 
-function logBlocksText_(blocks) { return blocks.filter(function (b) { return b.text !== null; }).map(function (b) { return b.text; }).join('\n\n'); }
+function logBlocksText_(blocks) { return logJoin_(blocks.filter(function (b) { return b.text !== null; })); }
 
 /** One day's entry. other = the page also holds things the LOG can't show (images, tables); edit those in Notion. */
 function logDay_(ymd) {
@@ -1196,10 +1222,11 @@ function logSave_(ymd, text) {
       var old = logBlocks_(pg.id);
       if (old.some(function (b) { return b.text === null || b.kids; })) return { ok: false, error: 'log_edit_in_notion' };
       var k = 0;
-      while (k < old.length && k < paras.length && old[k].type === 'paragraph' && old[k].text === paras[k]) k++;
+      var same = function (o, p) { return o.type === p.type && (o.type === 'paragraph' || o.type === 'bulleted_list_item'); };
+      while (k < old.length && k < paras.length && same(old[k], paras[k]) && old[k].raw === paras[k].text) k++;
       var j = k;
-      while (j < old.length && j < paras.length && old[j].type === 'paragraph') {
-        logNotion_('patch', '/blocks/' + old[j].id, { paragraph: { rich_text: logRich_(paras[j]) } });
+      while (j < old.length && j < paras.length && same(old[j], paras[j])) {   // same kind of block: rewrite its text in place
+        if (old[j].raw !== paras[j].text) { var upd = {}; upd[paras[j].type] = { rich_text: logRich_(paras[j].text) }; logNotion_('patch', '/blocks/' + old[j].id, upd); }
         j++;
       }
       for (var x = j; x < old.length; x++) logNotion_('delete', '/blocks/' + old[x].id);
@@ -1270,7 +1297,7 @@ function logSearchReady_() { return PropertiesService.getScriptProperties().getP
 /** Adds Search Text to a page's properties once the field exists. */
 function logSearchProps_(props, paras) {
   if (!logSearchReady_()) return props;
-  props[LOG_SEARCH_PROP] = { rich_text: logRich_(logFlat_(paras.join(' ')) || LOG_EMPTY) };
+  props[LOG_SEARCH_PROP] = { rich_text: logRich_(logFlat_(paras.map(function (p) { return p.text; }).join(' ')) || LOG_EMPTY) };
   return props;
 }
 /** Entries whose Search Text is still empty (up to maxPages x 100). */
