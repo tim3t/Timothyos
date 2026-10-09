@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.12.0 · 2026-10-09 (bridge 1.17.0)
+- **Authorization codes for the LOG.** Like a Starfleet override ("Riker, Alpha 6-9-3"): the LOG's lock panel now shows six code words (ALPHA, BETA, GAMMA, DELTA, THETA, OMEGA) above the keypad. Tap your word, then four digits. Once chosen, your word shows only as a filled slot, never by name. ⌫ takes back the digits, then the word. With a keyboard: a, b, g, d, t or o, then the digits.
+- **Set it in the bridge:** Script Property `LOG_PIN` becomes your word and four digits, for example `OMEGA-0000` (spaces, no separator or the Greek letter itself work too). A six-digit PIN still works until you change it.
+- **Longer lockouts in a row.** Five wrong tries still lock the LOG for 15 minutes; each lockout straight after another now lasts twice as long (up to a day), and the panel says until when. Getting it right resets this. A word and four digits has fewer combinations than six digits, so this keeps guessing impractical.
+
 ## 2.11.0 · 2026-10-09 (bridge 1.16.0)
 - **SEARCH THE LOG.** Under the calendar in LOG: type a word or phrase and tap **FIND** (or Return). Every entry that uses it is listed newest first, grouped by year, with the date, how many times it appears and the words around it highlighted. Capitals don't matter; a phrase matches across line breaks.
 - **EXACT WORD** (on to start) finds "homework" but not "homeworks". Turn it off to include longer words that start or end with what you typed.

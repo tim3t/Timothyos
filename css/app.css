@@ -1182,6 +1182,16 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .cl-dots { display: flex; gap: 16px; margin: 28px 0 14px; }
 .cl-dots i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--chrome-c); }
 .cl-dots i.on { background: var(--chrome-c); }
+.cl-dots i.w { width: 40px; border-radius: 9px; margin-right: 10px; }   /* the code word's slot */
+.cl-words { display: grid; grid-template-columns: repeat(3, 88px); gap: 12px; margin: 10px 0 18px; }
+.cl-word { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; height: 64px; border: 2px solid var(--chrome-c); border-radius: 0 22px 22px 0; background: transparent; color: var(--fg); cursor: pointer; }
+.cl-word:nth-child(3n + 1) { border-radius: 22px 0 0 22px; }
+.cl-word:nth-child(3n + 2) { border-radius: 4px; }
+.cl-word b { font-family: var(--body); font-size: 24px; font-weight: 600; line-height: 1; }
+.cl-word span { font-family: var(--display); font-size: 11px; letter-spacing: .2em; color: var(--chrome-c); }
+.cl-word:not(:disabled):active { background: var(--chrome-c); color: var(--ink); }
+.cl-word:not(:disabled):active span { color: var(--ink); }
+.cl-word:disabled { opacity: .35; }
 .cl-msg { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); min-height: 2.6em; max-width: 46ch; }
 .cl-pad { display: grid; grid-template-columns: repeat(3, 88px); gap: 12px; margin-top: 10px; }
 .cl-key { height: 64px; border: 0; border-radius: 32px; background: var(--panel-2); font-family: var(--display); font-size: 28px; font-weight: 600; cursor: pointer; }
@@ -1248,7 +1258,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .cl-fbt { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); margin-right: auto; }
 .cl-fbs { margin-top: 2px; }
 @media (max-width: 860px) { .cl { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
-@media (max-width: 520px) { .cl-pad { grid-template-columns: repeat(3, 76px); } }
+@media (max-width: 520px) { .cl-pad, .cl-words { grid-template-columns: repeat(3, 76px); } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media (max-width: 520px) {

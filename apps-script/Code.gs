@@ -13,8 +13,9 @@
  *  - Ledger: reads your YNAB plan (Script Property YNAB_TOKEN; read-only, it never
  *    writes to YNAB) and the Replicator Queue in Notion (add, reorder, mark bought).
  *  - Captain's Log: one Notion page per day, the entry in its body. Every log
- *    request must carry your 6-digit PIN (Script Property LOG_PIN); five wrong
- *    tries lock the log for 15 minutes. Editing an entry rewrites only that
+ *    request must carry your authorization code (Script Property LOG_PIN: a Greek
+ *    code word and four digits, like OMEGA-0000, or six digits); five wrong tries
+ *    lock the log for 15 minutes, twice as long for each lockout in a row. Editing an entry rewrites only that
  *    entry's own text. Search (bridge 1.16) reads a copy of each entry's text kept
  *    in its page's Search Text field. Ask never sees the log.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
@@ -65,13 +66,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.16.0';
+var VERSION = '1.17.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -993,16 +994,28 @@ function ledgerStatus_() {
 // ---- Captain's Log ---------------------------------------------------------
 // One page per day in the Captain's Log database; the entry is the page body,
 // one paragraph block per paragraph. Every request needs the 6-digit PIN in
-// Script Property LOG_PIN. Nothing here is cached with its text, and Ask has no
+// Script Property LOG_PIN (bridge 1.17: a code word and four digits, see logPin_).
+// Nothing here is cached with its text, and Ask has no
 // way in: the log is not in its snapshot and it has no tool that reads it.
 var LOG_FAIL_LIMIT = 5, LOG_LOCK_SECONDS = 900, LOG_MAX_CHARS = 120000;
 var LOG_TEXT_BLOCKS = ['paragraph', 'bulleted_list_item', 'numbered_list_item', 'quote', 'heading_1', 'heading_2', 'heading_3', 'to_do'];
 var WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+/** LOG_PIN is either six digits or, like a Starfleet authorization, a Greek code word and
+    four digits: "OMEGA-1234", "omega 1234" or "Ω1234" all read as OMEGA-1234. The panel
+    offers these six words; anything else isn't a valid PIN. */
+var LOG_WORDS = ['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'THETA', 'OMEGA'];
+var LOG_GLYPHS = { 'Α': 'ALPHA', 'Β': 'BETA', 'Γ': 'GAMMA', 'Δ': 'DELTA', 'Θ': 'THETA', 'Ω': 'OMEGA' };
+function logCode_(raw) {
+  var m = String(raw == null ? '' : raw).trim().toUpperCase().match(/^([A-Z]+|[ΑΒΓΔΘΩ])[\s\-]*(\d{4})$/);
+  if (!m) return '';
+  var word = LOG_GLYPHS[m[1]] || m[1];
+  return LOG_WORDS.indexOf(word) > -1 ? word + '-' + m[2] : '';
+}
 function logPin_() {
   var p = String(PropertiesService.getScriptProperties().getProperty('LOG_PIN') || '').trim();
-  return /^\d{6}$/.test(p) ? p : '';
+  return /^\d{6}$/.test(p) ? p : logCode_(p);
 }
 function logSource_() { return sourceFor_(CONFIG.NOTION_LOG_DATABASE, 'NOTION_LOG_SOURCE'); }
 /** The list of written days is kept for 6 hours and updated in place when a day is added,
@@ -1014,20 +1027,33 @@ function logDatesAdd_(days) {
   try { cache.put('logdates', JSON.stringify(Object.keys(seen).sort()), 21600); } catch (x) { cache.remove('logdates'); }
 }
 
-/** PIN check with a lockout. Compares every digit so timing says nothing. */
+/** PIN check with a lockout. Compares every character so timing says nothing. Five misses
+    lock it for 15 minutes; each lockout in a row doubles that (up to a day), since a code
+    word and four digits has fewer combinations than six digits. A right answer resets it. */
 function logGate_(pin) {
   var want = logPin_();
   if (!want) return { ok: false, error: 'log_pin_not_set' };
+  var props = PropertiesService.getScriptProperties(), until = Number(props.getProperty('LOG_LOCK_UNTIL') || 0);
+  if (Date.now() < until) return { ok: false, error: 'log_locked', until: until };
   var cache = CacheService.getScriptCache(), fails = Number(cache.get('logfail') || 0);
   if (fails >= LOG_FAIL_LIMIT) return { ok: false, error: 'log_locked' };
-  var given = String(pin == null ? '' : pin), diff = given.length === want.length ? 0 : 1;
+  var given = /^\d{6}$/.test(want) ? String(pin == null ? '' : pin) : logCode_(pin) || String(pin == null ? '' : pin);
+  var diff = given.length === want.length ? 0 : 1;
   for (var i = 0; i < want.length; i++) diff |= (given.charCodeAt(i) || 0) ^ want.charCodeAt(i);
   if (diff) {
     fails++;
+    if (fails >= LOG_FAIL_LIMIT) {
+      var strikes = Number(props.getProperty('LOG_STRIKES') || 0), secs = Math.min(86400, LOG_LOCK_SECONDS * Math.pow(2, strikes));
+      until = Date.now() + secs * 1000;
+      props.setProperty('LOG_LOCK_UNTIL', String(until)); props.setProperty('LOG_STRIKES', String(strikes + 1));
+      cache.remove('logfail');
+      return { ok: false, error: 'log_locked', until: until, left: 0 };
+    }
     cache.put('logfail', String(fails), LOG_LOCK_SECONDS);
-    return { ok: false, error: fails >= LOG_FAIL_LIMIT ? 'log_locked' : 'bad_pin', left: Math.max(0, LOG_FAIL_LIMIT - fails) };
+    return { ok: false, error: 'bad_pin', left: LOG_FAIL_LIMIT - fails };
   }
   if (fails) cache.remove('logfail');
+  if (props.getProperty('LOG_STRIKES')) { props.deleteProperty('LOG_STRIKES'); props.deleteProperty('LOG_LOCK_UNTIL'); }
   return null;
 }
 
@@ -1191,7 +1217,10 @@ function logImport_(entries) {
 
 function logStatus_() {
   CacheService.getScriptCache().remove('logdates');
-  var pin = logPin_() ? 'PIN set' : 'NO PIN: add LOG_PIN (6 digits) in Script Properties';
+  var raw = String(PropertiesService.getScriptProperties().getProperty('LOG_PIN') || '').trim(), code = logPin_();
+  var pin = code ? (code.indexOf('-') > -1 ? 'Authorization code set (' + code.split('-')[0] + ' and four digits)' : 'PIN set (six digits)')
+    : raw ? 'LOG_PIN NOT VALID: use a code word (' + LOG_WORDS.join(', ') + ') and four digits, like OMEGA-0000, or six digits'
+    : 'NO PIN: add LOG_PIN in Script Properties (a code word and four digits, like OMEGA-0000)';
   try { var n = logDates_().dates.length; return 'OK (' + n + ' days written). ' + pin; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '') + '. ' + pin; }
 }

@@ -1,4 +1,5 @@
-# Simulated bridge 1.16: everything in 1.14, plus Captain's Log search and its index (invented sample entries). Port 8103.
+# Simulated bridge 1.16/1.17: everything in 1.14, plus Captain's Log search and its index (invented sample entries), and
+# (after ?action=pincode) a code-word authorization like OMEGA-1701 with timed lockouts. Port 8103.
 import json, datetime as dt
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -79,7 +80,7 @@ QUEUE = [
   {"id": "q4", "title": "Hive tool", "cost": 25, "priority": 5, "note": "", "link": "", "bought": "2026-09-20", "created": "2026-09-01"}]
 QCIDS = {}; QPOSTS = []
 BATCHES = []
-PIN = "135790"; LOGFAIL = [0]; FLAKY = [0]; NOKEY = [0]; LOGVIA = []; LOGSAVES = []; LOGACTS = []
+PIN = "135790"; CODE = []; LOCKS = [0]; LOGFAIL = [0]; FLAKY = [0]; NOKEY = [0]; LOGVIA = []; LOGSAVES = []; LOGACTS = []
 LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A September page. Homework with the kids after supper, then the long division sheet.", "2026-10-01": "Added in Notion with a photo.", "2025-11-13": "The very first page.",
        "2026-09-02": "First homework night of the school year. The kids groaned; I did too.\n\nLater: more homework, a spelling list this time.", "2025-12-04": "No homework tonight, so we watched a film.", "2025-11-20": "Homeworks and chores. Busy.", "2024-03-11": "Helped with homework. Science fair poster."}
 UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []
@@ -88,10 +89,11 @@ def logparas(t): return [p.strip("\n").rstrip() for p in __import__("re").split(
 def logact(b):
     act = b.get("action"); LOGACTS.append(act)
     if NOKEY[0] > 0: NOKEY[0] -= 1; return {"ok": False, "error": "no_key"}
-    if LOGFAIL[0] >= 5: return {"ok": False, "error": "log_locked"}
+    if LOGFAIL[0] >= 5: return {"ok": False, "error": "log_locked", **({"until": LOCKS[0]} if CODE else {})}
     if b.get("pin") != PIN:
         LOGFAIL[0] += 1
-        return {"ok": False, "error": "log_locked" if LOGFAIL[0] >= 5 else "bad_pin", "left": max(0, 5 - LOGFAIL[0])}
+        if LOGFAIL[0] >= 5 and CODE: LOCKS[0] = int(__import__("time").time() * 1000) + 900000
+        return {"ok": False, "error": "log_locked" if LOGFAIL[0] >= 5 else "bad_pin", "left": max(0, 5 - LOGFAIL[0]), **({"until": LOCKS[0]} if CODE and LOGFAIL[0] >= 5 else {})}
     LOGFAIL[0] = 0
     if act in ("logunlock", "logdates"): return {"ok": True, "dates": sorted(LOG)}
     if act == "logday":
@@ -200,8 +202,11 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def answer(self, q):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"], "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "pincode":
+            global PIN
+            PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
         elif q.get("action") == "idxhold": UNINDEXED[:] = ["2024-03-11", "2025-11-13", "2025-11-20"]; body = {"ok": True}
         elif q.get("action") == "tfail": TFAIL[0] = int(q.get("n", "1")); TFAIL[1] = q.get("code", "notion_busy"); body = {"ok": True}
         elif q.get("action") == "tasks" and TFAIL[0] > 0:

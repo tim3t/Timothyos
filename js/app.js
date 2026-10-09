@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.11.0";
+  var VERSION = "2.12.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -312,7 +312,7 @@
   }
   function replyError(j) {
     var e2 = new Error((j && j.error) || "bad_response");
-    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left;
+    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left; e2.until = j && j.until;
     return e2;
   }
   function isNetworkError(err) { return !!err && (err.name === "TypeError" || err.name === "AbortError"); }
@@ -3364,7 +3364,7 @@
   }
   function enterStandby() {
     if (sb.on || !state.conn) return;
-    if (logOpen() || lg.digits) { lockLog(); if (state.screen === "log") render(false); }
+    if (logOpen() || lg.digits || lg.word) { lockLog(); if (state.screen === "log") render(false); }
     sb.on = true;
     var el = $("standby");
     paintStandby();
@@ -3428,9 +3428,15 @@
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null }; }
+  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
   function canLogSearch() { return state.caps.indexOf("logsearch") > -1; }
+  /* Bridge 1.17: the PIN can be a Starfleet-style authorization, a Greek code word then four
+     digits ("Riker Alpha 6-9-3"). The panel shows the six words; the bridge knows which one. */
+  var LOG_WORDS = [["ALPHA", "Α"], ["BETA", "Β"], ["GAMMA", "Γ"], ["DELTA", "Δ"], ["THETA", "Θ"], ["OMEGA", "Ω"]];
+  var LOG_WORD_KEYS = { a: "ALPHA", b: "BETA", g: "GAMMA", d: "DELTA", t: "THETA", o: "OMEGA" };
+  function logCodeMode() { return state.caps.indexOf("logcode") > -1; }
+  function logNeed() { return logCodeMode() ? 4 : 6; }
   /* Reads go as GET (bridge 1.11): the key and PIN ride in the address, which survives Google's
      redirects; a POST body sometimes doesn't. An older bridge only takes POST, so fall back. */
   function logRead(params) {
@@ -3453,28 +3459,31 @@
     var f = document.activeElement;
     if (f && /^clText-/.test(f.id)) f.blur();
   }
-  function logErrText(code, left) {
+  function logErrText(code, left, until) {
+    var code2 = logCodeMode();
     return ({
-      bad_pin: "Not that one." + (left ? " " + left + (left === 1 ? " try" : " tries") + " left before a 15-minute lock." : ""),
-      log_locked: "Locked for 15 minutes after five wrong tries.",
-      log_pin_not_set: "No PIN set yet. In Apps Script: Project Settings → Script Properties → add LOG_PIN with six digits. Steps are in the README under Captain's Log.",
+      bad_pin: (code2 ? "Authorization not recognized." : "Not that one.") + (left ? " " + left + (left === 1 ? " try" : " tries") + " left before a lock." : ""),
+      log_locked: until ? "Locked until " + hm(new Date(until)) + " after five wrong tries. Each lockout in a row lasts twice as long." : "Locked for 15 minutes after five wrong tries.",
+      log_pin_not_set: "No PIN set yet. In Apps Script: Project Settings → Script Properties → add LOG_PIN: a code word and four digits (like OMEGA-0000) or six digits. Steps are in the README under Captain's Log.",
       notion_not_shared: "The Captain's Log database isn't connected. In Notion: Captain's Log → ••• → Connections → add TimothyOS bridge.",
       unknown_action: "The bridge is out of date. Deploy the latest Code.gs (1.10)."
     })[code] || null;
   }
   function logPress(k) {
     if (lg.busy) return;
+    var coded = logCodeMode();
     lg.msg = "";
-    if (k === "del") lg.digits = lg.digits.slice(0, -1);
-    else if (lg.digits.length < 6) lg.digits += k;
+    if (k === "del") { if (lg.digits) lg.digits = lg.digits.slice(0, -1); else lg.word = null; }
+    else if (/^[A-Z]+$/.test(k)) { if (coded && !lg.word) lg.word = k; }   /* the code word comes first */
+    else if ((!coded || lg.word) && lg.digits.length < logNeed()) lg.digits += k;
     render(true);
-    if (lg.digits.length === 6) logUnlock(lg.digits);
+    if (lg.digits.length === logNeed()) logUnlock(coded ? lg.word + "-" + lg.digits : lg.digits);
   }
   function logUnlock(pin) {
     lg.busy = true; render(true);
     logRead({ action: "logunlock", pin: pin }).then(function (j) {
       if (state.screen !== "log") return;
-      lg.pin = pin; lg.digits = ""; lg.dates = {};
+      lg.pin = pin; lg.digits = ""; lg.word = null; lg.dates = {};
       (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
       var t = ymd(new Date());
       lg.day = t; lg.month = som(new Date());
@@ -3483,8 +3492,8 @@
       if (Object.keys(logDrafts).length) logSave(pin);   /* anything left from last time */
       if (canLogSearch()) logIndexStart(pin);
     }).catch(function (err) {
-      lg.digits = "";
-      lg.msg = logErrText(err.code, err && err.left) || describe(err);
+      lg.digits = ""; lg.word = null;
+      lg.msg = logErrText(err.code, err && err.left, err && err.until) || describe(err);
     }).then(function () { lg.busy = false; if (state.screen === "log") { render(true); enterScreen(); } });
   }
   function loadLogDay(d) {
@@ -3795,13 +3804,21 @@
     var html = '<div class="cl">';
     if (!canLog()) { $("content").innerHTML = html + "<section>" + phead("CAPTAIN'S LOG", "") + stubBox("The log needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section></div>"; return; }
     if (!logOpen()) {
-      var dots = ""; for (var i = 0; i < 6; i++) dots += '<i class="' + (i < lg.digits.length ? "on" : "") + '"></i>';
-      var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
-      $("content").innerHTML = html + '<section class="cl-lock">' + phead("CAPTAIN'S LOG", "LOCKED", "chrome-c") +
-        '<div class="cl-dots" aria-label="' + lg.digits.length + ' of 6 digits">' + dots + "</div>" +
-        '<div class="cl-msg" role="status">' + (lg.busy ? "CHECKING…" : lg.msg ? esc(lg.msg) : "ENTER YOUR PIN") + "</div>" +
+      var coded = logCodeMode(), need = logNeed(), dots = "";
+      /* the code word shows only as a filled slot, never by name: the panel can be overlooked */
+      if (coded) dots += '<i class="w' + (lg.word ? " on" : "") + '"></i>';
+      for (var i = 0; i < need; i++) dots += '<i class="' + (i < lg.digits.length ? "on" : "") + '"></i>';
+      var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"], noDigits = lg.busy || (coded && !lg.word);
+      var prompt = !coded ? "ENTER YOUR PIN" : !lg.word ? "STATE AUTHORIZATION: CODE WORD" : "AUTHORIZATION: FOUR DIGITS";
+      $("content").innerHTML = html + '<section class="cl-lock' + (coded ? " coded" : "") + '">' + phead("CAPTAIN'S LOG", coded ? "AUTHORIZATION REQUIRED" : "LOCKED", "chrome-c") +
+        '<div class="cl-dots" aria-label="' + (coded ? (lg.word ? "Code word chosen, " : "No code word yet, ") + lg.digits.length + " of 4 digits" : lg.digits.length + " of 6 digits") + '">' + dots + "</div>" +
+        '<div class="cl-msg" role="status">' + (lg.busy ? (coded ? "VERIFYING AUTHORIZATION…" : "CHECKING…") : lg.msg ? esc(lg.msg) : prompt) + "</div>" +
+        (coded ? '<div class="cl-words">' + LOG_WORDS.map(function (w) {
+          return '<button type="button" class="cl-word" data-lpin="' + w[0] + '"' + (lg.busy || lg.word ? " disabled" : "") + ' aria-label="' + w[0] + '"><b>' + w[1] + "</b><span>" + w[0] + "</span></button>";
+        }).join("") + "</div>" : "") +
         '<div class="cl-pad">' + keys.map(function (k) {
-          return k === "" ? "<span></span>" : '<button type="button" class="cl-key' + (k === "del" ? " del" : "") + '" data-lpin="' + k + '"' + (lg.busy ? " disabled" : "") + ' aria-label="' + (k === "del" ? "Delete" : k) + '">' + (k === "del" ? "⌫" : k) + "</button>";
+          var off = k === "del" ? lg.busy || (!lg.digits && !lg.word) : noDigits;
+          return k === "" ? "<span></span>" : '<button type="button" class="cl-key' + (k === "del" ? " del" : "") + '" data-lpin="' + k + '"' + (off ? " disabled" : "") + ' aria-label="' + (k === "del" ? "Delete" : k) + '">' + (k === "del" ? "⌫" : k) + "</button>";
         }).join("") + "</div></section></div>";
       return;
     }
@@ -3860,7 +3877,7 @@
     var html = "<section>" + phead("CAPTAIN'S LOG", canLog() ? "PIN-LOCKED" : "SETUP");
     if (!canLog()) return html + stubBox("Needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section>";
     var pinSet = state.caps.indexOf("logpin") > -1, nd = Object.keys(logDrafts).length;
-    return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">Set. Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
+    return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">" + (logCodeMode() ? "Authorization code set (a code word and four digits)." : "Six-digit PIN set.") + " Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
       '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
       '<small class="muted">Entries open only after the PIN and are never stored on this iPad; leaving LOG, the background, standby or 10 minutes without a touch locks it. ' +
       (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The log is never sent to Ask.</small></section>";
@@ -3868,10 +3885,11 @@
   document.addEventListener("keydown", function (e) {
     if (state.screen !== "log" || logOpen() || !canLog() || sb.on || e.metaKey || e.ctrlKey) return;
     if (/^[0-9]$/.test(e.key)) { e.preventDefault(); logPress(e.key); }
+    else if (logCodeMode() && LOG_WORD_KEYS[e.key.toLowerCase()]) { e.preventDefault(); logPress(LOG_WORD_KEYS[e.key.toLowerCase()]); }
     else if (e.key === "Backspace") { e.preventDefault(); logPress("del"); }
   });
   document.addEventListener("visibilitychange", function () {
-    if (document.hidden && (logOpen() || lg.digits)) { lockLog(); if (state.screen === "log") render(false); }
+    if (document.hidden && (logOpen() || lg.digits || lg.word)) { lockLog(); if (state.screen === "log") render(false); }
   });
   setInterval(function () {
     if (logOpen() && Date.now() - sb.last >= LOG_IDLE_MS) { lockLog(); if (state.screen === "log") render(false); }

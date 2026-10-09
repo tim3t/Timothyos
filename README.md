@@ -249,14 +249,15 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 
 1. **In Notion:** open **📓 Captain's Log** (in your Life Hub) as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
 2. **Update the bridge to 1.10:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-3. **Choose your PIN:** Project Settings (gear) → **Script Properties** → **Add script property**: name `LOG_PIN`, value **six digits**. Change it there any time; nothing on the iPad needs updating.
-4. Run **setup**. The log should show `Captain's Log: OK (0 days written). PIN set` and end with `Bridge version 1.10.0`.
+3. **Choose your authorization code:** Project Settings (gear) → **Script Properties** → **Add script property**: name `LOG_PIN`, value a **code word and four digits**, for example `OMEGA-0000`. The words are ALPHA, BETA, GAMMA, DELTA, THETA and OMEGA (bridge 1.17; `omega 0000` or `Ω0000` work too). Six digits also still work. Change it there any time; nothing on the iPad needs updating.
+4. Run **setup**. The log should show `Captain's Log: OK (… days written). Authorization code set (OMEGA and four digits)` (your word, never the digits). `LOG_PIN NOT VALID` means the value isn't one of the six words and four digits.
 5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, **SYSTEMS → REFRESH NOW**, and open **LOG**.
 
 **Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In TimothyOS open **LOG**, enter the PIN, tap **IMPORT**, paste, **CHECK**. It shows how many days it found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends three days at a time and shows how many are in Notion so far. A request that fails is retried on its own. Keep TimothyOS open until it says done; if it stops (the app went to the background), paste again and it sends only what's left.
 
 **How it works**
-- **Opening LOG always asks for the PIN.** The bridge checks it; five wrong tries lock the log for 15 minutes.
+- **Opening LOG always asks for your authorization:** tap your code word, then the four digits (or type its first letter and the digits on a keyboard). Your word shows only as a filled slot. The bridge checks it; five wrong tries lock the log for 15 minutes, and each lockout straight after another lasts twice as long (up to a day). The panel says until when.
+- **Changing the code:** update `LOG_PIN` in Script Properties. No new deployment is needed; the iPad picks up the panel style (code word or six digits) on its next sync.
 - **It locks** when you leave LOG, tap **LOCK**, the app goes to the background, standby starts, or after 10 minutes without a touch.
 - **Jump to a month:** tap the month name above the calendar, pick a year, then a month.
 - **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. The bar beside the day's name fills when a save lands. Until Notion has it, your writing is kept on this iPad; once saved it is removed from the iPad.

@@ -66,7 +66,7 @@ r = post({ action: 'logunlock', pin: '204816' }); assert.ok(r.ok); assert.deepSt
 for (let i = 0; i < 4; i++) post({ action: 'logunlock', pin: '000000' });
 assert.strictEqual(post({ action: 'logunlock', pin: '000000' }).error, 'log_locked');
 assert.strictEqual(post({ action: 'logunlock', pin: '204816' }).error, 'log_locked');
-delete cache.logfail;   // the 15 minutes pass
+delete cache.logfail; delete props.LOG_LOCK_UNTIL;   // the 15 minutes pass
 const pin = '204816';
 
 // Save a new day: one paragraph block per paragraph, line breaks kept, long paragraphs split into 2000-char pieces.
@@ -139,4 +139,32 @@ const before = calls.length; getL({ action: 'logdates', pin });
 assert.strictEqual(calls.slice(before).filter(c => /query/.test(c)).length, 0, 'served from cache');
 post({ action: 'logsave', pin, date: '2026-10-11', text: 'A new day.' });
 const b2 = calls.length; assert.ok(getL({ action: 'logdates', pin }).dates.includes('2026-10-11')); assert.strictEqual(calls.slice(b2).filter(c => /query/.test(c)).length, 0);
+
+// Authorization code (bridge 1.17): a Greek code word and four digits, written any of the usual ways.
+props.LOG_PIN = 'omega 1701';
+assert.ok(ping().capabilities.includes('logpin') && ping().capabilities.includes('logcode'));
+assert.ok(ctx.logStatus_().includes('Authorization code set (OMEGA and four digits)'));
+assert.ok(post({ action: 'logunlock', pin: 'OMEGA-1701' }).ok, 'the panel sends WORD-1234');
+assert.ok(post({ action: 'logunlock', pin: 'Ω1701' }).ok && post({ action: 'logunlock', pin: 'omega1701' }).ok, 'glyph or lower case too');
+r = post({ action: 'logunlock', pin: 'ALPHA-1701' }); assert.strictEqual(r.error, 'bad_pin'); assert.strictEqual(r.left, 4);
+assert.strictEqual(post({ action: 'logunlock', pin: '001701' }).error, 'bad_pin', 'six digits no longer open it');
+props.LOG_PIN = 'Ω-0451'; assert.ok(post({ action: 'logunlock', pin: 'OMEGA-0451' }).ok, 'and the right one resets the count'); assert.ok(!cache.logfail);
+for (const bad of ['SIGMA-1234', 'OMEGA-123', 'OMEGA 12345', 'OMEGA']) {
+  props.LOG_PIN = bad;
+  assert.ok(!ping().capabilities.includes('logpin'), bad + ' is not a valid code');
+  assert.ok(ctx.logStatus_().includes('LOG_PIN NOT VALID'), bad);
+}
+props.LOG_PIN = 'DELTA-2024';
+// Each lockout in a row lasts twice as long; a right answer clears the record.
+const lockFor = () => { let x; for (let i = 0; i < 5; i++) x = post({ action: 'logunlock', pin: 'BETA-0000' }); return x; };
+let t0 = Date.now(), L = lockFor();
+assert.strictEqual(L.error, 'log_locked'); assert.ok(Math.abs(L.until - t0 - 900000) < 5000, 'first lock 15 minutes');
+assert.strictEqual(post({ action: 'logunlock', pin: 'DELTA-2024' }).error, 'log_locked', 'even the right code waits');
+props.LOG_LOCK_UNTIL = '1'; t0 = Date.now(); L = lockFor();
+assert.ok(Math.abs(L.until - t0 - 1800000) < 5000, 'second lock 30 minutes');
+props.LOG_LOCK_UNTIL = '1'; props.LOG_STRIKES = '9'; t0 = Date.now(); L = lockFor();
+assert.ok(Math.abs(L.until - t0 - 86400000) < 5000, 'never more than a day');
+props.LOG_LOCK_UNTIL = '1';
+assert.ok(post({ action: 'logunlock', pin: 'DELTA-2024' }).ok);
+assert.ok(!props.LOG_STRIKES && !props.LOG_LOCK_UNTIL, 'record cleared');
 console.log('bridge log: all checks passed');
