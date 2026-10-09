@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.10.2";
+  var VERSION = "2.11.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3418,15 +3418,19 @@
      only while the log is open. Entries are never stored on the iPad: leaving LOG,
      sending the app to the background, standby, or 10 minutes without a touch locks
      it and drops them. The only thing kept here is writing that hasn't reached Notion
-     yet, removed as soon as it has. No reminders, no streaks, no counts. Never sent to Ask. */
+     yet, removed as soon as it has. No reminders, no streaks, no counts. Never sent to Ask.
+     Search (bridge 1.16) asks the bridge, which looks in each page's Search Text copy; results
+     live only in memory and go when the log locks. Unlocking also tops up that copy for older
+     entries, newest first, a batch at a time (logIndexStep). */
   var LS_LDRAFT = "tos.ldraft.v1";       /* Log: writing not yet saved to Notion, per day */
   var LOG_SAVE_MS = 5000;                /* save this long after you stop typing */
   var LOG_IDLE_MS = 10 * 60 * 1000;      /* lock after this long without a touch */
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null }; }
+  function logFresh() { return { pin: null, digits: "", msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
+  function canLogSearch() { return state.caps.indexOf("logsearch") > -1; }
   /* Reads go as GET (bridge 1.11): the key and PIN ride in the address, which survives Google's
      redirects; a POST body sometimes doesn't. An older bridge only takes POST, so fall back. */
   function logRead(params) {
@@ -3477,6 +3481,7 @@
       noteTouch();
       loadLogDay(t);
       if (Object.keys(logDrafts).length) logSave(pin);   /* anything left from last time */
+      if (canLogSearch()) logIndexStart(pin);
     }).catch(function (err) {
       lg.digits = "";
       lg.msg = logErrText(err.code, err && err.left) || describe(err);
@@ -3498,6 +3503,105 @@
       if (state.screen === "log" && lg.day === d) render(true);
     });
   }
+  /* ---- search ---- */
+  function logFind() {
+    var f = $("clFind"), q = f ? f.value.replace(/\s+/g, " ").trim() : "";
+    if (q.length < 2) { toast("Type at least two letters to search."); return; }
+    if (f) f.blur();
+    var pin = lg.pin, whole = lg.whole;
+    lg.imp = null;
+    lg.find = { q: q, whole: whole, busy: true, res: null, err: null, view: true };
+    render(true);
+    logRead({ action: "logsearch", pin: pin, q: q, whole: whole ? "1" : "0" }).then(function (j) {
+      if (lg.pin !== pin || !lg.find || lg.find.q !== q || lg.find.whole !== whole) return;
+      lg.find.res = { entries: j.entries || [], mentions: j.mentions || 0, left: j.left || 0, more: !!j.more };
+    }).catch(function (err) {
+      if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
+      lg.find.err = err && err.code === "log_search_not_ready" ? "Search needs bridge 1.16 and one run of setup. Steps are in the README under Captain's Log search." : logErrText(err && err.code) || describe(err);
+    }).then(function () {
+      if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
+      lg.find.busy = false;
+      if (state.screen === "log") { render(true); var pg = document.querySelector(".cl-page"); if (pg && innerWidth <= 860) pg.scrollIntoView({ block: "start", behavior: calm() ? "auto" : "smooth" }); }
+    });
+  }
+  function logHits() { return lg.find && lg.find.res ? lg.find.res.entries : []; }
+  function logHitAt(d) { var h = logHits(); for (var i = 0; i < h.length; i++) if (h[i].date === d) return i; return -1; }
+  /* A snippet comes as [text, match, text, match, ..., text]: the matches are marked. */
+  function snipHtml(sn) { return sn.map(function (x, i) { return i % 2 ? "<mark>" + esc(x) + "</mark>" : esc(x); }).join(""); }
+  function logFindLabel(d) { var dt = parseYmd(d); return DOW[dt.getDay()] + " " + p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear(); }
+  function logFindHtml() {
+    var f = lg.find, r = f.res, quoted = "“" + esc(f.q) + "”";
+    var meta = f.busy ? "SEARCHING…" : r ? r.entries.length + (r.entries.length === 1 ? " ENTRY" : " ENTRIES") + " · " + r.mentions + (r.mentions === 1 ? " MENTION" : " MENTIONS") : "";
+    var html = phead("SEARCH", meta, "chrome-c") + '<div class="cl-fq"><b>' + quoted + "</b>" + (f.whole ? " as a whole word" : " anywhere, part words too") + ", any capitals</div>";
+    if (f.busy) return html + '<div class="empty">Looking through the log…</div>';
+    if (f.err) return html + '<div class="errtxt cl-note">' + esc(f.err) + '</div><div class="btnrow cl-row"><button type="button" class="btn ghost" data-lact="findclose">BACK TO THE PAGE</button></div>';
+    if (r.left) html += '<div class="cl-note muted">' + r.left + (r.left >= 100 ? "+" : "") + " older " + (r.left === 1 ? "entry isn't" : "entries aren't") + " searchable yet. They're being added while the log is open.</div>";
+    if (!r.entries.length) {
+      html += '<div class="empty">No entries ' + (f.whole ? "use the word " : "contain ") + quoted + "." + (f.whole ? " EXACT WORD is on: turn it off to include longer words that start or end with it." : "") + "</div>";
+    } else {
+      var year = null, counts = {};
+      r.entries.forEach(function (e) { var y = e.date.slice(0, 4); counts[y] = (counts[y] || 0) + 1; });
+      html += '<div class="cl-hits">' + r.entries.map(function (e) {
+        var y = e.date.slice(0, 4), head = "";
+        if (y !== year) { year = y; head = '<div class="ov-sub cl-hy">' + y + " · " + counts[y] + (counts[y] === 1 ? " ENTRY" : " ENTRIES") + "</div>"; }
+        return head + '<button type="button" class="cl-hit' + (e.date === lg.day ? " cur" : "") + '" data-lfound="' + e.date + '"><span class="cl-hitd">' + logFindLabel(e.date) + '</span><span class="cl-hitn">' + (e.count > 1 ? e.count + "×" : "") + "</span>" +
+          '<span class="cl-hits-t">' + e.snips.map(function (sn) { return "<span>" + snipHtml(sn) + "</span>"; }).join("") + "</span></button>";
+      }).join("") + "</div>";
+      if (r.more) html += '<div class="cl-note muted">Showing the newest 2,000. Narrow the search to see older ones.</div>';
+    }
+    return html + '<div class="btnrow cl-row"><button type="button" class="btn ghost" data-lact="findclose">CLOSE SEARCH</button></div>';
+  }
+  /* Above an entry opened from the results: back to them, newer and older matches, and where the words are. */
+  function logFindBar(d) {
+    var i = logHitAt(d), h = logHits();
+    if (i < 0) return "";
+    return '<div class="cl-findbar"><button type="button" class="chip" data-lact="findback"><span class="tri l"></span>RESULTS</button>' +
+      '<span class="cl-fbt">“' + esc(lg.find.q) + "” · " + (i + 1) + " OF " + h.length + "</span>" +
+      '<button type="button" class="chip" data-lact="findstep" data-dir="-1"' + (i === 0 ? " disabled" : "") + ">NEWER</button>" +
+      '<button type="button" class="chip" data-lact="findstep" data-dir="1"' + (i === h.length - 1 ? " disabled" : "") + ">OLDER</button>" +
+      '<div class="cl-fbs">' + h[i].snips.map(function (sn) { return "<span>" + snipHtml(sn) + "</span>"; }).join("") + "</div></div>";
+  }
+  function logIdxHtml() {
+    var x = lg.idx, total = Object.keys(lg.dates || {}).length, idx = "";
+    if (x && x.left > 0 && total) {
+      var ready = Math.max(0, total - x.left), pct = Math.round(ready / total * 100);
+      idx = '<div class="cl-idx" role="status"><div class="cl-idxbar"><span style="width:' + pct + '%"></span></div><small class="muted">' +
+        (x.err ? "Adding older entries paused: " + esc(x.err) + " It carries on next time you open the log." : "Making older entries searchable: " + ready.toLocaleString() + " of " + total.toLocaleString() + ". Carries on while the log is open.") + "</small></div>";
+    } else if (x && x.did && !x.left) idx = '<div class="cl-idx"><small class="muted">Every entry is searchable now.</small></div>';
+    return idx;
+  }
+  /* Progress is painted in place, so a field you're typing in keeps the keyboard. */
+  function logIdxPaint() { var el = $("clIdx"); if (el && state.screen === "log") el.innerHTML = logIdxHtml(); }
+  function logFindBox() {
+    if (!canLogSearch()) return "";
+    return '<div class="cl-find"><label class="ov-sub" for="clFind">SEARCH THE LOG</label>' +
+      '<div class="cl-findrow"><input type="search" id="clFind" value="' + esc(lg.find ? lg.find.q : "") + '" placeholder="A word or phrase" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
+      '<button type="button" class="btn" data-lact="find">FIND</button></div>' +
+      '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="findwhole" aria-pressed="' + lg.whole + '">EXACT WORD</button></div><div id="clIdx">' + logIdxHtml() + "</div></div>";
+  }
+  /* Fill Search Text for older entries a batch at a time while the log is open. */
+  function logIndexStart(pin) {
+    apiPost({ action: "logindex", pin: pin }).then(function (j) {
+      if (lg.pin !== pin) return;
+      lg.idx = { left: j.left || 0, did: 0, err: null, fails: 0 };
+      if (lg.idx.left > 0) { logIdxPaint(); logIndexStep(pin); }
+    }).catch(function () { /* searching still works on what's there */ });
+  }
+  function logIndexStep(pin) {
+    if (lg.pin !== pin || !lg.idx) return;
+    apiPost({ action: "logindex", pin: pin, run: 1 }, 60000).then(function (j) {
+      if (lg.pin !== pin || !lg.idx) return;
+      lg.idx.did += j.did || 0; lg.idx.left = j.left || 0; lg.idx.err = null; lg.idx.fails = 0;
+      logIdxPaint();
+      if (lg.idx.left > 0) setTimeout(function () { logIndexStep(pin); }, j.busy ? 8000 : 300);
+    }).catch(function (err) {
+      if (lg.pin !== pin || !lg.idx) return;
+      lg.idx.fails++;
+      if (lg.idx.fails >= 3) { lg.idx.err = describe(err); logIdxPaint(); return; }
+      setTimeout(function () { logIndexStep(pin); }, 20000);
+    });
+  }
+
   function logPick(d) {
     lg.day = d; lg.imp = null;
     var dt = parseYmd(d); if (dt.getMonth() !== lg.month.getMonth() || dt.getFullYear() !== lg.month.getFullYear()) lg.month = som(dt);
@@ -3715,12 +3819,14 @@
       '<button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo || lg.pick ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
       (lg.pick ? logPickerHtml() : '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>") +
       '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
-      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button></div></section>';
+      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button></div>' + logFindBox() + "</section>";
     html += '<section class="cl-page">';
     if (lg.imp) html += logImportHtml();
+    else if (lg.find && lg.find.view) html += logFindHtml();
     else {
       var d = lg.day, dt = parseYmd(d), e = lg.entries[d], loading = lg.dates[d] && !(d in lg.entries), intent = (lsGet(LS_LOG) || {})[d];
       html += phead(DOWL[dt.getDay()], p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear() + ' · <span id="clStatus">' + logStatusText(d) + "</span>", "chrome-c");
+      html += logFindBar(d);
       if (intent) html += '<div class="cl-intent"><span>INTENT</span>' + esc(intent) + "</div>";
       if (lg.err[d] && !logDrafts[d]) html += '<div class="errtxt cl-note">' + lg.err[d] + ' <button type="button" class="chip" data-lact="retry">TRY AGAIN</button></div>';
       else if (loading && !logDrafts[d]) html += '<div class="empty">Opening the page…</div>';
@@ -3757,7 +3863,7 @@
     return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">Set. Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
       '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
       '<small class="muted">Entries open only after the PIN and are never stored on this iPad; leaving LOG, the background, standby or 10 minutes without a touch locks it. ' +
-      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + "The log is never sent to Ask.</small></section>";
+      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The log is never sent to Ask.</small></section>";
   }
   document.addEventListener("keydown", function (e) {
     if (state.screen !== "log" || logOpen() || !canLog() || sb.on || e.metaKey || e.ctrlKey) return;
@@ -4705,7 +4811,8 @@
     }
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
     else if (b.dataset.lpin) logPress(b.dataset.lpin);
-    else if (b.dataset.lday) logPick(b.dataset.lday);
+    else if (b.dataset.lday) { if (lg.find) lg.find.view = false; logPick(b.dataset.lday); }
+    else if (b.dataset.lfound) { lg.find.view = false; logPick(b.dataset.lfound); var pg0 = document.querySelector(".cl-page"); if (pg0 && pg0.getBoundingClientRect().top < 0) pg0.scrollIntoView({ block: "start" }); }
     else if (b.dataset.lyear) { lg.pickYear = +b.dataset.lyear; render(true); }
     else if (b.dataset.ljump) { var jp = b.dataset.ljump.split("-"); lg.month = new Date(+jp[0], +jp[1] - 1, 1); lg.pick = false; lg.pickYear = null; render(true); enterScreen(); }
     else if (b.dataset.lmon) { lg.month = new Date(lg.month.getFullYear(), lg.month.getMonth() + +b.dataset.lmon, 1); render(true); enterScreen(); }
@@ -4721,6 +4828,11 @@
       else if (la === "impcheck") logImportCheck();
       else if (la === "imprun") logImportRun();
       else if (la === "impcancel") { lg.imp = null; loadLogDay(lg.day); render(true); }
+      else if (la === "find") logFind();
+      else if (la === "findwhole") { lg.whole = !lg.whole; if (lg.find && lg.find.q) { $("clFind").value = lg.find.q; logFind(); } else render(true); }
+      else if (la === "findclose") { lg.find = null; render(true); }
+      else if (la === "findback") { lg.find.view = true; render(true); var cur = document.querySelector(".cl-hit.cur"); if (cur) cur.scrollIntoView({ block: "center" }); }
+      else if (la === "findstep") { var hi = logHitAt(lg.day) + +b.dataset.dir, hl = logHits(); if (hl[hi]) logPick(hl[hi].date); }
     }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
@@ -4768,7 +4880,10 @@
     else if (/^clText-/.test(e.target.id) && logOpen()) { onLogInput(e.target.id.slice(7), e.target.value); growLog(e.target); }
     else if (e.target.dataset.rv && state.screen === "review") saveDraft(ymd(sow(state.anchor)), e.target.dataset.rv, e.target.value);
   });
-  $("content").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur(); });
+  $("content").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur();
+    if (e.key === "Enter" && e.target.id === "clFind") { e.preventDefault(); logFind(); }
+  });
   $("detailScrim").addEventListener("click", function (e) {
     var b = e.target.closest("button");
     if (b && bookSheetClick(b)) return;

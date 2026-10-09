@@ -264,6 +264,19 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
 - **Ask Claude never sees the log.** It isn't in the snapshot and Ask has no way to read it.
 
+### Captain's Log search (app 2.11, bridge 1.16)
+
+**SEARCH THE LOG** sits under the calendar. Type a word or phrase, tap **FIND**: every entry that uses it, newest first, with the words around it. **EXACT WORD** (on to start) matches the whole word only; capitals never matter. Tap a result to read it; **NEWER** and **OLDER** step through the rest, **RESULTS** goes back.
+
+**One-time setup**
+1. **Update the bridge to 1.16:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+2. Run **setup**. It adds a **Search Text** field to the Captain's Log database (the only change to it) and logs `Captain's Log search: OK (added the "Search Text" field). N older entries to index`.
+3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then **SYSTEMS → REFRESH NOW** in TimothyOS.
+4. **Open LOG.** Older entries are made searchable while it's open, newest first; a bar under the search box shows how far along it is (roughly one to two entries a second). If it locks before it's done, it carries on next time. To do it all at once instead, select **buildLogSearch** in the script editor and Run (about five minutes a run; run again if it says some are left).
+5. Optional: in Notion, hide the **Search Text** column in the Captain's Log views; it's a plain copy of each entry, kept for searching.
+
+**How it works:** Notion can't search inside page text, so each entry's text is also kept, on one line, in its page's Search Text field. TimothyOS writes it whenever you save or import. A search is one request to the bridge, which asks Notion for the pages holding your words, then checks the exact-word rule itself. If you edit an entry directly in Notion, its Search Text keeps the old wording until you next save that day in LOG.
+
 ## Time Loom (app 2.6)
 
 **LOOM** shows your calendars and key dates on an infinity loop. The focused day sits at the crossing, largest, with its events named beside it.
@@ -314,6 +327,7 @@ Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **�
 | Open a screen that isn't in the bar | **ALL STATIONS** (the block under the buttons). **EDIT PINS** there picks the seven in the bar |
 | Record habits | **HABITS**, or the strip on the Bridge |
 | Add or finish a book | **LIBRARY** |
+| Find every entry that mentions something | **LOG** → **SEARCH THE LOG** |
 | Scroll through time | **LOOM**. Swipe left for the future, right for the past; tap a bead for details |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |

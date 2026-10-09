@@ -29,6 +29,7 @@ run bridge_ask.test.js
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
+run bridge_logsearch.test.js
 [ "${1:-}" = "bridge" ] && exit $fail
 
 echo "== App (browser, against simulated bridges)"
@@ -47,6 +48,7 @@ python3 mock_v18.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.8: + farm calendar
 python3 mock_v19.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.9: + ledger + queue    :8100
 python3 mock_v20.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.10: + Captain's Log    :8101
 python3 mock_v21.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.14: + Habits, Library  :8102
+python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search      :8103
 sleep 1.5
 
 run app_e2e.test.js       # linking, Day/Week/Month, detail, offline cache, phone width
@@ -67,6 +69,7 @@ run app_e2e22.test.js     # Captain's Log: PIN, calendar, write/autosave, edit, 
 run app_e2e23.test.js     # Time Loom: swipe direction, taps, fetching ahead, layout
 run app_e2e24.test.js     # Stations (pins + ALL STATIONS), Habits, Library
 run app_e2e25.test.js     # NEEDS YOU on Systems: steps per error, jump tab, back to green
+run app_e2e26.test.js     # LOG search: index progress, exact word, results, NEWER/OLDER, lock forgets
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

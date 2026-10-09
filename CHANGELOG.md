@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.11.0 · 2026-10-09 (bridge 1.16.0)
+- **SEARCH THE LOG.** Under the calendar in LOG: type a word or phrase and tap **FIND** (or Return). Every entry that uses it is listed newest first, grouped by year, with the date, how many times it appears and the words around it highlighted. Capitals don't matter; a phrase matches across line breaks.
+- **EXACT WORD** (on to start) finds "homework" but not "homeworks". Turn it off to include longer words that start or end with what you typed.
+- **Open a result** and the entry shows with **RESULTS** to go back, **NEWER** and **OLDER** to step through the matches, and the lines where your words appear. The calendar follows along.
+- **How it stays quick:** each entry's text is also kept in a new **Search Text** field on its Notion page, so one search is one request, not one per day. Saves and imports fill it from now on. Older entries are filled in while the log is open, newest first, with a progress bar under the search box.
+- Same PIN as the log. Searches and results stay in memory only and are forgotten when the log locks. Ask still can't see the log.
+
 ## 2.10.2 · 2026-10-09
 - **Waking from Standby is smooth all the way.** The fade back to the app used to be cut off part-way (about a third of a second in, with the screen still mostly black) and the app popped in. Now it runs to the end, easing out over just under a second, for both the STANDBY button and the automatic timeout. Falling asleep is unchanged.
 

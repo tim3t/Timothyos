@@ -15,7 +15,8 @@
  *  - Captain's Log: one Notion page per day, the entry in its body. Every log
  *    request must carry your 6-digit PIN (Script Property LOG_PIN); five wrong
  *    tries lock the log for 15 minutes. Editing an entry rewrites only that
- *    entry's own text. Ask never sees the log.
+ *    entry's own text. Search (bridge 1.16) reads a copy of each entry's text kept
+ *    in its page's Search Text field. Ask never sees the log.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
@@ -64,13 +65,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.15.0';
+var VERSION = '1.16.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -94,7 +95,7 @@ function doGet(e) {
   try {
     var refused = keyRefusal_(p.key);
     if (refused) return json_({ ok: false, error: refused });
-    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
+    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday' || p.action === 'logsearch') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
     if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
     if (p.action === 'batch') return json_(batch_(p.calls));
     return json_(read_(p) || { ok: false, error: 'unknown_action' });
@@ -202,6 +203,7 @@ function setup() {
   console.log('Ledger (YNAB): ' + lg.ynab);
   console.log('Notion replicator queue: ' + lg.queue);
   console.log("Captain's Log: " + logStatus_());
+  console.log("Captain's Log search: " + logSearchSetup_());
   console.log('Notion habits: ' + habitsStatus_());
   console.log('Notion library: ' + libraryStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
@@ -1036,6 +1038,8 @@ function logAction_(body) {
   if (body.action === 'logday') return logDay_(String(body.date || ''));
   if (body.action === 'logsave') return logSave_(String(body.date || ''), body.text);
   if (body.action === 'logimport') return logImport_(body.entries);
+  if (body.action === 'logsearch') return logSearch_(body.q, !(body.whole === '0' || body.whole === 0 || body.whole === false));
+  if (body.action === 'logindex') return logIndex_(body.run ? LOG_INDEX_MS : 0);
   return { ok: false, error: 'unknown_action' };
 }
 
@@ -1100,6 +1104,8 @@ function logBlocks_(pageId) {
   return out;
 }
 
+function logBlocksText_(blocks) { return blocks.filter(function (b) { return b.text !== null; }).map(function (b) { return b.text; }).join('\n\n'); }
+
 /** One day's entry. other = the page also holds things the LOG can't show (images, tables); edit those in Notion. */
 function logDay_(ymd) {
   if (!realDay_(ymd)) return { ok: false, error: 'bad_request' };
@@ -1107,7 +1113,7 @@ function logDay_(ymd) {
   if (!pg) return { ok: true, version: VERSION, date: ymd, entry: null };
   var blocks = logBlocks_(pg.id);
   var other = blocks.some(function (b) { return b.text === null || b.kids; });
-  var text = blocks.filter(function (b) { return b.text !== null; }).map(function (b) { return b.text; }).join('\n\n');
+  var text = logBlocksText_(blocks);
   return { ok: true, version: VERSION, date: ymd, entry: { id: pg.id, url: pg.url, text: text, saved: pg.last_edited_time || null, other: other } };
 }
 
@@ -1123,7 +1129,7 @@ function logSave_(ymd, text) {
     if (!pg) {
       if (!paras.length) return { ok: true, version: VERSION, date: ymd, saved: null, created: false };
       pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
-        properties: { Name: { title: rt_(longDay_(ymd)) }, Date: { date: { start: ymd } }, Source: { select: { name: 'Bridge' } } },
+        properties: logSearchProps_({ Name: { title: rt_(longDay_(ymd)) }, Date: { date: { start: ymd } }, Source: { select: { name: 'Bridge' } } }, paras),
         children: paras.slice(0, 100).map(logBlock_) });
       created = true;
       paras = paras.slice(100);
@@ -1140,6 +1146,7 @@ function logSave_(ymd, text) {
       }
       for (var x = j; x < old.length; x++) logNotion_('delete', '/blocks/' + old[x].id);
       if (j < paras.length) logAppend_(pg.id, paras.slice(j));
+      if (logSearchReady_()) logNotion_('patch', '/pages/' + pg.id, { properties: logSearchProps_({}, paras) });
     }
     if (created) logDatesAdd_([ymd]);
     return { ok: true, version: VERSION, date: ymd, created: created, saved: new Date().toISOString() };
@@ -1169,7 +1176,7 @@ function logImport_(entries) {
       var paras = logParas_(e.text);
       if (have[e.date] || !paras.length) { skipped.push(e.date); return; }
       var pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
-        properties: { Name: { title: rt_(longDay_(e.date)) }, Date: { date: { start: e.date } }, Source: { select: { name: 'Diary import' } } },
+        properties: logSearchProps_({ Name: { title: rt_(longDay_(e.date)) }, Date: { date: { start: e.date } }, Source: { select: { name: 'Diary import' } } }, paras),
         children: paras.slice(0, 100).map(logBlock_) });
       if (paras.length > 100) logAppend_(pg.id, paras.slice(100));
       have[e.date] = true;
@@ -1187,6 +1194,113 @@ function logStatus_() {
   var pin = logPin_() ? 'PIN set' : 'NO PIN: add LOG_PIN (6 digits) in Script Properties';
   try { var n = logDates_().dates.length; return 'OK (' + n + ' days written). ' + pin; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '') + '. ' + pin; }
+}
+
+// ---- Captain's Log search (bridge 1.16) --------------------------------------
+// Notion can't search inside page bodies, and reading every body would cost a call
+// per day. So each entry's text is also kept in its page's "Search Text" field:
+// saves and imports write it (on one line), logindex fills it for older entries (newest first),
+// and one query then finds every entry holding a word. Same PIN as the log, no
+// cache, and Ask still has no way in. setup() adds the field (with Timothy's OK).
+var LOG_SEARCH_PROP = 'Search Text', LOG_INDEX_MS = 20000, LOG_EMPTY = '\u00b7', LOG_SEARCH_PAGES = 20;
+/** One line, single spaces: a phrase matches across line and paragraph breaks. */
+function logFlat_(text) { return String(text || '').replace(/\s+/g, ' ').trim(); }
+function logSearchReady_() { return PropertiesService.getScriptProperties().getProperty('LOG_SEARCH_READY') === '1'; }
+/** Adds Search Text to a page's properties once the field exists. */
+function logSearchProps_(props, paras) {
+  if (!logSearchReady_()) return props;
+  props[LOG_SEARCH_PROP] = { rich_text: logRich_(logFlat_(paras.join(' ')) || LOG_EMPTY) };
+  return props;
+}
+/** Entries whose Search Text is still empty (up to maxPages x 100). */
+function logUnindexed_(maxPages) {
+  var f = { property: LOG_SEARCH_PROP, rich_text: { is_empty: true } };
+  return queryAll_(logSource_(), f, maxPages, [{ property: 'Date', direction: 'descending' }]);
+}
+/** Fill Search Text for older entries for up to budget ms; budget 0 only counts what's left. */
+function logIndex_(budget) {
+  if (!logSearchReady_()) return { ok: false, error: 'log_search_not_ready' };
+  if (!budget) return { ok: true, version: VERSION, did: 0, left: logUnindexed_(40).length };
+  var t0 = Date.now(), todo = logUnindexed_(1), did = 0, busy = false, lock = LockService.getScriptLock();
+  for (var i = 0; i < todo.length && Date.now() - t0 < budget; i++) {
+    lock.waitLock(20000);   // a save in progress finishes first, so its fresh text is never overwritten
+    try {
+      var text = logFlat_(logBlocksText_(logBlocks_(todo[i].id))), pr = {};
+      pr[LOG_SEARCH_PROP] = { rich_text: logRich_(text || LOG_EMPTY) };
+      logNotion_('patch', '/pages/' + todo[i].id, { properties: pr });
+      did++;
+    } catch (e) {
+      if (e.notion !== 'notion_busy') throw e;
+      busy = true; break;
+    } finally { lock.releaseLock(); }
+  }
+  var left = todo.length - did;
+  if (todo.length === 100 && left < 100) left = logUnindexed_(40).length;   // there may be more beyond the first hundred
+  return { ok: true, version: VERSION, did: did, left: left, busy: busy };
+}
+/** Run from the script editor to index older entries in one go (about five minutes per run). */
+function buildLogSearch() {
+  var r = logIndex_(300000);
+  console.log(r.ok ? 'Indexed ' + r.did + ' entries. ' + (r.left ? r.left + ' left: run buildLogSearch again.' : 'Every entry is searchable.') : r.error);
+}
+function logSearchRe_(q, whole) {
+  var body = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s+');
+  return whole ? new RegExp('(?<![\\p{L}\\p{N}_])' + body + '(?![\\p{L}\\p{N}_])', 'giu') : new RegExp(body, 'giu');
+}
+/** A few words either side of a match, cut at word edges, as [text, match, text, match, ..., text]. */
+function logSnip_(text, at, len, re) {
+  var a = Math.max(0, at - 70), b = Math.min(text.length, at + len + 90);
+  var win = text.slice(a, b), lead = '', tail = '';
+  if (a > 0) { var cut = win.indexOf(' '); if (cut > -1 && cut < at - a) { win = win.slice(cut + 1); a += cut + 1; } lead = '…'; }
+  if (b < text.length) { var back = win.lastIndexOf(' '); if (back > at - a + len) { win = win.slice(0, back); b = a + back; } tail = '…'; }
+  var parts = [], last = 0, m, r = new RegExp(re.source, re.flags);
+  while ((m = r.exec(win))) { parts.push(win.slice(last, m.index), m[0]); last = m.index + m[0].length; if (!m[0].length) r.lastIndex++; }
+  parts.push(win.slice(last));
+  parts[0] = lead + parts[0]; parts[parts.length - 1] += tail;
+  return { parts: parts, end: b };
+}
+/** Every entry holding a word or phrase (case ignored), newest first, with where it appears. */
+function logSearch_(q, whole) {
+  if (!logSearchReady_()) return { ok: false, error: 'log_search_not_ready' };
+  q = String(q == null ? '' : q).replace(/\s+/g, ' ').trim();
+  if (q.length < 2 || q.length > 80) return { ok: false, error: 'bad_request' };
+  // Notion narrows it down; the case variants are in case its match minds case. The exact rule is applied here.
+  var cap = q.charAt(0).toUpperCase() + q.slice(1), seen = {}, ors = [];
+  var title = q.toLowerCase().replace(/(^|\s)(\S)/g, function (m, a, c) { return a + c.toUpperCase(); });
+  [q, q.toLowerCase(), q.toUpperCase(), cap, q.charAt(0).toUpperCase() + q.slice(1).toLowerCase(), title].forEach(function (v) {
+    if (!seen[v]) { seen[v] = true; ors.push({ property: LOG_SEARCH_PROP, rich_text: { contains: v } }); }
+  });
+  var pages = queryAll_(logSource_(), ors.length === 1 ? ors[0] : { or: ors }, LOG_SEARCH_PAGES, [{ property: 'Date', direction: 'descending' }]);
+  var re = logSearchRe_(q, whole), entries = [], mentions = 0;
+  pages.forEach(function (pg) {
+    var d = day_((pg.properties || {}).Date), text = plain_(((pg.properties || {})[LOG_SEARCH_PROP] || {}).rich_text);
+    if (!d || !text) return;
+    var m, count = 0, snips = [], shown = 0;
+    re.lastIndex = 0;
+    while ((m = re.exec(text))) {
+      count++;
+      if (snips.length < 2 && m.index >= shown) { var sn = logSnip_(text, m.index, m[0].length, re); snips.push(sn.parts); shown = sn.end; }
+      if (!m[0].length) re.lastIndex++;
+    }
+    if (!count) return;
+    mentions += count;
+    entries.push({ date: d, count: count, snips: snips });
+  });
+  var left = logUnindexed_(1).length;
+  return { ok: true, version: VERSION, q: q, whole: whole, entries: entries, mentions: mentions, left: left, more: pages.length >= LOG_SEARCH_PAGES * 100 };
+}
+/** setup(): add the Search Text field to the Captain's Log if it isn't there, then say how much is left to index. */
+function logSearchSetup_() {
+  try {
+    var ds = logSource_(), src = notion_('get', '/data_sources/' + ds), have = src.properties && src.properties[LOG_SEARCH_PROP];
+    if (have && have.type !== 'rich_text') return 'PROBLEM: the Log has a "' + LOG_SEARCH_PROP + '" field that isn\'t Text. Rename it in Notion, then run setup again';
+    if (!have) { var add = {}; add[LOG_SEARCH_PROP] = { type: 'rich_text', rich_text: {} }; notion_('patch', '/data_sources/' + ds, { properties: add }); }
+    PropertiesService.getScriptProperties().setProperty('LOG_SEARCH_READY', '1');
+    var left = logUnindexed_(40).length;
+    return 'OK' + (have ? '' : ' (added the "' + LOG_SEARCH_PROP + '" field)') + (left ? '. ' + left + ' older entries to index: unlock LOG on the iPad and it fills in, or run buildLogSearch here' : '. Every entry is searchable');
+  } catch (e) {
+    return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '');
+  }
 }
 
 // ---- Habits ----------------------------------------------------------------
