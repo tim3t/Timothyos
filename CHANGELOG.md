@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.12.1 · 2026-10-09 (bridge 1.18.0)
+- **Plan Day and Priorities open at once on a new morning.** Each day used to start with no task list until the bridge answered. Now they show the most recent list straight away (marked **UPDATING**), with today's picks taken from each task's Focus Date, and swap in the fresh list when it arrives. Picks you change in the meantime are kept.
+- **The task list no longer waits behind everything else.** The bridge answers a combined request one item at a time, so the startup request had grown long as modules were added. It's now two requests sent together: what's on screen first (calendars, tasks, key dates, habits), and the rest (balance, reviews, ledger, library, Ask's spend) alongside.
+- **Bridge 1.18:** the task list's two Notion lookups (today's picks and every open task) run at the same time instead of one after the other.
+
 ## 2.12.0 · 2026-10-09 (bridge 1.17.0)
 - **Authorization codes for the LOG.** Like a Starfleet override ("Riker, Alpha 6-9-3"): the LOG's lock panel now shows six code words (ALPHA, BETA, GAMMA, DELTA, THETA, OMEGA) above the keypad. Tap your word, then four digits. Once chosen, your word shows only as a filled slot, never by name. ⌫ takes back the digits, then the word. With a keyboard: a, b, g, d, t or o, then the digits.
 - **Set it in the bridge:** Script Property `LOG_PIN` becomes your word and four digits, for example `OMEGA-0000` (spaces, no separator or the Greek letter itself work too). A six-digit PIN still works until you change it.

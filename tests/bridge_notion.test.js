@@ -58,6 +58,7 @@ function notionMock(url, opts) {
     pages.push(pg); return res(200, pg); }
   return res(400, { message: 'unexpected ' + m + ' ' + path });
 }
+const fetchAlls = [];
 const ctx = {
   console: { log: (...a) => console.log('   log:', ...a) },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
@@ -65,7 +66,7 @@ const ctx = {
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
   Utilities: { getUuid: () => require('crypto').randomUUID(), formatDate: d => d.toISOString().slice(0, 10), parseDate: s => new Date(s + 'T05:00:00Z') },
   Session: { getScriptTimeZone: () => 'America/Chicago' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  UrlFetchApp: { fetch: notionMock },
+  UrlFetchApp: { fetch: notionMock, fetchAll: reqs => { fetchAlls.push(reqs.length); return reqs.map(r => notionMock(r.url, r)); } },
   CalendarApp: { GuestStatus: { NO: 'NO' }, getDefaultCalendar: () => ({ getName: () => 'me', getTimeZone: () => 'UTC', getEvents: () => [] }), getCalendarById: () => null, getAllCalendars: () => [] },
 };
 vm.createContext(ctx);
@@ -91,6 +92,12 @@ console.log('add again same cid -> duplicate:', post({ key, action: 'addtask', t
 console.log('add bad area:', JSON.stringify(post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0002', area: '💣 Nope' }) })));
 const t2 = get({ action: 'tasks', key, day: '2026-10-06' });
 console.log('after writes: focus', t2.focus.map(x => x.title + '/' + x.status));
+// bridge 1.18: the picks and the open list are fetched together, and give the same answer as one at a time
+require('assert').ok(fetchAlls.includes(2), 'tasks asks for both lists at once');
+const parallelT = JSON.stringify([t2.focus, t2.open]);
+const saveFA = ctx.UrlFetchApp.fetchAll; delete ctx.UrlFetchApp.fetchAll; cache.tgen = String(Date.now());
+const seqT = get({ action: 'tasks', key, day: '2026-10-06' }); ctx.UrlFetchApp.fetchAll = saveFA;
+require('assert').strictEqual(JSON.stringify([seqT.focus, seqT.open]), parallelT, 'same lists either way');
 console.log('Notion-Version used:', [...new Set(calls.map(c => c.split(' v=')[1]))]);
 
 console.log('--- key dates ---');

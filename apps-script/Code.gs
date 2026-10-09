@@ -66,7 +66,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.17.0';
+var VERSION = '1.18.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -485,6 +485,36 @@ function toTask_(pg) {
   };
 }
 
+/** Several queries on one data source, their first pages fetched in parallel (UrlFetchApp.fetchAll);
+    any further pages follow one by one. Returns one result list per query. */
+function queryFirstPages_(ds, queries) {
+  if (typeof UrlFetchApp.fetchAll !== 'function') return queries.map(function (q) { return queryAll_(ds, q.filter, q.maxPages || 1, q.sorts); });
+  var token = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
+  if (!token) { var e0 = new Error('No NOTION_TOKEN in Script Properties'); e0.notion = 'notion_not_configured'; throw e0; }
+  var bodies = queries.map(function (q) { var b = { page_size: 100 }; if (q.filter) b.filter = q.filter; if (q.sorts) b.sorts = q.sorts; return b; });
+  var res = UrlFetchApp.fetchAll(bodies.map(function (b) {
+    return { url: 'https://api.notion.com/v1/data_sources/' + ds + '/query', method: 'post', muteHttpExceptions: true, contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token, 'Notion-Version': NOTION_VERSION }, payload: JSON.stringify(b) };
+  }));
+  return res.map(function (r, i) {
+    var code = r.getResponseCode(), body = {};
+    try { body = JSON.parse(r.getContentText() || '{}'); } catch (x) { body = {}; }
+    if (code >= 300) {
+      if (code === 429) return queryAll_(ds, queries[i].filter, queries[i].maxPages || 1, queries[i].sorts);   // asked to slow down: this one alone, the usual way
+      var e = new Error((body && body.message) || ('Notion HTTP ' + code));
+      e.notion = code === 401 ? 'notion_unauthorized' : code === 404 ? 'notion_not_shared' : 'notion_error';
+      throw e;
+    }
+    var out = body.results || [], cursor = body.next_cursor;
+    for (var pg = 1; body.has_more && pg < (queries[i].maxPages || 1); pg++) {
+      var more = { page_size: 100, start_cursor: cursor }; if (queries[i].filter) more.filter = queries[i].filter; if (queries[i].sorts) more.sorts = queries[i].sorts;
+      body = notion_('post', '/data_sources/' + ds + '/query', more);
+      out = out.concat(body.results || []); cursor = body.next_cursor;
+    }
+    return out;
+  });
+}
+
 /** Query with pagination; maxPages x 100 rows at most. */
 function queryAll_(ds, filter, maxPages, sorts) {
   var out = [], cursor = null;
@@ -521,9 +551,11 @@ function tasks_(day) {
   var hit = cache.get(key);
   if (hit) return JSON.parse(hit);
   var ds = tasksSource_();
-  var focus = queryAll_(ds, { property: 'Focus Date', date: { equals: day } }, 1).map(toTask_);
-  var open = queryAll_(ds, { property: 'Status', select: { does_not_equal: '✅ Done' } }, 3,
-    [{ property: 'Due Date', direction: 'ascending' }]).map(toTask_);
+  // Both lists are asked for at once (bridge 1.18): about half the wait of one after the other.
+  var both = queryFirstPages_(ds, [
+    { filter: { property: 'Focus Date', date: { equals: day } } },
+    { filter: { property: 'Status', select: { does_not_equal: '✅ Done' } }, sorts: [{ property: 'Due Date', direction: 'ascending' }], maxPages: 3 }]);
+  var focus = both[0].map(toTask_), open = both[1].map(toTask_);
   var out = { ok: true, version: VERSION, day: day, focus: focus, open: open, areas: areaOptions_(ds), priorities: TASK_PRIORITIES };
   try { cache.put(key, JSON.stringify(out), 60); } catch (e) { /* too large to cache */ }
   return out;

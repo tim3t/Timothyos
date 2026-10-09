@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.12.0";
+  var VERSION = "2.12.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -252,6 +252,10 @@
      request (bridge 1.13), so Google runs one execution instead of five. Fewer requests, fewer of
      Google's lost answers (HTTP 404). An older bridge doesn't know "batch": then each goes alone. */
   var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger", "habits", "library"];
+  /* Google answers a batch one read after another, so a long batch keeps everything waiting.
+     What's on screen first (calendars, tasks, key dates, habits) travels in one batch; the rest
+     (balance, reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
+  var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library"];
   var batchQ = null, batchOk = true;
   function api(params, conn) {
     if (conn || !batchOk || BATCHABLE.indexOf(params.action) === -1) return tracked(withRetry(function () { return apiOnce(params, conn); }));
@@ -262,7 +266,12 @@
   }
   function flushBatch() {
     var q = batchQ; batchQ = null;
+    var now = q.filter(function (x) { return BATCH_LATER.indexOf(x.params.action) === -1; }), later = q.filter(function (x) { return BATCH_LATER.indexOf(x.params.action) > -1; });
+    if (now.length && later.length) { sendBatch(now); sendBatch(later); } else sendBatch(q);
+  }
+  function sendBatch(q) {
     var alone = function (x) { withRetry(function () { return apiOnce(x.params); }).then(x.res, x.rej); };
+    if (!batchOk) { q.forEach(alone); return; }
     if (q.length === 1) { alone(q[0]); return; }
     var calls = q.map(function (x) { return x.params; });
     withRetry(function () { return apiOnce({ action: "batch", calls: JSON.stringify(calls) }, null, "sync: " + calls.map(function (c) { return c.action; }).join(", "), 90000); }).then(function (j) {
@@ -1436,10 +1445,23 @@
     }[code] || describe(err);
   }
 
+  /* A new day has no list yet, but the open tasks hardly change overnight: until the bridge
+     answers, show the most recent list (within 3 days), with this day's picks taken from each
+     task's Focus Date. Marked provisional, so it's always replaced (2.12.1). */
+  function tasksStandIn(day) {
+    var src = null;
+    Object.keys(state.tasks).forEach(function (k) { var t = state.tasks[k]; if (k !== day && t && !t.provisional && (!src || t.fetched > src.fetched)) src = t; });
+    if (!src || Date.now() - src.fetched > 3 * 86400000) return null;
+    var seen = {}, focus = [];
+    src.focus.concat(src.open).forEach(function (t) { if (t.focus === day && !seen[t.id]) { seen[t.id] = 1; focus.push(t); } });
+    return { fetched: src.fetched, focus: focus, open: src.open, areas: src.areas, priorities: src.priorities, provisional: true };
+  }
   function loadTasks(day, force) {
-    if (!state.conn || !canPlan() || state.tasksInflight[day]) return;
+    if (!state.conn || !canPlan()) return;
+    if (!state.tasks[day]) { var standIn = tasksStandIn(day); if (standIn) state.tasks[day] = standIn; }
+    if (state.tasksInflight[day]) return;
     var have = state.tasks[day];
-    if (!force && have && Date.now() - have.fetched < TASKS_FRESH_MS) return;
+    if (!force && have && !have.provisional && Date.now() - have.fetched < TASKS_FRESH_MS) return;
     if (!force && state.tasksErr && Date.now() - state.tasksErr.at < FRESH_MS) return;
     state.tasksInflight[day] = true;
     return api({ action: "tasks", day: day }).then(function (j) {
@@ -1551,13 +1573,10 @@
   function openPlan(day) {
     if (!canPlan()) return;
     var d = ymd(day || (state.screen === "today" && ymd(state.anchor) >= ymd(new Date()) ? state.anchor : new Date()));
-    var data = state.tasks[d];
-    plan = { day: d, picks: {}, initial: {}, showAll: false, saving: false, err: "" };
-    if (data) data.focus.forEach(function (t) { plan.picks[t.id] = true; plan.initial[t.id] = true; });
-    plan.seeded = !!data;
+    plan = { day: d, picks: {}, initial: {}, showAll: false, saving: false, err: "", touched: false, seeded: false, seededProv: false };
+    loadTasks(d, true);   /* first, so a new day's provisional list is there to draw */
     renderPlan();
     showSheet("planScrim");
-    loadTasks(d, true);
   }
   function closePlan() { hideSheet("planScrim"); plan = null; }
   function openPicks() {
@@ -1604,12 +1623,14 @@
   function renderPlan() {
     if (!plan) return;
     var day = plan.day, data = state.tasks[day], html;
-    if (data && !plan.seeded) {
+    /* picks seeded from a provisional list are re-seeded from the real one, unless you've changed them */
+    if (data && (!plan.seeded || (plan.seededProv && !data.provisional && !plan.touched))) {
+      plan.picks = {}; plan.initial = {};
       data.focus.forEach(function (t) { plan.picks[t.id] = true; plan.initial[t.id] = true; });
-      plan.seeded = true;
+      plan.seeded = true; plan.seededProv = !!data.provisional;
     }
     var title = sameDay(parseYmd(day), new Date()) ? "PLAN TODAY · " + dLabel(parseYmd(day)) : "PLAN " + dLabel(parseYmd(day));
-    html = '<div class="sbar"><span>' + title + '</span><span id="planCount">' + (data ? openPicks() + " OF 3 PICKED" : "") + "</span></div>" +
+    html = '<div class="sbar"><span>' + title + '</span><span id="planCount">' + (data ? openPicks() + " OF 3 PICKED" + (data.provisional ? " · UPDATING" : "") : "") + "</span></div>" +
       '<div class="sbody"><div class="dayline">' + dayContext(day) + "</div>" + kdComing(day);
     if (!data) {
       html += '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
@@ -1647,6 +1668,7 @@
     sheet.scrollTop = top;
   }
   function togglePick(id) {
+    plan.touched = true;
     if (plan.picks[id]) delete plan.picks[id];
     else if (openPicks() >= 3) { toast("Three is the limit. Unpick one first."); return; }
     else plan.picks[id] = true;

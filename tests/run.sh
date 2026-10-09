@@ -71,6 +71,7 @@ run app_e2e24.test.js     # Stations (pins + ALL STATIONS), Habits, Library
 run app_e2e25.test.js     # NEEDS YOU on Systems: steps per error, jump tab, back to green
 run app_e2e26.test.js     # LOG search: index progress, exact word, results, NEWER/OLDER, lock forgets
 run app_e2e27.test.js     # LOG authorization: code word + four digits, keyboard, timed lockout (after e2e26: same mock)
+run app_e2e28.test.js     # Faster task list: split batches, a new day shows the last list at once (UPDATING)
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 
