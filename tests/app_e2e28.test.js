@@ -60,7 +60,23 @@ const picked = p => p.$$eval('#planSheet .cand[aria-pressed="true"] b', bs => bs
   console.log('kept:', kept);
   assert.ok(kept.includes('Sugar syrup for Hive 2') && kept.includes('Send Q4 deck draft'), 'your changes stand');
 
+  // ---- regression (2.12.2): lists kept for later days must never push today's out. The old cache
+  // kept the four latest dates, so with four later days cached, today's fresh list was dropped as
+  // soon as it was saved: Plan Day sat on "Loading" while the app fetched it again and again.
   await call('tslow&s=0');
+  const later = {}; ['2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10'].forEach(d => { later[d] = Object.assign({}, cached['2026-10-05'], { fetched: Date.parse('2026-10-05T22:00:00-05:00') }); });
+  await p.evaluate(c => localStorage.setItem('tos.tasks.v1', JSON.stringify(c)), Object.assign({}, cached, later));
+  await p.reload(); await p.waitForTimeout(2500);
+  const n0 = (await call('stats')).batches.length;
+  await p.click('#planBtn');
+  await p.waitForFunction(() => document.getElementById('planCount').textContent.includes('OF 3 PICKED') && !document.getElementById('planCount').textContent.includes('UPDATING'), null, { timeout: 8000 });
+  const reqs = () => p.evaluate(() => JSON.parse(localStorage.getItem('tos.netlog.v1') || '[]').filter(n => /tasks/.test(n.a)).length);
+  const r0 = await reqs(); await p.waitForTimeout(12000); const r1 = await reqs();
+  console.log('task requests in a quiet 12 s:', r1 - r0);
+  assert.ok(!(await txt(p, '#planSheet')).includes('Loading your Master Task List'), 'the list stays');
+  assert.ok(r1 - r0 <= 1, 'no fetch loop (the old bug fetched again every moment)');
+  assert.ok('2026-10-06' in JSON.parse(await p.evaluate(() => localStorage.getItem('tos.tasks.v1'))), "today's list is kept");
+
   console.log('errors', errs);
   assert.deepStrictEqual(errs, []);
   await b.close();

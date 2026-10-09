@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.12.1";
+  var VERSION = "2.12.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -137,7 +137,7 @@
     caps: cached.caps || [],             /* bridge abilities, e.g. ["read", "create"] */
     queue: lsGet(LS_QUEUE) || [],
     tasks: lsGet(LS_TASKS) || {},          /* { "2026-10-06": { fetched, focus, open, areas, priorities } } */
-    tasksErr: null,
+    tasksErr: null, tasksAsked: {},
     fixBusy: {}, fixSeen: false, fixFocus: null,
     tasksInflight: {},
     taskBusy: {},
@@ -1428,11 +1428,20 @@
       return (a.status === INPROG ? -1 : 0) - (b.status === INPROG ? -1 : 0) || pa - pb || (a.due || "9999").localeCompare(b.due || "9999");
     });
   }
+  /* Which day lists to keep: today, the day Plan Day is on, then the most recently fetched, up to
+     eight, nothing older than three days. (Until 2.12.2 it kept the four latest dates, so a few
+     later days pushed today's list out the moment it was saved, and the app fetched it forever.)
+     Provisional lists stay in memory but aren't stored. */
   function saveTasks() {
-    var days = Object.keys(state.tasks).sort().slice(-4), keep = {};
-    days.forEach(function (d) { keep[d] = state.tasks[d]; });
+    var today = ymd(new Date()), from = ymd(addDays(new Date(), -3)), pin = plan ? plan.day : null, keep = {}, store = {};
+    var days = Object.keys(state.tasks).filter(function (d) { return state.tasks[d] && (d >= from || d === pin); });
+    days.sort(function (a, b) {
+      var ra = a === today || a === pin ? 1 : 0, rb = b === today || b === pin ? 1 : 0;
+      return rb - ra || (state.tasks[b].fetched || 0) - (state.tasks[a].fetched || 0);
+    });
+    days.slice(0, 8).forEach(function (d) { keep[d] = state.tasks[d]; if (!keep[d].provisional) store[d] = keep[d]; });
     state.tasks = keep;
-    lsSet(LS_TASKS, keep);
+    lsSet(LS_TASKS, store);
   }
   function describeTasks(err) {
     var code = err && (err.code || err.message);
@@ -1462,6 +1471,8 @@
     if (state.tasksInflight[day]) return;
     var have = state.tasks[day];
     if (!force && have && !have.provisional && Date.now() - have.fetched < TASKS_FRESH_MS) return;
+    if (!force && Date.now() - (state.tasksAsked[day] || 0) < 15000) return;   /* a safety net: never a fetch loop */
+    state.tasksAsked[day] = Date.now();
     if (!force && state.tasksErr && Date.now() - state.tasksErr.at < FRESH_MS) return;
     state.tasksInflight[day] = true;
     return api({ action: "tasks", day: day }).then(function (j) {

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.12.2 · 2026-10-09
+- **Fixed: Plan Day stuck on "Loading your Master Task List…".** The iPad keeps task lists for a few days, and it kept the four latest dates. Once lists for later days were stored (from looking ahead on TODAY, say), today's list was dropped the moment it arrived, so Plan Day went back to loading while the app fetched it again and again. It now always keeps today's list and the day you're planning, then the most recently fetched (up to eight, nothing older than three days). A safety net also stops any repeat fetch of the same day within 15 seconds unless you ask for it.
+
 ## 2.12.1 · 2026-10-09 (bridge 1.18.0)
 - **Plan Day and Priorities open at once on a new morning.** Each day used to start with no task list until the bridge answered. Now they show the most recent list straight away (marked **UPDATING**), with today's picks taken from each task's Focus Date, and swap in the fresh list when it arrives. Picks you change in the meantime are kept.
 - **The task list no longer waits behind everything else.** The bridge answers a combined request one item at a time, so the startup request had grown long as modules were added. It's now two requests sent together: what's on screen first (calendars, tasks, key dates, habits), and the rest (balance, reviews, ledger, library, Ask's spend) alongside.
