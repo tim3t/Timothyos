@@ -6,6 +6,19 @@ const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
 const CONN = JSON.stringify({ url: 'http://127.0.0.1:8100/macros/s/test/exec', key: K });
+/* Sample the standby layer from the test side (real time, so it works on a fake clock too) while it
+   wakes: it must fade all the way out before it's hidden, never vanish part-way (2.10.2). */
+async function wakeTrace(p, tap, fake) {
+  await tap(); if (fake) await p.clock.runFor(50);
+  const tr = [];
+  for (let i = 0; i < 40; i++) { tr.push(await p.evaluate(() => { const el = document.getElementById('standby'); return [+getComputedStyle(el).opacity, el.hidden]; })); if (tr[tr.length - 1][1]) break; await p.waitForTimeout(40); }
+  const shown = tr.filter(x => !x[1]).map(x => x[0]);
+  console.log('wake fade:', shown.map(x => x.toFixed(2)).join(' '), tr[tr.length - 1][1] ? '| hidden' : '| still showing');
+  assert.ok(tr[tr.length - 1][1], 'hidden once the fade ends');
+  assert.ok(shown[shown.length - 1] <= 0.05, 'no pop: clear before it is hidden (' + shown[shown.length - 1] + ')');
+  assert.ok(shown.filter(x => x > 0.1 && x < 0.9).length >= 5, 'a real fade, not a jump');
+  for (let i = 1; i < shown.length; i++) assert.ok(shown[i] <= shown[i - 1] + 0.01, 'only ever fades out');
+}
 const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.querySelector(s); return !!el && el.classList.contains(c); }, [sel, cls]);
 
 (async () => {
@@ -60,7 +73,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   await p.waitForTimeout(1800); await p.screenshot({ path: D + 'standby-day.png' });
   // the wake tap lands where LEDGER is, but only wakes
   const lg = await p.locator('[data-screen="ledger"].nav').boundingBox();
-  await p.mouse.click(lg.x + 20, lg.y + 20); await p.waitForTimeout(500);
+  await wakeTrace(p, () => p.mouse.click(lg.x + 20, lg.y + 20));
   assert.ok(await p.isHidden('#standby'), 'tap wakes');
   assert.ok((await p.textContent('#eyebrow')).startsWith('BRIDGE'), 'and presses nothing underneath');
 
@@ -72,7 +85,8 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   await p.click('[data-standby="5"]');
   assert.strictEqual(await p.evaluate(() => localStorage.getItem('tos.standby.v1')), '5');
   await p.click('[data-act="standbynow"]'); await p.waitForTimeout(200);
-  assert.ok(await p.isVisible('#standby')); await p.keyboard.press('Space'); await p.waitForTimeout(500);
+  await p.waitForTimeout(1800);
+  assert.ok(await p.isVisible('#standby')); await wakeTrace(p, () => p.keyboard.press('Space'));
   assert.ok(await p.isHidden('#standby'), 'a key wakes too');
   await p.setViewportSize({ width: 400, height: 860 }); await p.click('#idleBtn'); await p.waitForTimeout(1900);
   await p.screenshot({ path: D + 'standby-phone.png' });
@@ -113,7 +127,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   await p.clock.runFor(2000); await p.waitForTimeout(1900);   /* the fade runs on real time */
   await p.screenshot({ path: D + 'standby-night.png' });
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('standby')).opacity), '1', 'the black layer is fully opaque at night');
-  await p.mouse.click(600, 400); await p.clock.runFor(1000); await p.waitForTimeout(100);
+  await wakeTrace(p, () => p.mouse.click(600, 400), true);   // the automatic standby wakes the same way
   assert.ok(await p.isHidden('#standby'));
   // OFF: never idles
   await p.evaluate(() => localStorage.setItem('tos.standby.v1', '0'));

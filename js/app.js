@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.10.1";
+  var VERSION = "2.10.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3296,7 +3296,7 @@
      on (iPadOS releases that whenever the app is closed; it's asked for again on
      return). The first tap only wakes the screen. Night look from 22:00 to 06:00. */
   var STANDBY_CHOICES = [0, 5, 15, 30];
-  var sb = { on: false, last: Date.now(), clock: null, drift: null, step: 0, wake: null, wakeState: "off" };
+  var sb = { on: false, last: Date.now(), clock: null, drift: null, step: 0, wake: null, wakeState: "off", fade: 0 };
   function standbyMins() { var v = lsGet(LS_STANDBY); return STANDBY_CHOICES.indexOf(v) > -1 ? v : 15; }
   function noteTouch() { sb.last = Date.now(); }
   ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (t) { document.addEventListener(t, noteTouch, { capture: true, passive: true }); });
@@ -3356,6 +3356,7 @@
     }
     return html + '<div class="sb-lbl sb-dim sb-foot">' + foot + "</div>";
   }
+  var SB_WAKE_MS = 900;   /* matches .standby.waking in app.css */
   function paintStandby() {
     var now = new Date(), el = $("standby"), h = now.getHours();
     el.classList.toggle("night", h >= 22 || h < 6);
@@ -3367,6 +3368,7 @@
     sb.on = true;
     var el = $("standby");
     paintStandby();
+    sb.fade++; el.classList.remove("waking");
     el.hidden = false;
     requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add("on"); }); });
     sb.clock = setInterval(paintStandby, 15000);
@@ -3381,11 +3383,16 @@
     if (!sb.on) return;
     sb.on = false; noteTouch();
     clearInterval(sb.clock); clearInterval(sb.drift);
-    var el = $("standby");
-    el.classList.remove("on");
-    $("sbBody").style.transform = "";
-    setTimeout(function () { if (!sb.on) el.hidden = true; }, calm() ? 0 : 360);
+    var el = $("standby"), my = ++sb.fade;
+    /* Redraw underneath first, so the fade never stalls on it; then fade out in full and only
+       hide the layer once it's clear (it used to be hidden part-way, which looked like a pop). */
     if (state.screen === "bridge" || state.screen === "today") render(true);
+    function done() { if (sb.on || my !== sb.fade) return; el.hidden = true; el.classList.remove("waking"); $("sbBody").style.transform = ""; }
+    if (calm()) { el.classList.remove("on"); done(); return; }
+    el.classList.add("waking");
+    requestAnimationFrame(function () { el.classList.remove("on"); });
+    el.addEventListener("transitionend", function te(e) { if (e.target !== el || e.propertyName !== "opacity") return; el.removeEventListener("transitionend", te); done(); });
+    setTimeout(done, SB_WAKE_MS + 250);   /* in case the transition end never arrives */
   }
   /* The wake tap lands on the standby layer itself, so nothing underneath is pressed. */
   $("standby").addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); exitStandby(); });

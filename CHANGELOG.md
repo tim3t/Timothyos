@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.10.2 · 2026-10-09
+- **Waking from Standby is smooth all the way.** The fade back to the app used to be cut off part-way (about a third of a second in, with the screen still mostly black) and the app popped in. Now it runs to the end, easing out over just under a second, for both the STANDBY button and the automatic timeout. Falling asleep is unchanged.
+
 ## 2.10.1 · 2026-10-09
 - **LOOM: swipe left for the future, right for the past.** Your finger now pulls the coming days in from the right, where they wait on the loop. Everything else is unchanged: the layout, the arrows (right still steps forward) and TODAY.
 
