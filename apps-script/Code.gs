@@ -17,7 +17,9 @@
  *    code word and four digits, like OMEGA-0000, or six digits); five wrong tries
  *    lock the log for 15 minutes, twice as long for each lockout in a row. Editing an entry rewrites only that
  *    entry's own text. Search (bridge 1.16) reads a copy of each entry's text kept
- *    in its page's Search Text field. Ask never sees the log.
+ *    in its page's Search Text field. The ASK button never sees the log; Log Ask
+ *    (bridge 1.20) reads only entries Timothy picks in the open LOG, with the PIN,
+ *    at most 62 entries and about 60K tokens per question.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
@@ -66,13 +68,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.19.0';
+var VERSION = '1.20.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -1098,6 +1100,10 @@ function logAction_(body) {
   if (body.action === 'logimport') return logImport_(body.entries);
   if (body.action === 'logsearch') return logSearch_(body.q, !(body.whole === '0' || body.whole === 0 || body.whole === false));
   if (body.action === 'logindex') return logIndex_(body.run ? LOG_INDEX_MS : 0);
+  if (body.action === 'logask') return logAsk_(body);
+  if (body.action === 'logasksave') return logInsightSave_(body.insight || {});
+  if (body.action === 'loginsights') return logInsights_();
+  if (body.action === 'loginsight') return logInsight_(String(body.id || ''));
   return { ok: false, error: 'unknown_action' };
 }
 
@@ -1389,6 +1395,132 @@ function logSearchSetup_() {
   } catch (e) {
     return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? ". Connect the TimothyOS integration to the Captain's Log (... > Connections)" : '');
   }
+}
+
+// ---- Captain's Log: Ask about chosen entries (bridge 1.20) -----------------
+// Timothy narrows the field in the open LOG (a search, a month, two months, or one week
+// for REVIEW's summary); only those entries go to Claude, for that one question and its
+// follow-ups. Behind the PIN like the rest of the log. Capped per question at 62 entries
+// and about 60K tokens, and a date range at 62 days, so a whole year can't be sent at
+// once. Claude has no tools here: it can't fetch more entries or change anything. Nothing
+// is cached; answers are saved only when he taps SAVE, as an undated page in the Log
+// database (Source "Claude insight"), which every date-based log view skips.
+var LOG_ASK_MAX_ENTRIES = 62, LOG_ASK_MAX_TOKENS = 60000, LOG_ASK_MAX_DAYS = 62, LOG_ASK_OUT = { fast: 900, deep: 1500, summary: 500 };
+var LOG_INSIGHT = 'Claude insight';
+var LOG_ASK_RULES = [
+  "You are the ship's computer inside TimothyOS, reading entries from Timothy's private journal, the Captain's Log. He chose these entries for this question. Address him as Captain.",
+  "Use only the entries given (and any other context he sent). Never invent events, people, feelings or dates. If the entries don't answer the question, say so plainly.",
+  "Cite the date of anything you mention as yyyy-mm-dd in brackets, like [2026-10-04]; the app turns those into links. Quote at most a short phrase at a time.",
+  "Style: calm, warm, concise. Plain text: short paragraphs or lines starting with '- '. No headings, tables, emoji or em dashes. Lead with the answer.",
+  "Reflect, don't diagnose: no medical or therapeutic judgments, and no advice unless he asks for it."
+].join('\n');
+
+/** The entries in scope, oldest first: { from, to } (at most 62 days) or { dates: [...] } (at most 62). */
+function logAskEntries_(scope) {
+  scope = scope || {};
+  var ds = logSource_(), pages = [];
+  if (Array.isArray(scope.dates)) {
+    var want = {}; scope.dates.forEach(function (d) { d = String(d); if (realDay_(d)) want[d] = true; });
+    var list = Object.keys(want).sort();
+    if (!list.length) return { error: 'bad_request' };
+    if (list.length > LOG_ASK_MAX_ENTRIES) return { error: 'log_ask_too_big', count: list.length };
+    for (var i = 0; i < list.length; i += 20) {
+      var ors = list.slice(i, i + 20).map(function (d) { return { property: 'Date', date: { equals: d } }; });
+      pages = pages.concat(queryAll_(ds, ors.length === 1 ? ors[0] : { or: ors }, 1));
+    }
+  } else {
+    var from = String(scope.from || ''), to = String(scope.to || '');
+    if (!realDay_(from) || !realDay_(to) || to < from) return { error: 'bad_request' };
+    if ((new Date(to + 'T12:00:00Z') - new Date(from + 'T12:00:00Z')) / 86400000 + 1 > LOG_ASK_MAX_DAYS) return { error: 'log_ask_too_big', days: true };
+    pages = queryAll_(ds, { and: [{ property: 'Date', date: { on_or_after: from } }, { property: 'Date', date: { on_or_before: to } }] }, 2);
+  }
+  var seen = {}, out = [];
+  pages.forEach(function (pg) {
+    var d = day_((pg.properties || {}).Date); if (!d || seen[d]) return;
+    seen[d] = pg;
+  });
+  var days = Object.keys(seen).sort();
+  if (days.length > LOG_ASK_MAX_ENTRIES) return { error: 'log_ask_too_big', count: days.length };
+  days.forEach(function (d) {
+    var pg = seen[d], copy = plain_(((pg.properties || {})[LOG_SEARCH_PROP] || {}).rich_text);
+    // the one-line search copy when it's there (one query for all), else the page itself
+    var text = copy && copy !== LOG_EMPTY ? copy : copy === LOG_EMPTY ? '' : logBlocksText_(logBlocks_(pg.id));
+    if (text.trim()) out.push({ date: d, text: text });
+  });
+  return { entries: out };
+}
+function logAskBlock_(entries) {
+  if (!entries.length) return "CAPTAIN'S LOG ENTRIES: none in this period.";
+  return "CAPTAIN'S LOG ENTRIES (" + entries.length + ', ' + entries[0].date + ' to ' + entries[entries.length - 1].date + ')\n\n' +
+    entries.map(function (e) { return '=== ' + e.date + ' (' + WEEKDAYS[new Date(e.date + 'T12:00:00Z').getUTCDay()] + ')\n' + e.text; }).join('\n\n');
+}
+/** Rough tokens (about 3.6 characters each) and cost: the entries are written to the prompt cache on the first question. */
+function logAskEstimate_(block, extra) {
+  var entTok = Math.ceil(block.length / 3.6), otherTok = Math.ceil((LOG_ASK_RULES.length + (extra || 0)) / 3.6) + 300;
+  var usd = function (model, out) { var p = aiPrice_(model) || AI_PRICE_OTHER; return Math.round((entTok * p[2] + otherTok * p[0] + out * p[1]) / 1e6 * 10000) / 10000; };
+  return { tokens: entTok + otherTok, usd: { fast: usd(aiFast_(), LOG_ASK_OUT.fast * 3), deep: usd(AI.DEEP, LOG_ASK_OUT.deep * 3) } };
+}
+function logAsk_(body) {
+  if (!aiKey_()) return { ok: false, error: 'ai_not_configured' };
+  var mode = body.mode === 'deep' || body.mode === 'summary' ? body.mode : 'fast';
+  var got = logAskEntries_(body.scope);
+  if (got.error) return { ok: false, error: got.error, count: got.count, days: got.days };
+  var entries = got.entries;
+  if (!entries.length && mode !== 'summary') return { ok: false, error: 'log_ask_empty' };
+  var context = String(body.context || '').slice(0, 20000), block = logAskBlock_(entries), est = logAskEstimate_(block, context.length);
+  if (est.tokens > LOG_ASK_MAX_TOKENS) return { ok: false, error: 'log_ask_too_big', count: entries.length, tokens: est.tokens };
+  var info = { count: entries.length, from: entries.length ? entries[0].date : null, to: entries.length ? entries[entries.length - 1].date : null, tokens: est.tokens, usd: est.usd };
+  if (body.preview) return { ok: true, version: VERSION, preview: info };
+
+  var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-12).filter(function (m) {
+    return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
+  }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
+  while (turns.length && turns[0].role !== 'user') turns.shift();
+  if (!turns.length || turns[turns.length - 1].role !== 'user') return { ok: false, error: 'bad_request' };
+  var spend = aiSpend_();
+  if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
+  // the entries come first and are cached, so a follow-up on the same entries costs a fraction
+  turns[0].content = [{ type: 'text', text: block, cache_control: { type: 'ephemeral' } },
+    { type: 'text', text: (context ? 'OTHER CONTEXT FROM THE APP\n' + context + '\n\n' : '') + 'QUESTION\n' + turns[0].content }];
+  var model = mode === 'deep' ? AI.DEEP : mode === 'summary' ? AI.SUMMARY : aiFast_();
+  var system = LOG_ASK_RULES + (mode === 'summary' ? "\nTask: write this week's summary in 4 to 6 sentences from the review in OTHER CONTEXT and the journal entries: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists, no dates or brackets, and don't quote the journal." : '');
+  var payload = { model: model, max_tokens: mode === 'deep' ? 8000 : 4000, system: system, messages: turns };
+  if (model !== 'claude-haiku-4-5') payload.output_config = { effort: mode === 'fast' ? AI.FAST_EFFORT : AI.DEEP_EFFORT };
+  var betas = [];
+  if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+  var res;
+  try { res = claude_(payload, betas); } catch (e) {
+    if (!e.ai) throw e;
+    return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
+  }
+  var served = res.model || model, u = res.usage || {}, cost = aiCost_(served, u);
+  spend = aiAddSpend_(cost);
+  aiLogAdd_({ t: new Date().toISOString(), mode: mode === 'summary' ? 'logsummary' : 'log', model: served, steps: 1, in: u.input_tokens || 0, out: u.output_tokens || 0,
+    cw: u.cache_creation_input_tokens || 0, cr: u.cache_read_input_tokens || 0, usd: Math.round(cost * 100000) / 100000, unknown: aiPrice_(served) ? undefined : true });
+  var text = (res.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n\n').trim();
+  if (res.stop_reason === 'refusal') text = "That's outside what I can help with here.";
+  else if (res.stop_reason === 'max_tokens') text += '\n\n(Answer cut short.)';
+  return { ok: true, version: VERSION, reply: text || '(No answer.)', model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_(), info: info };
+}
+/** SAVE: an answer kept as an undated page in the Log database, Source "Claude insight". */
+function logInsightSave_(ins) {
+  var title = String(ins.title || '').trim().slice(0, 200), text = String(ins.text || '').slice(0, 20000), q = String(ins.question || '').slice(0, 2000), scope = String(ins.scope || '').slice(0, 300);
+  if (!title || !text.trim()) return { ok: false, error: 'bad_request' };
+  var paras = [{ type: 'paragraph', text: 'Question: ' + q }, { type: 'paragraph', text: 'Entries: ' + scope }].concat(logParas_(text)).filter(function (p) { return p.text.trim(); });
+  var pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: logSource_() },
+    properties: logSearchProps_({ Name: { title: rt_(title) }, Source: { select: { name: LOG_INSIGHT } } }, []), children: paras.slice(0, 100).map(logBlock_) });
+  return { ok: true, version: VERSION, insight: { id: pg.id, title: title, url: pg.url || '', created: pg.created_time || new Date().toISOString() } };
+}
+function logInsights_() {
+  var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_INSIGHT } }, 1, [{ timestamp: 'created_time', direction: 'descending' }]);
+  return { ok: true, version: VERSION, insights: pages.map(function (pg) { return { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title) || 'Insight', url: pg.url || '', created: pg.created_time || null }; }) };
+}
+function logInsight_(id) {
+  if (!/^[0-9A-Za-z-]{20,40}$/.test(id)) return { ok: false, error: 'bad_request' };
+  var pg = notion_('get', '/pages/' + id);
+  var src = ((pg.parent || {}).data_source_id || '').replace(/-/g, ''), mine = String(logSource_()).replace(/-/g, '');
+  if (src !== mine || sel_((pg.properties || {}).Source) !== LOG_INSIGHT) return { ok: false, error: 'not_writable' };
+  return { ok: true, version: VERSION, insight: { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title), url: pg.url || '', text: logBlocksText_(logBlocks_(pg.id)) } };
 }
 
 // ---- Habits ----------------------------------------------------------------

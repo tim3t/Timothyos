@@ -264,7 +264,23 @@ To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never
 - **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something the LOG can't show (a photo, a table) opens read-only; edit it in Notion.
 - **Lists:** type **- ** at the start of a line for a bullet; Return carries it on, Return on an empty bullet ends the list. **• LIST** turns lines into bullets and back. In Notion they're real list items (bridge 1.19). REVIEW's questions work the same way.
 - **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
-- **Ask Claude never sees the log.** It isn't in the snapshot and Ask has no way to read it.
+- **The ASK button never sees the log.** It isn't in the snapshot and ASK has no way to read it. Claude reads entries only through **ASK CLAUDE** inside the open LOG (below), when you turn it on.
+
+### Ask Claude about the log (app 2.15, bridge 1.20)
+
+**Off until you turn it on:** SYSTEMS → CAPTAIN'S LOG → **SHARE LOG WITH ASK**. Then, in the open LOG:
+
+1. **Narrow first.** Tap **ASK CLAUDE** for the month on the calendar (or **WITH THE MONTH BEFORE**), or run a search and tap **ASK ABOUT THESE**.
+2. **Ask.** Pick **KEY MOMENTS**, **THEMES**, **LIFTED · DRAINED**, **ONE PHRASE** or **WHAT CHANGED**, or type your own question. **THINK HARDER** uses Opus.
+3. **PREVIEW** shows how many entries, which dates, about how many tokens and what it will cost. Nothing is sent until **SEND**. Above about 25K tokens it says so.
+4. **Read.** Dates in the answer open that entry (ASK THE LOG brings you back). **FOLLOW UP** asks more about the same entries, usually for under 1¢.
+5. **SAVE TO NOTION** keeps an answer as an undated "Claude insight" page in the Captain's Log database; **SHOW SAVED** lists them.
+
+**Limits:** 62 entries, about 60K tokens and two months per question, checked by the bridge, so a whole year never goes at once (ask month by month instead). Each request needs your authorization code. Claude gets only the chosen entries, has no tools, and can't change anything. Answers aren't kept on the iPad and are forgotten when the log locks. Spending counts toward the $8 reminder and shows as LOG in RECENT QUESTIONS (never the text).
+
+**Weekly summary:** with sharing on, REVIEW's **WRITE SUMMARY** asks for your authorization code and then includes that week's entries. **WITHOUT THE LOG** writes it the old way.
+
+**Update the bridge to 1.20** for this: paste the latest Code.gs, run **setup**, then **Deploy → New version**.
 
 ### Captain's Log search (app 2.11, bridge 1.16)
 
@@ -390,7 +406,7 @@ When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NE
 - In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
-- **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and are never sent to Ask. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
+- **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and never go to the ASK button. With SHARE LOG WITH ASK on, only entries you pick in the open LOG (62 at most per question, with the PIN) go to Claude, for that question. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
 - **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
 

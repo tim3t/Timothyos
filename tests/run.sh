@@ -30,6 +30,7 @@ run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
 run bridge_logsearch.test.js
+run bridge_logask.test.js
 [ "${1:-}" = "bridge" ] && exit $fail
 
 echo "== App (browser, against simulated bridges)"
@@ -74,6 +75,7 @@ run app_e2e27.test.js     # LOG authorization: code word + four digits, keyboard
 run app_e2e28.test.js     # Faster task list: split batches, a new day shows the last list at once (UPDATING)
 run app_e2e29.test.js     # Easter eggs (see CLAUDE.md)
 run app_e2e30.test.js     # Bulleted lists in LOG and REVIEW (after e2e27: code-word PIN on the same mock)
+run app_e2e31.test.js     # Log Ask: scopes, preview, send, follow-up, save, insights; REVIEW summary behind the code
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

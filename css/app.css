@@ -1419,3 +1419,29 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .rv-lab .ov-sub { flex: 1; min-width: 0; }
 .rv-lab .bulchip { margin: 0 0 6px; }
 .bulchip { min-height: 36px; padding: 0 14px; font-size: 13px; letter-spacing: .14em; }
+/* ---------- Log Ask (2.15): Claude on the entries you pick ---------- */
+.la-scope { margin: 2px 0 6px; }
+.la-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+#laQ, #laF { width: 100%; }
+.la-pv { margin-top: 14px; padding: 14px 16px; border-left: 8px solid var(--chrome-c); border-radius: 0 20px 20px 0; background: var(--panel); display: flex; flex-direction: column; gap: 6px; font-size: var(--t-sub); line-height: 1.45; }
+.la-pv b { font-family: var(--display); font-weight: 600; letter-spacing: var(--ls-label); font-size: var(--t-label); }
+.la-pv.big { border-left-color: var(--warn); }
+.la-pv .btnrow { margin-top: 6px; }
+.la-chat { display: flex; flex-direction: column; gap: 12px; margin: 6px 0 4px; }
+.la-msg { line-height: 1.55; }
+.la-msg.q { align-self: flex-end; max-width: 85%; background: var(--panel-2); border-radius: 18px 18px 4px 18px; padding: 10px 16px; white-space: pre-wrap; }
+.la-msg.a { background: var(--panel); border-left: 6px solid var(--chrome-c); border-radius: 0 18px 18px 0; padding: 12px 16px; }
+.la-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); }
+.la-date { border: 0; background: none; padding: 0 2px; color: var(--chrome-c); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.la-ins-h { margin-top: 24px; }
+.la-ins { display: flex; flex-direction: column; }
+.la-in { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 52px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--fg); text-align: left; cursor: pointer; }
+.la-in small { color: var(--dim); font-size: var(--t-sub); }
+.la-saved { display: flex; flex-direction: column; gap: 10px; line-height: 1.55; }
+.lsum-p { margin: 0 0 6px; font-size: var(--t-sub); line-height: 1.45; }
+.lsum-sheet .cl-lock { max-width: none; }
+.lsum-sheet .cl-dots { margin: 10px 0 8px; }
+.lsum-sheet .cl-msg { min-height: 2em; }
+.lsum-sheet .cl-words { margin: 6px 0 10px; }
+.lsum-sheet .cl-word, .lsum-sheet .cl-key { height: 52px; }
+.lsum-sheet .cl-pad { gap: 10px; }

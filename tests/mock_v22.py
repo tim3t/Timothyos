@@ -83,7 +83,7 @@ BATCHES = []
 PIN = "135790"; CODE = []; LOCKS = [0]; LOGFAIL = [0]; FLAKY = [0]; NOKEY = [0]; LOGVIA = []; LOGSAVES = []; LOGACTS = []
 LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A September page. Homework with the kids after supper, then the long division sheet.", "2026-10-01": "Added in Notion with a photo.", "2025-11-13": "The very first page.",
        "2026-09-02": "First homework night of the school year. The kids groaned; I did too.\n\nLater: more homework, a spelling list this time.", "2025-12-04": "No homework tonight, so we watched a film.", "2025-11-20": "Homeworks and chores. Busy.", "2024-03-11": "Helped with homework. Science fair poster."}
-UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []
+UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []; LOGASKS = []; INSIGHTS = []
 LOGOTHER = {"2026-10-01"}
 def logcanon(t):
     # the bridge's 1.19 block rules: blank lines between paragraphs, "• " / "- " lines are list items, one per line
@@ -148,6 +148,39 @@ def logact(b):
                 sn.append(parts); shown = e
             men += len(ms); out.append({"date": d, "count": len(ms), "snips": sn})
         return {"ok": True, "q": q, "whole": whole, "entries": out, "mentions": men, "left": len(UNINDEXED), "more": False}
+    if act == "logask":
+        import datetime as _d
+        sc = b.get("scope") or {}
+        if "dates" in sc:
+            ds = sorted(set(sc["dates"]))
+            if len(ds) > 62: return {"ok": False, "error": "log_ask_too_big", "count": len(ds)}
+        else:
+            f, t = sc.get("from", ""), sc.get("to", "")
+            if (_d.date.fromisoformat(t) - _d.date.fromisoformat(f)).days + 1 > 62: return {"ok": False, "error": "log_ask_too_big", "days": True}
+            ds = [d for d in sorted(LOG) if f <= d <= t]
+        ents = [d for d in ds if d in LOG and LOG[d].strip()]
+        mode = b.get("mode") or "fast"
+        if not ents and mode != "summary": return {"ok": False, "error": "log_ask_empty"}
+        chars = sum(len(LOG[d]) + 40 for d in ents) + len(b.get("context") or "")
+        tokens = chars // 3 + 900
+        info = {"count": len(ents), "from": ents[0] if ents else None, "to": ents[-1] if ents else None, "tokens": tokens, "usd": {"fast": round(tokens * 2.5e-6 + 0.009, 4), "deep": round(tokens * 5e-6 + 0.03, 4)}}
+        if b.get("preview"): return {"ok": True, "preview": info}
+        msgs = b.get("messages") or []
+        LOGASKS.append({"mode": mode, "count": len(ents), "turns": len(msgs), "scope": sc, "context": (b.get("context") or "")[:200]})
+        if mode == "summary": reply = "A week of homework nights and early frost prep; the log shows steady evenings."
+        elif len(msgs) > 1: reply = "The first school night stood out most [" + ents[0] + "]."
+        else: reply = "Key moments:\n- " + ("\n- ".join("a moment [" + d + "]" for d in ents[:3]))
+        cost = 0.031 if mode == "deep" else 0.012 if len(msgs) == 1 else 0.004
+        return {"ok": True, "reply": reply, "model": "claude-opus-5-5" if mode == "deep" else "claude-sonnet-5-5", "cost": cost, "spend": SPEND, "info": info}
+    if act == "logasksave":
+        ins = b.get("insight") or {}
+        if not ins.get("title") or not ins.get("text"): return {"ok": False, "error": "bad_request"}
+        rec = {"id": "ins-" + str(len(INSIGHTS) + 1).zfill(24), "title": ins["title"], "url": "https://www.notion.so/ins", "created": "2026-10-10T21:00:00Z", "text": "Question: " + ins.get("question", "") + "\n\nEntries: " + ins.get("scope", "") + "\n\n" + ins["text"].replace("\n- ", "\n• ")}
+        INSIGHTS.insert(0, rec); return {"ok": True, "insight": {k: rec[k] for k in ("id", "title", "url", "created")}}
+    if act == "loginsights": return {"ok": True, "insights": [{k: x[k] for k in ("id", "title", "url", "created")} for x in INSIGHTS]}
+    if act == "loginsight":
+        x = next((x for x in INSIGHTS if x["id"] == b.get("id")), None)
+        return {"ok": True, "insight": x} if x else {"ok": False, "error": "not_writable"}
     if act == "logindex":
         if not b.get("run"): return {"ok": True, "did": 0, "left": len(UNINDEXED)}
         __import__("time").sleep(0.6); IDXRUNS.append(1); did = UNINDEXED[:1]; del UNINDEXED[:1]
@@ -223,8 +256,8 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def answer(self, q):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
@@ -264,7 +297,7 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
         elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
-        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES}
+        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "logasks": LOGASKS, "insights": [[x["title"], x["text"]] for x in INSIGHTS], "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES}
         else: body = {"ok": False, "error": "unknown_action"}
         return body
     def do_POST(self):

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.14.2";
+  var VERSION = "2.15.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -28,6 +28,7 @@
   var LS_LEDGER = "tos.ledger.v1";       /* Ledger: last YNAB figures and Replicator Queue from the bridge */
   var LS_LEDGERRANGE = "tos.lrange.v1"; /* Ledger: averaging period, 3, 6 or 12 months */
   var LS_AIFIN = "tos.aifin.v1";
+  var LS_LOGAI = "tos.logai.v1";     /* Log Ask: let Claude read Log entries you pick (off unless turned on) */
   var LS_STANDBY = "tos.standby.v1";    /* Standby after N minutes without a touch (0 = off) */        /* Ask: share finances with Claude (off unless turned on) */
   var LS_AISPEND = "tos.aispend.v1";   /* Ask: this month's spend as last reported by the bridge */
   var LS_BOPEN = "tos.bopen.v1";       /* Bridge panels opened with + */
@@ -1001,7 +1002,7 @@
     showSheet("detailScrim");
     $("detailClose").focus();
   }
-  function closeDetail() { hideSheet("detailScrim"); }
+  function closeDetail() { lsum = null; hideSheet("detailScrim"); }
 
 
   /* ---------- Capture ---------- */
@@ -2800,7 +2801,9 @@
 
   function unesc(s) { var t = document.createElement("textarea"); t.innerHTML = s; return t.value; }
   /* Weekly summary for the Review screen: Sonnet, no tools, from the week's numbers and your reflection. */
-  function writeSummary() {
+  /* With a pin: this week's Log entries go along (bridge logask, mode summary). Resolves true when
+     written, or with a message for the code panel. */
+  function writeSummary(pin) {
     var w0 = sow(state.anchor), wk = ymd(w0), st = weekStats(w0), w = state.weeks[wk], d = drafts()[wk] || {}, saved = w && w.review;
     var f = function (k) { var el = $("rv-" + k); return el ? el.value.trim() : d[k] || (saved && saved[k]) || ""; };
     var lines = [weekLabel(w0) + (st.cur ? " (in progress, numbers so far)" : ""),
@@ -2816,12 +2819,20 @@
     lines.push("His reflection so far. What went well: " + (f("wentWell") || "(blank)") + ". What drained me: " + (f("drained") || "(blank)") + ". Next focus: " + (f("nextFocus") || "(blank)") + ". Where I held my bearing: " + (f("bearing") || "(blank)") + ".");
     state.summaryBusy = true;
     render(true);
-    apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [{ role: "user", text: "Write my weekly summary for " + weekLabel(w0) + "." }], context: lines.join("\n"), ignore: ignoreList }, 150000).then(function (j) {
+    var ask = { role: "user", text: "Write my weekly summary for " + weekLabel(w0) + "." };
+    var req = pin ? apiPost({ action: "logask", pin: pin, mode: "summary", scope: { from: wk, to: ymd(addDays(w0, 6)) }, messages: [ask], context: lines.join("\n") }, 150000)
+      : apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [ask], context: lines.join("\n"), ignore: ignoreList }, 150000);
+    return req.then(function (j) {
       saveDraft(wk, "summary", j.reply);
       if ($("rv-summary")) $("rv-summary").value = j.reply;   /* replaces anything typed there, on purpose */
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
-      toast("Summary written (" + money(j.cost) + "). Edit it, then save.");
-    }).catch(function (err) { toast(describeAi(err)); }).then(function () { state.summaryBusy = false; render(true); });
+      toast("Summary written" + (pin ? " with this week's log" : "") + " (" + money(j.cost) + "). Edit it, then save.");
+      return true;
+    }).catch(function (err) {
+      var msg = pin ? logErrText(err && err.code, err && err.left, err && err.until) || describeAi(err) : describeAi(err);
+      if (!pin) toast(msg);
+      return msg;
+    }).then(function (r) { state.summaryBusy = false; render(true); return r; });
   }
 
   function openAsk() {
@@ -3468,9 +3479,10 @@
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null }; }
+  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null, ai: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
   function canLogSearch() { return state.caps.indexOf("logsearch") > -1; }
+  function canLogAsk() { return canLog() && state.caps.indexOf("logask") > -1 && !!lsGet(LS_LOGAI); }
   /* Bridge 1.17: the PIN can be a Starfleet-style authorization, a Greek code word then four
      digits ("Riker Alpha 6-9-3"). The panel shows the six words; the bridge knows which one. */
   var LOG_WORDS = [["ALPHA", "Α"], ["BETA", "Β"], ["GAMMA", "Γ"], ["DELTA", "Δ"], ["THETA", "Θ"], ["OMEGA", "Ω"]];
@@ -3574,6 +3586,7 @@
     if (f) f.blur();
     var pin = lg.pin, whole = lg.whole;
     lg.imp = null;
+    if (lg.ai) lg.ai.view = false;   /* the results show; ASK CLAUDE can then take them */
     lg.find = { q: q, whole: whole, busy: true, res: null, err: null, view: true };
     render(true);
     logRead({ action: "logsearch", pin: pin, q: q, whole: whole ? "1" : "0" }).then(function (j) {
@@ -3613,7 +3626,8 @@
       }).join("") + "</div>";
       if (r.more) html += '<div class="cl-note muted">Showing the newest 2,000. Narrow the search to see older ones.</div>';
     }
-    return html + '<div class="btnrow cl-row"><button type="button" class="btn ghost" data-lact="findclose">CLOSE SEARCH</button></div>';
+    return html + '<div class="btnrow cl-row">' + (canLogAsk() && r.entries.length ? '<button type="button" class="btn" data-lact="aisearch"' + (r.entries.length > 62 ? " disabled" : "") + ">ASK ABOUT THESE " + r.entries.length + "</button>" : "") +
+      '<button type="button" class="btn ghost" data-lact="findclose">CLOSE SEARCH</button></div>' + (canLogAsk() && r.entries.length > 62 ? '<div class="cl-note muted">Claude reads 62 entries at most: narrow the search to ask about these.</div>' : "");
   }
   /* Above an entry opened from the results: back to them, newer and older matches, and where the words are. */
   function logFindBar(d) {
@@ -3664,6 +3678,181 @@
       if (lg.idx.fails >= 3) { lg.idx.err = describe(err); logIdxPaint(); return; }
       setTimeout(function () { logIndexStep(pin); }, 20000);
     });
+  }
+
+  /* ---- Log Ask (2.15, bridge 1.20): Claude reads only the entries you pick ---- */
+  /* A month, that month and the one before, or the entries a search found (62 at most). PREVIEW
+     shows the count, tokens and cost before anything is sent; follow-ups reuse the same entries.
+     Everything lives in lg.ai, so it goes when the log locks. SAVE keeps an answer in Notion. */
+  var LOG_AI_PRESETS = [
+    ["moments", "KEY MOMENTS", "What were the key moments in these entries? List the 5 to 8 that matter most, each with its date and one line on why it mattered."],
+    ["themes", "THEMES", "What themes keep coming up across these entries? Name each theme, roughly how often it appears, and two dated examples."],
+    ["lift", "LIFTED · DRAINED", "What lifted me and what drained me in these entries? Two short lists, each item with a date."],
+    ["phrase", "ONE PHRASE", "If this stretch had one phrase or title, what would it be? Give the phrase, then two or three sentences on why, citing dates."],
+    ["changed", "WHAT CHANGED", "How did things change from the start of this period to the end? Note what grew, what faded and what stayed the same, with dates."]
+  ];
+  var LOG_AI_WARN = 25000;
+  function logAiScope(kind) {
+    var mo = lg.month || som(new Date()), today = ymd(new Date()), end = function (d) { var e = ymd(addDays(new Date(d.getFullYear(), d.getMonth() + 1, 1), -1)); return e > today ? today : e; };
+    if (kind === "search" && lg.find && lg.find.res) {
+      var ds = lg.find.res.entries.map(function (e) { return e.date; });
+      return { kind: "search", dates: ds, label: "“" + lg.find.q + "” · " + ds.length + (ds.length === 1 ? " ENTRY" : " ENTRIES"), title: "“" + lg.find.q + "”" };
+    }
+    if (kind === "two") {
+      var prev = new Date(mo.getFullYear(), mo.getMonth() - 1, 1);
+      return { kind: "two", from: ymd(prev), to: end(mo), label: MON[prev.getMonth()] + " + " + MON[mo.getMonth()] + " " + mo.getFullYear(), title: tcase(MONL[prev.getMonth()]) + " and " + tcase(MONL[mo.getMonth()]) + " " + mo.getFullYear() };
+    }
+    return { kind: "month", from: ymd(mo), to: end(mo), label: MONL[mo.getMonth()] + " " + mo.getFullYear(), title: tcase(MONL[mo.getMonth()]) + " " + mo.getFullYear() };
+  }
+  function tcase(w) { return w.charAt(0) + w.slice(1).toLowerCase(); }
+  function logAiWire(sc) { return sc.dates ? { dates: sc.dates } : { from: sc.from, to: sc.to }; }
+  function logAiOpen(kind) {
+    lg.imp = null; if (lg.find) lg.find.view = false;
+    lg.ai = { scope: logAiScope(kind), q: "", preset: null, deep: false, preview: null, busy: false, err: null, msgs: [], view: true, insights: null, open: null };
+    render(true); var pg = document.querySelector(".cl-page"); if (pg && innerWidth <= 860) pg.scrollIntoView({ block: "start" });
+  }
+  function logAiErr(err) {
+    var c = err && err.code;
+    if (c === "log_ask_too_big") return "Too much for one question" + (err.detail ? "" : "") + ": the limit is 62 entries, about 60K tokens and two months. Narrow it with a shorter period or a tighter search.";
+    if (c === "log_ask_empty") return "No entries in this period.";
+    return logErrText(c) || describeAi(err);
+  }
+  function logAiCall(params, timeout) { params.pin = lg.pin; return apiPost(params, timeout || 150000); }
+  function logAiPreview() {
+    var a = lg.ai, q = ($("laQ") || {}).value || a.q;
+    a.q = q.trim();
+    if (!a.q) { toast("Pick a question or type your own."); return; }
+    var pin = lg.pin; a.busy = "preview"; a.err = null; a.preview = null; render(true);
+    logAiCall({ action: "logask", preview: true, scope: logAiWire(a.scope) }, 60000).then(function (j) {
+      if (lg.pin !== pin || lg.ai !== a) return; a.preview = j.preview;
+    }).catch(function (err) { if (lg.ai === a) a.err = logAiErr(err); }).then(function () { if (lg.ai === a) { a.busy = false; render(true); } });
+  }
+  function logAiSend(follow) {
+    var a = lg.ai, pin = lg.pin, text;
+    if (follow) { text = (($("laF") || {}).value || "").trim(); if (!text) return; }
+    else text = a.q;
+    a.msgs.push({ role: "user", text: text });
+    a.busy = "send"; a.err = null; render(true);
+    var turns = a.msgs.map(function (m) { return { role: m.role, text: m.text }; });
+    logAiCall({ action: "logask", mode: a.deep ? "deep" : "fast", scope: logAiWire(a.scope), messages: turns }).then(function (j) {
+      if (lg.pin !== pin || lg.ai !== a) return;
+      a.msgs.push({ role: "assistant", text: j.reply, model: j.model, cost: j.cost, q: text });
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+    }).catch(function (err) {
+      if (lg.ai !== a) return;
+      a.msgs.pop(); if (follow && $("laF")) $("laF").value = text;
+      a.err = logAiErr(err);
+    }).then(function () { if (lg.ai === a) { a.busy = false; render(true); var last = document.querySelector(".la-msg:last-of-type"); if (last) last.scrollIntoView({ block: "nearest" }); } });
+  }
+  function logAiSave(i) {
+    var a = lg.ai, m = a.msgs[i]; if (!m || m.saved || m.saving) return;
+    var preset = LOG_AI_PRESETS.filter(function (p) { return p[0] === a.preset; })[0];
+    var title = "Insight · " + a.scope.title + " · " + (i === 1 && preset ? preset[1].replace(" · ", " and ").toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); }) : m.q.slice(0, 60));
+    var sc = a.scope, scopeText = sc.dates ? sc.dates.length + " entries found for " + sc.title : sc.from + " to " + sc.to;
+    m.saving = true; render(true);
+    logAiCall({ action: "logasksave", insight: { title: title, question: m.q, scope: scopeText, text: m.text } }, 60000).then(function () {
+      m.saved = true; toast("Saved to the Captain's Log in Notion"); if (a.insights) a.insights = null;
+    }).catch(function (err) { toast("Not saved: " + logAiErr(err)); }).then(function () { m.saving = false; if (lg.ai === a) render(true); });
+  }
+  function logAiInsights() {
+    var a = lg.ai; a.busy = "insights"; render(true);
+    logAiCall({ action: "loginsights" }, 60000).then(function (j) { if (lg.ai === a) a.insights = j.insights || []; })
+      .catch(function (err) { if (lg.ai === a) a.err = logAiErr(err); }).then(function () { if (lg.ai === a) { a.busy = false; render(true); } });
+  }
+  function logAiInsight(id) {
+    var a = lg.ai; a.busy = "insight"; render(true);
+    logAiCall({ action: "loginsight", id: id }, 60000).then(function (j) { if (lg.ai === a) a.open = j.insight; })
+      .catch(function (err) { if (lg.ai === a) a.err = logAiErr(err); }).then(function () { if (lg.ai === a) { a.busy = false; render(true); } });
+  }
+  /* Claude cites dates as [yyyy-mm-dd]: those become buttons that open the entry. */
+  function logAiText(t) {
+    return esc(t).split("\n").map(function (line) {
+      return line.replace(/^- /, "• ").replace(/\[(\d{4}-\d{2}-\d{2})\]/g, function (m, d) { return '<button type="button" class="la-date" data-laday="' + d + '">' + logFindLabel(d) + "</button>"; });
+    }).join("<br>");
+  }
+  function logAiHtml() {
+    var a = lg.ai, sc = a.scope, busy = !!a.busy, html = phead("ASK THE LOG", sc.label, "chrome-c");
+    if (a.open) {
+      return html + '<div class="la-saved"><b>' + esc(a.open.title) + '</b><div class="la-text">' + logAiText(a.open.text) + "</div></div>" +
+        '<div class="btnrow cl-row"><button type="button" class="btn ghost" data-lact="aiopenback">BACK</button>' + (a.open.url ? '<a class="btn ghost" href="' + esc(a.open.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
+    }
+    var srch = lg.find && lg.find.res && lg.find.res.entries.length ? lg.find.res.entries.length : 0;
+    html += '<div class="btnrow la-scope" role="group" aria-label="Which entries">' +
+      '<button type="button" class="chip" data-lascope="month" aria-pressed="' + (sc.kind === "month") + '"' + (busy ? " disabled" : "") + ">" + MON[(lg.month || new Date()).getMonth()] + " " + (lg.month || new Date()).getFullYear() + "</button>" +
+      '<button type="button" class="chip" data-lascope="two" aria-pressed="' + (sc.kind === "two") + '"' + (busy ? " disabled" : "") + ">WITH THE MONTH BEFORE</button>" +
+      (srch ? '<button type="button" class="chip" data-lascope="search" aria-pressed="' + (sc.kind === "search") + '"' + (busy || srch > 62 ? " disabled" : "") + ">SEARCH · " + srch + (srch > 62 ? " (62 AT MOST)" : "") + "</button>" : "") + "</div>";
+    if (!a.msgs.length) {
+      html += '<div class="ov-sub">ASK</div><div class="chips la-presets">' + LOG_AI_PRESETS.map(function (p) {
+        return '<button type="button" class="chip" data-lapreset="' + p[0] + '" aria-pressed="' + (a.preset === p[0]) + '"' + (busy ? " disabled" : "") + ">" + p[1] + "</button>";
+      }).join("") + "</div>" +
+        '<textarea id="laQ" rows="3" maxlength="1500" placeholder="Or ask your own question about these entries">' + esc(a.q) + "</textarea>" +
+        '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="aideep" aria-pressed="' + a.deep + '">THINK HARDER</button>' +
+        '<button type="button" class="btn' + (a.busy === "preview" ? " busy" : "") + '" data-lact="aipreview"' + (busy ? " disabled" : "") + ">" + (a.busy === "preview" ? '<span class="spin" aria-hidden="true"></span>COUNTING…' : "PREVIEW") + "</button></div>";
+      var pv = a.preview;
+      if (pv) {
+        var big = pv.tokens > LOG_AI_WARN, cost = a.deep ? pv.usd.deep : pv.usd.fast;
+        html += '<div class="la-pv' + (big ? " big" : "") + '" role="status"><b>' + pv.count + (pv.count === 1 ? " ENTRY" : " ENTRIES") + (pv.from ? " · " + logFindLabel(pv.from) + (pv.to !== pv.from ? " TO " + logFindLabel(pv.to) : "") : "") + "</b>" +
+          "<span>About " + Math.round(pv.tokens / 100) / 10 + "K tokens · about " + money(cost) + " with " + (a.deep ? "Opus (THINK HARDER)" : "Sonnet") + (a.deep ? "" : " · THINK HARDER about " + money(pv.usd.deep)) + "</span>" +
+          (big ? '<span class="warntxt">This is a larger read. Fine to send; a shorter period or a search costs less.</span>' : "") +
+          '<span class="muted">These entries go to Anthropic for this question and its follow-ups only. Nothing is kept unless you tap SAVE.</span>' +
+          '<div class="btnrow"><button type="button" class="btn' + (a.busy === "send" ? " busy" : "") + '" data-lact="aisend"' + (busy ? " disabled" : "") + ">" + (a.busy === "send" ? '<span class="spin" aria-hidden="true"></span>READING…' : "SEND") + "</button></div></div>";
+      }
+    } else {
+      html += '<div class="la-chat">' + a.msgs.map(function (m, i) {
+        if (m.role === "user") return '<div class="la-msg q">' + esc(m.text) + "</div>";
+        return '<div class="la-msg a"><div class="la-text">' + logAiText(m.text) + '</div><div class="la-meta"><span>' + modelName(m.model) + " · " + money(m.cost || 0) + "</span>" +
+          '<button type="button" class="chip" data-lasave="' + i + '"' + (m.saved || m.saving ? " disabled" : "") + ">" + (m.saved ? "SAVED ✓" : m.saving ? "SAVING…" : "SAVE TO NOTION") + "</button></div></div>";
+      }).join("") + (a.busy === "send" ? '<div class="la-msg a"><span class="spin" aria-hidden="true"></span> Reading the entries…</div>' : "") + "</div>" +
+        '<label class="ov-sub" for="laF">FOLLOW UP</label><textarea id="laF" rows="2" maxlength="1500" placeholder="Ask more about the same entries (usually under 1¢)"></textarea>' +
+        '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="aideep" aria-pressed="' + a.deep + '">THINK HARDER</button><button type="button" class="btn" data-lact="aifollow"' + (busy ? " disabled" : "") + ">ASK</button>" +
+        '<button type="button" class="btn ghost" data-lact="ainew"' + (busy ? " disabled" : "") + ">NEW QUESTION</button></div>";
+    }
+    if (a.err) html += '<div class="errtxt cl-note" role="alert">' + esc(a.err) + "</div>";
+    html += '<div class="ov-sub la-ins-h">SAVED INSIGHTS</div>';
+    if (a.insights === null) html += '<div class="btnrow"><button type="button" class="chip" data-lact="aiinsights"' + (busy ? " disabled" : "") + ">" + (a.busy === "insights" ? "LOADING…" : "SHOW SAVED") + "</button></div>";
+    else html += a.insights.length ? '<div class="la-ins">' + a.insights.map(function (x) {
+      return '<button type="button" class="la-in" data-lains="' + esc(x.id) + '"><b>' + esc(x.title) + "</b><small>" + (x.created ? esc(stamp(Date.parse(x.created))) : "") + "</small></button>";
+    }).join("") + "</div>" : '<div class="empty">Nothing saved yet. SAVE TO NOTION under an answer keeps it here.</div>';
+    return html + '<div class="btnrow cl-row"><button type="button" class="btn ghost" data-lact="aiclose">CLOSE</button></div>';
+  }
+  /* REVIEW's WRITE SUMMARY with this week's entries: the authorization code first, every time. */
+  var lsum = null;
+  function openSummaryAuth() {
+    lsum = { word: null, digits: "", busy: false, msg: "" };
+    $("detailSheet").className = "sheet lsum-sheet"; $("detailSheet").style.setProperty("--c", "var(--chrome-c)");
+    drawSummaryAuth(); showSheet("detailScrim");
+  }
+  function drawSummaryAuth() {
+    if (!lsum) return;
+    var coded = logCodeMode(), need = logNeed(), dots = coded ? '<i class="w' + (lsum.word ? " on" : "") + '"></i>' : "";
+    for (var i = 0; i < need; i++) dots += '<i class="' + (i < lsum.digits.length ? "on" : "") + '"></i>';
+    var noDigits = lsum.busy || (coded && !lsum.word), keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
+    $("detailSheet").innerHTML = '<div class="sbar"><span>WRITE SUMMARY</span><span>WITH THIS WEEK\'S LOG</span></div><div class="sbody cl-lock coded">' +
+      '<p class="muted lsum-p">Your authorization code lets the summary read this week\'s Captain\'s Log entries. They go to Claude for this summary only.</p>' +
+      '<div class="cl-dots">' + dots + '</div><div class="cl-msg" role="status">' + (lsum.busy ? "WRITING THE SUMMARY…" : lsum.msg ? esc(lsum.msg) : coded ? (lsum.word ? "AUTHORIZATION: FOUR DIGITS" : "STATE AUTHORIZATION: CODE WORD") : "ENTER YOUR PIN") + "</div>" +
+      (coded ? '<div class="cl-words">' + LOG_WORDS.map(function (w) { return '<button type="button" class="cl-word" data-spin="' + w[0] + '"' + (lsum.busy || lsum.word ? " disabled" : "") + ' aria-label="' + w[0] + '"><b>' + w[1] + "</b><span>" + w[0] + "</span></button>"; }).join("") + "</div>" : "") +
+      '<div class="cl-pad">' + keys.map(function (k) {
+        var off = k === "del" ? lsum.busy || (!lsum.digits && !lsum.word) : noDigits;
+        return k === "" ? "<span></span>" : '<button type="button" class="cl-key' + (k === "del" ? " del" : "") + '" data-spin="' + k + '"' + (off ? " disabled" : "") + ' aria-label="' + (k === "del" ? "Delete" : k) + '">' + (k === "del" ? "⌫" : k) + "</button>";
+      }).join("") + '</div></div><div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn ghost" data-act="sumplain"' + (lsum.busy ? " disabled" : "") + ">WITHOUT THE LOG</button></div>";
+  }
+  function summaryPress(k) {
+    if (!lsum || lsum.busy) return;
+    var coded = logCodeMode(); lsum.msg = "";
+    if (k === "del") { if (lsum.digits) lsum.digits = lsum.digits.slice(0, -1); else lsum.word = null; }
+    else if (/^[A-Z]+$/.test(k)) { if (coded && !lsum.word) lsum.word = k; }
+    else if ((!coded || lsum.word) && lsum.digits.length < logNeed()) lsum.digits += k;
+    if (lsum.digits.length === logNeed()) {
+      var pin = coded ? lsum.word + "-" + lsum.digits : lsum.digits, me = lsum;
+      lsum.busy = true; drawSummaryAuth();
+      writeSummary(pin).then(function (ok) {
+        if (lsum !== me) return;
+        if (ok === true) { lsum = null; closeDetail(); return; }
+        me.busy = false; me.digits = ""; me.word = null; me.msg = ok; drawSummaryAuth();
+      });
+      return;
+    }
+    drawSummaryAuth();
   }
 
   function logPick(d) {
@@ -3891,14 +4080,17 @@
       '<button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo || lg.pick ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
       (lg.pick ? logPickerHtml() : '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>") +
       '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
-      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button></div>' + logFindBox() + "</section>";
+      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button>' +
+      (canLogAsk() ? '<button type="button" class="chip la-open" data-lact="aiopen">ASK CLAUDE</button>' : "") + "</div>" + logFindBox() + "</section>";
     html += '<section class="cl-page">';
     if (lg.imp) html += logImportHtml();
+    else if (lg.ai && lg.ai.view) html += logAiHtml();
     else if (lg.find && lg.find.view) html += logFindHtml();
     else {
       var d = lg.day, dt = parseYmd(d), e = lg.entries[d], loading = lg.dates[d] && !(d in lg.entries), intent = (lsGet(LS_LOG) || {})[d];
       html += phead(DOWL[dt.getDay()], p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear() + ' · <span id="clStatus">' + logStatusText(d) + "</span>", "chrome-c");
-      html += logFindBar(d);
+      if (lg.ai && !lg.ai.view) html += '<div class="cl-findbar"><button type="button" class="chip" data-lact="aiback"><span class="tri l"></span>ASK THE LOG</button><span class="cl-fbt">BACK TO THE ANSWER</span></div>';
+      else html += logFindBar(d);
       if (intent) html += '<div class="cl-intent"><span>INTENT</span>' + esc(intent) + "</div>";
       if (lg.err[d] && !logDrafts[d]) html += '<div class="errtxt cl-note">' + lg.err[d] + ' <button type="button" class="chip" data-lact="retry">TRY AGAIN</button></div>';
       else if (loading && !logDrafts[d]) html += '<div class="empty">Opening the page…</div>';
@@ -3928,6 +4120,13 @@
     }).join("");
     return '<div class="cl-pick"><div class="chips cl-years">' + years + '</div><div class="cl-months">' + months + "</div></div>";
   }
+  function logAiToggle() {
+    if (state.caps.indexOf("logask") === -1) return "";
+    var on = !!lsGet(LS_LOGAI);
+    return '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND THE LOG</label><div class="btnrow">' +
+      '<button type="button" class="chip" data-logai="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-logai="1" aria-pressed="' + on + '">SHARE LOG WITH ASK</button></div>' +
+      '<small class="muted">' + (on ? "In the open LOG, ASK CLAUDE reads only the entries you pick (a month, two months or a search; 62 at most), after showing what it will send and the cost. REVIEW's WRITE SUMMARY can include that week's entries after your authorization code. Entries go to Anthropic for that question only; answers are kept only if you tap SAVE." : "Off: Claude never reads your log.") + "</small>";
+  }
   function logSection() {
     var html = "<section>" + phead("CAPTAIN'S LOG", canLog() ? "PIN-LOCKED" : "SETUP");
     if (!canLog()) return html + stubBox("Needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section>";
@@ -3935,7 +4134,7 @@
     return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">" + (logCodeMode() ? "Authorization code set (a code word and four digits)." : "Six-digit PIN set.") + " Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
       '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
       '<small class="muted">Entries open only after the PIN and are never stored on this iPad; leaving LOG, the background, standby or 10 minutes without a touch locks it. ' +
-      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The log is never sent to Ask.</small></section>";
+      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The ASK button never sees the log.</small>" + logAiToggle() + "</section>";
   }
   document.addEventListener("keydown", function (e) {
     if (state.screen !== "log" || logOpen() || !canLog() || sb.on || e.metaKey || e.ctrlKey) return;
@@ -5043,7 +5242,12 @@
     }
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
     else if (b.dataset.lpin) logPress(b.dataset.lpin);
-    else if (b.dataset.lday) { if (lg.find) lg.find.view = false; logPick(b.dataset.lday); }
+    else if (b.dataset.lday) { if (lg.find) lg.find.view = false; if (lg.ai) lg.ai.view = false; logPick(b.dataset.lday); }
+    else if (b.dataset.lascope) { lg.ai.scope = logAiScope(b.dataset.lascope); lg.ai.preview = null; lg.ai.msgs = []; lg.ai.err = null; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }
+    else if (b.dataset.lapreset) { var pr = LOG_AI_PRESETS.filter(function (x) { return x[0] === b.dataset.lapreset; })[0]; lg.ai.preset = pr[0]; lg.ai.q = pr[2]; lg.ai.preview = null; render(true); }
+    else if (b.dataset.lasave) logAiSave(+b.dataset.lasave);
+    else if (b.dataset.lains) logAiInsight(b.dataset.lains);
+    else if (b.dataset.laday) { lg.ai.view = false; logPick(b.dataset.laday); var pg1 = document.querySelector(".cl-page"); if (pg1 && pg1.getBoundingClientRect().top < 0) pg1.scrollIntoView({ block: "start" }); }
     else if (b.dataset.lfound) { lg.find.view = false; logPick(b.dataset.lfound); var pg0 = document.querySelector(".cl-page"); if (pg0 && pg0.getBoundingClientRect().top < 0) pg0.scrollIntoView({ block: "start" }); }
     else if (b.dataset.lyear) { lg.pickYear = +b.dataset.lyear; render(true); }
     else if (b.dataset.ljump) { var jp = b.dataset.ljump.split("-"); lg.month = new Date(+jp[0], +jp[1] - 1, 1); lg.pick = false; lg.pickYear = null; render(true); enterScreen(); }
@@ -5061,6 +5265,17 @@
       else if (la === "imprun") logImportRun();
       else if (la === "impcancel") { lg.imp = null; loadLogDay(lg.day); render(true); }
       else if (la === "find") logFind();
+      else if (la === "aiopen") logAiOpen("month");
+      else if (la === "aisearch") logAiOpen("search");
+      else if (la === "aiclose") { lg.ai = null; render(true); }
+      else if (la === "aipreview") logAiPreview();
+      else if (la === "aisend") logAiSend(false);
+      else if (la === "aifollow") logAiSend(true);
+      else if (la === "ainew") { var ka = lg.ai; lg.ai.msgs = []; lg.ai.preview = null; lg.ai.q = ""; lg.ai.preset = null; lg.ai.err = null; render(true); }
+      else if (la === "aideep") { lg.ai.deep = !lg.ai.deep; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }
+      else if (la === "aiinsights") logAiInsights();
+      else if (la === "aiopenback") { lg.ai.open = null; render(true); }
+      else if (la === "aiback") { lg.ai.view = true; render(true); }
       else if (la === "findwhole") { lg.whole = !lg.whole; if (lg.find && lg.find.q) { $("clFind").value = lg.find.q; logFind(); } else render(true); }
       else if (la === "findclose") { lg.find = null; render(true); }
       else if (la === "findback") { lg.find.view = true; render(true); var cur = document.querySelector(".cl-hit.cur"); if (cur) cur.scrollIntoView({ block: "center" }); }
@@ -5068,9 +5283,10 @@
     }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
+    else if (b.dataset.logai) { if (b.dataset.logai === "1") lsSet(LS_LOGAI, true); else lsDel(LS_LOGAI); render(true); }
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
-    else if (b.dataset.act === "writesummary") writeSummary();
+    else if (b.dataset.act === "writesummary") { if (canLogAsk()) openSummaryAuth(); else writeSummary(); }
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));
       toast(ignoreList.length ? ignoreList.length + (ignoreList.length === 1 ? " title ignored" : " titles ignored") + " · " + ignoredCount() + " events left out" : "Nothing ignored");
@@ -5120,6 +5336,8 @@
   $("detailScrim").addEventListener("click", function (e) {
     var b = e.target.closest("button");
     if (b && bookSheetClick(b)) return;
+    if (b && b.dataset.spin) { summaryPress(b.dataset.spin); return; }
+    if (b && b.dataset.act === "sumplain") { lsum = null; closeDetail(); writeSummary(); return; }
     if (b && b.dataset.qretry) { closeDetail(); retryCapture(b.dataset.qretry); return; }
     if (b && b.dataset.qdiscard) { closeDetail(); discardCapture(b.dataset.qdiscard); return; }
     if (b && b.dataset.ignore) {

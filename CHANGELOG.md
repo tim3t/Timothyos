@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.15.0 · 2026-10-10 (bridge 1.20.0)
+- **Ask Claude about the Captain's Log.** Off until you turn on SYSTEMS → CAPTAIN'S LOG → **SHARE LOG WITH ASK**. In the open LOG, **ASK CLAUDE** works on the month on the calendar, that month with the one before, or the entries a search found (**ASK ABOUT THESE**). Ready-made questions: KEY MOMENTS, THEMES, LIFTED · DRAINED, ONE PHRASE, WHAT CHANGED; or your own. THINK HARDER uses Opus.
+- **PREVIEW before anything is sent:** how many entries, the dates, about how many tokens and the cost, with a note above about 25K tokens. **SEND** only then.
+- **Answers you can follow:** dates in the answer open the entry, and follow-ups reuse the same entries (usually under 1¢).
+- **SAVE TO NOTION** keeps an answer as a "Claude insight" in the Captain's Log database (undated, so it never appears as a day); **SHOW SAVED** reads them back.
+- **Limits, checked on the bridge:** 62 entries, about 60K tokens and two months per question, and your authorization code every time. Claude gets nothing but the chosen entries and has no tools. Answers are forgotten when the log locks.
+- **Weekly summary with the log:** with sharing on, REVIEW's WRITE SUMMARY asks for your authorization code and adds that week's entries. WITHOUT THE LOG writes it as before.
+
 ## 2.14.2 · 2026-10-10
 - **Fixed: a book's notes showing on the next book.** After writing notes on one book in LIBRARY, opening another showed the same notes (and DONE could have saved them to it). Each book now opens with its own notes. Notes you cancel go nowhere.
 

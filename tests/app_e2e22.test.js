@@ -183,7 +183,7 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   // Systems: status, no entry text
   await p.click('#status'); await p.waitForTimeout(400);
   const sys = await txt(p, '#content');
-  assert.ok(sys.includes("CAPTAIN'S LOG PIN-LOCKED") && sys.includes('never sent to Ask'));
+  assert.ok(sys.includes("CAPTAIN'S LOG PIN-LOCKED") && sys.includes('The ASK button never sees the log'));
 
   // phone width
   await p.setViewportSize({ width: 390, height: 844 });
