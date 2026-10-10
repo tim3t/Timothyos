@@ -68,7 +68,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.20.0';
+var VERSION = '1.21.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -117,7 +117,7 @@ function read_(p) {
   if (p.action === 'done') return done_(p.days);
   if (p.action === 'week') return week_(String(p.week || ''), String(p.from || ''), String(p.to || ''));
   if (p.action === 'reviews') return reviews_(p.limit);
-  if (p.action === 'ledger') return ledger_();
+  if (p.action === 'ledger') return ledger_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'habits') return habits_(p.from, p.to);
   if (p.action === 'library') return library_();
   return null;
@@ -887,8 +887,8 @@ function ledgerMonth_(month) {
 }
 
 /** Accounts, age of money, spending by category (12 months + this month so far), and the fund category. */
-function ynabLedger_() {
-  var cache = CacheService.getScriptCache(), key = 'ynab:' + ynabPlan_(), hit = cache.get(key);
+function ynabLedger_(fresh) {
+  var cache = CacheService.getScriptCache(), key = 'ynab:' + ynabPlan_(), hit = fresh ? null : cache.get(key);   // fresh: a pull to refresh skips the 10-minute copy
   if (hit) return JSON.parse(hit);
   var months = ledgerMonths_(LEDGER_MONTHS), thisMonth = months.pop();
   var accts = (ynab_('/accounts').accounts || []).filter(function (a) { return !a.deleted && !a.closed; });
@@ -907,7 +907,7 @@ function ynabLedger_() {
     cats: cats.map(function (c) {
       return { id: c.id, name: c.name, group: c.category_group_name || '', m: past.map(function (p) { return p.spend[c.id] || 0; }), now: -money_(c.activity || 0) };
     }),
-    fundName: fundName_(), fund: fund
+    fundName: fundName_(), fund: fund, at: new Date().toISOString()   // when YNAB was asked, so the app can say how current this is
   };
   try { cache.put(key, JSON.stringify(out), LEDGER_SECONDS); } catch (x) { /* too large to cache */ }
   return out;
@@ -935,9 +935,9 @@ function queueRows_() {
 }
 
 /** Everything the LEDGER screen shows. A YNAB problem and a Notion problem are reported separately. */
-function ledger_() {
+function ledger_(fresh) {
   var out = { ok: true, version: VERSION };
-  try { out.ynab = ynabLedger_(); } catch (e) { out.ynabError = e.ynab || 'ynab_error'; out.ynabDetail = String(e.message || e); }
+  try { out.ynab = ynabLedger_(fresh); } catch (e) { out.ynabError = e.ynab || 'ynab_error'; out.ynabDetail = String(e.message || e); }
   try { out.queue = queueRows_(); } catch (e2) { out.queueError = e2.notion || 'notion_error'; }
   return out;
 }

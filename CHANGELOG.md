@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.15.1 · 2026-10-10 (bridge 1.21.0)
+- **LEDGER shows current figures.** Opening LEDGER now asks YNAB itself whenever the iPad's copy is more than a minute old. Before, the bridge kept its own copy of YNAB for 10 minutes and the iPad didn't ask again for 5, so you often saw an older balance.
+- **Pull down to refresh** at the top of LEDGER (only there): pull, let go at RELEASE TO REFRESH, and it asks YNAB at once. **REFRESH** beside OPEN YNAB does the same.
+- **The header says when YNAB was asked** ("AS OF 20:05"), and UPDATING… while it's asking.
+
 ## 2.15.0 · 2026-10-10 (bridge 1.20.0)
 - **Ask Claude about the Captain's Log.** Off until you turn on SYSTEMS → CAPTAIN'S LOG → **SHARE LOG WITH ASK**. In the open LOG, **ASK CLAUDE** works on the month on the calendar, that month with the one before, or the entries a search found (**ASK ABOUT THESE**). Ready-made questions: KEY MOMENTS, THEMES, LIFTED · DRAINED, ONE PHRASE, WHAT CHANGED; or your own. THINK HARDER uses Opus.
 - **PREVIEW before anything is sent:** how many entries, the dates, about how many tokens and the cost, with a note above about 25K tokens. **SEND** only then.

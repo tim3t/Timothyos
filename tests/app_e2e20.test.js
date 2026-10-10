@@ -27,7 +27,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   // --- bridge 1.9
   await setup(8100); await p.reload(); await p.waitForTimeout(1500);
   await p.click('[data-screen="ledger"].nav'); await p.waitForTimeout(1200);
-  assert.ok((await p.textContent('#eyebrow')).startsWith('FINANCES · YNAB · SYNCED'));
+  assert.ok(/^FINANCES · YNAB · (AS OF|UPDATING)/.test(await p.textContent('#eyebrow')));
   assert.ok(await p.isHidden('#pager'));
   const hero = await txt(p, '.lg-hero'), aom = await txt(p, '.lg-aom');
   console.log('hero:', hero, '| aom:', aom.slice(0, 80));

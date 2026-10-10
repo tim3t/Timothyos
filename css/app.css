@@ -1445,3 +1445,8 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .lsum-sheet .cl-words { margin: 6px 0 10px; }
 .lsum-sheet .cl-word, .lsum-sheet .cl-key { height: 52px; }
 .lsum-sheet .cl-pad { gap: 10px; }
+/* ---------- LEDGER pull to refresh (2.15.1) ---------- */
+.ptr { height: 0; opacity: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); transition: opacity .15s; }
+.ptr.ready { color: var(--chrome-b); }
+.ptr.busy { color: var(--chrome-b); transition: height .2s, opacity .15s; }

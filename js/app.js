@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.15.0";
+  var VERSION = "2.15.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -575,7 +575,10 @@
       e.textContent = "WEEK " + isoWeek(rw0) + " · " + (thisW ? "THIS WEEK" : lastW ? "LAST WEEK" : rw0 > now ? "AHEAD" : "PAST WEEK") + (reviewSaved(ymd(rw0)) ? " · SAVED" : "");
       t.textContent = weekLabel(rw0).replace(/^WEEK \d+ · /, "");
     } else if (state.screen === "dates") { e.textContent = "UPCOMING · NEXT 12 MONTHS"; t.textContent = "KEY DATES"; }
-    else if (state.screen === "ledger") { e.textContent = "FINANCES · YNAB" + (state.ledger ? " · SYNCED " + stamp(state.ledger.fetched) : ""); t.textContent = "LEDGER"; }
+    else if (state.screen === "ledger") {
+      var ly = state.ledger && state.ledger.ynab, lat = ly && ly.at ? Date.parse(ly.at) : state.ledger ? state.ledger.fetched : 0;
+      e.textContent = "FINANCES · YNAB" + (state.ledgerInflight ? " · UPDATING…" : lat ? " · AS OF " + stamp(lat) : ""); t.textContent = "LEDGER";
+    }
     else if (state.screen === "log") { e.textContent = "JOURNAL · " + (logOpen() ? "OPEN" : "LOCKED"); t.textContent = "CAPTAIN'S LOG"; }
     else if (state.screen === "loom") lmHead();
     else if (state.screen === "habits") {
@@ -3008,16 +3011,18 @@
      through the bridge (bridge 1.9, YNAB_TOKEN); nothing here can change YNAB.
      The Replicator Queue is a Notion list of things to buy once the Discretionary
      category can cover them, funded top-down in priority order. */
-  var LEDGER_FRESH_MS = 5 * 60 * 1000;
+  var LEDGER_FRESH_MS = 60 * 1000;   /* opening LEDGER asks again after a minute (2.15.1; was 5) */
   var LEDGER_RANGES = [3, 6, 12];
   function canLedger() { return state.caps.indexOf("ledger") > -1; }
   function canQueue() { return state.caps.indexOf("queue") > -1; }
-  function loadLedger(force) {
-    if (!state.conn || !(canLedger() || canQueue()) || state.ledgerInflight) return;
-    if (!force && state.ledger && Date.now() - state.ledger.fetched < LEDGER_FRESH_MS) return;
-    if (!force && state.ledgerErr && Date.now() - state.ledgerErr.at < FRESH_MS) return;
+  /* fresh: straight from YNAB, past the bridge's 10-minute copy (pull to refresh, REFRESH, opening the screen). */
+  function loadLedger(force, fresh) {
+    if (!state.conn || !(canLedger() || canQueue()) || state.ledgerInflight) return Promise.resolve();
+    if (!force && state.ledger && Date.now() - state.ledger.fetched < LEDGER_FRESH_MS) return Promise.resolve();
+    if (!force && state.ledgerErr && Date.now() - state.ledgerErr.at < FRESH_MS) return Promise.resolve();
     state.ledgerInflight = true;
-    api({ action: "ledger" }).then(function (j) {
+    if (state.screen === "ledger") renderHeader();
+    return api(fresh ? { action: "ledger", fresh: "1" } : { action: "ledger" }).then(function (j) {
       state.ledger = { fetched: Date.now(), ynab: j.ynab || null, ynabError: j.ynabError || null, queue: j.queue || null, queueError: j.queueError || null };
       state.ledgerErr = null;
       lsSet(LS_LEDGER, state.ledger);
@@ -3028,6 +3033,44 @@
       if (state.screen === "ledger" || state.screen === "systems") render(true);
     });
   }
+  /* Pull to refresh, on LEDGER only: drag down from the top of the screen and let go. */
+  var ptr = { y0: null, dy: 0, busy: false };
+  var PTR_AT = 70;
+  function ptrPaint() {
+    var el = $("ptr"); if (!el) return;
+    var h = ptr.busy ? 48 : Math.min(ptr.dy * 0.55, 90);
+    el.style.height = h + "px"; el.style.opacity = ptr.busy || ptr.dy > 8 ? 1 : 0;
+    el.className = "ptr" + (ptr.busy ? " busy" : ptr.dy * 0.55 >= PTR_AT ? " ready" : "");
+    el.innerHTML = ptr.busy ? '<span class="spin" aria-hidden="true"></span>REFRESHING FROM YNAB…' : ptr.dy * 0.55 >= PTR_AT ? "RELEASE TO REFRESH" : "PULL TO REFRESH";
+  }
+  function ledgerRefresh() {
+    if (ptr.busy) return;
+    ptr.busy = true; ptr.dy = 0; ptrPaint();
+    var started = Date.now();
+    loadLedger(true, true).then(function () {
+      setTimeout(function () { ptr.busy = false; ptrPaint(); if (state.screen === "ledger" && !state.ledgerErr) toast("Ledger updated from YNAB"); }, Math.max(0, 500 - (Date.now() - started)));
+    });
+  }
+  (function () {
+    var c = $("content");
+    c.addEventListener("touchstart", function (e) {
+      ptr.y0 = state.screen === "ledger" && c.scrollTop <= 0 && !ptr.busy && e.touches.length === 1 ? e.touches[0].clientY : null; ptr.dy = 0;
+    }, { passive: true });
+    c.addEventListener("touchmove", function (e) {
+      if (ptr.y0 === null) return;
+      var dy = e.touches[0].clientY - ptr.y0;
+      if (dy <= 0 || c.scrollTop > 0) { if (ptr.dy) { ptr.dy = 0; ptrPaint(); } return; }
+      e.preventDefault();   /* the page stays put while you pull */
+      ptr.dy = dy; ptrPaint();
+    }, { passive: false });
+    var end = function () {
+      if (ptr.y0 === null) return;
+      var go = ptr.dy * 0.55 >= PTR_AT;
+      ptr.y0 = null; ptr.dy = 0;
+      if (go) ledgerRefresh(); else ptrPaint();
+    };
+    c.addEventListener("touchend", end); c.addEventListener("touchcancel", end);
+  })();
   function usd(v, cents) {
     if (typeof v !== "number" || !isFinite(v)) return "";
     var s = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 });
@@ -3068,7 +3111,7 @@
   }
 
   function renderLedger() {
-    var L = state.ledger, now = new Date(), html = '<div class="lg">';
+    var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="ptr" id="ptr" aria-live="polite"></div>';
     if (!canLedger() && !canQueue()) {
       $("content").innerHTML = html + "<section>" + phead("LEDGER", "") + stubBox(state.conn ? "The Ledger needs bridge 1.9. Steps are in the README under <b>Ledger</b>." : "Link calendars first.") + "</section></div>";
       return;
@@ -3081,7 +3124,7 @@
     var y = L.ynab;
 
     /* accounts */
-    html += "<section>" + phead("ACCOUNTS", y ? "FROM YNAB · AS OF YOUR LAST ENTRY" : "", null, '<a class="chip lg-open" href="https://app.ynab.com" target="_blank" rel="noopener">OPEN YNAB</a>');
+    html += "<section>" + phead("ACCOUNTS", y ? "FROM YNAB · AS OF YOUR LAST ENTRY" : "", null, '<button type="button" class="chip" data-act="ledgerrefresh"' + (state.ledgerInflight ? " disabled" : "") + ">REFRESH</button>" + '<a class="chip lg-open" href="https://app.ynab.com" target="_blank" rel="noopener">OPEN YNAB</a>');
     if (!canLedger()) html += stubBox("Add YNAB_TOKEN in the bridge's Script Properties to show your accounts. Steps are in the README under <b>Ledger</b>.");
     else if (!y) html += '<div class="err">' + ynabErrText(L.ynabError) + "</div>";
     else {
@@ -3172,7 +3215,8 @@
     if (state.ledgerErr) html += stale(L.fetched);
     html += '<small class="muted">Read-only from YNAB: nothing here changes your plan. Ask Claude ' + (lsGet(LS_AIFIN) ? "can see these figures (Systems → Ask Claude)." : "can't see this screen unless you turn it on in Systems.") + "</small></div>";
     $("content").innerHTML = html;
-    loadLedger(false);
+    ptrPaint();   /* a redraw mid-refresh keeps the indicator */
+    loadLedger(false);   /* a redraw asks the bridge (its copy is fine); opening the screen goes to YNAB (go()) */
   }
 
   function queueSend(body, okMsg) {
@@ -5158,6 +5202,7 @@
     if (screen === "log" || state.screen === "log") lockLog();   /* opening LOG always asks for the PIN */
     if (screen === "loom" && state.screen !== "loom") { lm.t = calm() ? 0 : -5; lm.target = null; lm.vel = 0; lm.base = 0; }   /* arrive with a short glide into today */
     if (screen === "habits" && state.screen !== "habits" && !anchor) anchor = new Date();
+    if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
     state.screen = screen;
@@ -5295,6 +5340,7 @@
     else if (b.dataset.day) go("today", parseYmd(b.dataset.day));
     else if (b.dataset.toggle) toggleArea(b.dataset.toggle);
     else if (b.dataset.act === "refresh") refreshNow();
+    else if (b.dataset.act === "ledgerrefresh") ledgerRefresh();
     else if (b.dataset.act === "flush") flushQueue(true);
     else if (b.dataset.qretry) retryCapture(b.dataset.qretry);
     else if (b.dataset.qdiscard) discardCapture(b.dataset.qdiscard);

@@ -346,6 +346,7 @@ Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **�
 | Record habits | **HABITS**, or the strip on the Bridge |
 | Add or finish a book | **LIBRARY** |
 | Find every entry that mentions something | **LOG** → **SEARCH THE LOG** |
+| Update the balances | **LEDGER** → pull down from the top, or **REFRESH** |
 | Scroll through time | **LOOM**. Swipe left for the future, right for the past; tap a bead for details |
 | See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
 | Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |

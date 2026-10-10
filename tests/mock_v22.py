@@ -83,6 +83,7 @@ BATCHES = []
 PIN = "135790"; CODE = []; LOCKS = [0]; LOGFAIL = [0]; FLAKY = [0]; NOKEY = [0]; LOGVIA = []; LOGSAVES = []; LOGACTS = []
 LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A September page. Homework with the kids after supper, then the long division sheet.", "2026-10-01": "Added in Notion with a photo.", "2025-11-13": "The very first page.",
        "2026-09-02": "First homework night of the school year. The kids groaned; I did too.\n\nLater: more homework, a spelling list this time.", "2025-12-04": "No homework tonight, so we watched a film.", "2025-11-20": "Homeworks and chores. Busy.", "2024-03-11": "Helped with homework. Science fair poster."}
+LEDGERCALLS = []; YCACHE = []; YAT = ["2026-10-10T20:00:00-05:00"]
 UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []; LOGASKS = []; INSIGHTS = []
 LOGOTHER = {"2026-10-01"}
 def logcanon(t):
@@ -284,7 +285,12 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "dates":
             body = {"ok": True, "version": "1.3.0", "dates": KDATES, "areas": AREAS, "types": KTYPES}
         elif q.get("action") == "ledger":
-            body = {"ok": True, "version": "1.9.0", "ynab": YNAB, "queue": qrows()}
+            # bridge 1.21: the bridge's copy of YNAB is kept 10 minutes; fresh=1 goes to YNAB itself
+            LEDGERCALLS.append(q.get("fresh") == "1")
+            if q.get("fresh") == "1" or not YCACHE: YCACHE[:] = [json.loads(json.dumps(dict(YNAB, at=YAT[0])))]
+            body = {"ok": True, "version": "1.21.0", "ynab": YCACHE[0], "queue": qrows()}
+        elif q.get("action") == "ynabset":
+            YNAB["checking"][0]["balance"] = float(q.get("bal")); YAT[0] = q.get("at", YAT[0]); body = {"ok": True}
         elif q.get("action") == "reviews":
             body = {"ok": True, "version": "1.7.0", "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
             if UNSHARED: body = {"ok": False, "error": "notion_not_shared"}
@@ -297,7 +303,7 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
         elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
-        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "logasks": LOGASKS, "insights": [[x["title"], x["text"]] for x in INSIGHTS], "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES}
+        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "logasks": LOGASKS, "ledgercalls": LEDGERCALLS, "insights": [[x["title"], x["text"]] for x in INSIGHTS], "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES}
         else: body = {"ok": False, "error": "unknown_action"}
         return body
     def do_POST(self):
