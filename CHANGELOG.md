@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.15.3 · 2026-10-10
+- **LOG: search runs across the top.** SEARCH THE LOG is now one bar above the calendar and the page, with FIND and EXACT WORD beside the field.
+- **SAVE lines up with the right edge of the entry box.**
+
 ## 2.15.2 · 2026-10-10
 - **A tidier LOG.** Fewer, better-placed buttons, in three sizes with one job each:
   - **LOCK** sits at the right end of the CAPTAIN'S LOG heading.

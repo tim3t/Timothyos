@@ -1457,11 +1457,16 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .cl-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
 .cl-acts.one { grid-template-columns: 1fr; }
 .cl-acts .chip { width: 100%; justify-content: center; }
-.cl-find { margin-top: 28px; }
-.cl-findhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.cl-findhead .ov-sub { margin: 0; }
-.cl-findrow input { min-height: 56px; }
 .cl-link { display: block; margin: 26px 0 0; padding: 8px 0; border: 0; background: none; color: var(--dim); font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .cl-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
 .cl-tools-gap { flex: 1; }
 .rv-lab .bulchip { margin: 0 0 6px; }
+/* LOG, 2.15.3: search as one bar across the top; SAVE lines up with the right edge of the page */
+.cl-find { grid-column: 1 / -1; margin: 0; }
+.cl-findrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cl-findlab { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--chrome-c); margin-right: 4px; }
+.cl-findrow input { flex: 1; min-width: 200px; min-height: 56px; }
+.cl-find .cl-idx { max-width: 640px; }
+.cl-saverow { justify-content: flex-end; }
+@media (max-width: 860px) { .cl-findlab { width: 100%; } }
+.cl { row-gap: 24px; }

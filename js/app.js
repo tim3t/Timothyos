@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.15.2";
+  var VERSION = "2.15.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3696,10 +3696,11 @@
   function logIdxPaint() { var el = $("clIdx"); if (el && state.screen === "log") el.innerHTML = logIdxHtml(); }
   function logFindBox() {
     if (!canLogSearch()) return "";
-    return '<div class="cl-find"><div class="cl-findhead"><label class="ov-sub" for="clFind">SEARCH THE LOG</label>' +
-      '<button type="button" class="chip sm" data-lact="findwhole" aria-pressed="' + lg.whole + '">EXACT WORD</button></div>' +
-      '<div class="cl-findrow"><input type="search" id="clFind" value="' + esc(lg.find ? lg.find.q : "") + '" placeholder="A word or phrase" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
-      '<button type="button" class="btn" data-lact="find">FIND</button></div><div id="clIdx">' + logIdxHtml() + "</div></div>";
+    /* one bar across the top of LOG (2.15.3) */
+    return '<section class="cl-find"><div class="cl-findrow"><label class="cl-findlab" for="clFind">SEARCH THE LOG</label>' +
+      '<input type="search" id="clFind" value="' + esc(lg.find ? lg.find.q : "") + '" placeholder="A word or phrase" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
+      '<button type="button" class="btn" data-lact="find">FIND</button><button type="button" class="chip sm" data-lact="findwhole" aria-pressed="' + lg.whole + '">EXACT WORD</button></div>' +
+      '<div id="clIdx">' + logIdxHtml() + "</div></section>";
   }
   /* Fill Search Text for older entries a batch at a time while the log is open. */
   function logIndexStart(pin) {
@@ -4118,13 +4119,14 @@
         (k2 === lg.day ? ' aria-current="date"' : "") + (k2 > today ? " disabled" : ' data-lday="' + k2 + '"') + ' aria-label="' + dLabel(dd) + (lg.dates[k2] ? ", written" : "") + '">' + dd.getDate() + "</button>";
     }
     var thisMo = mo.getFullYear() === new Date().getFullYear() && mo.getMonth() === new Date().getMonth();
+    html += logFindBox();
     html += '<section class="cl-cal">' + phead("CAPTAIN'S LOG", '<button type="button" class="chip sm cl-lockbtn" data-lact="lock">LOCK</button>', "chrome-c") +
       '<div class="cl-mon"><button type="button" class="chip" data-lmon="-1" aria-label="Previous month"' + (lg.pick ? " disabled" : "") + '><span class="tri l"></span></button>' +
       '<button type="button" class="cl-title" data-lact="pick" aria-expanded="' + lg.pick + '" aria-label="Jump to a month">' + MONL[mo.getMonth()] + " " + mo.getFullYear() + '<span class="tri ' + (lg.pick ? "u" : "d") + '"></span></button>' +
       '<button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo || lg.pick ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
       (lg.pick ? logPickerHtml() : '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>") +
       '<div class="cl-acts' + (canLogAsk() ? "" : " one") + '"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
-      (canLogAsk() ? '<button type="button" class="chip la-open" data-lact="aiopen">ASK CLAUDE</button>' : "") + "</div>" + logFindBox() +
+      (canLogAsk() ? '<button type="button" class="chip la-open" data-lact="aiopen">ASK CLAUDE</button>' : "") + "</div>" +
       '<button type="button" class="cl-link" data-lact="import">IMPORT A DIARY EXPORT</button></section>';
     html += '<section class="cl-page">';
     if (lg.imp) html += logImportHtml();
@@ -4146,7 +4148,7 @@
         else if (e.url) html += '<div class="cl-tools"><span class="cl-tools-gap"></span><a class="chip sm" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a></div>';
         html += '<textarea class="cl-text" id="clText-' + d + '" aria-label="Entry for ' + dLabel(dt) + '"' + (e && e.other ? " readonly" : "") + ' spellcheck="true" autocapitalize="sentences">' + esc(logText(d)) + "</textarea>" +
           '<div class="cl-err errtxt" id="clErr">' + (lg.saveErr || "") + "</div>" +
-          (e && e.other ? "" : '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="save">SAVE</button></div>');
+          (e && e.other ? "" : '<div class="btnrow cl-row cl-saverow"><button type="button" class="btn" data-lact="save">SAVE</button></div>');
       }
     }
     $("content").innerHTML = html + "</section></div>";
