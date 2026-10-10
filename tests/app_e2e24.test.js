@@ -169,6 +169,18 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   await p.click('[data-brate="5"]'); await p.click('[data-bdone]'); await p.waitForTimeout(1500);
   s = await stats();
   assert.deepStrictEqual(s.bsaves[s.bsaves.length - 1], { id: 'bk3', rating: 5 });
+  // 2.14.2: notes belong to their own book. Typed on one (saved or cancelled), they never show on the next.
+  await p.click('.lb-row[data-book="bk3"]'); await p.waitForTimeout(300);
+  await p.fill('#bkNotes', 'A slow, kind book.'); await p.click('[data-bdone]'); await p.waitForTimeout(1500);
+  assert.deepStrictEqual((await stats()).bsaves.slice(-1)[0], { id: 'bk3', notes: 'A slow, kind book.' });
+  await p.click('.lb-row[data-book="bk4"]'); await p.waitForTimeout(300);
+  assert.strictEqual(await p.inputValue('#bkNotes'), '', 'the next book starts with its own (empty) notes');
+  await p.fill('#bkNotes', 'never saved'); await p.click('#detailClose'); await p.waitForTimeout(300);
+  await p.click('.lb-row[data-book="bk3"]'); await p.waitForTimeout(300);
+  assert.strictEqual(await p.inputValue('#bkNotes'), 'A slow, kind book.', 'and a cancelled note stays with nobody');
+  await p.click('[data-brate="3"]');
+  assert.strictEqual(await p.inputValue('#bkNotes'), 'A slow, kind book.', 'redrawing the sheet keeps its own notes');
+  await p.click('#detailClose'); await p.waitForTimeout(300);
   // remove asks twice
   await p.click('[data-shelf="want"]'); await p.click('.lb-book[data-book="bk2"]'); await p.waitForTimeout(300);
   await p.click('[data-bremove]'); assert.ok((await txt(p, '[data-bremove]')).includes('TAP AGAIN'));

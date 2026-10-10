@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.14.2 · 2026-10-10
+- **Fixed: a book's notes showing on the next book.** After writing notes on one book in LIBRARY, opening another showed the same notes (and DONE could have saved them to it). Each book now opens with its own notes. Notes you cancel go nowhere.
+
 ## 2.14.1 · 2026-10-09
 - **No seam when you tap BRIDGE.** The tap's light-up brightened the corner alone, so for a moment you could see where it meets the top bar. The corner, its inner curve and the bar now light up together, as one piece.
 

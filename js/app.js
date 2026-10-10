@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.14.1";
+  var VERSION = "2.14.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4836,6 +4836,7 @@
     var b = bookById(id); if (!b) return;
     lb.draft = { id: id, status: b.status, started: b.started || "", finished: b.finished || "", rating: b.rating || 0, notes: b.notes || "" };
     lb.removeArm = false;
+    $("detailSheet").innerHTML = "";   /* drawBook() keeps what's typed in Notes; never carry over the last book's (2.14.2) */
     $("detailSheet").className = "sheet lb-sheet";
     $("detailSheet").style.setProperty("--c", "var(--chrome-b)");
     drawBook();
