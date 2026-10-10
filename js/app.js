@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.15.1";
+  var VERSION = "2.15.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3696,10 +3696,10 @@
   function logIdxPaint() { var el = $("clIdx"); if (el && state.screen === "log") el.innerHTML = logIdxHtml(); }
   function logFindBox() {
     if (!canLogSearch()) return "";
-    return '<div class="cl-find"><label class="ov-sub" for="clFind">SEARCH THE LOG</label>' +
+    return '<div class="cl-find"><div class="cl-findhead"><label class="ov-sub" for="clFind">SEARCH THE LOG</label>' +
+      '<button type="button" class="chip sm" data-lact="findwhole" aria-pressed="' + lg.whole + '">EXACT WORD</button></div>' +
       '<div class="cl-findrow"><input type="search" id="clFind" value="' + esc(lg.find ? lg.find.q : "") + '" placeholder="A word or phrase" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
-      '<button type="button" class="btn" data-lact="find">FIND</button></div>' +
-      '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="findwhole" aria-pressed="' + lg.whole + '">EXACT WORD</button></div><div id="clIdx">' + logIdxHtml() + "</div></div>";
+      '<button type="button" class="btn" data-lact="find">FIND</button></div><div id="clIdx">' + logIdxHtml() + "</div></div>";
   }
   /* Fill Search Text for older entries a batch at a time while the log is open. */
   function logIndexStart(pin) {
@@ -3911,7 +3911,7 @@
     var e = lg.entries[d];
     return e && e.saved ? "SAVED " + esc(stamp(Date.parse(e.saved))) : e ? "IN NOTION" : "";
   }
-  function logStatus() { var el = $("clStatus"); if (el && lg.day) el.textContent = logStatusText(lg.day); var er = $("clErr"); if (er) er.textContent = lg.saveErr || ""; }
+  function logStatus() { var el = $("clStatus"), t = lg.day ? logStatusText(lg.day) : ""; if (el && lg.day) el.textContent = t ? " · " + t : ""; var er = $("clErr"); if (er) er.textContent = lg.saveErr || ""; }
   function onLogInput(d, value) {
     var server = lg.entries[d] ? lg.entries[d].text : "";
     if (logNorm(value) === server) delete logDrafts[d]; else logDrafts[d] = { text: value, at: Date.now() };
@@ -4118,21 +4118,21 @@
         (k2 === lg.day ? ' aria-current="date"' : "") + (k2 > today ? " disabled" : ' data-lday="' + k2 + '"') + ' aria-label="' + dLabel(dd) + (lg.dates[k2] ? ", written" : "") + '">' + dd.getDate() + "</button>";
     }
     var thisMo = mo.getFullYear() === new Date().getFullYear() && mo.getMonth() === new Date().getMonth();
-    html += '<section class="cl-cal">' + phead("CAPTAIN'S LOG", "OPEN", "chrome-c") +
+    html += '<section class="cl-cal">' + phead("CAPTAIN'S LOG", '<button type="button" class="chip sm cl-lockbtn" data-lact="lock">LOCK</button>', "chrome-c") +
       '<div class="cl-mon"><button type="button" class="chip" data-lmon="-1" aria-label="Previous month"' + (lg.pick ? " disabled" : "") + '><span class="tri l"></span></button>' +
       '<button type="button" class="cl-title" data-lact="pick" aria-expanded="' + lg.pick + '" aria-label="Jump to a month">' + MONL[mo.getMonth()] + " " + mo.getFullYear() + '<span class="tri ' + (lg.pick ? "u" : "d") + '"></span></button>' +
       '<button type="button" class="chip" data-lmon="1" aria-label="Next month"' + (thisMo || lg.pick ? " disabled" : "") + '><span class="tri r"></span></button></div>' +
       (lg.pick ? logPickerHtml() : '<div class="cl-grid">' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return '<span class="cl-dow">' + x + "</span>"; }).join("") + cells + "</div>") +
-      '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
-      '<button type="button" class="chip" data-lact="lock">LOCK</button><button type="button" class="chip" data-lact="import">IMPORT</button>' +
-      (canLogAsk() ? '<button type="button" class="chip la-open" data-lact="aiopen">ASK CLAUDE</button>' : "") + "</div>" + logFindBox() + "</section>";
+      '<div class="cl-acts' + (canLogAsk() ? "" : " one") + '"><button type="button" class="chip" data-lact="today"' + (lg.day === today && thisMo ? " disabled" : "") + '>TODAY</button>' +
+      (canLogAsk() ? '<button type="button" class="chip la-open" data-lact="aiopen">ASK CLAUDE</button>' : "") + "</div>" + logFindBox() +
+      '<button type="button" class="cl-link" data-lact="import">IMPORT A DIARY EXPORT</button></section>';
     html += '<section class="cl-page">';
     if (lg.imp) html += logImportHtml();
     else if (lg.ai && lg.ai.view) html += logAiHtml();
     else if (lg.find && lg.find.view) html += logFindHtml();
     else {
       var d = lg.day, dt = parseYmd(d), e = lg.entries[d], loading = lg.dates[d] && !(d in lg.entries), intent = (lsGet(LS_LOG) || {})[d];
-      html += phead(DOWL[dt.getDay()], p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear() + ' · <span id="clStatus">' + logStatusText(d) + "</span>", "chrome-c");
+      html += phead(DOWL[dt.getDay()], p2(dt.getDate()) + " " + MON[dt.getMonth()] + " " + dt.getFullYear() + '<span id="clStatus">' + (logStatusText(d) ? " · " + logStatusText(d) : "") + "</span>", "chrome-c");
       if (lg.ai && !lg.ai.view) html += '<div class="cl-findbar"><button type="button" class="chip" data-lact="aiback"><span class="tri l"></span>ASK THE LOG</button><span class="cl-fbt">BACK TO THE ANSWER</span></div>';
       else html += logFindBar(d);
       if (intent) html += '<div class="cl-intent"><span>INTENT</span>' + esc(intent) + "</div>";
@@ -4141,11 +4141,12 @@
       else {
         var b = bearings();
         if (e && e.other) html += '<div class="cl-note muted">This page also holds things the LOG can\'t show (a photo or table, say). Read it here; change it in Notion.</div>';
+        if (!(e && e.other)) html += '<div class="cl-tools">' + bulChip("clText-" + d) + (b.length ? '<button type="button" class="chip sm" data-lact="bearings">+ BEARINGS</button>' : "") +
+          '<span class="cl-tools-gap"></span>' + (e && e.url ? '<a class="chip sm" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
+        else if (e.url) html += '<div class="cl-tools"><span class="cl-tools-gap"></span><a class="chip sm" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a></div>';
         html += '<textarea class="cl-text" id="clText-' + d + '" aria-label="Entry for ' + dLabel(dt) + '"' + (e && e.other ? " readonly" : "") + ' spellcheck="true" autocapitalize="sentences">' + esc(logText(d)) + "</textarea>" +
           '<div class="cl-err errtxt" id="clErr">' + (lg.saveErr || "") + "</div>" +
-          '<div class="btnrow cl-row">' + (e && e.other ? "" : '<button type="button" class="btn" data-lact="save">SAVE</button>' + bulChip("clText-" + d)) +
-          (b.length && !(e && e.other) ? '<button type="button" class="btn ghost" data-lact="bearings">+ BEARINGS</button>' : "") +
-          (e && e.url ? '<a class="btn ghost" href="' + esc(e.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
+          (e && e.other ? "" : '<div class="btnrow cl-row"><button type="button" class="btn" data-lact="save">SAVE</button></div>');
       }
     }
     $("content").innerHTML = html + "</section></div>";
@@ -4487,7 +4488,7 @@
     if (lines.length > 1) el.setSelectionRange(a, a + next.length);
   }
   function bulChip(target) {
-    return '<button type="button" class="chip bulchip" data-bul="' + target + '" aria-label="Bulleted list">• LIST</button>';
+    return '<button type="button" class="chip sm bulchip" data-bul="' + target + '" aria-label="Bulleted list">• LIST</button>';
   }
   /* The chip acts on pointerdown and keeps the box's focus, so the keyboard stays up. */
   $("content").addEventListener("pointerdown", function (e) {

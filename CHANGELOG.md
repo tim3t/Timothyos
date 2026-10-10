@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.15.2 · 2026-10-10
+- **A tidier LOG.** Fewer, better-placed buttons, in three sizes with one job each:
+  - **LOCK** sits at the right end of the CAPTAIN'S LOG heading.
+  - **TODAY** and **ASK CLAUDE** share one even row under the calendar.
+  - **EXACT WORD** is a small switch on the SEARCH THE LOG line; the field and **FIND** are the same height.
+  - **IMPORT** is a quiet link at the bottom (it's rarely needed).
+  - Writing tools (**• LIST**, **+ BEARINGS**, **OPEN IN NOTION**) sit in a slim bar above the page; **SAVE** stands alone below it.
+
 ## 2.15.1 · 2026-10-10 (bridge 1.21.0)
 - **LEDGER shows current figures.** Opening LEDGER now asks YNAB itself whenever the iPad's copy is more than a minute old. Before, the bridge kept its own copy of YNAB for 10 minutes and the iPad didn't ask again for 5, so you often saw an older balance.
 - **Pull down to refresh** at the top of LEDGER (only there): pull, let go at RELEASE TO REFRESH, and it asks YNAB at once. **REFRESH** beside OPEN YNAB does the same.

@@ -70,7 +70,7 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   let s = await stats();
   assert.strictEqual(s.log['2026-10-07'], 'Quiet evening by the pond.\n\nBees calm.');
   assert.ok(!(await stored(p)).includes('Bees calm'), 'draft gone once saved');
-  assert.ok((await txt(p, '#clStatus')).startsWith('SAVED'));
+  assert.ok((await txt(p, '#clStatus')).startsWith('· SAVED'));
   assert.strictEqual(await p.evaluate(() => document.activeElement.id), 'clText-2026-10-07', 'still writing');
   // + BEARINGS adds the guiding words as a closing block
   await p.click('[data-lact="bearings"]');

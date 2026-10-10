@@ -1418,7 +1418,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .rv-lab { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
 .rv-lab .ov-sub { flex: 1; min-width: 0; }
 .rv-lab .bulchip { margin: 0 0 6px; }
-.bulchip { min-height: 36px; padding: 0 14px; font-size: 13px; letter-spacing: .14em; }
+
 /* ---------- Log Ask (2.15): Claude on the entries you pick ---------- */
 .la-scope { margin: 2px 0 6px; }
 .la-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
@@ -1450,3 +1450,18 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
   font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); transition: opacity .15s; }
 .ptr.ready { color: var(--chrome-b); }
 .ptr.busy { color: var(--chrome-b); transition: height .2s, opacity .15s; }
+/* ---------- LOG controls, tidied (2.15.2): one size per job ---------- */
+/* small (40px) for tools and toggles, the standard chip for screen actions, the big button for SAVE and FIND */
+.chip.sm { min-height: 40px; padding: 0 14px; font-size: 13px; letter-spacing: .14em; border-radius: 20px; display: inline-flex; align-items: center; text-decoration: none; }
+.cl-cal .phead .meta .cl-lockbtn { margin-left: 4px; color: var(--fg); }
+.cl-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.cl-acts.one { grid-template-columns: 1fr; }
+.cl-acts .chip { width: 100%; justify-content: center; }
+.cl-find { margin-top: 28px; }
+.cl-findhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.cl-findhead .ov-sub { margin: 0; }
+.cl-findrow input { min-height: 56px; }
+.cl-link { display: block; margin: 26px 0 0; padding: 8px 0; border: 0; background: none; color: var(--dim); font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.cl-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.cl-tools-gap { flex: 1; }
+.rv-lab .bulchip { margin: 0 0 6px; }
