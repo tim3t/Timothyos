@@ -1541,3 +1541,6 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
   .nas-bar .nas-ctl { grid-column: 1 / -1; justify-content: center; }
   .nas-opts { grid-template-columns: minmax(0, 1fr); }
 }
+.nas-tools .nas-hide { margin-left: auto; }
+.nas-hidlist { display: grid; gap: 6px; }
+.nas-hid { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 6px; }

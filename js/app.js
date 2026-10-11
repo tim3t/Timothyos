@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.16.0";
+  var VERSION = "2.16.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5181,12 +5181,15 @@
   var LS_PLAYS = "tos.plays.v1";        /* { path: { p: seconds, d: duration, done, at } } */
   var LS_NASDIR = "tos.nasdir.v1";      /* folder last open in Storage */
   var LS_NASPREF = "tos.naspref.v1";    /* { speed, auto } */
+  var LS_NASHIDE = "tos.nashide.v1";    /* folders hidden from Storage on this iPad (unhide in Systems) */
   var AUDIO_EXT = /\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac)$/i;
   var NAS_HIDE = ["cdrom", "floppy", "usb"];   /* empty folders built into the relay's image, not NAS folders */
   var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
   var plays = lsGet(LS_PLAYS) || {};
   var nasPref = Object.assign({ speed: 1, auto: true }, lsGet(LS_NASPREF) || {});
   var pl = { path: null, list: [], el: null, lastSave: 0, ready: false };
+  function nasHidden() { return lsGet(LS_NASHIDE) || []; }
+  function isHidden(path) { return nasHidden().indexOf(path) > -1; }
   function nasConf() { var c = lsGet(LS_NAS); return c && c.url && c.token ? c : null; }
   function nasBase() { return nasConf().url.replace(/\/+$/, ""); }
   function encPath(p) { return p.split("/").map(encodeURIComponent).join("/"); }
@@ -5393,7 +5396,7 @@
     var host = nasBase().replace(/^https?:\/\//, "");
     var html = '<section class="nas-status"><div class="nas-card ' + (nas.ok === false ? "bad" : "ok") + '"><span class="pill ' + (nas.ok === false ? "bad" : nas.ok ? "ok" : "") + '">' + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "UNREACHABLE") : nas.ok ? "ONLINE" : "CHECKING") + "</span>" +
       '<span class="nas-host"><b>NAS</b><small>' + esc(host) + " · read-only</small></span></div>" + (nas.err && nas.ok === false ? '<div class="err">' + esc(nas.err.msg) + '</div><div class="btnrow"><button type="button" class="btn sm" data-nas="retry">TRY AGAIN</button></div>' : "") + "</section>";
-    html += "<section>" + phead("FOLDERS", root ? root.items.filter(function (x) { return x.dir; }).length + " SHARED WITH TIMOTHYOS" : "") + (root ? '<div class="nas-shares">' + root.items.filter(function (x) { return x.dir; }).map(function (x) {
+    html += "<section>" + phead("FOLDERS", root ? root.items.filter(function (x) { return x.dir && !isHidden(x.path); }).length + " SHARED WITH TIMOTHYOS" : "") + (root ? '<div class="nas-shares">' + root.items.filter(function (x) { return x.dir && !isHidden(x.path); }).map(function (x) {
       return '<button type="button" class="nas-share" data-nasdir="' + esc(x.path) + '"><b>' + esc(x.name.toUpperCase()) + "</b><small>Open ▸</small></button>";
     }).join("") + "</div>" : '<div class="empty">' + (nas.ok === false ? "Folders appear once the NAS answers." : "Asking the NAS…") + "</div>") + "</section>";
     var cont = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30; }).sort(function (a, b) { return plays[b].at - plays[a].at; }).slice(0, 6);
@@ -5408,7 +5411,7 @@
     if ((!l || Date.now() - l.at > 60000) && !nas.inflight[dir]) nasLoad(dir, false);
     var html = crumbs(dir);
     if (!l) return html + '<div class="empty">' + (nas.err && nas.ok === false ? esc(nas.err.msg) : nas.err && nas.err.code === "http_404" ? "That folder isn't there any more." : "Opening the folder…") + "</div>";
-    var dirs = l.items.filter(function (x) { return x.dir; }), files = l.items.filter(function (x) { return !x.dir; });
+    var dirs = l.items.filter(function (x) { return x.dir && !isHidden(x.path); }), files = l.items.filter(function (x) { return !x.dir; });
     var audio = files.filter(function (x) { return AUDIO_EXT.test(x.name); });
     var q = nas.q.trim().toLowerCase();
     var match = function (x) { return !q || x.name.toLowerCase().indexOf(q) > -1; };
@@ -5423,7 +5426,8 @@
     var order = audio.slice().sort(sorter).map(function (x) { return x.path; });
     html += '<div class="nas-tools"><input type="search" id="nasQ" placeholder="Search this folder" autocomplete="off" enterkeyhint="search" aria-label="Search this folder" value="' + esc(nas.q) + '">' +
       (audio.length ? '<div class="chips">' + [["all", "ALL"], ["unplayed", "UNPLAYED"], ["partial", "IN PROGRESS"]].map(function (f) { return '<button type="button" class="chip sm" data-nasfilter="' + f[0] + '" aria-pressed="' + (nas.filter === f[0]) + '">' + f[1] + "</button>"; }).join("") + "</div>" : "") +
-      '<div class="chips">' + [["name", "A TO Z"], ["newest", "NEWEST"]].map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (nas.sort === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div></div>";
+      '<div class="chips">' + [["name", "A TO Z"], ["newest", "NEWEST"]].map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (nas.sort === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div>" +
+      '<button type="button" class="chip sm nas-hide" data-nas="hide">HIDE FOLDER</button></div>';
     var dshown = dirs.filter(match).sort(byName);
     if (!dshown.length && !shown.length) html += '<div class="empty">' + (q || nas.filter !== "all" ? "Nothing here matches." : "This folder is empty.") + "</div>";
     else html += '<div class="nas-list" data-order="' + esc(JSON.stringify(order)) + '">' + dshown.map(function (x) { return fileRow(x); }).join("") + shown.map(function (x) { return fileRow(x); }).join("") + "</div>";
@@ -5476,6 +5480,11 @@
     else if (k === "fwd") skip(30);
     else if (k === "open") { nas.view = "now"; render(false); renderHeader(); }
     else if (k === "systems") go("systems");
+    else if (k === "hide" && nas.dir !== "/") {
+      var hid = nasHidden(); if (hid.indexOf(nas.dir) < 0) hid.push(nas.dir); lsSet(LS_NASHIDE, hid);
+      toast("Hidden: " + baseName(nas.dir) + ". Unhide in Systems → STORAGE");
+      nas.dir = parentOf(nas.dir); nas.q = ""; nas.view = nas.dir === "/" ? "home" : "browse"; lsSet(LS_NASDIR, nas.dir); render(false); renderHeader();
+    }
     else if (k === "retry") { nas.err = null; nas.ok = null; nasLoad(nas.view === "browse" ? nas.dir : "/", true); render(true); }
     else if (k === "markplayed" && pl.path) { pl.ready = false; if (pl.el) pl.el.pause(); plays[pl.path] = { p: 0, d: (playOf(pl.path) || {}).d || (pl.el && pl.el.duration) || 0, done: true, at: Date.now() }; savePlays(); toast("Marked played"); var nx = nextUp()[0]; if (nasPref.auto && nx) playPath(nx.path, pl.list); else render(true); }
     else if (k === "restart" && pl.el) { pl.el.currentTime = 0; pl.el.play().catch(function () {}); }
@@ -5506,6 +5515,9 @@
       '<input type="password" id="nasTok" placeholder="' + (c ? "Token (leave blank to keep)" : "Relay token") + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="nassave">SAVE AND TEST</button>' + (c ? '<button type="button" class="btn ghost" data-act="nasforget">' + (Date.now() - nas.armClear < 4000 && nas.armWhat === "forget" ? "TAP AGAIN TO FORGET" : "FORGET") + "</button>" : "") + "</div>" +
       '<div class="err" id="nasErr" role="alert">' + (nas.err && nas.ok === false ? esc(nas.err.msg) : "") + "</div></dd>" +
+      "<dt>HIDDEN FOLDERS</dt><dd>" + (nasHidden().length ? '<div class="nas-hidlist">' + nasHidden().map(function (h) {
+        return '<span class="nas-hid"><span>' + esc(h.replace(/^\//, "").split("/").join(" ▸ ")) + '</span><button type="button" class="btn sm ghost" data-nasunhide="' + esc(h) + '">UNHIDE</button></span>';
+      }).join("") + "</div>" : '<span class="muted">None. HIDE FOLDER inside a folder keeps it off Storage on this iPad.</span>') + "</dd>" +
       "<dt>LISTENING</dt><dd>" + n + (n === 1 ? " file" : " files") + ' with a saved place <button type="button" class="btn sm ghost" data-act="nasplays">' + (Date.now() - nas.armClear < 4000 && nas.armWhat === "plays" ? "TAP AGAIN TO CLEAR" : "CLEAR") + "</button></dd>" +
       '</dl><small class="muted">The relay is read-only and reachable only through Tailscale. The address and token stay on this iPad. Where you stopped in each file is kept here too, never sent anywhere.</small></section>';
   }
@@ -5520,6 +5532,7 @@
       .catch(function () { /* the section shows why */ }).then(function () { render(true); });
   }
   function storageSysClick(b) {
+    if (b.dataset.nasunhide) { lsSet(LS_NASHIDE, nasHidden().filter(function (h) { return h !== b.dataset.nasunhide; })); toast("Back on Storage: " + baseName(b.dataset.nasunhide)); render(true); return true; }
     var a = b.dataset.act;
     if (a === "nassave") { nasSave(); return true; }
     if (a === "nasforget" || a === "nasplays") {

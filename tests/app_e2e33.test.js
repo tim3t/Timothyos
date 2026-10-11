@@ -114,6 +114,20 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.screenshot({ path: D + 'storage-phone.png', fullPage: false });
   await p.setViewportSize({ width: 1180, height: 820 });
 
+  // ---- hide a folder (kept on this iPad), unhide from Systems
+  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await p.click('.nas-share >> text=MUSIC'); await p.click('.nas-row >> text=Album'); await p.waitForSelector('[data-nas="hide"]');
+  await p.click('[data-nas="hide"]'); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '#toast')).includes('Hidden: Album'));
+  assert.strictEqual(await txt(p, '#title'), 'MUSIC', 'back in the parent');
+  assert.ok(!(await txt(p, '#content')).includes('Album'), 'gone from the list');
+  await p.click('#status'); await p.waitForSelector('#sec-storage');
+  assert.ok((await txt(p, '#sec-storage')).includes('Music ▸ Album'));
+  await p.click('[data-nasunhide="/Music/Album"]'); await p.waitForTimeout(200);
+  assert.ok((await txt(p, '#sec-storage')).includes('HIDDEN FOLDERS None'));
+  await p.click('[data-screen="storage"].nav'); await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await p.click('.nas-share >> text=MUSIC'); await p.waitForSelector('.nas-row >> text=Album');
+
   // ---- forget: two taps, and playback stops
   await p.click('#status'); await p.waitForSelector('#sec-storage');
   await p.click('[data-act="nasforget"]'); assert.ok((await txt(p, '#sec-storage')).includes('TAP AGAIN TO FORGET'));

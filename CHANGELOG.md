@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.16.1 · 2026-10-11
+- **STORAGE: hide a folder.** HIDE FOLDER inside any folder keeps it off Storage (handy for folders you never play from). Hidden folders are listed under **Systems → STORAGE**, each with UNHIDE. Saved on this iPad; nothing changes on the NAS.
+
 ## 2.16.0 · 2026-10-11
 - **New station: STORAGE.** Browse folders on the NAS and play podcasts from them, through a small read-only relay on the NAS reached over Tailscale (setup in the README under Storage).
   - **Folders** on the front page; inside a folder, search, filters for unplayed and in progress, and A TO Z or NEWEST.
