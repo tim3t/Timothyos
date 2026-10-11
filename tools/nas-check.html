@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NAS Check</title>
+<meta name="robots" content="noindex">
+<style>
+/* One-off diagnostic: can this site (the TimothyOS origin) read the NAS over WebDAV?
+   Nothing typed here is stored or sent anywhere except the NAS address you enter. */
+:root { color-scheme: dark; --bg: #07080b; --panel: #13141b; --line: #2a2c38; --fg: #efe8dc; --dim: #9d978c; --ink: #0a0a0d;
+  --chrome-b: #dcc6a0; --store: #b7a4e0; --ok: #7bd88f; --warn: #f3c44b; --bad: #ff7a7a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.4 "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif; padding: 20px 16px 40px; }
+main { max-width: 760px; margin: 0 auto; display: grid; gap: 18px; }
+h1 { margin: 0; font: 600 34px/1 "Antonio", "Arial Narrow", sans-serif; letter-spacing: .06em; color: var(--store); }
+p { margin: 0; color: var(--dim); }
+label { display: grid; gap: 6px; font-size: 13px; letter-spacing: .14em; color: var(--dim); }
+input { font: inherit; color: var(--fg); background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 12px 14px; width: 100%; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+button { font: 600 18px "Antonio", "Arial Narrow", sans-serif; letter-spacing: .12em; min-height: 56px; border: 0; border-radius: 28px; background: var(--chrome-b); color: var(--ink); padding: 0 26px; justify-self: start; }
+button:disabled { opacity: .5; }
+ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+li { background: var(--panel); border-radius: 0 18px 18px 0; border-left: 8px solid var(--line); padding: 12px 14px; }
+li b { display: block; }
+li small { color: var(--dim); display: block; margin-top: 4px; overflow-wrap: anywhere; }
+li.ok { border-color: var(--ok); } li.bad { border-color: var(--bad); } li.warn { border-color: var(--warn); }
+.verdict { font-size: 19px; padding: 14px 16px; border-radius: 0 18px 18px 0; background: var(--panel); border-left: 8px solid var(--store); }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>NAS CHECK</h1>
+  <p>Tests whether TimothyOS can read the NAS through WebDAV. Use the read-only user made for TimothyOS, not your own account. The password is kept only while this page is open and goes only to the address below.</p>
+  <form id="f" autocomplete="off">
+    <div style="display: grid; gap: 12px">
+      <label for="addr">NAS WEBDAV ADDRESS<input id="addr" value="https://192.168.2.88:5006" inputmode="url" autocapitalize="off" spellcheck="false"></label>
+      <label for="path">FOLDER PATH (START WITH / TO SEE THE TOP LEVEL)<input id="path" value="/" autocapitalize="off" spellcheck="false"></label>
+      <div class="row">
+        <label for="user">USER<input id="user" autocapitalize="off" spellcheck="false"></label>
+        <label for="pass">PASSWORD<input id="pass" type="password"></label>
+      </div>
+      <button id="go" type="submit">RUN CHECK</button>
+    </div>
+  </form>
+  <ol id="out"></ol>
+  <div class="verdict" id="verdict" hidden></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function step(cls, title, detail) { $("out").insertAdjacentHTML("beforeend", '<li class="' + cls + '"><b>' + esc(title) + "</b>" + (detail ? "<small>" + esc(detail) + "</small>" : "") + "</li>"); }
+  function timed(p, ms) { return Promise.race([p, new Promise(function (_, no) { setTimeout(function () { no(new Error("timeout")); }, ms); })]); }
+  function b64(s) { return btoa(unescape(encodeURIComponent(s))); }
+
+  $("f").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var base = $("addr").value.trim().replace(/\/+$/, ""), path = "/" + $("path").value.trim().replace(/^\/+/, "");
+    var url = base + path.split("/").map(encodeURIComponent).join("/");
+    $("out").innerHTML = ""; $("verdict").hidden = true; $("go").disabled = true;
+    var verdict = function (t) { $("verdict").textContent = t; $("verdict").hidden = false; $("go").disabled = false; };
+
+    if (/^http:/i.test(base)) {
+      step("bad", "Plain http address", "This site is https, so Safari blocks plain http. Use the https port (5006).");
+      return verdict("RESULT: use the https address and run again.");
+    }
+    /* 1. Can Safari reach the NAS at all, and does it accept its certificate? */
+    timed(fetch(base + "/", { mode: "no-cors", cache: "no-store" }), 8000).then(function () {
+      step("ok", "1 · NAS reachable over https", "The certificate was accepted.");
+      /* 2. Can this site read it? Needs the NAS to allow cross-site requests (CORS). */
+      return timed(fetch(url, { method: "PROPFIND", headers: { "Depth": "1", "Authorization": "Basic " + b64($("user").value + ":" + $("pass").value) }, cache: "no-store" }), 10000).then(function (res) {
+        if (res.status === 401 || res.status === 403) {
+          step("warn", "2 · NAS answered, but refused the login (" + res.status + ")", "Cross-site access works. Check the user name, password, and that the user can read this folder.");
+          return verdict("RESULT: GOOD NEWS. The NAS allows TimothyOS. Only the login needs fixing.");
+        }
+        if (res.status !== 207 && !res.ok) {
+          step("warn", "2 · NAS answered with status " + res.status, "Cross-site access works, but this path may not exist. Try / first.");
+          return verdict("RESULT: GOOD NEWS. The NAS allows TimothyOS. Adjust the folder path.");
+        }
+        return res.text().then(function (xml) {
+          var doc = new DOMParser().parseFromString(xml, "application/xml");
+          var hrefs = Array.prototype.slice.call(doc.getElementsByTagNameNS("*", "href")).map(function (h) { return decodeURIComponent(h.textContent); });
+          step("ok", "2 · Folder listed (" + Math.max(0, hrefs.length - 1) + " items)", hrefs.slice(1, 13).map(function (h) { return h.replace(/\/$/, "").split("/").pop(); }).join(" · ") + (hrefs.length > 13 ? " · …" : ""));
+          verdict("RESULT: WORKS. TimothyOS can browse the NAS directly. No relay needed.");
+        });
+      }).catch(function () {
+        step("bad", "2 · Blocked by the browser", "The NAS is reachable but doesn't allow other sites to read it (CORS). This is expected on most NAS systems.");
+        verdict("RESULT: needs the small relay in Docker. Nothing is wrong with the NAS.");
+      });
+    }).catch(function (err) {
+      step("bad", "1 · Couldn't reach the NAS over https", err.message === "timeout" ? "No answer in 8 seconds. Is the iPad on home Wi-Fi?" : "Usually the NAS certificate. Open the address in a Safari tab, accept the warning, then run again.");
+      verdict("RESULT: not reachable yet. See step 1.");
+    });
+  });
+})();
+</script>
+</body>
+</html>

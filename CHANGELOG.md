@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.15.4 · 2026-10-10
+- **NAS check page** at `tools/nas-check.html`: a one-off test of whether TimothyOS can read the NAS over WebDAV, ahead of the Storage station. Nothing typed there is stored.
+- **Offline copy stays the app.** Opening another page on the site (like the NAS check) no longer replaces the saved offline copy of TimothyOS.
+
 ## 2.15.3 · 2026-10-10
 - **LOG: search runs across the top.** SEARCH THE LOG is now one bar above the calendar and the page, with FIND and EXACT WORD beside the field.
 - **SAVE lines up with the right edge of the entry box.**

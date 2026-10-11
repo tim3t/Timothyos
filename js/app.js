@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.15.3";
+  var VERSION = "2.15.4";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";

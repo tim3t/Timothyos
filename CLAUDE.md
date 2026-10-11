@@ -138,6 +138,12 @@ Chrome (2.8): `--chrome-a` orchid, `--chrome-b` tan, `--chrome-c` lavender, `--c
 
 App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8); the Hobbies calendar is still standby.
 
+## Storage (NAS), in planning
+- NAS: UGREEN DXP2800, UGOS Pro 1.18.1. WebDAV is on (https 5006). Docker is in App Center; Tailscale is not (run it in Docker if needed).
+- A web page can't speak SMB, so the app reads the NAS over HTTPS: WebDAV directly if the NAS allows cross-site requests (CORS), otherwise a small read-only relay in Docker.
+- `tools/nas-check.html` tests this from the app's own origin. Use a dedicated read-only NAS user; never put NAS credentials in the repo, chat or tests.
+- `sw.js` caches only the app's own page as the offline copy; other pages on the site pass through.
+
 ## Known quirks (already handled; don't "fix" them away)
 
 - **No zoom, ever (2.7.2):** Safari zoomed the whole app on a quick double tap (a PIN with a repeated digit). `touch-action: manipulation` on html, body and controls turns double-tap zoom off without delaying taps; `gesturestart` and two-finger `touchmove` are cancelled; the viewport has `maximum-scale=1`. Don't add a "double-tap guard" that swallows the second touchend: it would drop the repeated digit. `app_e2e22` checks all of it.
