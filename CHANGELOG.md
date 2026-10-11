@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.17.1 · 2026-10-11
+- **The playing pill can be minimized or closed.**
+  - **›** shrinks it to a play button at the edge (remembered); **‹** brings it back.
+  - **✕** pauses and puts it away until something plays again. Your place is kept under STORAGE → CONTINUE LISTENING.
+  - Pages leave room at the bottom while the pill shows, so it no longer covers their last buttons.
+
 ## 2.17.0 · 2026-10-11
 - **STORAGE shows artwork and real titles.**
   - **Episode tags:** when an MP3 starts playing, its title, show and artwork are read from the file itself (ID3 tags). They show on the player, in the folder and on the lock screen. Titles are remembered on this iPad.

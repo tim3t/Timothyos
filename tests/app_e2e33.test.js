@@ -65,6 +65,23 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   assert.ok(await p.isVisible('#nasMini'), 'pill on other screens');
   assert.ok((await txt(p, '#nasMini')).includes('ep 1'));
   await p.screenshot({ path: D + 'storage-pill.png' });
+  // ---- the pill: room at the bottom of the page, minimize (remembered), close
+  assert.strictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('content')).paddingBottom), '96px', 'room for the pill');
+  await p.click('#nasMini [data-nas="min"]'); await p.waitForTimeout(150);
+  assert.ok(await p.evaluate(() => document.getElementById('nasMini').classList.contains('min')));
+  assert.ok(!(await p.isVisible('#nasMini .nas-mt')) && await p.isVisible('#nasMini [data-nas="toggle"]'), 'just the play button');
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.naspref.v1')).mini), true);
+  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(300);
+  assert.ok(await p.evaluate(() => document.getElementById('nasMini').classList.contains('min')), 'stays minimized across screens');
+  await p.click('#nasMini [data-nas="max"]'); await p.waitForTimeout(150);
+  await p.click('#nasMini [data-nas="close"]'); await p.waitForTimeout(200);
+  assert.ok(!(await p.isVisible('#nasMini')) && (await cur(p)).paused, 'closed: paused and put away');
+  assert.ok((await txt(p, '#toast')).includes('CONTINUE LISTENING'));
+  assert.strictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('content')).paddingBottom), '6px', 'room given back');
+  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('#nasBar');
+  await p.click('#nasBar [data-nas="toggle"]'); await p.waitForTimeout(300);
+  await p.click('[data-screen="today"].nav'); await p.waitForTimeout(300);
+  assert.ok(await p.isVisible('#nasMini'), 'playing again brings it back');
   await p.click('#nasMini [data-nas="open"]'); await p.waitForSelector('.nas-now');
   assert.ok(!(await p.isVisible('#nasMini')), 'no pill on Storage itself');
   await p.screenshot({ path: D + 'storage-now.png' });

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.17.0";
+  var VERSION = "2.17.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5359,7 +5359,7 @@
       pl.ready = true; markPlay(false); paintPlayer();
     });
     a.addEventListener("timeupdate", function () { if (Date.now() - pl.lastSave > 10000) markPlay(false); paintPlayer(true); sleepCheck(); });
-    a.addEventListener("play", function () { paintPlayer(); mediaState(); });
+    a.addEventListener("play", function () { pl.closed = false; paintPlayer(); mediaState(); });
     a.addEventListener("pause", function () { markPlay(false); paintPlayer(); mediaState(); });
     a.addEventListener("seeked", function () { markPlay(false); });
     a.addEventListener("ended", function () {
@@ -5396,7 +5396,7 @@
     if (pl.path === path) { if (a.paused) a.play().catch(function () {}); return; }
     var r = playOf(path);
     if (r && r.done) { r.done = false; r.p = 0; savePlays(); }   /* playing a finished one starts it again */
-    pl.path = path; pl.list = list || pl.list; pl.ready = false;
+    pl.path = path; pl.list = list || pl.list; pl.ready = false; pl.closed = false;
     a.src = nasBase() + encPath(path) + "?k=" + encodeURIComponent(c.token);
     a.playbackRate = nasPref.speed;
     a.play().catch(function () { /* the first tap on the iPad may be needed; PLAY works from the bar */ });
@@ -5406,7 +5406,7 @@
     paintPlayer();
   }
   function skip(sec) { var a = pl.el; if (!a || !pl.path) return; a.currentTime = Math.max(0, Math.min((a.duration || 1e9) - 1, a.currentTime + sec)); paintPlayer(true); }
-  function togglePlay() { var a = pl.el; if (!a || !pl.path) return; if (a.paused) a.play().catch(function () {}); else a.pause(); }
+  function togglePlay() { var a = pl.el; if (!a || !pl.path) return; if (a.paused) { pl.closed = false; a.play().catch(function () {}); } else a.pause(); }
   function mediaState() {
     if (!("mediaSession" in navigator) || !pl.el) return;
     navigator.mediaSession.playbackState = pl.el.paused ? "paused" : "playing";
@@ -5452,20 +5452,38 @@
         var t = s.querySelector('[data-np="t"]'), l = s.querySelector('[data-np="left"]');
         if (t) t.textContent = mmss(a.currentTime); if (l) l.textContent = "−" + mmss(Math.max(0, d - a.currentTime));
       });
-      miniPaint(); return;
+      miniPaint(true); return;
     }
     if (state.screen === "storage") render(true);
     miniPaint();
   }
-  function miniPaint() {
+  /* The pill on other screens: full (title, time, minimize, close) or minimized to a play button
+     at the edge (remembered). Close pauses and puts it away until something plays again; the place
+     is kept. Pages get room at the bottom so the pill never covers their last buttons. */
+  function miniPaint(timeOnly) {
     var m = $("nasMini");
     if (!m) { m = document.createElement("div"); m.id = "nasMini"; m.className = "nas-mini"; m.hidden = true; document.body.appendChild(m);
-      m.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; if (b.dataset.nas === "toggle") togglePlay(); else { nas.view = "now"; go("storage"); } }); }
-    var show = !!pl.path && state.screen !== "storage" && !(pl.el && pl.el.paused && !pl.el.currentTime);
+      m.addEventListener("click", function (e) {
+        var b = e.target.closest("button"); if (!b) return;
+        var k = b.dataset.nas;
+        if (k === "toggle") togglePlay();
+        else if (k === "min" || k === "max") { nasPref.mini = k === "min"; lsSet(LS_NASPREF, nasPref); miniPaint(); }
+        else if (k === "close") { if (pl.el) pl.el.pause(); markPlay(false); pl.closed = true; miniPaint(); toast("Stopped. Pick it up again under STORAGE → CONTINUE LISTENING"); }
+        else { nas.view = "now"; go("storage"); }
+      }); }
+    var show = !!pl.path && !pl.closed && state.screen !== "storage" && !(pl.el && pl.el.paused && !pl.el.currentTime);
     m.hidden = !show;
+    document.body.classList.toggle("nas-pad", show && !nasPref.mini);
+    document.body.classList.toggle("nas-pad-min", show && !!nasPref.mini);
     if (!show) return;
-    var paused = pl.el.paused;
-    m.innerHTML = '<button type="button" class="nas-play sm" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + '</button><button type="button" class="nas-mt" data-nas="open"><b>' + esc(dispName(pl.path)) + "</b><small>" + (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime) + "</small></button>";
+    var paused = pl.el.paused, sig = pl.path + "|" + paused + "|" + !!nasPref.mini;
+    if (timeOnly && m.dataset.sig === sig) { var tt = m.querySelector("[data-mt]"); if (tt) tt.textContent = (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime); return; }
+    m.dataset.sig = sig;
+    m.classList.toggle("min", !!nasPref.mini);
+    var play = '<button type="button" class="nas-play sm" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + "</button>";
+    m.innerHTML = nasPref.mini ? '<button type="button" class="nas-x" data-nas="max" aria-label="Show the player">‹</button>' + play
+      : play + '<button type="button" class="nas-mt" data-nas="open"><b>' + esc(dispName(pl.path)) + '</b><small data-mt="1">' + (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime) + "</small></button>" +
+        '<button type="button" class="nas-x" data-nas="min" aria-label="Minimize">›</button><button type="button" class="nas-x" data-nas="close" aria-label="Close">✕</button>';
   }
 
   /* ---------- the screens ---------- */
