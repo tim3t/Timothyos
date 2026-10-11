@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.15.4";
+  var VERSION = "2.16.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -539,9 +539,9 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
-    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -587,6 +587,7 @@
       t.textContent = dLabel(a) + (a.getFullYear() !== now.getFullYear() ? " " + a.getFullYear() : "");
     }
     else if (state.screen === "library") { e.textContent = "LIBRARY · " + (lb.data ? books().length + (books().length === 1 ? " BOOK" : " BOOKS") : "NOTION"); t.textContent = "LIBRARY"; }
+    else if (state.screen === "storage") { var sh = storageHead(); e.textContent = sh.e; t.textContent = sh.t; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
@@ -803,6 +804,7 @@
 
     html += aiSection();
     html += ledgerSection();
+    html += storageSection();
     html += logSection();
     html += standbySection();
     html += bridgeSection();
@@ -4612,7 +4614,7 @@
     { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, walk, water, debit card" },
     { id: "ledger", name: "LEDGER", g: "RESOURCES", sub: "YNAB at a glance, read only" },
     { id: "library", name: "LIBRARY", g: "RESOURCES", sub: "Reading, want to read, read" },
-    { id: "audio", name: "AUDIO", g: "STANDBY", sub: "Podcasts from the NAS. Later.", standby: true },
+    { id: "storage", name: "STORAGE", g: "RESOURCES", sub: "NAS folders and podcasts" },
     { id: "meals", name: "MEALS", g: "STANDBY", sub: "Dinners planned and made. Later.", standby: true }
   ];
   var ST_GROUPS = [["TIME", "chrome-b"], ["REFLECT", "chrome-a"], ["RESOURCES", "chrome-d"], ["STANDBY", "line"]];
@@ -5169,6 +5171,369 @@
   if (window.visualViewport) { visualViewport.addEventListener("resize", fitViewport); visualViewport.addEventListener("scroll", fitViewport); fitViewport(); }
 
   /* ---------- Render + navigation ---------- */
+  /* ---------- Storage (the NAS) ---------- */
+  /* Browses NAS folders and plays audio through a small read-only relay on the NAS (Caddy behind
+     Tailscale; setup in the README under Storage). The relay address and token are typed in Systems
+     and kept on this iPad only, like the access key. Folder listings come as JSON (Accept header);
+     audio streams straight from the relay with the token in the address, since an <audio> element
+     can't send headers. Where you stopped in each file is kept on this iPad only. */
+  var LS_NAS = "tos.nas.v1";            /* { url, token }: the relay, typed in Systems */
+  var LS_PLAYS = "tos.plays.v1";        /* { path: { p: seconds, d: duration, done, at } } */
+  var LS_NASDIR = "tos.nasdir.v1";      /* folder last open in Storage */
+  var LS_NASPREF = "tos.naspref.v1";    /* { speed, auto } */
+  var AUDIO_EXT = /\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac)$/i;
+  var NAS_HIDE = ["cdrom", "floppy", "usb"];   /* empty folders built into the relay's image, not NAS folders */
+  var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
+  var plays = lsGet(LS_PLAYS) || {};
+  var nasPref = Object.assign({ speed: 1, auto: true }, lsGet(LS_NASPREF) || {});
+  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false };
+  function nasConf() { var c = lsGet(LS_NAS); return c && c.url && c.token ? c : null; }
+  function nasBase() { return nasConf().url.replace(/\/+$/, ""); }
+  function encPath(p) { return p.split("/").map(encodeURIComponent).join("/"); }
+  function joinPath(dir, name) { return (dir.replace(/\/+$/, "") + "/" + name).replace(/\/+/g, "/"); }
+  function parentOf(p) { var s = p.replace(/\/+$/, "").split("/"); s.pop(); return s.join("/") || "/"; }
+  function baseName(p) { return p.replace(/\/+$/, "").split("/").pop() || "NAS"; }
+  function niceName(p) { return baseName(p).replace(AUDIO_EXT, "").replace(/[_]+/g, " "); }
+  function nasErrText(err) {
+    var code = err && (err.code || err.message);
+    if (code === "unauthorized") return "The NAS refused the token. Check it under STORAGE in Systems.";
+    if (code === "offline") return "This iPad is offline.";
+    if (code === "unreachable") return "Can't reach the NAS. Check that Tailscale is on, and that the timothyos project is running in Docker on the NAS.";
+    if (/^http_/.test(code || "")) return "The NAS answered with an error (" + code.slice(5) + ").";
+    return "Something went wrong reading the NAS.";
+  }
+  /* One folder, as the relay lists it: folders first, hidden and system names left out. */
+  function nasList(dir, force) {
+    var c = nasConf();
+    if (!c) return Promise.reject({ code: "not_set" });
+    var have = nas.lists[dir];
+    if (!force && have && Date.now() - have.at < 60000) return Promise.resolve(have);
+    if (nas.inflight[dir]) return nas.inflight[dir];
+    var req = fetch(nasBase() + encPath(dir.replace(/\/?$/, "/")), { headers: { Accept: "application/json", Authorization: "Bearer " + c.token }, cache: "no-store" })
+      .catch(function () { throw { code: navigator.onLine === false ? "offline" : "unreachable" }; })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw { code: "unauthorized" };
+        if (!r.ok) throw { code: "http_" + r.status };
+        return r.json();
+      }).then(function (arr) {
+        var items = (Array.isArray(arr) ? arr : []).map(function (x) {
+          var name = String(x.name || "").replace(/\/+$/, "");
+          return { name: name, path: joinPath(dir, name), dir: !!x.is_dir, size: x.size || 0, mod: x.mod_time ? Date.parse(x.mod_time) : 0 };
+        }).filter(function (x) { return x.name && !/^[.@#]/.test(x.name) && !(dir === "/" && x.dir && NAS_HIDE.indexOf(x.name) > -1); });
+        var out = { at: Date.now(), items: items };
+        nas.lists[dir] = out; nas.ok = true; nas.err = null;
+        return out;
+      }).catch(function (err) { nas.ok = false; nas.err = { at: Date.now(), code: err.code, msg: nasErrText(err) }; throw err; })
+      .then(function (v) { delete nas.inflight[dir]; return v; }, function (e) { delete nas.inflight[dir]; throw e; });
+    nas.inflight[dir] = req;
+    return req;
+  }
+  function nasLoad(dir, force) { nasList(dir, force).catch(function () {}).then(function () { if (state.screen === "storage") render(true); }); }
+  function savePlays() {
+    var keys = Object.keys(plays);
+    if (keys.length > 1500) keys.sort(function (a, b) { return (plays[a].at || 0) - (plays[b].at || 0); }).slice(0, keys.length - 1500).forEach(function (k) { delete plays[k]; });
+    lsSet(LS_PLAYS, plays);
+  }
+  function playOf(path) { return plays[path] || null; }
+  function mmss(s) { s = Math.max(0, Math.round(s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ":" + p2(m) : m) + ":" + p2(x); }
+  function sizeLabel(b) { return b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : b >= 1e3 ? Math.round(b / 1e3) + " KB" : b + " B"; }
+  function initials(p) { var w = baseName(p).replace(/^the\s+/i, "").split(/[\s_-]+/).filter(Boolean); return ((w[0] || "?")[0] + (w[1] ? w[1][0] : "")).toUpperCase(); }
+
+  /* ---------- the player: one <audio> for the whole app, so it keeps playing on other screens ---------- */
+  function audioEl() {
+    if (pl.el) return pl.el;
+    var a = document.createElement("audio");
+    a.id = "nasAudio"; a.preload = "metadata"; a.setAttribute("playsinline", "");
+    document.body.appendChild(a);
+    a.addEventListener("loadedmetadata", function () {
+      var r = playOf(pl.path);
+      if (r && !r.done && r.p > 5 && r.p < a.duration - 5) a.currentTime = r.p;
+      pl.ready = true; markPlay(false); paintPlayer();
+    });
+    a.addEventListener("timeupdate", function () { if (Date.now() - pl.lastSave > 10000) markPlay(false); paintPlayer(true); sleepCheck(); });
+    a.addEventListener("play", function () { paintPlayer(); mediaState(); });
+    a.addEventListener("pause", function () { markPlay(false); paintPlayer(); mediaState(); });
+    a.addEventListener("seeked", function () { markPlay(false); });
+    a.addEventListener("ended", function () {
+      markPlay(true);
+      if (nas.sleep === "end") { nas.sleep = null; paintPlayer(); toast("Sleep timer: stopped at the end of the episode"); return; }
+      var nx = nextUp()[0];
+      if (nasPref.auto && nx) playPath(nx.path, pl.list); else paintPlayer();
+    });
+    a.addEventListener("error", function () { if (pl.path) toast(nas.ok === false ? "Can't reach the NAS to play this" : "This file won't play on the iPad"); paintPlayer(); });
+    if ("mediaSession" in navigator) {
+      var ms = navigator.mediaSession, on = function (k, f) { try { ms.setActionHandler(k, f); } catch (e) { /* not supported here */ } };
+      on("play", function () { a.play(); });
+      on("pause", function () { a.pause(); });
+      on("seekbackward", function () { skip(-15); });
+      on("seekforward", function () { skip(30); });
+      on("nexttrack", function () { var nx = nextUp()[0]; if (nx) playPath(nx.path, pl.list); });
+    }
+    pl.el = a;
+    return a;
+  }
+  function markPlay(ended) {
+    var a = pl.el;
+    if (!a || !pl.path || (!pl.ready && !ended)) return;   /* not before the file's start point is set, or a resume would be lost */
+    var d = isFinite(a.duration) ? a.duration : (playOf(pl.path) || {}).d || 0, p = a.currentTime || 0;
+    var done = !!ended || (d > 60 && p > d - 30);
+    plays[pl.path] = { p: done ? 0 : p, d: d, done: done, at: Date.now() };
+    pl.lastSave = Date.now(); savePlays();
+  }
+  function playPath(path, list) {
+    var c = nasConf();
+    if (!c) { toast("Set up STORAGE in Systems first"); return; }
+    var a = audioEl();
+    if (pl.path && pl.path !== path) markPlay(false);
+    if (pl.path === path) { if (a.paused) a.play().catch(function () {}); return; }
+    var r = playOf(path);
+    if (r && r.done) { r.done = false; r.p = 0; savePlays(); }   /* playing a finished one starts it again */
+    pl.path = path; pl.list = list || pl.list; pl.ready = false;
+    a.src = nasBase() + encPath(path) + "?k=" + encodeURIComponent(c.token);
+    a.playbackRate = nasPref.speed;
+    a.play().catch(function () { /* the first tap on the iPad may be needed; PLAY works from the bar */ });
+    if ("mediaSession" in navigator && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: niceName(path), artist: baseName(parentOf(path)), album: "TimothyOS · Storage" });
+    paintPlayer();
+  }
+  function skip(sec) { var a = pl.el; if (!a || !pl.path) return; a.currentTime = Math.max(0, Math.min((a.duration || 1e9) - 1, a.currentTime + sec)); paintPlayer(true); }
+  function togglePlay() { var a = pl.el; if (!a || !pl.path) return; if (a.paused) a.play().catch(function () {}); else a.pause(); }
+  function mediaState() {
+    if (!("mediaSession" in navigator) || !pl.el) return;
+    navigator.mediaSession.playbackState = pl.el.paused ? "paused" : "playing";
+    try { if (isFinite(pl.el.duration)) navigator.mediaSession.setPositionState({ duration: pl.el.duration, position: Math.min(pl.el.currentTime, pl.el.duration), playbackRate: pl.el.playbackRate }); } catch (e) { /* older iPadOS */ }
+  }
+  function nextUp() {
+    var i = pl.list.indexOf(pl.path);
+    return i < 0 ? [] : pl.list.slice(i + 1).map(function (p) { return { path: p }; });
+  }
+  function sleepCheck() {
+    if (typeof nas.sleep === "number" && Date.now() >= nas.sleepAt && pl.el && !pl.el.paused) { pl.el.pause(); nas.sleep = null; toast("Sleep timer: paused"); paintPlayer(); }
+  }
+  function setSleep(v) {
+    nas.sleep = v === "off" ? null : v === "end" ? "end" : +v;
+    nas.sleepAt = typeof nas.sleep === "number" ? Date.now() + nas.sleep * 60000 : 0;
+    if (nas.sleep) toast(nas.sleep === "end" ? "Stops at the end of this episode" : "Pauses in " + nas.sleep + " minutes");
+  }
+  setInterval(sleepCheck, 15000);
+
+  /* The bar under Storage, the full player, and the small pill on every other screen. */
+  function scrubHtml(id) {
+    var a = pl.el, d = a && isFinite(a.duration) ? a.duration : (playOf(pl.path) || {}).d || 0, t = a ? a.currentTime : 0;
+    return '<div class="nas-scrub"><span class="tnum" data-np="t">' + mmss(t) + '</span><input type="range" id="' + id + '" min="0" max="' + Math.max(1, Math.round(d)) + '" step="1" value="' + Math.round(t) + '" aria-label="Position"' + (d ? "" : " disabled") + '><span class="tnum" data-np="left">−' + mmss(Math.max(0, d - t)) + "</span></div>";
+  }
+  function controlsHtml(big) {
+    var paused = !pl.el || pl.el.paused;
+    return '<div class="nas-ctl' + (big ? " big" : "") + '"><button type="button" class="chip" data-nas="back" aria-label="Back 15 seconds">−15</button>' +
+      '<button type="button" class="nas-play" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + "</button>" +
+      '<button type="button" class="chip" data-nas="fwd" aria-label="Forward 30 seconds">+30</button>' + (big ? "" : '<button type="button" class="chip" data-nas="open">OPEN</button>') + "</div>";
+  }
+  function barHtml() {
+    if (!pl.path) return "";
+    return '<div class="nas-bar" id="nasBar"><span class="nas-art">' + esc(initials(parentOf(pl.path))) + '</span><span class="nas-bt"><b>' + esc(niceName(pl.path)) + "</b><small>" + esc(baseName(parentOf(pl.path)).toUpperCase()) + (nasPref.speed !== 1 ? " · " + nasPref.speed + "×" : "") + "</small>" + scrubHtml("nasSeek") + "</span>" + controlsHtml(false) + "</div>";
+  }
+  function paintPlayer(timeOnly) {
+    var a = pl.el;
+    if (timeOnly && a) {
+      var d = isFinite(a.duration) ? a.duration : 0;
+      document.querySelectorAll(".nas-scrub").forEach(function (s) {
+        var r = s.querySelector("input");
+        if (r && document.activeElement !== r) { if (d) { r.max = Math.round(d); r.disabled = false; } r.value = Math.round(a.currentTime); }
+        var t = s.querySelector('[data-np="t"]'), l = s.querySelector('[data-np="left"]');
+        if (t) t.textContent = mmss(a.currentTime); if (l) l.textContent = "−" + mmss(Math.max(0, d - a.currentTime));
+      });
+      miniPaint(); return;
+    }
+    if (state.screen === "storage") render(true);
+    miniPaint();
+  }
+  function miniPaint() {
+    var m = $("nasMini");
+    if (!m) { m = document.createElement("div"); m.id = "nasMini"; m.className = "nas-mini"; m.hidden = true; document.body.appendChild(m);
+      m.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; if (b.dataset.nas === "toggle") togglePlay(); else { nas.view = "now"; go("storage"); } }); }
+    var show = !!pl.path && state.screen !== "storage" && !(pl.el && pl.el.paused && !pl.el.currentTime);
+    m.hidden = !show;
+    if (!show) return;
+    var paused = pl.el.paused;
+    m.innerHTML = '<button type="button" class="nas-play sm" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + '</button><button type="button" class="nas-mt" data-nas="open"><b>' + esc(niceName(pl.path)) + "</b><small>" + (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime) + "</small></button>";
+  }
+
+  /* ---------- the screens ---------- */
+  function rowState(it) {
+    var r = playOf(it.path), cur = it.path === pl.path;
+    if (cur && pl.el && !pl.el.paused) return '<span class="pill nas-on">PLAYING</span>';
+    if (r && r.done) return '<span class="pill">PLAYED</span>';
+    if (r && r.p > 5) return '<span class="pill tnum">' + (r.d ? mmss(r.d - r.p) + " LEFT" : "STARTED") + "</span>";
+    return "";
+  }
+  function fileRow(it, listPaths) {
+    var audio = AUDIO_EXT.test(it.name), r = playOf(it.path);
+    if (it.dir) return '<button type="button" class="nas-row" data-nasdir="' + esc(it.path) + '"><span class="nas-ic dir"></span><span class="nas-nm">' + esc(it.name) + '</span><span class="nas-m"></span><span class="nas-m">OPEN ▸</span></button>';
+    return '<button type="button" class="nas-row' + (it.path === pl.path ? " cur" : "") + (r && r.done ? " played" : "") + (audio ? "" : " other") + '"' + (audio ? ' data-nasplay="' + esc(it.path) + '"' : " disabled") + '><span class="nas-ic ' + (audio ? "aud" : "doc") + '">' + (audio ? esc(initials(parentOf(it.path))) : "") + "</span>" +
+      '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + esc(audio ? niceName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
+      '<span class="nas-m tnum">' + (r && r.d ? mmss(r.d) : sizeLabel(it.size)) + '</span><span class="nas-m">' + (audio ? rowState(it) : "CAN'T PLAY") + "</span></button>";
+  }
+  function crumbs(dir) {
+    var parts = dir.split("/").filter(Boolean), acc = "", out = '<button type="button" class="chip sm" data-nasdir="/">NAS</button>';
+    parts.forEach(function (p, i) { acc += "/" + p; out += '<span class="nas-sep">▸</span><button type="button" class="chip sm" data-nasdir="' + esc(acc) + '"' + (i === parts.length - 1 ? ' aria-pressed="true"' : "") + ">" + esc(p.toUpperCase()) + "</button>"; });
+    return '<div class="nas-crumbs">' + out + "</div>";
+  }
+  function renderStorage() {
+    var c = nasConf();
+    if (!c) { $("content").innerHTML = '<div class="nas">' + phead("STORAGE", "SETUP") + '<div class="stubbox"><span class="pill">SETUP</span><span>Storage reads the NAS through its relay. Add the relay address and token under <b>STORAGE</b> in Systems. Steps are in the README under <b>Storage</b>.</span></div>' +
+      '<div class="btnrow"><button type="button" class="btn" data-nas="systems">OPEN SYSTEMS</button></div></div>'; return; }
+    var v = nas.view, html = '<div class="nas">';
+    if (v === "now" && pl.path) html += nowHtml();
+    else if (v === "browse") html += browseHtml();
+    else html += homeHtml();
+    $("content").innerHTML = html + (v === "now" && pl.path ? "" : barHtml()) + "</div>";
+  }
+  function homeHtml() {
+    var root = nas.lists["/"];
+    if (!root && !nas.inflight["/"] && !(nas.err && Date.now() - nas.err.at < 15000)) nasLoad("/", false);
+    var host = nasBase().replace(/^https?:\/\//, "");
+    var html = '<section class="nas-status"><div class="nas-card ' + (nas.ok === false ? "bad" : "ok") + '"><span class="pill ' + (nas.ok === false ? "bad" : nas.ok ? "ok" : "") + '">' + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "UNREACHABLE") : nas.ok ? "ONLINE" : "CHECKING") + "</span>" +
+      '<span class="nas-host"><b>NAS</b><small>' + esc(host) + " · read-only</small></span></div>" + (nas.err && nas.ok === false ? '<div class="err">' + esc(nas.err.msg) + '</div><div class="btnrow"><button type="button" class="btn sm" data-nas="retry">TRY AGAIN</button></div>' : "") + "</section>";
+    html += "<section>" + phead("FOLDERS", root ? root.items.filter(function (x) { return x.dir; }).length + " SHARED WITH TIMOTHYOS" : "") + (root ? '<div class="nas-shares">' + root.items.filter(function (x) { return x.dir; }).map(function (x) {
+      return '<button type="button" class="nas-share" data-nasdir="' + esc(x.path) + '"><b>' + esc(x.name.toUpperCase()) + "</b><small>Open ▸</small></button>";
+    }).join("") + "</div>" : '<div class="empty">' + (nas.ok === false ? "Folders appear once the NAS answers." : "Asking the NAS…") + "</div>") + "</section>";
+    var cont = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30; }).sort(function (a, b) { return plays[b].at - plays[a].at; }).slice(0, 6);
+    html += "<section>" + phead("CONTINUE LISTENING", "SAVED ON THIS IPAD", "personal") + (cont.length ? '<div class="nas-cont">' + cont.map(function (k) {
+      var r = plays[k];
+      return '<button type="button" class="nas-ep" data-nasresume="' + esc(k) + '"><span class="nas-art">' + esc(initials(parentOf(k))) + '</span><span><b>' + esc(niceName(k)) + "</b><small>" + esc(baseName(parentOf(k))) + (r.d ? " · " + mmss(r.d - r.p) + " left" : "") + '</small><span class="nas-prog"><i style="width:' + (r.d ? Math.min(100, r.p / r.d * 100) : 0) + '%"></i></span></span></button>';
+    }).join("") + "</div>" : '<div class="empty">Anything you start and stop part way shows here, ready to pick up.</div>') + "</section>";
+    return html;
+  }
+  function browseHtml() {
+    var dir = nas.dir, l = nas.lists[dir];
+    if ((!l || Date.now() - l.at > 60000) && !nas.inflight[dir]) nasLoad(dir, false);
+    var html = crumbs(dir);
+    if (!l) return html + '<div class="empty">' + (nas.err && nas.ok === false ? esc(nas.err.msg) : nas.err && nas.err.code === "http_404" ? "That folder isn't there any more." : "Opening the folder…") + "</div>";
+    var dirs = l.items.filter(function (x) { return x.dir; }), files = l.items.filter(function (x) { return !x.dir; });
+    var audio = files.filter(function (x) { return AUDIO_EXT.test(x.name); });
+    var q = nas.q.trim().toLowerCase();
+    var match = function (x) { return !q || x.name.toLowerCase().indexOf(q) > -1; };
+    var byName = function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); };
+    var sorter = nas.sort === "newest" ? function (a, b) { return (b.mod || 0) - (a.mod || 0) || byName(a, b); } : byName;
+    var shown = files.filter(match).filter(function (x) {
+      if (nas.filter === "all") return true;
+      if (!AUDIO_EXT.test(x.name)) return false;
+      var r = playOf(x.path);
+      return nas.filter === "unplayed" ? !(r && r.done) : !!(r && !r.done && r.p > 5);
+    }).sort(sorter);
+    var order = audio.slice().sort(sorter).map(function (x) { return x.path; });
+    html += '<div class="nas-tools"><input type="search" id="nasQ" placeholder="Search this folder" autocomplete="off" enterkeyhint="search" aria-label="Search this folder" value="' + esc(nas.q) + '">' +
+      (audio.length ? '<div class="chips">' + [["all", "ALL"], ["unplayed", "UNPLAYED"], ["partial", "IN PROGRESS"]].map(function (f) { return '<button type="button" class="chip sm" data-nasfilter="' + f[0] + '" aria-pressed="' + (nas.filter === f[0]) + '">' + f[1] + "</button>"; }).join("") + "</div>" : "") +
+      '<div class="chips">' + [["name", "A TO Z"], ["newest", "NEWEST"]].map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (nas.sort === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div></div>";
+    var dshown = dirs.filter(match).sort(byName);
+    if (!dshown.length && !shown.length) html += '<div class="empty">' + (q || nas.filter !== "all" ? "Nothing here matches." : "This folder is empty.") + "</div>";
+    else html += '<div class="nas-list" data-order="' + esc(JSON.stringify(order)) + '">' + dshown.map(function (x) { return fileRow(x); }).join("") + shown.map(function (x) { return fileRow(x); }).join("") + "</div>";
+    if (nas.err && nas.ok === false) html += stale(l.at);
+    nasOrder = order;
+    return html;
+  }
+  var nasOrder = [];
+  function nowHtml() {
+    var a = pl.el, paused = !a || a.paused, nx = nextUp().slice(0, 4);
+    var html = '<div class="nas-now"><div class="nas-bigart">' + esc(initials(parentOf(pl.path))) + "</div><div>" +
+      '<button type="button" class="chip sm" data-nasdir="' + esc(parentOf(pl.path)) + '">◂ ' + esc(baseName(parentOf(pl.path)).toUpperCase()) + "</button>" +
+      "<h3>" + esc(niceName(pl.path)) + "</h3>" + scrubHtml("nasSeekBig") + controlsHtml(true) +
+      '<dl class="kv nas-opts"><dt>SPEED</dt><dd><div class="chips">' + [1, 1.25, 1.5, 2].map(function (s) { return '<button type="button" class="chip sm" data-nasspeed="' + s + '" aria-pressed="' + (nasPref.speed === s) + '">' + s + "×</button>"; }).join("") + "</div></dd>" +
+      '<dt>SLEEP</dt><dd><div class="chips">' + [["off", "OFF"], ["15", "15 MIN"], ["30", "30 MIN"], ["60", "1 HOUR"], ["end", "END OF EPISODE"]].map(function (s) {
+        var on = s[0] === "off" ? !nas.sleep : String(nas.sleep) === s[0];
+        return '<button type="button" class="chip sm" data-nassleep="' + s[0] + '" aria-pressed="' + on + '">' + s[1] + (on && typeof nas.sleep === "number" ? " · " + Math.max(1, Math.round((nas.sleepAt - Date.now()) / 60000)) + " LEFT" : "") + "</button>";
+      }).join("") + "</div></dd>" +
+      '<dt>AFTER THIS</dt><dd><div class="chips"><button type="button" class="chip sm" data-nasauto="1" aria-pressed="' + nasPref.auto + '">PLAY THE NEXT ONE</button><button type="button" class="chip sm" data-nasauto="0" aria-pressed="' + !nasPref.auto + '">STOP</button></div></dd></dl>' +
+      '<div class="btnrow"><button type="button" class="btn sm ghost" data-nas="markplayed">MARK PLAYED</button><button type="button" class="btn sm ghost" data-nas="restart">START OVER</button></div></div></div>';
+    if (nx.length) html += "<section>" + phead("UP NEXT", "IN THIS FOLDER", "personal") + '<div class="nas-list">' + nx.map(function (n) {
+      var it = { name: baseName(n.path), path: n.path, dir: false, size: 0, mod: 0 };
+      var l = nas.lists[parentOf(n.path)], f = l && l.items.filter(function (x) { return x.path === n.path; })[0];
+      return fileRow(f || it);
+    }).join("") + "</div></section>";
+    return html;
+  }
+  function storageClick(b) {
+    var d = b.dataset;
+    if (d.nasdir !== undefined) { nas.dir = d.nasdir || "/"; nas.q = ""; nas.view = nas.dir === "/" ? "home" : "browse"; lsSet(LS_NASDIR, nas.dir); render(false); $("content").scrollTop = 0; renderHeader(); return true; }
+    if (d.nasplay) { playPath(d.nasplay, nasOrder.indexOf(d.nasplay) > -1 ? nasOrder.slice() : [d.nasplay]); return true; }
+    if (d.nasresume) {
+      var dir = parentOf(d.nasresume);
+      playPath(d.nasresume, [d.nasresume]);
+      nasList(dir, false).then(function (l) {
+        var order = l.items.filter(function (x) { return !x.dir && AUDIO_EXT.test(x.name); }).map(function (x) { return x.path; }).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+        if (pl.path === d.nasresume && order.indexOf(d.nasresume) > -1) pl.list = order;
+      }).catch(function () {});
+      nas.view = "now"; render(false); renderHeader(); return true;
+    }
+    if (d.nasfilter) { nas.filter = d.nasfilter; render(true); return true; }
+    if (d.nassort) { nas.sort = d.nassort; render(true); return true; }
+    if (d.nasspeed) { nasPref.speed = +d.nasspeed; lsSet(LS_NASPREF, nasPref); if (pl.el) pl.el.playbackRate = nasPref.speed; render(true); mediaState(); return true; }
+    if (d.nassleep) { setSleep(d.nassleep); render(true); return true; }
+    if (d.nasauto) { nasPref.auto = d.nasauto === "1"; lsSet(LS_NASPREF, nasPref); render(true); return true; }
+    if (!d.nas) return false;
+    var k = d.nas;
+    if (k === "toggle") togglePlay();
+    else if (k === "back") skip(-15);
+    else if (k === "fwd") skip(30);
+    else if (k === "open") { nas.view = "now"; render(false); renderHeader(); }
+    else if (k === "systems") go("systems");
+    else if (k === "retry") { nas.err = null; nas.ok = null; nasLoad(nas.view === "browse" ? nas.dir : "/", true); render(true); }
+    else if (k === "markplayed" && pl.path) { pl.ready = false; if (pl.el) pl.el.pause(); plays[pl.path] = { p: 0, d: (playOf(pl.path) || {}).d || (pl.el && pl.el.duration) || 0, done: true, at: Date.now() }; savePlays(); toast("Marked played"); var nx = nextUp()[0]; if (nasPref.auto && nx) playPath(nx.path, pl.list); else render(true); }
+    else if (k === "restart" && pl.el) { pl.el.currentTime = 0; pl.el.play().catch(function () {}); }
+    else return false;
+    return true;
+  }
+  function storageHead() {
+    var v = nas.view;
+    return { e: "STORAGE · " + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "NAS UNREACHABLE") : v === "browse" ? (nas.dir.split("/").filter(Boolean).slice(0, -1).join(" ▸ ").toUpperCase() || "NAS") : v === "now" ? "NOW PLAYING" : "NAS"),
+      t: v === "browse" ? baseName(nas.dir).toUpperCase() : "STORAGE" };
+  }
+  /* Seeking with the slider: applied when you let go, so the time doesn't jump around under your finger. */
+  document.addEventListener("change", function (e) { if ((e.target.id === "nasSeek" || e.target.id === "nasSeekBig") && pl.el) { pl.el.currentTime = +e.target.value; markPlay(false); } });
+  document.addEventListener("input", function (e) {
+    if ((e.target.id === "nasSeek" || e.target.id === "nasSeekBig") && pl.el) { var s = e.target.closest(".nas-scrub"), d = +e.target.max; s.querySelector('[data-np="t"]').textContent = mmss(+e.target.value); s.querySelector('[data-np="left"]').textContent = "−" + mmss(d - e.target.value); }
+    if (e.target.id === "nasQ") { nas.q = e.target.value; render(true); }
+  });
+  window.addEventListener("pagehide", function () { markPlay(false); });
+  document.addEventListener("visibilitychange", function () { if (document.hidden) markPlay(false); });
+
+  /* --- Systems: the relay --- */
+  function storageSection() {
+    var c = nasConf(), n = Object.keys(plays).length;
+    return '<section id="sec-storage">' + phead("STORAGE", c ? (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "UNREACHABLE") : nas.ok ? "CONNECTED" : "SET") : "NOT SET") + '<dl class="kv">' +
+      "<dt>RELAY ADDRESS</dt><dd>" + (c ? esc(c.url) : '<span class="muted">Not set</span>') + "</dd>" +
+      "<dt>TOKEN</dt><dd>" + (c ? "•••• " + esc(c.token.slice(-4)) : '<span class="muted">Not set</span>') + "</dd>" +
+      '<dt>CHANGE</dt><dd><div class="ov-place"><input type="url" id="nasUrl" placeholder="https://your-nas.your-tailnet.ts.net" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + (c ? esc(c.url) : "") + '">' +
+      '<input type="password" id="nasTok" placeholder="' + (c ? "Token (leave blank to keep)" : "Relay token") + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+      '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="nassave">SAVE AND TEST</button>' + (c ? '<button type="button" class="btn ghost" data-act="nasforget">' + (Date.now() - nas.armClear < 4000 && nas.armWhat === "forget" ? "TAP AGAIN TO FORGET" : "FORGET") + "</button>" : "") + "</div>" +
+      '<div class="err" id="nasErr" role="alert">' + (nas.err && nas.ok === false ? esc(nas.err.msg) : "") + "</div></dd>" +
+      "<dt>LISTENING</dt><dd>" + n + (n === 1 ? " file" : " files") + ' with a saved place <button type="button" class="btn sm ghost" data-act="nasplays">' + (Date.now() - nas.armClear < 4000 && nas.armWhat === "plays" ? "TAP AGAIN TO CLEAR" : "CLEAR") + "</button></dd>" +
+      '</dl><small class="muted">The relay is read-only and reachable only through Tailscale. The address and token stay on this iPad. Where you stopped in each file is kept here too, never sent anywhere.</small></section>';
+  }
+  function nasSave() {
+    var url = ($("nasUrl").value || "").trim().replace(/\/+$/, ""), tok = ($("nasTok").value || "").trim(), cur = nasConf(), errEl = $("nasErr");
+    if (!/^https:\/\/[^\s/]+$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)) { errEl.textContent = "Use the https address of the relay, like https://name.tailnet.ts.net"; return; }
+    if (!tok && !(cur && cur.url)) { errEl.textContent = "Enter the relay token."; return; }
+    lsSet(LS_NAS, { url: url, token: tok || cur.token });
+    nas.lists = {}; nas.err = null; nas.ok = null;
+    errEl.textContent = "Testing…";
+    nasList("/", true).then(function (l) { toast("Storage connected · " + l.items.filter(function (x) { return x.dir; }).length + " folders"); })
+      .catch(function () { /* the section shows why */ }).then(function () { render(true); });
+  }
+  function storageSysClick(b) {
+    var a = b.dataset.act;
+    if (a === "nassave") { nasSave(); return true; }
+    if (a === "nasforget" || a === "nasplays") {
+      var what = a === "nasforget" ? "forget" : "plays";
+      if (Date.now() - nas.armClear < 4000 && nas.armWhat === what) {
+        nas.armClear = 0;
+        if (what === "forget") { if (pl.el) { pl.el.pause(); pl.el.removeAttribute("src"); } pl.path = null; lsDel(LS_NAS); nas.lists = {}; nas.err = null; nas.ok = null; toast("Storage forgotten on this iPad"); miniPaint(); }
+        else { plays = {}; savePlays(); toast("Saved places cleared"); }
+      } else { nas.armClear = Date.now(); nas.armWhat = what; setTimeout(function () { if (state.screen === "systems") render(true); }, 4100); }
+      render(true); return true;
+    }
+    return false;
+  }
+
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
@@ -5187,9 +5552,10 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
+    miniPaint();
     if (typing && $(typing.id)) {
       var el = $(typing.id);
       el.value = typing.value;
@@ -5208,6 +5574,7 @@
     if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
+    if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }   /* tapping STORAGE again goes back to its front page */
     state.screen = screen;
     if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
@@ -5249,7 +5616,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if (habitsClick(b) || libraryClick(b)) return;
+    if (habitsClick(b) || libraryClick(b) || storageSysClick(b) || (state.screen === "storage" && storageClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

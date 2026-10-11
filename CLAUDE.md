@@ -138,10 +138,11 @@ Chrome (2.8): `--chrome-a` orchid, `--chrome-b` tan, `--chrome-c` lavender, `--c
 
 App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8); the Hobbies calendar is still standby.
 
-## Storage (NAS), in planning
-- NAS: UGREEN DXP2800, UGOS Pro 1.18.1. WebDAV is on (https 5006). Docker is in App Center; Tailscale is not (run it in Docker if needed).
-- A web page can't speak SMB, so the app reads the NAS over HTTPS: WebDAV directly if the NAS allows cross-site requests (CORS), otherwise a small read-only relay in Docker.
-- `tools/nas-check.html` tests this from the app's own origin. Use a dedicated read-only NAS user; never put NAS credentials in the repo, chat or tests.
+## Storage (app 2.16)
+- NAS: UGREEN DXP2800, UGOS Pro 1.18.1. Its own HTTPS cert is self-signed and its WebDAV refuses cross-site reads, so the app uses a **relay**: a `timothyos` Docker project with Tailscale (userspace, `TS_SERVE_CONFIG` proxies the ts.net HTTPS name to 127.0.0.1:8080) and Caddy (`file_server browse`, read-only `:ro` mounts under `/media`, CORS for `https://tim3t.github.io`, token as `Authorization: Bearer` or `?k=`). Compose is in the README; UGOS ignores compose `configs:`, so config travels in env vars written to files by the entrypoint/command. Tailscale on the NAS is on Timothy's own account, separate from Coy's existing tailscale container; leave Coy's alone.
+- App: `LS_NAS` {url, token} typed in Systems (iPad only, like the access key; never in the repo, chat or tests). Listings: `fetch(dir/, Accept: application/json)`. Audio: one global `<audio id="nasAudio">` outside `#content` (keeps playing across screens) with `?k=` in its src. `NAS_HIDE` drops the alpine image's empty cdrom/floppy/usb folders at the root.
+- Places: `LS_PLAYS` {path: {p, d, done, at}}, iPad only by Timothy's choice (he has no phone), pruned to 1,500. `markPlay()` is guarded by `pl.ready` (set after `loadedmetadata` seeks to the saved place) so a src change or a pause can't overwrite a resume point; MARK PLAYED clears `pl.ready` first for the same reason. Done = ended or within 30 s of the end.
+- AUDIO (standby) was folded into STORAGE. `tools/nas-check.html` stays as a diagnostic. Test: `app_e2e33` against `tests/mock_relay.py` (:8110).
 - `sw.js` caches only the app's own page as the offline copy; other pages on the site pass through.
 
 ## Known quirks (already handled; don't "fix" them away)

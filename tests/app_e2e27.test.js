@@ -47,7 +47,7 @@ const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contai
   // ---- the keyboard: o for OMEGA, then the digits
   await p.keyboard.type('o1701'); await p.waitForSelector('#clFind', { timeout: 5000 });
   assert.ok(await p.isVisible('.cl-cal'), 'unlocked');
-  const ls = await p.evaluate(() => JSON.stringify(localStorage));
+  const ls = (await p.evaluate(() => JSON.stringify(localStorage))).replace(/\d{10,}/g, '#');   /* timestamps can contain any four digits */
   assert.ok(!ls.includes('1701') && !ls.includes('OMEGA'), 'the code is never stored');
   await p.click('[data-lact="lock"]'); await p.waitForTimeout(300);
 

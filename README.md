@@ -327,6 +327,75 @@ Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **�
 - Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
 - Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
 
+## Storage (app 2.16)
+
+STORAGE browses folders on the NAS and plays audio (podcasts) from them. A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
+
+**One-time setup on the NAS (UGOS Docker):**
+1. **Tailscale admin** (console.tailscale.com): turn on **MagicDNS** and **HTTPS Certificates** (DNS tab), then **Settings → Keys → Generate auth key**.
+2. **Make a relay token:** a strong password from the iPad's Passwords app ("TimothyOS relay").
+3. **UGOS → Docker → Project → Create**, name `timothyos`, storage path `docker/timothyos`, and paste the compose below with the three placeholders filled in. UGOS ignores compose `configs:`, which is why the settings travel in environment variables.
+4. **Tailscale admin → Machines → timothyos-nas → Disable key expiry**, then delete the auth key from wherever you noted it.
+5. **Check:** in Safari, `https://timothyos-nas.YOUR-TAILNET.ts.net/?k=YOUR-TOKEN` shows a folder list with no certificate warning. Without `?k=` it's a blank page (refused), as it should be.
+
+```yaml
+services:
+  tailscale:
+    image: tailscale/tailscale:v1.98.10
+    hostname: timothyos-nas
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /config && printf '%s' \"$$SERVE_JSON\" > /config/serve.json && exec /usr/local/bin/containerboot"]
+    environment:
+      TS_AUTHKEY: PASTE_TAILSCALE_AUTH_KEY
+      TS_HOSTNAME: timothyos-nas
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "true"
+      TS_SERVE_CONFIG: /config/serve.json
+      SERVE_JSON: '{"TCP":{"443":{"HTTPS":true}},"Web":{"$${TS_CERT_DOMAIN}:443":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:8080"}}}}}'
+    volumes:
+      - ./ts-state:/var/lib/tailscale
+    restart: unless-stopped
+
+  relay:
+    image: caddy:2.8.4-alpine
+    network_mode: service:tailscale
+    command: ["/bin/sh", "-c", "printf '%s' \"$$CADDYFILE\" > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"]
+    environment:
+      RELAY_TOKEN: PASTE_RELAY_TOKEN
+      CADDYFILE: |
+        {
+          admin off
+          auto_https off
+        }
+        :8080 {
+          bind 127.0.0.1
+          header Access-Control-Allow-Origin "https://tim3t.github.io"
+          header Access-Control-Allow-Headers "Authorization, Range"
+          header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+          header Access-Control-Expose-Headers "Content-Range, Accept-Ranges, Content-Length"
+          header Vary Origin
+          @preflight method OPTIONS
+          respond @preflight 204
+          @denied {
+            not header Authorization "Bearer {$$RELAY_TOKEN}"
+            not query k={$$RELAY_TOKEN}
+          }
+          respond @denied 401
+          root * /media
+          file_server browse
+        }
+    volumes:
+      - PASTE_FOLDER_PATH:/media/Music:ro
+    depends_on:
+      - tailscale
+    restart: unless-stopped
+```
+
+To share another folder later, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
+
+**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **Systems → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, tap **SAVE AND TEST**.
+
+**Using it:** folders on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. The place in each file, speed and "play the next one" are saved **on this iPad only**. While something plays, a small pill on every other screen pauses it or opens it. **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too.
+
 ## Daily use
 
 | Do | How |

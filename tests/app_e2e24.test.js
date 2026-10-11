@@ -52,7 +52,7 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   assert.ok(await p.isVisible('#launch') && await p.isHidden('#content'));
   assert.strictEqual(await p.textContent('#title'), 'ALL STATIONS');
   assert.strictEqual(await p.getAttribute('#allBtn', 'aria-expanded'), 'true');
-  assert.ok(await p.isDisabled('[data-station="audio"]'), 'standby stations are shown, not opened');
+  assert.ok(await p.isDisabled('[data-station="meals"]'), 'standby stations are shown, not opened');
   await p.screenshot({ path: D + 'e2e24_launch.png' });
   // an unpinned station opens from here; the bar shows where you are
   await p.click('[data-station="dates"]'); await p.waitForTimeout(600);

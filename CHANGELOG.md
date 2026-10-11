@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.16.0 · 2026-10-11
+- **New station: STORAGE.** Browse folders on the NAS and play podcasts from them, through a small read-only relay on the NAS reached over Tailscale (setup in the README under Storage).
+  - **Folders** on the front page; inside a folder, search, filters for unplayed and in progress, and A TO Z or NEWEST.
+  - **Player:** back 15, forward 30, speed, sleep timer, and play the next one in the folder. A bar along the bottom of Storage, a small pill on every other screen while it plays, and lock screen and headphone controls.
+  - **CONTINUE LISTENING** picks up where you stopped. Places are saved on this iPad only.
+  - **Systems → STORAGE** holds the relay address and token, kept on this iPad.
+- AUDIO is no longer a standby station: it's part of STORAGE.
+
 ## 2.15.4 · 2026-10-10
 - **NAS check page** at `tools/nas-check.html`: a one-off test of whether TimothyOS can read the NAS over WebDAV, ahead of the Storage station. Nothing typed there is stored.
 - **Offline copy stays the app.** Opening another page on the site (like the NAS check) no longer replaces the saved offline copy of TimothyOS.
