@@ -128,6 +128,29 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.click('[data-screen="storage"].nav'); await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
   await p.click('.nas-share >> text=MUSIC'); await p.waitForSelector('.nas-row >> text=Album');
 
+  // ---- art: a folder's own picture, and an episode's tags (title, show, artwork)
+  const albumRow = await p.$eval('[data-nasdir="/Music/Album"] .nas-img', i => i.getAttribute('src'));
+  assert.ok(/\/Music\/Album\/cover\.png\?k=relay-test-token$/.test(albumRow), 'folder uses its cover.png: ' + albumRow);
+  await p.waitForFunction(() => { const i = document.querySelector('[data-nasdir="/Music/Album"] .nas-img'); return i && i.complete && i.naturalWidth === 64; }, null, { timeout: 5000 });
+  await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=PODCASTS'); await p.click('.nas-row >> text=Show B');
+  await p.waitForSelector('[data-nasplay="/Podcasts/Show B/ep b1.mp3"]');
+  await p.click('[data-nasplay="/Podcasts/Show B/ep b1.mp3"]');
+  await p.waitForFunction(() => /The Quiet Barn/.test((document.getElementById('nasBar') || {}).textContent || ''), null, { timeout: 8000 });
+  assert.ok((await txt(p, '#nasBar')).includes('SHOW B HOSTS'), 'show from the tags');
+  await p.waitForFunction(() => { const i = document.querySelector('#nasBar .nas-img'); return i && /^blob:/.test(i.src); }, null, { timeout: 5000 });
+  const art = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.nasart.v1')));
+  assert.ok(/^data:image\/jpeg/.test(art['/Podcasts/Show B']), 'episode artwork becomes the folder art');
+  assert.ok(/^f:\/Music\/Album\/cover\.png$/.test(art['/Music/Album']));
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.nastags.v1'))['/Podcasts/Show B/ep b1.mp3'].t), 'The Quiet Barn');
+  await p.click('#nasBar [data-nas="open"]'); await p.waitForSelector('.nas-now');
+  assert.strictEqual(await txt(p, '.nas-now h3'), 'The Quiet Barn');
+  assert.ok((await txt(p, '.nas-by')).includes('Show B Hosts · Show B'));
+  await p.screenshot({ path: D + 'storage-art.png' });
+  await p.click('.nas-ctl.big [data-nas="toggle"]');
+  await p.click('.nas-now [data-nasdir]'); await p.waitForSelector('.nas-row.cur');
+  assert.ok((await txt(p, '.nas-row.cur')).includes('The Quiet Barn'), 'list shows the tag title');
+  await p.click('.nas-crumbs >> text=PODCASTS'); await p.waitForSelector('[data-nasdir="/Podcasts/Show B"] .nas-img');
+
   // ---- forget: two taps, and playback stops
   await p.click('#status'); await p.waitForSelector('#sec-storage');
   await p.click('[data-act="nasforget"]'); assert.ok((await txt(p, '#sec-storage')).includes('TAP AGAIN TO FORGET'));

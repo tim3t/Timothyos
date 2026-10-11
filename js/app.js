@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.16.1";
+  var VERSION = "2.17.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5182,12 +5182,16 @@
   var LS_NASDIR = "tos.nasdir.v1";      /* folder last open in Storage */
   var LS_NASPREF = "tos.naspref.v1";    /* { speed, auto } */
   var LS_NASHIDE = "tos.nashide.v1";    /* folders hidden from Storage on this iPad (unhide in Systems) */
+  var LS_NASART = "tos.nasart.v1";      /* folder art: "f:/path/cover.jpg" (a picture in the folder) or a small JPEG from an episode's tags */
+  var LS_NASTAGS = "tos.nastags.v1";    /* titles read from files' tags: { path: { t, a, al } } */
+  var COVER_NAME = /^(cover|folder|front|album|albumart|artwork|art|poster)\.(jpe?g|png|webp)$/i, IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
+  var nasArt = lsGet(LS_NASART) || {}, nasTags = lsGet(LS_NASTAGS) || {};
   var AUDIO_EXT = /\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac)$/i;
   var NAS_HIDE = ["cdrom", "floppy", "usb"];   /* empty folders built into the relay's image, not NAS folders */
   var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
   var plays = lsGet(LS_PLAYS) || {};
   var nasPref = Object.assign({ speed: 1, auto: true }, lsGet(LS_NASPREF) || {});
-  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false };
+  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false, artBig: null, artSmall: null };
   function nasHidden() { return lsGet(LS_NASHIDE) || []; }
   function isHidden(path) { return nasHidden().indexOf(path) > -1; }
   function nasConf() { var c = lsGet(LS_NAS); return c && c.url && c.token ? c : null; }
@@ -5224,6 +5228,10 @@
           return { name: name, path: joinPath(dir, name), dir: !!x.is_dir, size: x.size || 0, mod: x.mod_time ? Date.parse(x.mod_time) : 0 };
         }).filter(function (x) { return x.name && !/^[.@#]/.test(x.name) && !(dir === "/" && x.dir && NAS_HIDE.indexOf(x.name) > -1); });
         var out = { at: Date.now(), items: items };
+        var pics = items.filter(function (x) { return !x.dir && IMAGE_EXT.test(x.name); });
+        var cov = pics.filter(function (x) { return COVER_NAME.test(x.name); })[0] || pics[0];
+        if (cov && nasArt[dir] !== "f:" + cov.path) setArt(dir, "f:" + cov.path);
+        else if (!cov && /^f:/.test(nasArt[dir] || "")) setArt(dir, null);
         nas.lists[dir] = out; nas.ok = true; nas.err = null;
         return out;
       }).catch(function (err) { nas.ok = false; nas.err = { at: Date.now(), code: err.code, msg: nasErrText(err) }; throw err; })
@@ -5242,6 +5250,103 @@
   function sizeLabel(b) { return b >= 1e9 ? (b / 1e9).toFixed(1) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : b >= 1e3 ? Math.round(b / 1e3) + " KB" : b + " B"; }
   function initials(p) { var w = baseName(p).replace(/^the\s+/i, "").split(/[\s_-]+/).filter(Boolean); return ((w[0] || "?")[0] + (w[1] ? w[1][0] : "")).toUpperCase(); }
 
+  function setArt(dir, v) {
+    if (v) nasArt[dir] = v; else delete nasArt[dir];
+    var keys = Object.keys(nasArt);
+    if (keys.length > 60) keys.slice(0, keys.length - 60).forEach(function (k) { delete nasArt[k]; });
+    lsSet(LS_NASART, nasArt);
+  }
+  function artSrc(dir) {
+    var a = nasArt[dir], c = nasConf();
+    if (!a || !c) return null;
+    return /^f:/.test(a) ? nasBase() + encPath(a.slice(2)) + "?k=" + encodeURIComponent(c.token) : a;
+  }
+  /* A square of art: the folder's picture when there is one, its initials underneath as the fallback. */
+  function artHtml(dir, cls, big) {
+    var src = big && pl.artBig && parentOf(pl.path) === dir ? pl.artBig : artSrc(dir);
+    return '<span class="' + cls + '">' + esc(initials(dir)) + (src ? '<img class="nas-img" src="' + esc(src) + '" alt="" loading="lazy" decoding="async">' : "") + "</span>";
+  }
+  function dispName(path) { var t = nasTags[path]; return t && t.t ? t.t : niceName(path); }
+  document.addEventListener("error", function (e) { if (e.target && e.target.classList && e.target.classList.contains("nas-img")) e.target.remove(); }, true);
+
+  /* ---------- tags: ID3v2 at the start of an MP3 (title, show, album, artwork) ---------- */
+  /* Two small ranged reads: the 10-byte header, then the tag itself (capped). Read when a file
+     starts playing; titles are remembered on this iPad, artwork becomes the folder's art when the
+     folder has no picture of its own. */
+  function rangeGet(path, a, b) {
+    var c = nasConf();
+    return fetch(nasBase() + encPath(path), { headers: { Authorization: "Bearer " + c.token, Range: "bytes=" + a + "-" + b }, cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw { code: "http_" + r.status }; return r.arrayBuffer(); });
+  }
+  function id3Text(u8, enc) {
+    var label = enc === 1 ? "utf-16" : enc === 2 ? "utf-16be" : enc === 3 ? "utf-8" : "latin1";
+    try { return new TextDecoder(label).decode(u8).replace(/\u0000+$/, "").split("\u0000")[0].trim(); } catch (e) { return ""; }
+  }
+  function parseId3(buf) {
+    var b = new Uint8Array(buf), out = {};
+    if (b.length < 10 || b[0] !== 73 || b[1] !== 68 || b[2] !== 51) return null;   /* "ID3" */
+    var ver = b[3], flags = b[5], ss = function (i) { return (b[i] & 127) << 21 | (b[i + 1] & 127) << 14 | (b[i + 2] & 127) << 7 | (b[i + 3] & 127); };
+    if (ver < 3 || ver > 4 || flags & 0x80) return null;   /* v2.2 and whole-tag unsynchronisation are rare; filenames stand in */
+    var end = Math.min(b.length, 10 + ss(6)), pos = 10;
+    if (flags & 0x40) pos += ver === 4 ? ss(10) : ((b[10] << 24 | b[11] << 16 | b[12] << 8 | b[13]) >>> 0) + 4;
+    while (pos + 10 <= end) {
+      var id = String.fromCharCode(b[pos], b[pos + 1], b[pos + 2], b[pos + 3]);
+      if (!/^[A-Z0-9]{4}$/.test(id)) break;
+      var size = ver === 4 ? ss(pos + 4) : ((b[pos + 4] << 24 | b[pos + 5] << 16 | b[pos + 6] << 8 | b[pos + 7]) >>> 0);
+      var at = pos + 10, data = b.subarray(at, Math.min(end, at + size));
+      if (at + size > end) { if (id !== "APIC") break; }
+      if (id === "TIT2" || id === "TPE1" || id === "TALB") out[{ TIT2: "t", TPE1: "a", TALB: "al" }[id]] = id3Text(data.subarray(1), data[0]);
+      else if (id === "APIC" && at + size <= end && !out.pic) {
+        var enc = data[0], i = 1;
+        while (i < data.length && data[i]) i++;
+        var mime = new TextDecoder("latin1").decode(data.subarray(1, i)) || "image/jpeg"; i += 2;   /* the null, then the picture type */
+        if (enc === 1 || enc === 2) { while (i + 1 < data.length && (data[i] || data[i + 1])) i += 2; i += 2; } else { while (i < data.length && data[i]) i++; i++; }
+        if (i < data.length) out.pic = { mime: /^image\//.test(mime) ? mime : "image/" + mime.toLowerCase().replace("jpg", "jpeg"), data: data.slice(i) };
+      }
+      pos = at + size;
+    }
+    return out;
+  }
+  function readTags(path) {
+    if (!/\.mp3$/i.test(path)) return;
+    rangeGet(path, 0, 9).then(function (h) {
+      var b = new Uint8Array(h);
+      if (b.length < 10 || b[0] !== 73 || b[1] !== 68 || b[2] !== 51) return null;
+      var size = (b[6] & 127) << 21 | (b[7] & 127) << 14 | (b[8] & 127) << 7 | (b[9] & 127);
+      return rangeGet(path, 0, Math.min(size + 9, 4194303)).then(parseId3);   /* up to 4 MB: enough for any tag with its artwork */
+    }).then(function (t) {
+      if (!t) return;
+      if (t.t || t.a || t.al) {
+        nasTags[path] = { t: t.t || "", a: t.a || "", al: t.al || "" };
+        var keys = Object.keys(nasTags); if (keys.length > 2000) keys.slice(0, keys.length - 2000).forEach(function (k) { delete nasTags[k]; });
+        lsSet(LS_NASTAGS, nasTags);
+      }
+      if (t.pic && pl.path === path) {
+        var blob = new Blob([t.pic.data], { type: t.pic.mime }), url = URL.createObjectURL(blob);
+        if (pl.artBig) URL.revokeObjectURL(pl.artBig);
+        pl.artBig = url;
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var n = 240, cv = document.createElement("canvas"), sc = Math.max(n / img.width, n / img.height);
+            cv.width = n; cv.height = n;
+            cv.getContext("2d").drawImage(img, (n - img.width * sc) / 2, (n - img.height * sc) / 2, img.width * sc, img.height * sc);
+            var small = cv.toDataURL("image/jpeg", 0.78), dir = parentOf(path);
+            if (!/^f:/.test(nasArt[dir] || "")) setArt(dir, small);
+            pl.artSmall = small;
+          } catch (e) { /* the picture couldn't be drawn; the big one still shows */ }
+          mediaMeta(); paintPlayer();
+        };
+        img.src = url;
+      }
+      if (pl.path === path) { mediaMeta(); paintPlayer(); }
+    }).catch(function () { /* no tags: the filename stands in */ });
+  }
+  function mediaMeta() {
+    if (!("mediaSession" in navigator) || !window.MediaMetadata || !pl.path) return;
+    var t = nasTags[pl.path] || {}, dir = parentOf(pl.path), art = pl.artSmall || (/^f:/.test(nasArt[dir] || "") ? artSrc(dir) : nasArt[dir]);
+    navigator.mediaSession.metadata = new MediaMetadata({ title: dispName(pl.path), artist: t.a || baseName(dir), album: t.al || "TimothyOS · Storage", artwork: art ? [{ src: art, sizes: "240x240" }] : [] });
+  }
   /* ---------- the player: one <audio> for the whole app, so it keeps playing on other screens ---------- */
   function audioEl() {
     if (pl.el) return pl.el;
@@ -5295,7 +5400,9 @@
     a.src = nasBase() + encPath(path) + "?k=" + encodeURIComponent(c.token);
     a.playbackRate = nasPref.speed;
     a.play().catch(function () { /* the first tap on the iPad may be needed; PLAY works from the bar */ });
-    if ("mediaSession" in navigator && window.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: niceName(path), artist: baseName(parentOf(path)), album: "TimothyOS · Storage" });
+    if (pl.artBig) { URL.revokeObjectURL(pl.artBig); pl.artBig = null; }
+    pl.artSmall = null;
+    mediaMeta(); readTags(path);
     paintPlayer();
   }
   function skip(sec) { var a = pl.el; if (!a || !pl.path) return; a.currentTime = Math.max(0, Math.min((a.duration || 1e9) - 1, a.currentTime + sec)); paintPlayer(true); }
@@ -5332,7 +5439,8 @@
   }
   function barHtml() {
     if (!pl.path) return "";
-    return '<div class="nas-bar" id="nasBar"><span class="nas-art">' + esc(initials(parentOf(pl.path))) + '</span><span class="nas-bt"><b>' + esc(niceName(pl.path)) + "</b><small>" + esc(baseName(parentOf(pl.path)).toUpperCase()) + (nasPref.speed !== 1 ? " · " + nasPref.speed + "×" : "") + "</small>" + scrubHtml("nasSeek") + "</span>" + controlsHtml(false) + "</div>";
+    var tg = nasTags[pl.path] || {};
+    return '<div class="nas-bar" id="nasBar">' + artHtml(parentOf(pl.path), "nas-art", true) + '<span class="nas-bt"><b>' + esc(dispName(pl.path)) + "</b><small>" + esc((tg.a || baseName(parentOf(pl.path))).toUpperCase()) + (nasPref.speed !== 1 ? " · " + nasPref.speed + "×" : "") + "</small>" + scrubHtml("nasSeek") + "</span>" + controlsHtml(false) + "</div>";
   }
   function paintPlayer(timeOnly) {
     var a = pl.el;
@@ -5357,7 +5465,7 @@
     m.hidden = !show;
     if (!show) return;
     var paused = pl.el.paused;
-    m.innerHTML = '<button type="button" class="nas-play sm" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + '</button><button type="button" class="nas-mt" data-nas="open"><b>' + esc(niceName(pl.path)) + "</b><small>" + (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime) + "</small></button>";
+    m.innerHTML = '<button type="button" class="nas-play sm" data-nas="toggle" aria-label="' + (paused ? "Play" : "Pause") + '">' + (paused ? "▶" : "❚❚") + '</button><button type="button" class="nas-mt" data-nas="open"><b>' + esc(dispName(pl.path)) + "</b><small>" + (paused ? "PAUSED" : "PLAYING") + " · " + mmss(pl.el.currentTime) + "</small></button>";
   }
 
   /* ---------- the screens ---------- */
@@ -5370,9 +5478,9 @@
   }
   function fileRow(it, listPaths) {
     var audio = AUDIO_EXT.test(it.name), r = playOf(it.path);
-    if (it.dir) return '<button type="button" class="nas-row" data-nasdir="' + esc(it.path) + '"><span class="nas-ic dir"></span><span class="nas-nm">' + esc(it.name) + '</span><span class="nas-m"></span><span class="nas-m">OPEN ▸</span></button>';
-    return '<button type="button" class="nas-row' + (it.path === pl.path ? " cur" : "") + (r && r.done ? " played" : "") + (audio ? "" : " other") + '"' + (audio ? ' data-nasplay="' + esc(it.path) + '"' : " disabled") + '><span class="nas-ic ' + (audio ? "aud" : "doc") + '">' + (audio ? esc(initials(parentOf(it.path))) : "") + "</span>" +
-      '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + esc(audio ? niceName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
+    if (it.dir) return '<button type="button" class="nas-row" data-nasdir="' + esc(it.path) + '">' + (nasArt[it.path] ? artHtml(it.path, "nas-ic aud") : '<span class="nas-ic dir"></span>') + '<span class="nas-nm">' + esc(it.name) + '</span><span class="nas-m"></span><span class="nas-m">OPEN ▸</span></button>';
+    return '<button type="button" class="nas-row' + (it.path === pl.path ? " cur" : "") + (r && r.done ? " played" : "") + (audio ? "" : " other") + '"' + (audio ? ' data-nasplay="' + esc(it.path) + '"' : " disabled") + ">" + (audio ? artHtml(parentOf(it.path), "nas-ic aud") : '<span class="nas-ic doc"></span>') +
+      '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + esc(audio ? dispName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
       '<span class="nas-m tnum">' + (r && r.d ? mmss(r.d) : sizeLabel(it.size)) + '</span><span class="nas-m">' + (audio ? rowState(it) : "CAN'T PLAY") + "</span></button>";
   }
   function crumbs(dir) {
@@ -5397,12 +5505,12 @@
     var html = '<section class="nas-status"><div class="nas-card ' + (nas.ok === false ? "bad" : "ok") + '"><span class="pill ' + (nas.ok === false ? "bad" : nas.ok ? "ok" : "") + '">' + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "UNREACHABLE") : nas.ok ? "ONLINE" : "CHECKING") + "</span>" +
       '<span class="nas-host"><b>NAS</b><small>' + esc(host) + " · read-only</small></span></div>" + (nas.err && nas.ok === false ? '<div class="err">' + esc(nas.err.msg) + '</div><div class="btnrow"><button type="button" class="btn sm" data-nas="retry">TRY AGAIN</button></div>' : "") + "</section>";
     html += "<section>" + phead("FOLDERS", root ? root.items.filter(function (x) { return x.dir && !isHidden(x.path); }).length + " SHARED WITH TIMOTHYOS" : "") + (root ? '<div class="nas-shares">' + root.items.filter(function (x) { return x.dir && !isHidden(x.path); }).map(function (x) {
-      return '<button type="button" class="nas-share" data-nasdir="' + esc(x.path) + '"><b>' + esc(x.name.toUpperCase()) + "</b><small>Open ▸</small></button>";
+      return '<button type="button" class="nas-share' + (nasArt[x.path] ? " has-art" : "") + '" data-nasdir="' + esc(x.path) + '">' + (nasArt[x.path] ? artHtml(x.path, "nas-art") : "") + '<span><b>' + esc(x.name.toUpperCase()) + "</b><small>Open ▸</small></span></button>";
     }).join("") + "</div>" : '<div class="empty">' + (nas.ok === false ? "Folders appear once the NAS answers." : "Asking the NAS…") + "</div>") + "</section>";
     var cont = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30; }).sort(function (a, b) { return plays[b].at - plays[a].at; }).slice(0, 6);
     html += "<section>" + phead("CONTINUE LISTENING", "SAVED ON THIS IPAD", "personal") + (cont.length ? '<div class="nas-cont">' + cont.map(function (k) {
       var r = plays[k];
-      return '<button type="button" class="nas-ep" data-nasresume="' + esc(k) + '"><span class="nas-art">' + esc(initials(parentOf(k))) + '</span><span><b>' + esc(niceName(k)) + "</b><small>" + esc(baseName(parentOf(k))) + (r.d ? " · " + mmss(r.d - r.p) + " left" : "") + '</small><span class="nas-prog"><i style="width:' + (r.d ? Math.min(100, r.p / r.d * 100) : 0) + '%"></i></span></span></button>';
+      return '<button type="button" class="nas-ep" data-nasresume="' + esc(k) + '">' + artHtml(parentOf(k), "nas-art") + '<span><b>' + esc(dispName(k)) + "</b><small>" + esc(baseName(parentOf(k))) + (r.d ? " · " + mmss(r.d - r.p) + " left" : "") + '</small><span class="nas-prog"><i style="width:' + (r.d ? Math.min(100, r.p / r.d * 100) : 0) + '%"></i></span></span></button>';
     }).join("") + "</div>" : '<div class="empty">Anything you start and stop part way shows here, ready to pick up.</div>') + "</section>";
     return html;
   }
@@ -5438,9 +5546,10 @@
   var nasOrder = [];
   function nowHtml() {
     var a = pl.el, paused = !a || a.paused, nx = nextUp().slice(0, 4);
-    var html = '<div class="nas-now"><div class="nas-bigart">' + esc(initials(parentOf(pl.path))) + "</div><div>" +
+    var tg = nasTags[pl.path] || {};
+    var html = '<div class="nas-now">' + artHtml(parentOf(pl.path), "nas-bigart", true) + "<div>" +
       '<button type="button" class="chip sm" data-nasdir="' + esc(parentOf(pl.path)) + '">◂ ' + esc(baseName(parentOf(pl.path)).toUpperCase()) + "</button>" +
-      "<h3>" + esc(niceName(pl.path)) + "</h3>" + scrubHtml("nasSeekBig") + controlsHtml(true) +
+      "<h3>" + esc(dispName(pl.path)) + "</h3>" + (tg.a || tg.al ? '<div class="nas-by">' + esc([tg.a, tg.al].filter(Boolean).filter(function (v, i, arr) { return arr.indexOf(v) === i; }).join(" · ")) + "</div>" : "") + scrubHtml("nasSeekBig") + controlsHtml(true) +
       '<dl class="kv nas-opts"><dt>SPEED</dt><dd><div class="chips">' + [1, 1.25, 1.5, 2].map(function (s) { return '<button type="button" class="chip sm" data-nasspeed="' + s + '" aria-pressed="' + (nasPref.speed === s) + '">' + s + "×</button>"; }).join("") + "</div></dd>" +
       '<dt>SLEEP</dt><dd><div class="chips">' + [["off", "OFF"], ["15", "15 MIN"], ["30", "30 MIN"], ["60", "1 HOUR"], ["end", "END OF EPISODE"]].map(function (s) {
         var on = s[0] === "off" ? !nas.sleep : String(nas.sleep) === s[0];

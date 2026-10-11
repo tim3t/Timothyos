@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.17.0 · 2026-10-11
+- **STORAGE shows artwork and real titles.**
+  - **Episode tags:** when an MP3 starts playing, its title, show and artwork are read from the file itself (ID3 tags). They show on the player, in the folder and on the lock screen. Titles are remembered on this iPad.
+  - **Folder art:** a picture in a folder named cover, folder, front, album, artwork or poster (.jpg, .png or .webp) becomes that folder's art. Otherwise the first picture in the folder is used. A folder without a picture borrows the artwork from the first episode played from it.
+  - Nothing changes on the NAS. M4A files keep their filenames for now.
+
 ## 2.16.1 · 2026-10-11
 - **STORAGE: hide a folder.** HIDE FOLDER inside any folder keeps it off Storage (handy for folders you never play from). Hidden folders are listed under **Systems → STORAGE**, each with UNHIDE. Saved on this iPad; nothing changes on the NAS.
 

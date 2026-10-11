@@ -22,7 +22,22 @@ FILES = {
     "/Podcasts/Show A/notes.txt": (b"show notes", "2026-08-03T10:00:00Z"),
     "/Music/Album/track.wav": (wav(5), "2026-07-01T10:00:00Z"),
 }
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Music", "/Music/Album", "/Podcasts/.hidden"}
+def tagged():
+    """An MP3 with ID3v2.3 tags and embedded artwork, and a cover.png, made with ffmpeg (skipped without it)."""
+    import subprocess, tempfile, os, shutil
+    if not shutil.which("ffmpeg"): return {}
+    d = tempfile.mkdtemp(); cov = os.path.join(d, "cover.png"); art = os.path.join(d, "art.png"); mp3 = os.path.join(d, "b1.mp3")
+    q = ["-loglevel", "error", "-y"]
+    subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-i", "color=c=0x3060c0:s=64x64", "-frames:v", "1", cov], check=True)
+    subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-i", "color=c=0xc04040:s=300x300", "-frames:v", "1", art], check=True)
+    subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-t", "90", "-i", "anullsrc=r=22050:cl=mono", "-i", art, "-map", "0:a", "-map", "1:v",
+                    "-c:a", "libmp3lame", "-b:a", "16k", "-c:v", "png", "-id3v2_version", "3", "-metadata", "title=The Quiet Barn",
+                    "-metadata", "artist=Show B Hosts", "-metadata", "album=Show B", "-metadata:s:v", "comment=Cover (front)", mp3], check=True)
+    return {"/Podcasts/Show B/ep b1.mp3": (open(mp3, "rb").read(), "2026-09-01T10:00:00Z"),
+            "/Music/Album/cover.png": (open(cov, "rb").read(), "2026-07-01T10:00:00Z")}
+FILES.update(tagged())
+
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Podcasts/.hidden"}
 STATS = {"lists": 0, "denied": 0, "media": 0}
 
 def children(d):
@@ -61,7 +76,7 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body); return
         if path in FILES:
             STATS["media"] += 1
-            data = FILES[path][0]; ctype = "audio/wav" if path.endswith(".wav") else "text/plain"
+            data = FILES[path][0]; ctype = {"wav": "audio/wav", "mp3": "audio/mpeg", "png": "image/png"}.get(path.rsplit(".", 1)[-1], "text/plain")
             rng = self.headers.get("Range"); m = re.match(r"bytes=(\d*)-(\d*)", rng or "")
             if m:
                 a = int(m.group(1) or 0); b = int(m.group(2)) if m.group(2) else len(data) - 1; b = min(b, len(data) - 1)
