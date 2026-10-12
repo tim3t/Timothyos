@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.17.1";
+  var VERSION = "2.18.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5186,6 +5186,15 @@
   var LS_NASTAGS = "tos.nastags.v1";    /* titles read from files' tags: { path: { t, a, al } } */
   var COVER_NAME = /^(cover|folder|front|album|albumart|artwork|art|poster)\.(jpe?g|png|webp)$/i, IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
   var nasArt = lsGet(LS_NASART) || {}, nasTags = lsGet(LS_NASTAGS) || {};
+  var LS_NASSORT = "tos.nassort.v1";    /* sort chosen per folder: { dir: "name" | "newest" | "track" } */
+  var nasSorts = lsGet(LS_NASSORT) || {};
+  function sortOf(dir) { return nasSorts[dir] || "name"; }
+  function sorterFor(srt) {
+    var byName = function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); };
+    var tk = function (x) { var t = nasTags[x.path]; return t && t.n ? [t.d || 1, t.n] : [1e9, 1e9]; };
+    return srt === "newest" ? function (a, b) { return (b.mod || 0) - (a.mod || 0) || byName(a, b); }
+      : srt === "track" ? function (a, b) { var ka = tk(a), kb = tk(b); return ka[0] - kb[0] || ka[1] - kb[1] || byName(a, b); } : byName;
+  }
   var AUDIO_EXT = /\.(mp3|m4a|m4b|aac|wav|ogg|oga|opus|flac)$/i;
   var NAS_HIDE = ["cdrom", "floppy", "usb"];   /* empty folders built into the relay's image, not NAS folders */
   var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
@@ -5296,6 +5305,7 @@
       var at = pos + 10, data = b.subarray(at, Math.min(end, at + size));
       if (at + size > end) { if (id !== "APIC") break; }
       if (id === "TIT2" || id === "TPE1" || id === "TALB") out[{ TIT2: "t", TPE1: "a", TALB: "al" }[id]] = id3Text(data.subarray(1), data[0]);
+      else if (id === "TRCK" || id === "TPOS") { var nv = parseInt(id3Text(data.subarray(1), data[0]), 10); if (nv > 0) out[id === "TRCK" ? "n" : "d"] = nv; }   /* "3/12" → 3 */
       else if (id === "APIC" && at + size <= end && !out.pic) {
         var enc = data[0], i = 1;
         while (i < data.length && data[i]) i++;
@@ -5307,6 +5317,32 @@
     }
     return out;
   }
+  /* Remembered per file. "s" marks a file whose tag has been read, so a file without one isn't asked again. */
+  function saveTag(path, t, quiet) {
+    nasTags[path] = { t: t.t || "", a: t.a || "", al: t.al || "", n: t.n || 0, d: t.d || 0, s: 1 };
+    var keys = Object.keys(nasTags); if (keys.length > 2000) keys.slice(0, keys.length - 2000).forEach(function (k) { delete nasTags[k]; });
+    if (!quiet) lsSet(LS_NASTAGS, nasTags);
+  }
+  /* TRACK #: read the start of every MP3 in a folder (64 KB, where the text tags sit; artwork is
+     skipped), four at a time, then sort by disc and track. Files without a number go last. */
+  function scanFolder(dir) {
+    var l = nas.lists[dir];
+    if (!l || (nas.scan && nas.scan.dir === dir)) return;
+    var todo = l.items.filter(function (x) { return !x.dir && /\.mp3$/i.test(x.name) && !(nasTags[x.path] && nasTags[x.path].s); }).map(function (x) { return x.path; });
+    if (!todo.length) return;
+    var sc = nas.scan = { dir: dir, done: 0, total: todo.length }, lastPaint = 0;
+    var paint = function (force) { if (state.screen === "storage" && nas.view === "browse" && nas.dir === dir && (force || Date.now() - lastPaint > 400)) { lastPaint = Date.now(); render(true); } };
+    var one = function () {
+      var path = todo.shift();
+      if (!path || nas.scan !== sc) return Promise.resolve();
+      return rangeGet(path, 0, 65535).then(function (buf) { saveTag(path, parseId3(buf) || {}, true); }, function () { /* unreadable: its filename stands in */ })
+        .then(function () { sc.done++; paint(false); return one(); });
+    };
+    Promise.all([one(), one(), one(), one()]).then(function () {
+      if (nas.scan === sc) nas.scan = null;
+      lsSet(LS_NASTAGS, nasTags); paint(true);
+    });
+  }
   function readTags(path) {
     if (!/\.mp3$/i.test(path)) return;
     rangeGet(path, 0, 9).then(function (h) {
@@ -5316,11 +5352,7 @@
       return rangeGet(path, 0, Math.min(size + 9, 4194303)).then(parseId3);   /* up to 4 MB: enough for any tag with its artwork */
     }).then(function (t) {
       if (!t) return;
-      if (t.t || t.a || t.al) {
-        nasTags[path] = { t: t.t || "", a: t.a || "", al: t.al || "" };
-        var keys = Object.keys(nasTags); if (keys.length > 2000) keys.slice(0, keys.length - 2000).forEach(function (k) { delete nasTags[k]; });
-        lsSet(LS_NASTAGS, nasTags);
-      }
+      saveTag(path, t);
       if (t.pic && pl.path === path) {
         var blob = new Blob([t.pic.data], { type: t.pic.mime }), url = URL.createObjectURL(blob);
         if (pl.artBig) URL.revokeObjectURL(pl.artBig);
@@ -5498,7 +5530,7 @@
     var audio = AUDIO_EXT.test(it.name), r = playOf(it.path);
     if (it.dir) return '<button type="button" class="nas-row" data-nasdir="' + esc(it.path) + '">' + (nasArt[it.path] ? artHtml(it.path, "nas-ic aud") : '<span class="nas-ic dir"></span>') + '<span class="nas-nm">' + esc(it.name) + '</span><span class="nas-m"></span><span class="nas-m">OPEN ▸</span></button>';
     return '<button type="button" class="nas-row' + (it.path === pl.path ? " cur" : "") + (r && r.done ? " played" : "") + (audio ? "" : " other") + '"' + (audio ? ' data-nasplay="' + esc(it.path) + '"' : " disabled") + ">" + (audio ? artHtml(parentOf(it.path), "nas-ic aud") : '<span class="nas-ic doc"></span>') +
-      '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + esc(audio ? dispName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
+      '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + (audio && nas.showTrack && state.screen === "storage" && nas.view === "browse" && nasTags[it.path] && nasTags[it.path].n ? '<span class="nas-tn">' + (nasTags[it.path].d > 1 ? nasTags[it.path].d + "·" : "") + p2(nasTags[it.path].n) + "</span>" : "") + esc(audio ? dispName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
       '<span class="nas-m tnum">' + (r && r.d ? mmss(r.d) : sizeLabel(it.size)) + '</span><span class="nas-m">' + (audio ? rowState(it) : "CAN'T PLAY") + "</span></button>";
   }
   function crumbs(dir) {
@@ -5540,9 +5572,13 @@
     var dirs = l.items.filter(function (x) { return x.dir && !isHidden(x.path); }), files = l.items.filter(function (x) { return !x.dir; });
     var audio = files.filter(function (x) { return AUDIO_EXT.test(x.name); });
     var q = nas.q.trim().toLowerCase();
-    var match = function (x) { return !q || x.name.toLowerCase().indexOf(q) > -1; };
+    var match = function (x) { return !q || x.name.toLowerCase().indexOf(q) > -1 || (!x.dir && dispName(x.path).toLowerCase().indexOf(q) > -1); };
     var byName = function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); };
-    var sorter = nas.sort === "newest" ? function (a, b) { return (b.mod || 0) - (a.mod || 0) || byName(a, b); } : byName;
+    var mp3s = audio.some(function (x) { return /\.mp3$/i.test(x.name); }), srt = sortOf(dir);
+    if (srt === "track" && !mp3s) srt = "name";
+    if (srt === "track") scanFolder(dir);
+    var sorter = sorterFor(srt);
+    nas.showTrack = srt === "track";
     var shown = files.filter(match).filter(function (x) {
       if (nas.filter === "all") return true;
       if (!AUDIO_EXT.test(x.name)) return false;
@@ -5552,8 +5588,9 @@
     var order = audio.slice().sort(sorter).map(function (x) { return x.path; });
     html += '<div class="nas-tools"><input type="search" id="nasQ" placeholder="Search this folder" autocomplete="off" enterkeyhint="search" aria-label="Search this folder" value="' + esc(nas.q) + '">' +
       (audio.length ? '<div class="chips">' + [["all", "ALL"], ["unplayed", "UNPLAYED"], ["partial", "IN PROGRESS"]].map(function (f) { return '<button type="button" class="chip sm" data-nasfilter="' + f[0] + '" aria-pressed="' + (nas.filter === f[0]) + '">' + f[1] + "</button>"; }).join("") + "</div>" : "") +
-      '<div class="chips">' + [["name", "A TO Z"], ["newest", "NEWEST"]].map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (nas.sort === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div>" +
+      '<div class="chips">' + (mp3s ? [["track", "TRACK #"]] : []).concat([["name", "A TO Z"], ["newest", "NEWEST"]]).map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (srt === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div>" +
       '<button type="button" class="chip sm nas-hide" data-nas="hide">HIDE FOLDER</button></div>';
+    if (nas.scan && nas.scan.dir === dir) html += '<div class="nas-scan">READING TRACK NUMBERS · ' + nas.scan.done + " OF " + nas.scan.total + "</div>";
     var dshown = dirs.filter(match).sort(byName);
     if (!dshown.length && !shown.length) html += '<div class="empty">' + (q || nas.filter !== "all" ? "Nothing here matches." : "This folder is empty.") + "</div>";
     else html += '<div class="nas-list" data-order="' + esc(JSON.stringify(order)) + '">' + dshown.map(function (x) { return fileRow(x); }).join("") + shown.map(function (x) { return fileRow(x); }).join("") + "</div>";
@@ -5590,13 +5627,13 @@
       var dir = parentOf(d.nasresume);
       playPath(d.nasresume, [d.nasresume]);
       nasList(dir, false).then(function (l) {
-        var order = l.items.filter(function (x) { return !x.dir && AUDIO_EXT.test(x.name); }).map(function (x) { return x.path; }).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+        var order = l.items.filter(function (x) { return !x.dir && AUDIO_EXT.test(x.name); }).sort(sorterFor(sortOf(dir))).map(function (x) { return x.path; });
         if (pl.path === d.nasresume && order.indexOf(d.nasresume) > -1) pl.list = order;
       }).catch(function () {});
       nas.view = "now"; render(false); renderHeader(); return true;
     }
     if (d.nasfilter) { nas.filter = d.nasfilter; render(true); return true; }
-    if (d.nassort) { nas.sort = d.nassort; render(true); return true; }
+    if (d.nassort) { nasSorts[nas.dir] = d.nassort; lsSet(LS_NASSORT, nasSorts); render(true); return true; }
     if (d.nasspeed) { nasPref.speed = +d.nasspeed; lsSet(LS_NASPREF, nasPref); if (pl.el) pl.el.playbackRate = nasPref.speed; render(true); mediaState(); return true; }
     if (d.nassleep) { setSleep(d.nassleep); render(true); return true; }
     if (d.nasauto) { nasPref.auto = d.nasauto === "1"; lsSet(LS_NASPREF, nasPref); render(true); return true; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.18.0 · 2026-10-12
+- **STORAGE: sort by TRACK #.** In a folder with MP3s, TRACK # reads every file's tags (just the first 64 KB of each, four at a time, with a progress line) and orders the folder by disc, then track. Rows show the number and the song's real title; later discs show as 2·01. Files without a number go last, by name.
+- **The sort is remembered per folder** (TRACK # for albums, NEWEST for podcasts), and "play the next one" follows it.
+- **Search also matches tag titles.**
+
 ## 2.17.1 · 2026-10-11
 - **The playing pill can be minimized or closed.**
   - **›** shrinks it to a play button at the edge (remembered); **‹** brings it back.

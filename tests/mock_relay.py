@@ -33,11 +33,17 @@ def tagged():
     subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-t", "90", "-i", "anullsrc=r=22050:cl=mono", "-i", art, "-map", "0:a", "-map", "1:v",
                     "-c:a", "libmp3lame", "-b:a", "16k", "-c:v", "png", "-id3v2_version", "3", "-metadata", "title=The Quiet Barn",
                     "-metadata", "artist=Show B Hosts", "-metadata", "album=Show B", "-metadata:s:v", "comment=Cover (front)", mp3], check=True)
-    return {"/Podcasts/Show B/ep b1.mp3": (open(mp3, "rb").read(), "2026-09-01T10:00:00Z"),
+    album = {}
+    for fname, title, trk, disc in [("a.mp3", "Closing Time", "3/3", "1/2"), ("b.mp3", "Opening", "1/3", "1/2"), ("c.mp3", "Middle", "2", "1/2"), ("0 bonus.mp3", "Bonus", "1", "2/2")]:
+        out = os.path.join(d, fname)
+        subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-t", "3", "-i", "anullsrc=r=22050:cl=mono", "-c:a", "libmp3lame", "-b:a", "16k", "-id3v2_version", "3",
+                        "-metadata", "title=" + title, "-metadata", "track=" + trk, "-metadata", "disc=" + disc, "-metadata", "album=Album Two", out], check=True)
+        album["/Music/Album2/" + fname] = (open(out, "rb").read(), "2026-07-02T10:00:00Z")
+    return {**album, "/Podcasts/Show B/ep b1.mp3": (open(mp3, "rb").read(), "2026-09-01T10:00:00Z"),
             "/Music/Album/cover.png": (open(cov, "rb").read(), "2026-07-01T10:00:00Z")}
 FILES.update(tagged())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Podcasts/.hidden"}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden"}
 STATS = {"lists": 0, "denied": 0, "media": 0}
 
 def children(d):

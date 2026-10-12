@@ -133,17 +133,17 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
 
   // ---- hide a folder (kept on this iPad), unhide from Systems
   await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
-  await p.click('.nas-share >> text=MUSIC'); await p.click('.nas-row >> text=Album'); await p.waitForSelector('[data-nas="hide"]');
+  await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Album"]'); await p.waitForSelector('[data-nas="hide"]');
   await p.click('[data-nas="hide"]'); await p.waitForTimeout(300);
   assert.ok((await txt(p, '#toast')).includes('Hidden: Album'));
   assert.strictEqual(await txt(p, '#title'), 'MUSIC', 'back in the parent');
-  assert.ok(!(await txt(p, '#content')).includes('Album'), 'gone from the list');
+  assert.ok(!(await p.$('[data-nasdir="/Music/Album"]')), 'gone from the list');
   await p.click('#status'); await p.waitForSelector('#sec-storage');
   assert.ok((await txt(p, '#sec-storage')).includes('Music ▸ Album'));
   await p.click('[data-nasunhide="/Music/Album"]'); await p.waitForTimeout(200);
   assert.ok((await txt(p, '#sec-storage')).includes('HIDDEN FOLDERS None'));
   await p.click('[data-screen="storage"].nav'); await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
-  await p.click('.nas-share >> text=MUSIC'); await p.waitForSelector('.nas-row >> text=Album');
+  await p.click('.nas-share >> text=MUSIC'); await p.waitForSelector('[data-nasdir="/Music/Album"]');
 
   // ---- art: a folder's own picture, and an episode's tags (title, show, artwork)
   const albumRow = await p.$eval('[data-nasdir="/Music/Album"] .nas-img', i => i.getAttribute('src'));
@@ -167,6 +167,24 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.click('.nas-now [data-nasdir]'); await p.waitForSelector('.nas-row.cur');
   assert.ok((await txt(p, '.nas-row.cur')).includes('The Quiet Barn'), 'list shows the tag title');
   await p.click('.nas-crumbs >> text=PODCASTS'); await p.waitForSelector('[data-nasdir="/Podcasts/Show B"] .nas-img');
+
+  // ---- TRACK #: tags read for the whole folder, sorted by disc then track, remembered per folder
+  await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Album2"]');
+  await p.waitForSelector('[data-nassort="track"]');
+  assert.deepStrictEqual(await p.$$eval('[data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), ['0 bonus.mp3', 'a.mp3', 'b.mp3', 'c.mp3'], 'A TO Z first');
+  await p.click('[data-nassort="track"]');
+  await p.waitForFunction(() => !document.querySelector('.nas-scan') && document.querySelectorAll('.nas-tn').length === 4, null, { timeout: 8000 });
+  assert.deepStrictEqual(await p.$$eval('[data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), ['b.mp3', 'c.mp3', 'a.mp3', '0 bonus.mp3'], 'disc 1 tracks 1 to 3, then disc 2');
+  assert.deepStrictEqual(await p.$$eval('.nas-row .nas-nm', n => n.map(x => [...x.childNodes].filter(c => c.nodeName !== 'SMALL' && c.textContent).map(c => c.textContent).join('|'))), ['01|Opening', '02|Middle', '03|Closing Time', '2·01|Bonus'], 'track numbers and tag titles');
+  await p.screenshot({ path: D + 'storage-tracks.png' });
+  await p.fill('#nasQ', 'clos'); await p.waitForTimeout(200);
+  assert.deepStrictEqual(await p.$$eval('[data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), ['a.mp3'], 'search finds tag titles');
+  await p.fill('#nasQ', '');
+  await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=PODCASTS'); await p.click('.nas-row >> text=Show A'); await p.waitForSelector('[data-nassort="name"]');
+  assert.ok(!(await p.$('[data-nassort="track"]')), 'no TRACK # without MP3s');
+  assert.strictEqual(await p.getAttribute('[data-nassort="name"]', 'aria-pressed'), 'true', 'sort is per folder');
+  await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Album2"]');
+  await p.waitForSelector('[data-nassort="track"][aria-pressed="true"]');
 
   // ---- forget: two taps, and playback stops
   await p.click('#status'); await p.waitForSelector('#sec-storage');
