@@ -15,6 +15,11 @@ const farm = { getName:()=>'Farm cal', getTimeZone:()=>'America/Chicago', getId:
   getEvents:()=>farmEvents.slice(),
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); farmEvents.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); farmEvents.push(ev); return ev; } };
+const growthEvents = [];
+const growth = { getName:()=>'Growth', getTimeZone:()=>'America/Chicago', getId:()=>'growth-id@group.calendar.google.com',
+  getEvents:()=>growthEvents.slice(),
+  createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); growthEvents.push(ev); return ev; },
+  createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); growthEvents.push(ev); return ev; } };
 const work = { getName:()=>'Work', getTimeZone:()=>'America/Chicago', getId:()=>'tim@work.com', getEvents:()=>[],
   createEvent:()=>{ throw new Error('WORK WRITE ATTEMPTED'); } };
 const ctx = {
@@ -25,7 +30,7 @@ const ctx = {
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
   Session: { getScriptTimeZone: ()=>'America/Chicago' },
   LockService: { getScriptLock: ()=>({ waitLock(){}, releaseLock(){} }) },
-  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:null, getAllCalendars:()=>[personal, work, farm] },
+  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:id==='growth-id@group.calendar.google.com'?growth:null, getAllCalendars:()=>[personal, work, farm, growth] },
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'),'utf8'), ctx);
@@ -71,3 +76,15 @@ props.FARM_CALENDAR_ID = 'wrong-id';
 assert.deepStrictEqual(get({ action:'ping', key }).calendars[2], { area:'farm', ok:false, error:'not_found' });
 delete props.FARM_CALENDAR_ID;
 console.log('farm calendar checks passed');
+
+// --- Growth calendar (bridge 1.22): area 'hobby', off until GROWTH_CALENDAR_ID is set, then read and writable
+const gitem = { cid:'grow-0001', area:'hobby', title:'Pottery class', start: s, end: e, allDay:false };
+assert.strictEqual(post({ key, action:'create', item: gitem }).ok, false, 'no Growth captures before linking');
+assert.ok(!get({ action:'ping', key }).calendars.some(c => c.area === 'hobby'), 'Growth left out until linked');
+props.GROWTH_CALENDAR_ID = 'growth-id@group.calendar.google.com';
+assert.deepStrictEqual(get({ action:'ping', key }).calendars.map(c => c.area + ':' + c.ok), ['work:true', 'personal:true', 'hobby:true']);
+const gon = post({ key, action:'create', item: Object.assign({}, gitem, { cid:'grow-0002' }) });
+assert.ok(gon.ok && gon.event.area === 'hobby' && growthEvents.length === 1, 'Growth takes captures');
+assert.ok(get({ action:'events', key, from: now - 2*864e5, to: now + 6*864e5 }).events.some(x => x.area === 'hobby' && x.title === 'Pottery class'), 'Growth events read');
+delete props.GROWTH_CALENDAR_ID;
+console.log('growth calendar checks passed');

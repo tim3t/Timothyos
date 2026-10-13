@@ -110,7 +110,7 @@ function weather() {
   assert.ok(bal[1].startsWith('PERSONAL 3 OF 7 DAYS · 7H') && bal[1].includes('LAST 2 D AGO'), bal[1]);
   assert.strictEqual(await p.locator('.ov-bal.a-personal .bal-dots i.on').count(), 3, 'three days lit');
   assert.ok(bal[2].includes('0 OF 7 DAYS') && bal[2].includes('QUIET 12 D'));
-  assert.ok(bal[3].startsWith('HOBBIES 0 OF 7 DAYS') && bal[3].includes('QUIET 30+ D'));
+  assert.ok(bal[3].startsWith('GROWTH 0 OF 7 DAYS') && bal[3].includes('QUIET 30+ D'));
   await p.screenshot({ path: D + 'bridge-ipad.png', fullPage: true });
   // ---- targets in Systems
   await p.click('#status'); await p.waitForSelector('#balT-work');

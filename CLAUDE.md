@@ -138,7 +138,7 @@ Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no 
 
 Chrome (2.8): `--chrome-a` orchid, `--chrome-b` tan, `--chrome-c` lavender, `--chrome-d` apricot (bar rhythm `BAR_COLORS`, RESOURCES group, a few section caps). `--hero` Command Gold is for the arm only (`.elbow` and `.topbar`, via `--arm`, `--arm-bar`, `--arm-glow`): keep the corner and the bar's left end the same color and never filter or shade one part alone, or a seam shows. Don't use gold or apricot for anything that means something (areas, status).
 
-App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral). Notion Life Areas map via `taskArea()` in `js/app.js`: Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8); the Hobbies calendar is still standby.
+App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral, labelled **GROWTH** since 2.20; the key stays `hobby` in code, the API and storage). Notion Life Areas map via `taskArea()` in `js/app.js`, hard-coded by Timothy's choice (no mapping picker): Work & Calling → work; SkyGarden Farm, Beekeeping → farm; Personal Growth (and Creative, Hobb…) → hobby; everything else → personal. The farm calendar is live once linked (bridge 1.8, `FARM_CALENDAR_ID`); the Growth calendar likewise (bridge 1.22, `GROWTH_CALENDAR_ID`, area `hobby`, label always GROWTH, `hasGrowth()`). Review saves its hours to the existing Notion field Hours Hobbies (schema unchanged).
 
 ## Storage (app 2.16)
 - NAS: UGREEN DXP2800, UGOS Pro 1.18.1. Its own HTTPS cert is self-signed and its WebDAV refuses cross-site reads, so the app uses a **relay**: a `timothyos` Docker project with Tailscale (userspace, `TS_SERVE_CONFIG` proxies the ts.net HTTPS name to 127.0.0.1:8080) and Caddy (`file_server browse`, read-only `:ro` mounts under `/media`, CORS for `https://tim3t.github.io`, token as `Authorization: Bearer` or `?k=`). Compose is in the README; UGOS ignores compose `configs:`, so config travels in env vars written to files by the entrypoint/command. Tailscale on the NAS is on Timothy's own account, separate from Coy's existing tailscale container; leave Coy's alone.
@@ -181,5 +181,4 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 ## Roadmap (standby modules)
 
 - **Notes in Capture** (Notion).
-- **Farm + Bees and Hobbies calendars**: separate Google calendars, add as toggles and Capture destinations.
 - Later: Home Assistant; moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.

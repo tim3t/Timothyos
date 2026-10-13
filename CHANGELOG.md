@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.0 · 2026-10-13 (bridge 1.22)
+- **HOBBIES is now GROWTH** everywhere: Today, Week, the Bridge, BALANCE, Capture, Key Dates filters and Systems. Tasks in Notion's Personal Growth Life Area count here, as before.
+- **A Growth calendar can be linked** (bridge 1.22, Script Property `GROWTH_CALENDAR_ID`). Once linked, Growth works like the farm calendar: shown on Today, Week, Month and Horizon, its hours count in BALANCE against the Growth minimum and in Review, and CAPTURE and ASK can add to it. Steps are in the README under Growth calendar.
+
 ## 2.19.0 · 2026-10-13
 - **BALANCE, rethought.** Work is time to contain; everything else is attention to keep up.
   - **Work:** calendar hours over the last 7 days against a ceiling (45 h to start). Yellow with OVER BY when it runs past. No task count and no "quiet" warning, since work isn't tracked as tasks.

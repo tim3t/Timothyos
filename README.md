@@ -224,6 +224,19 @@ A third Google calendar for farm and bee work. Once linked, it sits beside Work 
 
 To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never deleted.
 
+## Growth calendar (bridge 1.22)
+
+A fourth Google calendar for personal growth and hobbies, shown as **GROWTH** in coral. Tasks in Notion's Personal Growth Life Area already count toward GROWTH; once the calendar is linked, its time does too (Today, Week, Month, Horizon, BALANCE hours against its minimum, Review hours). **CAPTURE** and **ASK** can add to it. Work stays read-only.
+
+1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it **Growth**, time zone yours, **Create calendar**.
+2. **Copy its ID:** **Settings** → under *Settings for my calendars* pick **Growth** → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
+3. **Update the bridge to 1.22:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
+4. **Add the ID:** Project Settings (gear) → **Script Properties** → **Add script property**: name `GROWTH_CALENDAR_ID`, value the Calendar ID.
+5. Run **setup**. The log should show `TimothyOS hobby calendar: OK (Growth)` and end with `Bridge version 1.22.0. Can write to: personal, farm, hobby`.
+6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
+
+To unlink, delete `GROWTH_CALENDAR_ID` and run setup. The calendar itself is never deleted. Review hours are saved to the Weekly Reviews database's existing **Hours Hobbies** field.
+
 ## Ledger (bridge 1.9)
 
 **LEDGER** shows your finances from YNAB at a glance: checking, age of money, savings and loans, average spend by category, and the **Replicator Queue**, your list of things to buy once the **Discretionary** category can cover them. YNAB stays where you budget: the bridge only reads it and can never change it.
@@ -499,4 +512,4 @@ docs/DESIGN.md        full design and roadmap
 
 ## Standby modules (later stages)
 
-Notes in Capture · Ask Claude · Weekly Review · Farm + Bees and Hobbies calendars. See `docs/DESIGN.md`.
+Notes in Capture · Ask Claude · Weekly Review. See `docs/DESIGN.md`.
