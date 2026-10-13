@@ -104,11 +104,23 @@ function weather() {
 
   const bal = (await p.locator('.ov-bal').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
   console.log('balance:', bal.join(' | '));
-  assert.ok(bal[0].startsWith('WORK') && bal[0].includes('2 DONE') && bal[0].includes('LAST YESTERDAY'));
-  assert.ok(bal[1].startsWith('PERSONAL') && bal[1].includes('2 DONE'));
-  assert.ok(bal[2].startsWith('FARM') && bal[2].includes('0 DONE') && bal[2].includes('QUIET 12 D'));
-  assert.ok(bal[3].startsWith('HOBBIES') && bal[3].includes('NONE IN 30 D'));
+  // 2.19: Work is hours against a ceiling (no task count); the rest are days of attention
+  assert.strictEqual(bal[0], 'WORK 53H OF 45H OVER BY 8H', 'work: hours against the 45 h ceiling');
+  assert.ok(!bal[0].includes('DONE') && !bal[0].includes('QUIET'), 'no task count or quiet warning for work');
+  assert.ok(bal[1].startsWith('PERSONAL 3 OF 7 DAYS · 7H') && bal[1].includes('LAST 2 D AGO'), bal[1]);
+  assert.strictEqual(await p.locator('.ov-bal.a-personal .bal-dots i.on').count(), 3, 'three days lit');
+  assert.ok(bal[2].includes('0 OF 7 DAYS') && bal[2].includes('QUIET 12 D'));
+  assert.ok(bal[3].startsWith('HOBBIES 0 OF 7 DAYS') && bal[3].includes('QUIET 30+ D'));
   await p.screenshot({ path: D + 'bridge-ipad.png', fullPage: true });
+  // ---- targets in Systems
+  await p.click('#status'); await p.waitForSelector('#balT-work');
+  assert.strictEqual(await p.inputValue('#balT-work'), '45');
+  await p.fill('#balT-work', '60'); await p.fill('#balT-personal', '5'); await p.click('[data-act="balsave"]');
+  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.baltarget.v1'))), { work: 60, personal: 5, farm: 6, hobby: 3 });
+  await p.click('[data-screen="bridge"]'); await p.waitForSelector('.ov-bal');
+  const bal2 = (await p.locator('.ov-bal').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
+  assert.strictEqual(bal2[0], 'WORK 53H OF 60H WITHIN');
+  assert.ok(bal2[1].includes('7H OF 5H') && bal2[1].includes('GOAL MET'), bal2[1]);
   // no emoji anywhere in the interface (Notion labels are shown as plain text; ✓ and ✕ are text marks)
   const emojiIn = () => p.evaluate(() => (document.body.innerText.match(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{2712}\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu) || []).join(''));
   assert.strictEqual(await emojiIn(), '', 'bridge shows no emoji');

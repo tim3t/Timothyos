@@ -80,6 +80,8 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 - `render()` keeps focus and caret in a text field across re-renders (the Bridge re-renders every minute).
 - **Visual rules:** use the type scale tokens in `css/app.css` (`--t-hero` 40, `--t-count` 28, `--t-title` 19, `--t-body` 17, `--t-sub` 15, `--t-label` 13, `--ls-label`). Each panel shows essentials; secondary readouts get class `ov-extra` and appear when its + (`moreBtn(key)`, state in `tos.bopen.v1`) is open. Don't add new font sizes.
 
+**Balance (2.19, Timothy's design):** Work never uses Priorities, so Work shows calendar hours only, against a ceiling. Other areas show `.bal-dots` (a day lit by a task done that day per `taskArea()`, or calendar hours > 0) and hours against a minimum when the area is in `LIVE`. Quiet = no attention for 5+ days (tasks reach back 30 days). Targets: `LS_BALT` via `balTargets()` (defaults work 45, personal 0, farm 6, hobby 3; 0 = off), edited in Systems (`balanceSection()`). Test: `app_e2e13`.
+
 ## Weekly Review
 
 `renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.0 · 2026-10-13
+- **BALANCE, rethought.** Work is time to contain; everything else is attention to keep up.
+  - **Work:** calendar hours over the last 7 days against a ceiling (45 h to start). Yellow with OVER BY when it runs past. No task count and no "quiet" warning, since work isn't tracked as tasks.
+  - **Personal, Farm + Bees, Hobbies:** seven dots, one per day, lit when the area got attention that day (a task marked done in Notion, or time on its calendar), plus hours against a minimum where the area has its own calendar. QUIET after 5 days without attention.
+  - **Systems → BALANCE TARGETS:** set the Work ceiling and the minimums (0 turns one off). Saved on this iPad.
+
 ## 2.18.0 · 2026-10-12
 - **STORAGE: sort by TRACK #.** In a folder with MP3s, TRACK # reads every file's tags (just the first 64 KB of each, four at a time, with a progress line) and orders the folder by disc, then track. Rows show the number and the song's real title; later discs show as 2·01. Files without a number go last, by name.
 - **The sort is remembered per folder** (TRACK # for albums, NEWEST for podcasts), and "play the next one" follows it.

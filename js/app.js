@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.18.0";
+  var VERSION = "2.19.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -806,6 +806,7 @@
     html += ledgerSection();
     html += storageSection();
     html += logSection();
+    html += balanceSection();
     html += standbySection();
     html += bridgeSection();
     html += captureSection();
@@ -2091,33 +2092,67 @@
       if (state.screen === "bridge") render(true);
     });
   }
+  /* BALANCE (2.19): Work is time to contain, everything else is attention to keep up.
+     Work: calendar hours over the last 7 days against a ceiling. Other areas: seven dots, one per
+     day, lit when the area got attention (a task finished that day, or time on its calendar), plus
+     hours against a minimum where the area has a calendar. Targets are set in Systems (0 = none). */
+  var LS_BALT = "tos.baltarget.v1";
+  var BAL_DEF = { work: 45, personal: 0, farm: 6, hobby: 3 };
+  function balTargets() { var t = lsGet(LS_BALT) || {}, o = {}; Object.keys(BAL_DEF).forEach(function (k) { o[k] = typeof t[k] === "number" && t[k] >= 0 ? t[k] : BAL_DEF[k]; }); return o; }
   function balancePanel(now, today, list) {
     var html = phead("BALANCE · LAST 7 DAYS", "", "personal", moreBtn("bal", "balance"));
     if (!canBalance()) return html + stubBox(state.conn ? "Needs bridge 1.4. Steps are in the README under <b>Bridge 1.4</b>." : "Link calendars first.");
     if (!state.done) return html + '<div class="empty">' + (state.doneErr ? esc(state.doneErr.msg) : "Loading finished tasks…") + "</div>";
-    var since = addDays(sod(now), -6), stats = {};
-    BAL_AREAS.forEach(function (a) { stats[a] = { n: 0, last: null, hrs: 0 }; });
+    var since = addDays(sod(now), -6), sinceY = ymd(since), stats = {}, tg = balTargets(), cal = hasData(bridgeRange());
+    BAL_AREAS.forEach(function (a) { stats[a] = { days: [false, false, false, false, false, false, false], last: null, hrs: 0 }; });
+    var touch = function (s, d) { if (!s.last || d > s.last) s.last = d; };
     state.done.done.forEach(function (x) {
       if (!x.at) return;
-      var s = stats[taskArea(x.area)], t = new Date(x.at);
-      if (!s.last || t > s.last) s.last = t;
-      if (t >= since) s.n++;
+      var s = stats[taskArea(x.area)], t = new Date(x.at), dy = ymd(t);
+      touch(s, dy);
+      if (dy >= sinceY && dy <= today) s.days[daysBetween(sinceY, dy)] = true;
     });
     for (var i = 0; i < 7; i++) {
       var d = addDays(since, i), timed = dayEvents(list, d).timed, upTo = i === 6 ? posInDay(now, sod(now)) : 24;
-      LIVE.forEach(function (a) { stats[a].hrs += unionHours(timed.filter(function (e) { return e.area === a; }), d, 0, upTo); });
+      LIVE.forEach(function (a) {
+        var h = unionHours(timed.filter(function (e) { return e.area === a; }), d, 0, upTo);
+        stats[a].hrs += h;
+        if (h > 0) { stats[a].days[i] = true; touch(stats[a], ymd(d)); }
+      });
     }
-    var maxN = Math.max(3, Math.max.apply(null, BAL_AREAS.map(function (a) { return stats[a].n; })));
+    var dl = function (i) { return DOW[addDays(since, i).getDay()]; };
     BAL_AREAS.forEach(function (a) {
-      var s = stats[a], ago = s.last ? daysBetween(ymd(s.last), today) : null;
-      var pill = ago === null ? '<span class="pill warn">NONE IN 30 D</span>' : ago >= 7 ? '<span class="pill warn">QUIET ' + ago + " D</span>" :
-        '<span class="pill">LAST ' + (ago === 0 ? "TODAY" : ago === 1 ? "YESTERDAY" : ago + " D AGO") + "</span>";
-      html += '<div class="ov-bal a-' + a + '"><span class="bn">' + AREAS[a].name + '</span><span class="track"><span style="width:' + Math.round(s.n / maxN * 100) + '%"></span></span>' +
-        '<span class="bv tnum">' + s.n + " DONE" + (LIVE.indexOf(a) > -1 && hasData(bridgeRange()) ? " · " + hrsLabel(s.hrs) : "") + "</span>" + pill + "</div>";
+      var s = stats[a], live = LIVE.indexOf(a) > -1, t = tg[a];
+      if (a === "work") {
+        var over = t > 0 && s.hrs > t;
+        html += '<div class="ov-bal bal-work a-work"><span class="bn">' + AREAS.work.name + '</span><span class="track' + (over ? " over" : "") + '"><span style="width:' + (t > 0 ? Math.min(100, Math.round(s.hrs / t * 100)) : 0) + '%"></span></span>' +
+          '<span class="bv tnum">' + (cal ? hrsLabel(s.hrs) + (t > 0 ? " OF " + t + "H" : "") : "LOADING") + "</span>" +
+          (cal && t > 0 ? (over ? '<span class="pill warn">OVER BY ' + hrsLabel(s.hrs - t) + "</span>" : '<span class="pill ok">WITHIN</span>') : "<span></span>") + "</div>";
+        return;
+      }
+      var n = s.days.filter(Boolean).length, ago = s.last ? daysBetween(s.last, today) : null;
+      var pill = ago === null || ago >= 5 ? '<span class="pill warn">QUIET ' + (ago === null ? "30+" : ago) + " D</span>"
+        : live && t > 0 && cal ? (s.hrs >= t ? '<span class="pill ok">GOAL MET</span>' : '<span class="pill">' + hrsLabel(t - s.hrs) + " TO GO</span>")
+        : '<span class="pill">LAST ' + (ago === 0 ? "TODAY" : ago === 1 ? "YESTERDAY" : ago + " D AGO") + "</span>";
+      html += '<div class="ov-bal a-' + a + '"><span class="bn">' + AREAS[a].name + '</span><span class="bal-dots" aria-label="' + n + ' of 7 days">' +
+        s.days.map(function (on, i) { return '<i class="' + (on ? "on" : "") + (i === 6 ? " today" : "") + '" title="' + dl(i) + '"></i>'; }).join("") + "</span>" +
+        '<span class="bv tnum">' + n + " OF 7 DAYS" + (live && cal ? " · " + hrsLabel(s.hrs) + (t > 0 ? " OF " + t + "H" : "") : "") + "</span>" + pill + "</div>";
     });
-    html += '<div class="ov-foot ov-extra">Tasks marked done per Life Area, dated by their last edit in Notion. Hours come from the Work and Personal calendars; Farm + Bees and Hobbies get hours once they have their own calendars.</div>';
+    html += '<div class="ov-foot ov-extra">Work: calendar hours against your ceiling. Other areas: a dot for each day it got attention (a task marked done in Notion, or time on its calendar), and hours against your minimum where it has a calendar. Quiet after 5 days. Targets are in Systems.</div>';
     if (state.doneErr) html += stale(state.done.fetched);
     return html;
+  }
+  function balanceSection() {
+    var t = balTargets(), row = function (k, label) { return "<dt>" + label + '</dt><dd class="bal-in"><input type="number" inputmode="decimal" min="0" max="168" step="0.5" id="balT-' + k + '" value="' + t[k] + '"><span class="muted">HOURS / 7 DAYS</span></dd>'; };
+    return '<section id="sec-balance">' + phead("BALANCE TARGETS", "SAVED ON THIS IPAD") + '<dl class="kv">' +
+      row("work", "WORK CEILING") + row("personal", "PERSONAL AT LEAST") + row("farm", AREAS.farm.name + " AT LEAST") + row("hobby", "HOBBIES AT LEAST") +
+      '</dl><div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="balsave">SAVE TARGETS</button></div>' +
+      '<small class="muted">Counted over the last 7 days on the Bridge\'s BALANCE panel. 0 turns a target off. Areas without their own calendar show attention dots only.</small></section>';
+  }
+  function balSave() {
+    var o = {};
+    Object.keys(BAL_DEF).forEach(function (k) { var v = parseFloat(($("balT-" + k) || {}).value); o[k] = isFinite(v) && v >= 0 ? Math.min(168, Math.round(v * 2) / 2) : BAL_DEF[k]; });
+    lsSet(LS_BALT, o); toast("Balance targets saved"); render(true);
   }
 
   /* --- captain's log + bearing (both stay on this iPad) --- */
@@ -5879,6 +5914,7 @@
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") { if (canLogAsk()) openSummaryAuth(); else writeSummary(); }
+    else if (b.dataset.act === "balsave") balSave();
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));
       toast(ignoreList.length ? ignoreList.length + (ignoreList.length === 1 ? " title ignored" : " titles ignored") + " · " + ignoredCount() + " events left out" : "Nothing ignored");

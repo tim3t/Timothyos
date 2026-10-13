@@ -139,7 +139,7 @@ The app opens on the **Bridge**: one screen above the calendars, one full-width 
 | **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
 | **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
 | **Key Dates** | The next three, with countdowns |
-| **Balance** | Tasks finished per area in the last 7 days, hours on Work and Personal, and areas that have gone quiet |
+| **Balance** | Work: calendar hours over 7 days against a ceiling. Other areas: a dot for each day they got attention (a task done or calendar time), hours against a minimum where they have a calendar, QUIET after 5 days. Targets in Systems → BALANCE TARGETS |
 | **Captain's Log** | One line of intent for today, and your **bearing** for the day |
 
 **Condition rules**
