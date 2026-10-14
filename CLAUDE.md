@@ -84,6 +84,8 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 
 **Holidays (2.21, bridge 1.23):** `holidays_(from, to)` reads the subscribed Google holidays calendar (`holidayCalendar_()`: `HOLIDAY_CALENDAR_ID`, else an ID ending `#holiday@group.v.calendar.google.com`, US first; cached 6 h), all-day only, de-duplicated, never in `SOURCES`, so never in `events`, hours, meetings or BALANCE. App: `loadHolidays()` (with `loadDates()`, every 12 h, today -7 to +400 days, `tos.hols.v1`), `holidayDates()` turns them into read-only key dates (`holiday: true`, filtered by `ignored()`), merged in `occurrences()`. Bridge KEY DATES shows at most one. Card has HIDE THIS HOLIDAY (`data-ignore`). Tests: `bridge_calendar`, `app_e2e35` (the Growth mock on 8104).
 
+**Finished events (2.22):** `pastCls(ev)` adds `past` to timed events whose end is before now, on Today (`.ev`), Week (`.wkb`) and the Bridge strip (`.ov-blk`). CSS dims the fill and border and adds a ✓ (`.t::before`, `.wkb.one .lbl::before`, `.wkb.tall .tm::before`). Checked in `app_e2e35`.
+
 ## Weekly Review
 
 `renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.

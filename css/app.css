@@ -1565,3 +1565,10 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .nas-scan { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--personal); }
 
 .a-holiday { --c: var(--chrome-c); }
+
+/* Finished events (2.22): everything that ended before the now line, dimmed with a check */
+.ev, .wkb, .ov-blk { transition: background-color .6s ease, border-color .6s ease, color .6s ease; }
+.ev.past { background: color-mix(in srgb, var(--c) 7%, var(--panel)); border-left-color: color-mix(in srgb, var(--c) 45%, var(--panel)); color: var(--dim); }
+.wkb.past { background: color-mix(in srgb, var(--c) 9%, var(--panel)); border-left-color: color-mix(in srgb, var(--c) 45%, var(--panel)); color: var(--dim); }
+.ev.past .t::before, .wkb.past.one .lbl::before, .wkb.past.tall .tm::before { content: "✓ "; color: var(--c); font-weight: 700; }
+.ov-blk.past { background: color-mix(in srgb, var(--c) 16%, var(--panel)); border-left-color: color-mix(in srgb, var(--c) 50%, var(--panel)); }

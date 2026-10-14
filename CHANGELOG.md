@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.22.0 · 2026-10-14
+- **Finished events look finished.** On Today, Week and the Bridge's day strip, every event that ended before the now line is dimmed, and on Today and Week it gets a ✓ before its title. Events still running or still to come look as before. The change happens on its own as the day goes on.
+
 ## 2.21.0 · 2026-10-14 (bridge 1.23)
 - **Holidays beside Key Dates.** Google's US Holidays calendar is read (bridge 1.23, read-only) and shown as HOLIDAY on the Bridge's KEY DATES panel (at most one of its three), the DATES screen with a new HOLIDAYS filter, and the ◆ markers on Today, Week and Month. Moving holidays are always right because the dates come from Google.
 - **Never counted:** holidays aren't calendar events here, so they add nothing to hours, meetings or BALANCE. Nothing is written to Notion.

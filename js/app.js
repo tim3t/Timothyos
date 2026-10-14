@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.21.0";
+  var VERSION = "2.22.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -645,7 +645,7 @@
     rows.forEach(function (row) {
       var ev = row.ev, top = row.ys + 1, height = Math.max(24, row.ye - row.ys - 3);
       state.index[ev.id] = ev;
-      var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "") + pendingCls(ev);
+      var cls = "ev a-" + ev.area + (height >= 50 ? " tall" : "") + (row.n > 2 && height >= 44 ? " narrow" : "") + (ev.busy ? " busy" : "") + pendingCls(ev) + pastCls(ev);
       html += '<button type="button" class="' + cls + '" data-id="' + esc(ev.id) + '" style="top:' + top + "px;height:" + height +
         "px;left:calc(58px + (100% - 62px) * " + row.col + " / " + row.n + ");width:calc((100% - 62px) / " + row.n + ' - 4px)">' +
         '<span class="lbl"><span class="t">' + esc(ev.title) + '</span><span class="tm tnum">' + hm(ev._s) + "-" + hm(ev._e) + pendingTag(ev) + "</span></span></button>";
@@ -726,7 +726,7 @@
         /* every block carries its title: one line (cut with …) when short, wrapped with its start time when tall */
         var ev = row.ev, hgt = Math.max(20, row.ye - row.ys - 2), tall = hgt >= 54;
         state.index[ev.id] = ev;
-        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + (tall ? " tall" : " one") + pendingCls(ev) + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
+        html += '<button type="button" class="wkb a-' + ev.area + (ev.busy ? " busy" : "") + (tall ? " tall" : " one") + pendingCls(ev) + pastCls(ev) + '" data-id="' + esc(ev.id) + '" title="' + esc(ev.title) +
           '" style="top:' + (row.ys + 1) + "px;height:" + hgt + "px;left:calc(2px + (100% - 4px) * " + row.col + " / " + row.n +
           ");width:calc((100% - 4px) / " + row.n + ' - 2px)"><span class="lbl">' + (tall ? '<span class="tm tnum">' + hm(ev._s) + "</span>" : "") + esc(ev.title) + "</span></button>";
       });
@@ -1045,6 +1045,8 @@
         pending: q.failed ? "failed" : q.attempts ? "queued" : "saving" };
     });
   }
+  /* An event whose end has passed (2.22): dimmed with a check on Today, Week and the Bridge strip. */
+  function pastCls(ev) { return !ev.allDay && ev._e && +ev._e <= Date.now() ? " past" : ""; }
   function pendingCls(ev) { return ev.pending ? " pending" + (ev.pending === "failed" ? " failed" : "") : ""; }
   function pendingTag(ev) { return ev.pending ? " · " + { saving: "SAVING", queued: "QUEUED", failed: "NOT SAVED" }[ev.pending] : ""; }
   /* Put a confirmed event into the cached ranges so it shows before the next sync. */
@@ -1958,7 +1960,7 @@
       var s = Math.max(FOCUS_START, r.s), e = Math.min(FOCUS_END, r.e);
       if (e <= s) return;
       state.index[r.ev.id] = r.ev;
-      html += '<button type="button" class="ov-blk a-' + r.ev.area + (clash[r.ev.id] ? " clash" : "") + (r.ev.busy ? " busy" : "") + pendingCls(r.ev) + '" data-id="' + esc(r.ev.id) +
+      html += '<button type="button" class="ov-blk a-' + r.ev.area + (clash[r.ev.id] ? " clash" : "") + (r.ev.busy ? " busy" : "") + pendingCls(r.ev) + pastCls(r.ev) + '" data-id="' + esc(r.ev.id) +
         '" aria-label="' + esc(r.ev.title) + ", " + hm(r.ev._s) + " to " + hm(r.ev._e) + '" style="left:' + pct(s) + "%;width:" + (pct(e) - pct(s)).toFixed(2) +
         "%;top:calc(5px + (100% - 10px) * " + r.col + " / " + r.n + ");height:calc((100% - 10px) / " + r.n + ' - 2px)"></button>';
     });

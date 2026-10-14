@@ -21,6 +21,21 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.strictEqual(await p.locator('.ov-kd.a-holiday').count(), 1, 'one holiday among the three');
   await p.screenshot({ path: D + 'holidays-bridge.png' });
 
+  // ---- finished events (2.22): ended before now = .past, on the Bridge strip, Today and Week
+  const nowMin = await p.evaluate(() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); });
+  await p.click('[data-screen="today"].nav'); await p.waitForSelector('.ev');
+  const evs = await p.$$eval('.ev', n => n.map(x => ({ past: x.classList.contains('past'), tm: (x.querySelector('.tm') || {}).textContent || '' })));
+  for (const e of evs) {
+    const m = e.tm.match(/(\d\d):(\d\d)\s*$|-(\d\d):(\d\d)/); if (!m) continue;
+    const end = m[3] ? +m[3] * 60 + +m[4] : +m[1] * 60 + +m[2];
+    if (Math.abs(end - nowMin) > 1) assert.strictEqual(e.past, end < nowMin, 'past matches its end time: ' + JSON.stringify(e));
+  }
+  console.log('today blocks:', evs.map(e => (e.past ? '✓' : '·') + e.tm).join(' '));
+  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(500);
+  if (new Date().getDay() !== 1) assert.ok(await p.locator('.wkb.past').count() > 0, 'Week dims finished blocks (earlier days this week)');
+  await p.screenshot({ path: D + 'past-week.png' });
+  await p.click('.elbow'); await p.waitForTimeout(500);
+
   // ---- not events: no hours, no blocks
   assert.ok(!(await p.evaluate(() => [...document.querySelectorAll('.ov-now, .ov-wk')].some(e => /Veterans Day/.test(e.textContent)))), 'not in Now/Next or Horizon');
   await p.click('[data-screen="week"].nav'); await p.waitForTimeout(600);
