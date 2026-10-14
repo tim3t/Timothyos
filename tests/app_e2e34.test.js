@@ -50,7 +50,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 
   // --- Review shows Growth hours
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
-  await p.click('.rl-card.due'); await p.waitForTimeout(1500);
+  await p.click('.rl-card.cur'); await p.waitForTimeout(1500);   /* this week: a "due" card only exists early in the week */
   const rows = (await p.locator('.rv-row').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
   console.log('review rows:', rows.join(' | '));
   assert.ok(rows.some(r => r.startsWith('GROWTH')), 'Growth hours in the review');
