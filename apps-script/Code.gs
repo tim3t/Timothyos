@@ -5,7 +5,10 @@
  *  - Calendars: reads Work + Personal, plus your farm calendar once linked
  *    (Script Property FARM_CALENDAR_ID) and your Growth calendar once linked
  *    (Script Property GROWTH_CALENDAR_ID, bridge 1.22). Creates events you capture
- *    on Personal, the farm calendar or Growth; never on Work.
+ *    on Personal, the farm calendar or Growth; never on Work. Reads Google's
+ *    US Holidays calendar (bridge 1.23, read-only; found on its own, or Script
+ *    Property HOLIDAY_CALENDAR_ID) so holidays show beside Key Dates. Nothing
+ *    about holidays is written anywhere.
  *  - Notion: reads your Master Task List for Plan Day; sets Focus Date, marks
  *    tasks done, and adds new tasks. Reads and adds Key Dates. Counts tasks
  *    finished recently (for the Bridge's Balance panel). Reads a week's
@@ -69,13 +72,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.22.0';
+var VERSION = '1.23.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -117,6 +120,7 @@ function read_(p) {
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
   if (p.action === 'tasks') return tasks_(String(p.day || ''));
   if (p.action === 'dates') return dates_();
+  if (p.action === 'holidays') return holidays_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'done') return done_(p.days);
   if (p.action === 'week') return week_(String(p.week || ''), String(p.from || ''), String(p.to || ''));
   if (p.action === 'reviews') return reviews_(p.limit);
@@ -199,6 +203,8 @@ function setup() {
     console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error + (s.area === 'farm' ? '. Check FARM_CALENDAR_ID in Script Properties against the list above' : s.area === 'hobby' ? '. Check GROWTH_CALENDAR_ID in Script Properties against the list above' : '')));
   });
   if (!farmCalendarId_()) console.log('TimothyOS farm calendar: OFF. Add FARM_CALENDAR_ID in Script Properties (the ID from the list above) to link it');
+  var hol = holidayCalendar_();
+  console.log('TimothyOS holidays: ' + (hol ? 'OK (' + hol.getName() + ')' : 'OFF. Subscribe to a holidays calendar in Google Calendar, or add HOLIDAY_CALENDAR_ID in Script Properties'));
   if (!growthCalendarId_()) console.log('TimothyOS Growth calendar: OFF. Add GROWTH_CALENDAR_ID in Script Properties (the ID from the list above) to link it');
   var n = notionStatus_();
   console.log('Notion tasks: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
@@ -297,6 +303,43 @@ function workCalendarId_() {
 }
 
 /** The farm calendar's ID, from Script Properties (so its name never sits in this code). Empty until linked. */
+/* ---------- Holidays (bridge 1.23): Google's holidays calendar, read-only ---------- */
+/** The holidays calendar: HOLIDAY_CALENDAR_ID if set, else the subscribed Google holidays
+ *  calendar (its ID ends in #holiday@group.v.calendar.google.com), US first. Remembered 6 hours. */
+function holidayCalendar_() {
+  var id = String(PropertiesService.getScriptProperties().getProperty('HOLIDAY_CALENDAR_ID') || '').trim();
+  var cache = CacheService.getScriptCache();
+  if (!id) id = cache.get('holcal') || '';
+  if (!id) {
+    var all = CalendarApp.getAllCalendars().filter(function (c) { return /#holiday@group\.v\.calendar\.google\.com$/.test(c.getId()); });
+    var us = all.filter(function (c) { return /usa|united.states|\.us#/i.test(c.getId() + ' ' + c.getName()); })[0] || all[0];
+    if (!us) return null;
+    id = us.getId();
+    cache.put('holcal', id, 21600);
+  }
+  return CalendarApp.getCalendarById(id);
+}
+/** Holidays between two dates (yyyy-MM-dd, up to about 14 months): [{ date, title }]. All-day only. */
+function holidays_(from, to) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return { ok: false, error: 'bad_range' };
+  var tz = Session.getScriptTimeZone(), a = Utilities.parseDate(from, tz, 'yyyy-MM-dd'), b = Utilities.parseDate(to, tz, 'yyyy-MM-dd');
+  if ((b - a) / 86400000 > 430) return { ok: false, error: 'range_too_long' };
+  var cache = CacheService.getScriptCache(), key = 'hol:' + VERSION + ':' + from + ':' + to, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var cal = holidayCalendar_();
+  if (!cal) return { ok: true, version: VERSION, calendar: null, holidays: [] };
+  var seen = {}, out = [];
+  cal.getEvents(a, new Date(b.getTime() + 86400000)).forEach(function (ev) {
+    if (!ev.isAllDayEvent()) return;
+    var d = Utilities.formatDate(ev.getAllDayStartDate(), tz, 'yyyy-MM-dd'), t = String(ev.getTitle() || '').trim();
+    if (!t || seen[d + t]) return;
+    seen[d + t] = 1; out.push({ date: d, title: t });
+  });
+  out.sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : 0; });
+  var res = { ok: true, version: VERSION, calendar: cal.getName(), holidays: out };
+  try { cache.put(key, JSON.stringify(res), 21600); } catch (e) { /* too large to cache; fine */ }
+  return res;
+}
 /** The Growth calendar's ID (area 'hobby' in the app, shown as GROWTH), from Script Properties. Empty until linked. */
 function growthCalendarId_() {
   return String(PropertiesService.getScriptProperties().getProperty('GROWTH_CALENDAR_ID') || '').trim();

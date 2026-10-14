@@ -237,6 +237,15 @@ A fourth Google calendar for personal growth and hobbies, shown as **GROWTH** in
 
 To unlink, delete `GROWTH_CALENDAR_ID` and run setup. The calendar itself is never deleted. Review hours are saved to the Weekly Reviews database's existing **Hours Hobbies** field.
 
+## Holidays (bridge 1.23)
+
+Google's US Holidays calendar shows beside your Key Dates as **HOLIDAY** (lavender), read-only: on the Bridge's KEY DATES panel (at most one of its three slots), the DATES screen (with a **HOLIDAYS** filter) and the ◆ markers on Today, Week and Month. Dates come straight from Google, so holidays that move each year are always right. Nothing is written to Notion or any calendar, and holidays never count toward calendar hours, meetings or BALANCE.
+
+1. **Update the bridge to 1.23:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `TimothyOS holidays: OK (Holidays in United States)`.
+2. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
+
+The bridge finds the holidays calendar you're subscribed to in Google Calendar on its own. To use a different one, add Script Property `HOLIDAY_CALENDAR_ID` with its ID. To hide one you don't care about (Daylight Saving, say), tap it, then **HIDE THIS HOLIDAY**; it joins **Systems → IGNORED EVENTS**, where you can bring it back.
+
 ## Ledger (bridge 1.9)
 
 **LEDGER** shows your finances from YNAB at a glance: checking, age of money, savings and loans, average spend by category, and the **Replicator Queue**, your list of things to buy once the **Discretionary** category can cover them. YNAB stays where you budget: the bridge only reads it and can never change it.

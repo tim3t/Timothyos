@@ -20,6 +20,10 @@ const growth = { getName:()=>'Growth', getTimeZone:()=>'America/Chicago', getId:
   getEvents:()=>growthEvents.slice(),
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); growthEvents.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); growthEvents.push(ev); return ev; } };
+const holEv = (t, d) => ({ getTitle:()=>t, isAllDayEvent:()=>true, getAllDayStartDate:()=>new Date(d + 'T05:00:00Z') });
+const holidays = { getName:()=>'Holidays in United States', getId:()=>'en.usa#holiday@group.v.calendar.google.com', getTimeZone:()=>'America/Chicago',
+  getEvents:()=>[holEv('Veterans Day', '2026-11-11'), holEv('Thanksgiving Day', '2026-11-26'), holEv('Thanksgiving Day', '2026-11-26')],
+  createEvent:()=>{ throw new Error('HOLIDAY WRITE ATTEMPTED'); } };
 const work = { getName:()=>'Work', getTimeZone:()=>'America/Chicago', getId:()=>'tim@work.com', getEvents:()=>[],
   createEvent:()=>{ throw new Error('WORK WRITE ATTEMPTED'); } };
 const ctx = {
@@ -30,7 +34,7 @@ const ctx = {
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
   Session: { getScriptTimeZone: ()=>'America/Chicago' },
   LockService: { getScriptLock: ()=>({ waitLock(){}, releaseLock(){} }) },
-  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:id==='growth-id@group.calendar.google.com'?growth:null, getAllCalendars:()=>[personal, work, farm, growth] },
+  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:id==='growth-id@group.calendar.google.com'?growth:id==='en.usa#holiday@group.v.calendar.google.com'?holidays:null, getAllCalendars:()=>[personal, work, farm, growth, holidays] },
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'),'utf8'), ctx);
@@ -88,3 +92,14 @@ assert.ok(gon.ok && gon.event.area === 'hobby' && growthEvents.length === 1, 'Gr
 assert.ok(get({ action:'events', key, from: now - 2*864e5, to: now + 6*864e5 }).events.some(x => x.area === 'hobby' && x.title === 'Pottery class'), 'Growth events read');
 delete props.GROWTH_CALENDAR_ID;
 console.log('growth calendar checks passed');
+
+// --- holidays (bridge 1.23): found on its own, read-only, all-day, de-duplicated; never a source of events
+assert.ok(get({ action:'ping', key }).capabilities.includes('holidays'));
+const hol = get({ action:'holidays', key, from:'2026-10-14', to:'2027-10-14' });
+console.log('holidays:', JSON.stringify(hol));
+assert.strictEqual(hol.calendar, 'Holidays in United States');
+assert.deepStrictEqual(hol.holidays, [{ date:'2026-11-11', title:'Veterans Day' }, { date:'2026-11-26', title:'Thanksgiving Day' }]);
+assert.strictEqual(get({ action:'holidays', key, from:'2026-10-14', to:'2028-10-14' }).error, 'range_too_long');
+assert.strictEqual(get({ action:'holidays', key, from:'nope', to:'2027-01-01' }).error, 'bad_range');
+assert.ok(!get({ action:'ping', key }).calendars.some(c => /holiday/i.test(c.area)), 'not a calendar source: no hours, no meetings');
+console.log('holiday checks passed');

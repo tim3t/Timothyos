@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.20.0";
+  var VERSION = "2.21.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -143,6 +143,7 @@
     tasksInflight: {},
     taskBusy: {},
     dates: lsGet(LS_DATES),                /* { fetched, dates, areas, types } */
+    hols: lsGet("tos.hols.v1"),            /* holidays (bridge 1.23): { fetched, calendar, list[{d, t}] }; key is LS_HOLS */
     datesErr: null,
     datesInflight: false,
     done: lsGet(LS_DONE),                  /* { fetched, done: [{ area, at }] } */
@@ -1283,7 +1284,31 @@
   /* ---------- Key Dates (Notion) ---------- */
   var DATES_FRESH_MS = 5 * 60 * 1000;
   function canDates() { return state.caps.indexOf("dates") > -1; }
+  /* Holidays (bridge 1.23): read from Google's holidays calendar, shown beside Key Dates as HOLIDAY.
+     Never written anywhere, never counted in hours, meetings or BALANCE (they aren't calendar events
+     here). A title on the IGNORED EVENTS list hides that holiday. */
+  var LS_HOLS = "tos.hols.v1";
+  function canHolidays() { return state.caps.indexOf("holidays") > -1; }
+  function loadHolidays(force) {
+    if (!state.conn || !canHolidays() || state.holsInflight) return;
+    if (!force && state.hols && Date.now() - state.hols.fetched < 43200000) return;
+    if (!force && state.holsErr && Date.now() - state.holsErr < FRESH_MS) return;
+    state.holsInflight = true;
+    var now = new Date();
+    api({ action: "holidays", from: ymd(addDays(now, -7)), to: ymd(addDays(now, 400)) }).then(function (j) {
+      state.hols = { fetched: Date.now(), calendar: j.calendar || null, list: (j.holidays || []).map(function (h) { return { d: h.date, t: h.title }; }) };
+      state.holsErr = null; lsSet(LS_HOLS, state.hols);
+    }).catch(function () { state.holsErr = Date.now(); })
+      .then(function () { state.holsInflight = false; if (["bridge", "today", "week", "month", "dates", "systems", "loom"].indexOf(state.screen) > -1) render(true); });
+  }
+  function holidayDates() {
+    if (!canHolidays() || !state.hols) return [];
+    return state.hols.list.filter(function (h) { return !ignored({ title: h.t }); }).map(function (h) {
+      return { id: "hol:" + h.d + ":" + h.t, title: h.t, start: h.d, end: null, area: null, type: "Holiday", yearly: false, holiday: true };
+    });
+  }
   function loadDates(force) {
+    loadHolidays(force);
     if (!state.conn || !canDates() || state.datesInflight) return;
     if (!force && state.dates && Date.now() - state.dates.fetched < DATES_FRESH_MS) return;
     if (!force && state.datesErr && Date.now() - state.datesErr.at < FRESH_MS) return;
@@ -1315,7 +1340,7 @@
   /* Every occurrence overlapping [from, to] (yyyy-mm-dd, inclusive). Yearly dates repeat. */
   function occurrences(from, to) {
     var out = [], fy = +from.slice(0, 4), ty = +to.slice(0, 4);
-    ((state.dates && state.dates.dates) || []).forEach(function (d) {
+    ((state.dates && state.dates.dates) || []).concat(holidayDates()).forEach(function (d) {
       var s = d.start, e = d.end || d.start;
       var add = function (os, oe) { if (os <= to && oe >= from) { var o = { d: d, s: os, e: oe, id: d.id + "@" + os }; state.index["kd:" + o.id] = o; out.push(o); } };
       if (!d.yearly) { add(s, e); return; }
@@ -1334,7 +1359,7 @@
   function rangeLabel(o) { return o.e !== o.s ? shortDay(o.s) + " TO " + shortDay(o.e) : shortDay(o.s); }
   /* Key dates to mark on one day: single dates, window starts and ends (and, if asked, days inside a window). */
   function kdMarks(day, inside) {
-    if (!canDates() || !state.dates) return [];
+    if (!(canDates() && state.dates) && !holidayDates().length) return [];
     return occurrences(day, day).filter(function (o) { return o.s === day || o.e === day || inside; }).map(function (o) {
       var tag = "";
       if (o.e !== o.s) tag = o.s === day ? "STARTS" : o.e === day ? "ENDS" : "DAY " + (daysBetween(o.s, day) + 1) + " OF " + (daysBetween(o.s, o.e) + 1);
@@ -1342,8 +1367,8 @@
     });
   }
   function kdRow(o, ref) {
-    var d = o.d, meta = [bare(d.type), bare(d.area), d.yearly ? "YEARLY" : ""].filter(Boolean).map(esc).join(" · ");
-    return '<button type="button" class="kd a-' + taskArea(d.area) + '" data-kd="' + esc(o.id) + '"><span class="st"></span>' +
+    var d = o.d, meta = d.holiday ? "HOLIDAY" : [bare(d.type), bare(d.area), d.yearly ? "YEARLY" : ""].filter(Boolean).map(esc).join(" · ");
+    return '<button type="button" class="kd ' + (d.holiday ? "a-holiday" : "a-" + taskArea(d.area)) + '" data-kd="' + esc(o.id) + '"><span class="st"></span>' +
       '<span class="dt tnum">' + rangeLabel(o) + '</span><span class="tt"><b>' + esc(d.title) + "</b>" + (meta ? "<small>" + meta + "</small>" : "") + "</span>" +
       '<span class="pill tnum' + (soon(o, ref) ? " soon" : "") + '">' + countdown(o, ref) + "</span></button>";
   }
@@ -1368,12 +1393,12 @@
       return;
     }
     var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
-    var areas = [["", "ALL"], ["work", "WORK"], ["personal", "PERSONAL"], ["farm", AREAS.farm.name], ["hobby", AREAS.hobby.name]];
+    var areas = [["", "ALL"], ["work", "WORK"], ["personal", "PERSONAL"], ["farm", AREAS.farm.name], ["hobby", AREAS.hobby.name]].concat(holidayDates().length ? [["holiday", "HOLIDAYS"]] : []);
     html += '<div class="kdtools"><div class="chips">' + areas.map(function (a) {
       return '<button type="button" class="chip' + (a[0] ? " a-" + a[0] : "") + '" data-kdf="' + a[0] + '" aria-pressed="' + ((f || "") === a[0]) + '">' + a[1] + "</button>";
     }).join("") + '</div><button type="button" class="btn" data-act="adddate">+ ADD KEY DATE</button></div>';
     if (!state.dates) { $("content").innerHTML = html + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div></div>"; return; }
-    var list = occurrences(today, end).filter(function (o) { return !f || taskArea(o.d.area) === f; });
+    var list = occurrences(today, end).filter(function (o) { return !f || (f === "holiday" ? !!o.d.holiday : !o.d.holiday && taskArea(o.d.area) === f); });
     var now = list.filter(function (o) { return o.s < today; }), later = list.filter(function (o) { return o.s >= today; });
     if (now.length) html += '<div class="dgroup">' + phead("HAPPENING NOW", now.length + (now.length === 1 ? " WINDOW" : " WINDOWS")) + now.map(function (o) { return kdRow(o, today); }).join("") + "</div>";
     var byMonth = {};
@@ -1390,6 +1415,16 @@
   function openKeyDate(o) {
     var d = o.d, ref = ymd(new Date());
     var when = o.e !== o.s ? dLabel(parseYmd(o.s)) + " TO " + dLabel(parseYmd(o.e)) : dLabel(parseYmd(o.s));
+    if (d.holiday) {
+      $("detailSheet").className = "sheet a-holiday";
+      $("detailSheet").style.setProperty("--c", "var(--chrome-c)");
+      $("detailSheet").innerHTML = '<div class="sbar"><span>◆ HOLIDAY</span><span>' + esc((state.hols && state.hols.calendar) || "HOLIDAYS").toUpperCase() + "</span></div>" +
+        '<div class="sbody"><h3 id="detailTitle">' + esc(d.title) + '</h3><div class="tnum">' + esc(when) + " · " + countdown(o, ref) + "</div>" +
+        '<div class="muted">From Google\'s holidays calendar, read-only. Not counted in hours or BALANCE.</div></div>' +
+        '<div class="sfoot btnrow"><button type="button" class="btn ghost" data-ignore="' + esc(d.title) + '">HIDE THIS HOLIDAY</button><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+      showSheet("detailScrim"); $("detailClose").focus();
+      return;
+    }
     $("detailSheet").className = "sheet a-" + taskArea(d.area);
     $("detailSheet").style.setProperty("--c", "var(--" + taskArea(d.area) + ")");
     $("detailSheet").innerHTML = '<div class="sbar"><span>◆ KEY DATE</span><span>' + esc(bare(d.type)) + "</span></div>" +
@@ -1590,6 +1625,8 @@
     } else if (canPlan()) {
       html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs bridge 1.3. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
     }
+    if (canHolidays()) html += '<div class="calrow a-holiday"><span class="st"></span><span><b>Holidays</b><small>' + (state.hols ? (state.hols.calendar ? esc(state.hols.calendar) + " · " + holidayDates().length + " shown in the next 13 months · read-only" : "No holidays calendar found. Subscribe to one in Google Calendar, or set HOLIDAY_CALENDAR_ID.") : "Not loaded yet") +
+      '</small></span><span class="pill' + (state.hols && state.hols.calendar ? " ok\">OK" : "\">" + (state.hols ? "NOT FOUND" : "…")) + "</span></div>";
     return html + "</section>";
   }
 
@@ -1981,14 +2018,14 @@
   function kdNextPanel(today) {
     if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs bridge 1.3 and the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
     if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
-    var list = occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (o) { return o.e >= today; }).slice(0, 3);
+    var nh = 0, list = occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (o) { return o.e >= today && (!o.d.holiday || nh++ < 1); }).slice(0, 3);   /* at most one holiday among the three */
     var html = phead("KEY DATES", "NEXT UP", null, moreBtn("kd", "key dates"));
     if (!list.length) html += '<div class="empty">No key dates in the next 12 months.</div>';
     list.forEach(function (o) {
       var running = o.s < today, n = running ? daysBetween(today, o.e) : daysBetween(today, o.s);
       var unit = running ? "D LEFT" : n === 0 ? "TODAY" : n === 1 ? "DAY" : "DAYS";
-      html += '<button type="button" class="ov-kd a-' + taskArea(o.d.area) + (!running && n <= KD_WARN_DAYS ? " soon" : "") + '" data-kd="' + esc(o.id) + '"><span class="kn tnum">' + (n === 0 && !running ? "◆" : n) +
-        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.type ? " · " + esc(bare(o.d.type)) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
+      html += '<button type="button" class="ov-kd ' + (o.d.holiday ? "a-holiday" : "a-" + taskArea(o.d.area)) + (!running && n <= KD_WARN_DAYS ? " soon" : "") + '" data-kd="' + esc(o.id) + '"><span class="kn tnum">' + (n === 0 && !running ? "◆" : n) +
+        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.holiday ? " · HOLIDAY" : o.d.type ? " · " + esc(bare(o.d.type)) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
     });
     return html + '<div class="btnrow ov-extra" style="margin-top:14px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button><button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
   }

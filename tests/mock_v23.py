@@ -1,4 +1,4 @@
-# Simulated bridge 1.22: mock_v22 plus a linked Growth calendar (area "hobby"), an hour every evening. Port 8104.
+# Simulated bridge 1.23: mock_v22 plus a linked Growth calendar (area "hobby"), an hour every evening, and holidays (invented dates relative to today). Port 8104.
 # Simulated bridge 1.16/1.17: everything in 1.14, plus Captain's Log search and its index (invented sample entries), and
 # (after ?action=pincode) a code-word authorization like OMEGA-1701 with timed lockouts. Port 8103.
 import json, datetime as dt
@@ -259,8 +259,13 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def answer(self, q):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "holidays":
+            import datetime as _dt
+            t0 = _dt.date.today()
+            HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
+            body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays"] + (["logcode"] if CODE else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}

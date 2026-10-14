@@ -50,7 +50,7 @@ python3 mock_v19.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.9: + ledger + queu
 python3 mock_v20.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.10: + Captain's Log    :8101
 python3 mock_v21.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.14: + Habits, Library  :8102
 python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search      :8103
-python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.22: + Growth calendar  :8104
+python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.23: + Growth, holidays :8104
 python3 mock_relay.py >/dev/null 2>&1 & pids+=($!)   # Storage relay (NAS)           :8110
 sleep 1.5
 
@@ -81,6 +81,7 @@ run app_e2e31.test.js     # Log Ask: scopes, preview, send, follow-up, save, ins
 run app_e2e32.test.js     # LEDGER: fresh from YNAB on opening, pull to refresh, REFRESH
 run app_e2e33.test.js     # STORAGE: relay setup, folders, player, resume on this iPad, pill, filters
 run app_e2e34.test.js     # GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review
+run app_e2e35.test.js     # HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.0 · 2026-10-14 (bridge 1.23)
+- **Holidays beside Key Dates.** Google's US Holidays calendar is read (bridge 1.23, read-only) and shown as HOLIDAY on the Bridge's KEY DATES panel (at most one of its three), the DATES screen with a new HOLIDAYS filter, and the ◆ markers on Today, Week and Month. Moving holidays are always right because the dates come from Google.
+- **Never counted:** holidays aren't calendar events here, so they add nothing to hours, meetings or BALANCE. Nothing is written to Notion.
+- **HIDE THIS HOLIDAY** on a holiday's card adds it to IGNORED EVENTS. Systems shows which holidays calendar is linked.
+
 ## 2.20.0 · 2026-10-13 (bridge 1.22)
 - **HOBBIES is now GROWTH** everywhere: Today, Week, the Bridge, BALANCE, Capture, Key Dates filters and Systems. Tasks in Notion's Personal Growth Life Area count here, as before.
 - **A Growth calendar can be linked** (bridge 1.22, Script Property `GROWTH_CALENDAR_ID`). Once linked, Growth works like the farm calendar: shown on Today, Week, Month and Horizon, its hours count in BALANCE against the Growth minimum and in Review, and CAPTURE and ASK can add to it. Steps are in the README under Growth calendar.

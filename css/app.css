@@ -1563,3 +1563,5 @@ body.nas-pad .content { padding-bottom: 96px; }
 body.nas-pad-min .content { padding-bottom: 72px; }
 .nas-tn { font-family: var(--display); color: var(--dim); letter-spacing: .06em; margin-right: 10px; font-variant-numeric: tabular-nums; }
 .nas-scan { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--personal); }
+
+.a-holiday { --c: var(--chrome-c); }
