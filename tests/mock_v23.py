@@ -19,6 +19,8 @@ def events(f, t):
             if wd in (0, 2): out.append(ev("work", d, 10, 0, 11, 0, "Roadmap review", loc="Zoom"))
             if wd == 1: out += [ev("work", d, 13, 0, 14, 30, "Sprint planning"), ev("work", d, 14, 0, 15, 0, "", busy=True)]
             if wd == 3: out.append(ev("work", d, 15, 0, 16, 0, "Vendor call"))
+            out.append(ev("work", d, 12, 0, 13, 0, "Out of office — Lunch"))   # 2.23: a break, kept despite the ignored "Out of office"
+            if wd == 2: out.append(ev("work", d, 16, 0, 16, 30, "Out of office"))   # stays ignored
         if wd == 1: out.append(ev("personal", d, 13, 30, 14, 0, "Pharmacy pickup"))
         if wd == 1: out.append(ev("personal", d, 18, 0, 19, 30, "Dinner with Sam", loc="Luna Cafe"))
         if wd == 5: out.append(ev("personal", d, 7, 0, 13, 0, "Saturday market"))

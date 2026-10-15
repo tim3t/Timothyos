@@ -418,6 +418,10 @@ To share another folder later, add another `- PATH:/media/NAME:ro` line under th
 
 **Using it:** folders on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. The place in each file, speed and "play the next one" are saved **on this iPad only**. While something plays, a small pill on every other screen pauses it or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too. **Artwork:** put a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder to give it art. MP3 titles, show names and artwork are read from the files' own tags as they play. **TRACK #** (folders with MP3s) reads the tags of the whole folder and orders it by disc and track; each folder remembers its own sort. **HIDE FOLDER** keeps a folder off Storage on this iPad; Systems → STORAGE lists hidden folders with UNHIDE.
 
+## Breaks (app 2.23)
+
+Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the words (Lunch to start; add Walk or anything else). Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
+
 ## Daily use
 
 | Do | How |

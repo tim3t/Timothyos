@@ -1572,3 +1572,7 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .wkb.past { background: color-mix(in srgb, var(--c) 9%, var(--panel)); border-left-color: color-mix(in srgb, var(--c) 45%, var(--panel)); color: var(--dim); }
 .ev.past .t::before, .wkb.past.one .lbl::before, .wkb.past.tall .tm::before { content: "✓ "; color: var(--c); font-weight: 700; }
 .ov-blk.past { background: color-mix(in srgb, var(--c) 16%, var(--panel)); border-left-color: color-mix(in srgb, var(--c) 50%, var(--panel)); }
+
+/* Breaks (2.23): protected time like lunch, shown but never counted as work */
+.a-break { --c: var(--chrome-b); }
+.ev.a-break, .wkb.a-break, .ov-blk.a-break { background-image: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--c) 14%, transparent) 7px 14px); }

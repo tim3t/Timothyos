@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.22.0";
+  var VERSION = "2.23.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -45,7 +45,8 @@
     work: { name: "WORK", unit: "MTGS" },
     personal: { name: "PERSONAL", unit: "ITEMS" },
     farm: { name: "FARM + BEES", unit: "ITEMS" },   /* named after its calendar once linked (bridge 1.8) */
-    hobby: { name: "GROWTH", unit: "ITEMS" }   /* Personal Growth and hobbies; Notion's Personal Growth Life Area lands here (taskArea) */
+    hobby: { name: "GROWTH", unit: "ITEMS" },
+    break: { name: "BREAK", unit: "" }   /* Breaks list (2.23): shown, never counted; not a Life Area */   /* Personal Growth and hobbies; Notion's Personal Growth Life Area lands here (taskArea) */
   };
   var LIVE = ["work", "personal"];         /* calendars in use; setAreas() adds farm once the bridge reports it */
   var STANDBY_AREAS = ["farm", "hobby"];
@@ -353,7 +354,30 @@
     return { from: w, to: addDays(w, 7) };
   }
   function rkey(r) { return r.from.getTime() + "_" + r.to.getTime(); }
-  function eventsFor(r) { return cachedEventsFor(r).filter(function (ev) { return !ignored(ev); }).concat(pendingEvents()); }
+  function eventsFor(r) { return cachedEventsFor(r).filter(function (ev) { return asBreak(ev) || !ignored(ev); }).concat(pendingEvents()); }
+  /* ---------- Breaks (2.23) ---------- */
+  /* Protected time booked on a calendar, like lunch held as an Out of Office on the Work calendar.
+     A timed event whose title contains a word on this list is always shown, even if it also matches
+     an ignored title, as its own "break" area: never Work hours, meetings, BALANCE or Review hours.
+     The "Out of office —" prefix is dropped from its label. The list stays on this iPad. */
+  var LS_BREAKS = "tos.breaks.v1";
+  var breakList = lsGet(LS_BREAKS) || ["Lunch"];
+  function breakWord(title) { var t = norm1(title); return breakList.filter(function (w) { return norm1(w) && t.indexOf(norm1(w)) > -1; })[0] || ""; }
+  /* Sets the event's area and label for the current list (kept reversible: srcArea, srcTitle). */
+  function asBreak(ev) {
+    if (ev.pending) return false;
+    if (!ev.srcArea) { ev.srcArea = ev.area; ev.srcTitle = ev.title; }
+    var w = !ev.allDay && breakWord(ev.srcTitle);
+    ev.area = w ? "break" : ev.srcArea;
+    ev.title = w ? ev.srcTitle.replace(/^\s*(out of office|ooo)\s*[-–—:·|]\s*/i, "") || ev.srcTitle : ev.srcTitle;
+    ev.breakWord = w || "";
+    return !!w;
+  }
+  function setBreaks(list) {
+    var seen = {};
+    breakList = list.map(function (x) { return String(x).trim(); }).filter(function (x) { var k = norm1(x); if (!k || seen[k]) return false; seen[k] = 1; return true; }).slice(0, 12);
+    lsSet(LS_BREAKS, breakList);
+  }
   /* ---------- Ignored events ---------- */
   /* Some events exist only to stop others booking time (for example an all-weekend
      "out of office" block on the work calendar). Any event whose title contains a
@@ -803,6 +827,10 @@
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="ignsave">SAVE IGNORED</button></div>' +
       '<small class="muted">' + (ignoreList.length ? nIgn + (nIgn === 1 ? " event" : " events") + " left out of the loaded calendars. " : "") +
       "Quickest way to add one: tap the event, then IGNORE THIS TITLE. Saved on this iPad; your calendars are not changed.</small>";
+    html += '<label class="ov-sub" for="brkIn">BREAKS</label>' +
+      '<textarea id="brkIn" rows="2" placeholder="One word per line, e.g. Lunch">' + esc(breakList.join("\n")) + "</textarea>" +
+      '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="brksave">SAVE BREAKS</button></div>' +
+      '<small class="muted">A timed event whose title contains one of these is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings, BALANCE or Review hours. Saved on this iPad.</small>';
     html += "</section>";
 
     html += aiSection();
@@ -1940,7 +1968,7 @@
     if (!hasData(bridgeRange()) && !timed.length) {
       return html + '<div class="empty">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar not loaded yet.") + "</div></div>";
     }
-    if (cur) html += '<span class="pill a-' + cur.area + ' ov-state">NOW</span><span class="ov-cd tnum">' + durLabel((cur._e - now) / 60000) + '</span><span class="muted">left · ' + esc(cur.title) + "</span>";
+    if (cur) html += '<span class="pill a-' + cur.area + ' ov-state">' + (cur.area === "break" ? esc(cur.breakWord.toUpperCase()) : "NOW") + '</span><span class="ov-cd tnum">' + durLabel((cur._e - now) / 60000) + '</span><span class="muted">left · ' + esc(cur.title) + "</span>";
     else if (next) html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd tnum">' + durLabel((next._s - now) / 60000) + '</span><span class="muted">until ' + hm(next._s) + "</span>";
     else html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd">CLEAR</span><span class="muted">nothing else on the calendar today</span>';
     html += "</div>";
@@ -4314,7 +4342,7 @@
   }
   function lmColors() {
     var cs = getComputedStyle(document.documentElement), v = function (n) { return cs.getPropertyValue(n).trim(); };
-    lm.col = { work: v("--work"), personal: v("--personal"), farm: v("--farm"), hobby: v("--hobby"), fg: v("--fg"), dim: v("--dim"),
+    lm.col = { work: v("--work"), personal: v("--personal"), farm: v("--farm"), hobby: v("--hobby"), break: v("--chrome-b"), fg: v("--fg"), dim: v("--dim"),
       a: v("--chrome-a"), b: v("--chrome-b"), c: v("--chrome-c"), bg: v("--bg"), display: v("--display"), body: v("--body") };
   }
   function lmSize() {
@@ -5963,6 +5991,7 @@
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") { if (canLogAsk()) openSummaryAuth(); else writeSummary(); }
     else if (b.dataset.act === "balsave") balSave();
+    else if (b.dataset.act === "brksave") { setBreaks($("brkIn").value.split("\n")); toast(breakList.length ? "Breaks: " + breakList.join(", ") : "No breaks"); render(true); }
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));
       toast(ignoreList.length ? ignoreList.length + (ignoreList.length === 1 ? " title ignored" : " titles ignored") + " · " + ignoredCount() + " events left out" : "Nothing ignored");

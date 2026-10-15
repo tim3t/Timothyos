@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.23.0 · 2026-10-15
+- **BREAKS: protected time you can see.** A new list in Systems (next to IGNORED EVENTS), starting with **Lunch**. A timed event whose title contains a break word is always shown, even when it also matches an ignored title, so "Out of office — Lunch" on the Work calendar appears while plain "Out of office" stays hidden.
+  - Shown on Today, Week and the Bridge as a soft hatched block labelled with the rest of its title (the "Out of office —" prefix is dropped). NOW / NEXT on the Bridge shows LUNCH with the time left.
+  - Never counted as Work hours, meetings, BALANCE or Review hours.
+
 ## 2.22.0 · 2026-10-14
 - **Finished events look finished.** On Today, Week and the Bridge's day strip, every event that ended before the now line is dimmed, and on Today and Week it gets a ✓ before its title. Events still running or still to come look as before. The change happens on its own as the day goes on.
 

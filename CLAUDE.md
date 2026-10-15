@@ -86,6 +86,8 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 
 **Finished events (2.22):** `pastCls(ev)` adds `past` to timed events whose end is before now, on Today (`.ev`), Week (`.wkb`) and the Bridge strip (`.ov-blk`). CSS dims the fill and border and adds a ✓ (`.t::before`, `.wkb.one .lbl::before`, `.wkb.tall .tm::before`). Checked in `app_e2e35`.
 
+**Breaks (2.23):** `breakList` (`tos.breaks.v1`, default `["Lunch"]`, edited in Systems under IGNORED EVENTS). `eventsFor()` runs `asBreak(ev)` before `ignored(ev)`: a timed event whose original title (`srcTitle`) contains a break word gets `area = "break"` (original in `srcArea`), its label loses an "Out of office —" / "OOO -" prefix, and it is kept even if ignored. `break` is in `AREAS` but never in `LIVE`, so Work hours, meeting counts, BALANCE and Review skip it; Now/Next shows the break word. Test: `app_e2e36` (mock_v23 has a daily lunch and an ignored Out of office).
+
 ## Weekly Review
 
 `renderReview()` in `js/app.js`; anchor is the week's Monday, range is the week before through the week after. Due window `reviewDue()`: Sunday 14:00 to Tuesday night; the Bridge shows a yellow item until the week is saved (`savedWeeks`, `tos.rsaved.v1`, or a review returned by `week`). Unsaved writing is kept per week in `tos.rdraft.v1`. Hours: timed events only, overlaps within an area counted once, ignored events left out; current week counts up to now. `app_e2e16` covers it with `mock_v15`.
