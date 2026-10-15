@@ -383,6 +383,7 @@ services:
     command: ["/bin/sh", "-c", "printf '%s' \"$$CADDYFILE\" > /tmp/Caddyfile && exec caddy run --config /tmp/Caddyfile --adapter caddyfile"]
     environment:
       RELAY_TOKEN: PASTE_RELAY_TOKEN
+      HA_URL: PASTE_HOME_ASSISTANT_ADDRESS
       CADDYFILE: |
         {
           admin off
@@ -391,19 +392,30 @@ services:
         :8080 {
           bind 127.0.0.1
           header Access-Control-Allow-Origin "https://tim3t.github.io"
-          header Access-Control-Allow-Headers "Authorization, Range"
-          header Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+          header Access-Control-Allow-Headers "Authorization, Range, Content-Type"
+          header Access-Control-Allow-Methods "GET, HEAD, POST, OPTIONS"
           header Access-Control-Expose-Headers "Content-Range, Accept-Ranges, Content-Length"
           header Vary Origin
-          @preflight method OPTIONS
-          respond @preflight 204
-          @denied {
-            not header Authorization "Bearer {$$RELAY_TOKEN}"
-            not query k={$$RELAY_TOKEN}
+          route {
+            @preflight method OPTIONS
+            respond @preflight 204
+            @denied {
+              not header Authorization "Bearer {$$RELAY_TOKEN}"
+              not query k={$$RELAY_TOKEN}
+            }
+            respond @denied 401
+            handle_path /ha/* {
+              uri query -k
+              reverse_proxy {$$HA_URL} {
+                header_up -X-Forwarded-For
+                header_down -Access-Control-Allow-Origin
+              }
+            }
+            handle {
+              root * /media
+              file_server browse
+            }
           }
-          respond @denied 401
-          root * /media
-          file_server browse
         }
     volumes:
       - PASTE_FOLDER_PATH:/media/Music:ro
@@ -412,11 +424,27 @@ services:
     restart: unless-stopped
 ```
 
+`HA_URL` and the `/ha` part are for **Engineering** (below); until Home Assistant's address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token.
+
 To share another folder later, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
 
 **On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **Systems → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, tap **SAVE AND TEST**.
 
 **Using it:** folders on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. The place in each file, speed and "play the next one" are saved **on this iPad only**. While something plays, a small pill on every other screen pauses it or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too. **Artwork:** put a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder to give it art. MP3 titles, show names and artwork are read from the files' own tags as they play. **TRACK #** (folders with MP3s) reads the tags of the whole folder and orders it by disc and track; each folder remembers its own sort. **HIDE FOLDER** keeps a folder off Storage on this iPad; Systems → STORAGE lists hidden folders with UNHIDE.
+
+## Engineering (app 2.24)
+
+ENGINEERING has two tabs. **CONTROLS** shows only the Home Assistant devices you add (switches and lights toggle, sensors show their reading, refreshed every 30 seconds while open). **UPKEEP** tracks recurring maintenance by time (days to years) or by a reading (miles, hours), saved on this iPad; overdue items also show in the Bridge's CONDITION. Both start empty.
+
+Home Assistant is reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
+
+1. **A Home Assistant user for TimothyOS** (whoever administers Home Assistant): **Settings → People → Add person**, allow login, *not* an administrator. Note Home Assistant's local address (like `http://192.168.x.x:8123`).
+2. **A token:** log in to Home Assistant as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it once; it is shown only once.
+3. **The relay:** UGOS → Docker → **Project** `timothyos` → edit the compose so it matches the one under Storage (the `HA_URL` line with Home Assistant's address, and the new `CADDYFILE`), then redeploy.
+4. **On the iPad:** **Systems → HOME ASSISTANT → USE THE STORAGE RELAY**, paste the token, **SAVE AND TEST**.
+5. **ENGINEERING → + ADD DEVICE**, search, **ADD**.
+
+A non-admin Home Assistant user can still switch every device in that Home Assistant. The list on ENGINEERING is what's shown, not a lock; the protection is Tailscale plus the two tokens. **FORGET** in Systems removes the address and token from the iPad; deleting the token in Home Assistant cuts it off everywhere.
 
 ## Breaks (app 2.23)
 
@@ -504,6 +532,7 @@ When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NE
 - **UNLINK** also deletes all cached calendar data from the iPad.
 - **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and never go to the ASK button. With SHARE LOG WITH ASK on, only entries you pick in the open LOG (62 at most per question, with the PIN) go to Claude, for that question. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
 - **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
+- **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are typed into Systems and kept only on the iPad. ENGINEERING shows only the devices you add, but a Home Assistant token can switch any device, so treat it like a key.
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
 
 ## Project layout

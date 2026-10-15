@@ -1,7 +1,8 @@
 """Simulated Storage relay (Caddy behind Tailscale on the NAS) on :8110.
 Read-only, token by Bearer header or ?k=, CORS for the test origin, JSON folder listings
 (Accept: application/json, like Caddy's file_server browse), byte ranges for audio.
-Files are generated silence; names are invented."""
+Files are generated silence; names are invented.
+/ha/* is a simulated Home Assistant behind the relay (2.24): relay token by ?k=, HA token by Bearer."""
 import io, json, struct, wave, re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
@@ -44,7 +45,16 @@ def tagged():
 FILES.update(tagged())
 
 DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden"}
-STATS = {"lists": 0, "denied": 0, "media": 0}
+STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0}
+HA_TOKEN = "ha-test-token"
+HA = {
+    "switch.pond_lights_outlet": {"state": "off", "attributes": {"friendly_name": "Pond Lights Outlet"}},
+    "light.barn_porch": {"state": "on", "attributes": {"friendly_name": "Barn Porch"}},
+    "sensor.pond_water_temp": {"state": "61.4", "attributes": {"friendly_name": "Pond Water Temp", "unit_of_measurement": "°F"}},
+    "automation.nightly": {"state": "on", "attributes": {"friendly_name": "Nightly Routine"}},
+}
+def ha_state(eid):
+    v = HA[eid]; return {"entity_id": eid, "state": v["state"], "attributes": v["attributes"], "last_changed": "2026-10-15T12:00:00+00:00"}
 
 def children(d):
     d = d.rstrip("/") or "/"
@@ -62,14 +72,43 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def cors(self):
         self.send_header("Access-Control-Allow-Origin", ORIGIN)
-        self.send_header("Access-Control-Allow-Headers", "Authorization, Range")
-        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Range, Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
         self.send_header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
         self.send_header("Vary", "Origin")
     def do_OPTIONS(self):
         self.send_response(204); self.cors(); self.end_headers()
+    def send_json(self, code, obj):
+        body = json.dumps(obj).encode(); self.send_response(code); self.cors(); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+    def ha(self, method, path, q):
+        """Like the relay's handle_path /ha/*: relay token by ?k= first, then Home Assistant's own Bearer check."""
+        if q.get("k", [""])[0] != TOKEN:
+            STATS["denied"] += 1; return self.send_json(401, {})
+        if self.headers.get("Authorization") != "Bearer " + HA_TOKEN:
+            STATS["ha_denied"] += 1; return self.send_json(401, {"message": "Unauthorized"})
+        api = path[3:]
+        if method == "GET" and api == "/api/": return self.send_json(200, {"message": "API running."})
+        if method == "GET" and api == "/api/states": return self.send_json(200, [ha_state(e) for e in HA])
+        if method == "GET" and api.startswith("/api/states/"):
+            eid = api[len("/api/states/"):]
+            return self.send_json(200, ha_state(eid)) if eid in HA else self.send_json(404, {"message": "Entity not found."})
+        m = re.match(r"^/api/services/([a-z_]+)/toggle$", api)
+        if method == "POST" and m:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            eid = body.get("entity_id")
+            if eid not in HA or eid.split(".")[0] != m.group(1): return self.send_json(400, {"message": "bad entity"})
+            HA[eid]["state"] = "off" if HA[eid]["state"] == "on" else "on"; STATS["toggles"] += 1
+            return self.send_json(200, [ha_state(eid)])
+        return self.send_json(404, {"message": "not found"})
+    def do_POST(self):
+        u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
+        if path.startswith("/ha/"): return self.ha("POST", path, q)
+        self.send_response(405); self.cors(); self.send_header("Content-Length", "0"); self.end_headers()
     def do_GET(self):
         u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
+        if path.startswith("/ha/"): return self.ha("GET", path, q)
+        if path == "/__hareset":   # tests start from a known Home Assistant
+            HA["switch.pond_lights_outlet"]["state"] = "off"; HA["light.barn_porch"]["state"] = "on"; return self.send_json(200, {})
         if path == "/__stats":
             body = json.dumps(STATS).encode(); self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body); return
         ok = self.headers.get("Authorization") == "Bearer " + TOKEN or q.get("k", [""])[0] == TOKEN

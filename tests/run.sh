@@ -83,6 +83,7 @@ run app_e2e33.test.js     # STORAGE: relay setup, folders, player, resume on thi
 run app_e2e34.test.js     # GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review
 run app_e2e35.test.js     # HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 run app_e2e36.test.js     # BREAKS: lunch shown despite ignored Out of office, never counted as work
+run app_e2e37.test.js     # ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

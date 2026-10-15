@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.24.0 · 2026-10-15
+- **ENGINEERING, a new station** (under RESOURCES in ALL STATIONS). Two tabs, both empty to start.
+  - **CONTROLS:** Home Assistant devices you pick with **+ ADD DEVICE** (search by name; switches, lights, fans, toggles and sensors). A switch or light is one big tap to turn on or off; a sensor shows its reading. Refreshed every 30 seconds while open. **REMOVE** takes a device off the screen only.
+  - **UPKEEP:** recurring maintenance by time (days, weeks, months, years) or by a reading (miles, hours). Each item shows how far along it is and when it's due; **MARK DONE** records today (and asks for the odometer or hour meter). Saved on this iPad. Overdue items also show in the Bridge's CONDITION, one tap from UPKEEP.
+- **Systems → HOME ASSISTANT:** address (USE THE STORAGE RELAY fills it in) and token, SAVE AND TEST, FORGET. Kept on this iPad.
+- **The relay gains `/ha`:** Home Assistant is reached through the Storage relay, behind Tailscale and the relay token. The relay settings in the README change (an `HA_URL` line and a new `CADDYFILE`); see **Engineering** there.
+
 ## 2.23.0 · 2026-10-15
 - **BREAKS: protected time you can see.** A new list in Systems (next to IGNORED EVENTS), starting with **Lunch**. A timed event whose title contains a break word is always shown, even when it also matches an ignored title, so "Out of office — Lunch" on the Work calendar appears while plain "Out of office" stays hidden.
   - Shown on Today, Week and the Bridge as a soft hatched block labelled with the rest of its title (the "Out of office —" prefix is dropped). NOW / NEXT on the Bridge shows LUNCH with the time left.

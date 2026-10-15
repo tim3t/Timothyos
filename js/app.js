@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.23.0";
+  var VERSION = "2.24.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -566,9 +566,9 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
-    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -615,6 +615,7 @@
     }
     else if (state.screen === "library") { e.textContent = "LIBRARY · " + (lb.data ? books().length + (books().length === 1 ? " BOOK" : " BOOKS") : "NOTION"); t.textContent = "LIBRARY"; }
     else if (state.screen === "storage") { var sh = storageHead(); e.textContent = sh.e; t.textContent = sh.t; }
+    else if (state.screen === "engineering") { var eo = upkeepOverdue(ymd(now)).length; e.textContent = eng.tab === "upkeep" ? "UPKEEP · " + (eo ? eo + " OVERDUE" : upkeepItems().length + (upkeepItems().length === 1 ? " ITEM" : " ITEMS")) : "CONTROLS · " + (haConf() ? haDevices().length + (haDevices().length === 1 ? " DEVICE" : " DEVICES") : "HOME ASSISTANT NOT SET"); t.textContent = "ENGINEERING"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
     document.querySelectorAll(".nav[data-screen], .elbow[data-screen]").forEach(function (b) {
@@ -836,6 +837,7 @@
     html += aiSection();
     html += ledgerSection();
     html += storageSection();
+    html += haSection();
     html += logSection();
     html += balanceSection();
     html += standbySection();
@@ -1923,6 +1925,8 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    var upOver = upkeepOverdue(today);
+    if (upOver.length) items.push({ lvl: "warn", ic: "▲", txt: upOver.length === 1 ? "Upkeep overdue" : upOver.length + " upkeep items overdue", sub: upOver.slice(0, 3).map(function (u) { return esc(u.name) + (u.cat ? " (" + esc(u.cat) + ")" : ""); }).join(" · ") + (upOver.length > 3 ? " · …" : ""), act: "engineering", go: "UPKEEP" });
     var rdue = reviewDue(now);
     if (rdue && canReviews() && !reviewSaved(ymd(rdue))) items.push({ lvl: "warn", ic: "◆", txt: "Weekly review due", sub: weekLabel(rdue) + " · about 5 minutes", act: "review", go: "REVIEW" });
     var fr = frost(now);
@@ -4726,6 +4730,7 @@
     { id: "ledger", name: "LEDGER", g: "RESOURCES", sub: "YNAB at a glance, read only" },
     { id: "library", name: "LIBRARY", g: "RESOURCES", sub: "Reading, want to read, read" },
     { id: "storage", name: "STORAGE", g: "RESOURCES", sub: "NAS folders and podcasts" },
+    { id: "engineering", name: "ENGINEERING", g: "RESOURCES", sub: "Home Assistant devices and upkeep" },
     { id: "meals", name: "MEALS", g: "STANDBY", sub: "Dinners planned and made. Later.", standby: true }
   ];
   var ST_GROUPS = [["TIME", "chrome-b"], ["REFLECT", "chrome-a"], ["RESOURCES", "chrome-d"], ["STANDBY", "line"]];
@@ -5822,6 +5827,293 @@
     return false;
   }
 
+  /* ---------- Engineering (2.24): Home Assistant controls and upkeep ---------- */
+  /* CONTROLS: devices picked from Home Assistant, reached through the Storage relay's /ha path
+     (or a direct HTTPS address). The HA token is typed in Systems and kept on this iPad; only the
+     devices added here are shown. UPKEEP: recurring maintenance by time (days to years) or by a
+     reading (miles, hours), kept on this iPad. Overdue items join the Bridge's CONDITION. */
+  var LS_HA = "tos.ha.v1";            /* { url, token } */
+  var LS_HADEV = "tos.hadev.v1";      /* [{ id: entity_id, name }] */
+  var LS_UPKEEP = "tos.upkeep.v1";    /* [{ id, name, cat, every, unit, last, lastRead, read }] */
+  var LS_ENGTAB = "tos.engtab.v1";
+  var HA_TOGGLE = ["switch", "light", "fan", "input_boolean"];
+  var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor"]);
+  var UNITS = [["days", "DAYS"], ["weeks", "WEEKS"], ["months", "MONTHS"], ["years", "YEARS"], ["miles", "MILES"], ["hours", "HOURS"]];
+  var eng = { tab: lsGet(LS_ENGTAB) === "upkeep" ? "upkeep" : "controls", states: {}, err: null, at: 0, inflight: false, pick: null, arm: null, armAt: 0 };
+  function haConf() { var c = lsGet(LS_HA); return c && c.url && c.token ? c : null; }
+  function haViaRelay(url) { var n = nasConf(); return !!(n && url.indexOf(nasBase()) === 0); }
+  function haUrl(path) {
+    var c = haConf(), base = c.url.replace(/\/+$/, ""), n = nasConf();
+    return base + path + (haViaRelay(base) ? (path.indexOf("?") > -1 ? "&" : "?") + "k=" + encodeURIComponent(n.token) : "");
+  }
+  function haFetch(path, opts) {
+    var c = haConf();
+    if (!c) return Promise.reject({ code: "not_set" });
+    opts = opts || {};
+    var h = { Authorization: "Bearer " + c.token };
+    if (opts.body) h["Content-Type"] = "application/json";
+    return fetch(haUrl(path), { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: "no-store" })
+      .catch(function () { throw { code: navigator.onLine === false ? "offline" : "unreachable" }; })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw { code: "unauthorized" };
+        if (!r.ok) throw { code: "http_" + r.status };
+        return r.json();
+      });
+  }
+  function haErrText(err) {
+    var c = err && err.code;
+    if (c === "unauthorized") return "Home Assistant (or the relay) refused the token. Check both under HOME ASSISTANT in Systems.";
+    if (c === "offline") return "This iPad is offline.";
+    if (c === "unreachable") return "Can't reach Home Assistant. Check Tailscale is on, and that the relay's /ha path points at Home Assistant.";
+    if (c === "http_502" || c === "http_504") return "The relay is up but can't reach Home Assistant. Check HA_URL in the relay's settings on the NAS.";
+    if (/^http_/.test(c || "")) return "Home Assistant answered with an error (" + c.slice(5) + ").";
+    return "Something went wrong talking to Home Assistant.";
+  }
+  function sinceLabel(d) { return ymd(d) === ymd(new Date()) ? hm(d) : shortDay(ymd(d)); }
+  function haDevices() { return lsGet(LS_HADEV) || []; }
+  function haDomain(id) { return String(id).split(".")[0]; }
+  function haLoad(force) {
+    var devs = haDevices();
+    if (!haConf() || eng.inflight || !devs.length) return;
+    if (!force && Date.now() - eng.at < 20000) return;
+    eng.inflight = true;
+    Promise.all(devs.map(function (d) {
+      return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) { eng.states[d.id] = s; }, function (e) {
+        if (e.code === "http_404") eng.states[d.id] = { missing: true }; else throw e;
+      });
+    })).then(function () { eng.err = null; }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; })
+      .then(function () { eng.at = Date.now(); eng.inflight = false; if (state.screen === "engineering") render(true); });
+  }
+  setInterval(function () { if (state.screen === "engineering" && eng.tab === "controls" && !document.hidden) haLoad(true); }, 30000);
+  function haToggle(id) {
+    var s = eng.states[id], dom = haDomain(id);
+    if (s && !s.missing) { s.state = s.state === "on" ? "off" : "on"; render(true); }   /* shown at once, confirmed by a re-read */
+    haFetch("/api/services/" + dom + "/toggle", { method: "POST", body: { entity_id: id } })
+      .then(function () { setTimeout(function () { haLoad(true); }, 700); })
+      .catch(function (e) { toast("Not switched: " + haErrText(e)); haLoad(true); });
+  }
+
+  /* ---------- upkeep ---------- */
+  function upkeepItems() { return lsGet(LS_UPKEEP) || []; }
+  function saveUpkeep(list) { lsSet(LS_UPKEEP, list); }
+  function byReading(u) { return u.unit === "miles" || u.unit === "hours"; }
+  function addInterval(day, n, unit) {
+    var d = parseYmd(day);
+    if (unit === "days") d = addDays(d, n); else if (unit === "weeks") d = addDays(d, 7 * n);
+    else { var m = unit === "years" ? 12 * n : n, dd = d.getDate(); d = new Date(d.getFullYear(), d.getMonth() + m, 1); d.setDate(Math.min(dd, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); }
+    return ymd(d);
+  }
+  /* Where an item stands: lvl ok / warn (within 14 days or the last tenth) / bad (overdue). */
+  function upkeepStatus(u, today) {
+    var unitWord = u.unit === "miles" ? "MI" : "H";
+    if (byReading(u)) {
+      if (u.lastRead == null || u.read == null) return { lvl: "warn", pct: 0, due: "ADD A READING", sort: 0 };
+      var used = u.read - u.lastRead, left = u.every - used;
+      return { lvl: left < 0 ? "bad" : left <= u.every * 0.1 ? "warn" : "ok", pct: Math.max(0, Math.min(100, used / u.every * 100)),
+        due: left < 0 ? Math.round(-left).toLocaleString() + " " + unitWord + " OVER" : Math.round(left).toLocaleString() + " " + unitWord + " LEFT", sort: left / u.every * 365 };
+    }
+    if (!u.last) return { lvl: "warn", pct: 0, due: "NEVER DONE", sort: 0 };
+    var due = addInterval(u.last, u.every, u.unit), n = daysBetween(today, due), span = Math.max(1, daysBetween(u.last, due));
+    return { lvl: n < 0 ? "bad" : n <= 14 ? "warn" : "ok", pct: Math.max(0, Math.min(100, (span - n) / span * 100)), dueDay: due,
+      due: n < 0 ? -n + (n === -1 ? " DAY" : " DAYS") + " OVER" : n === 0 ? "DUE TODAY" : n <= 14 ? "IN " + n + (n === 1 ? " DAY" : " DAYS") : shortDay(due) + (due.slice(0, 4) !== today.slice(0, 4) ? " " + due.slice(0, 4) : ""), sort: n };
+  }
+  function upkeepOverdue(today) { return upkeepItems().filter(function (u) { return upkeepStatus(u, today).lvl === "bad"; }); }
+
+  /* ---------- screen ---------- */
+  function renderEngineering() {
+    var html = '<div class="eng"><div class="eng-tabs"><div class="chips">' + [["controls", "CONTROLS"], ["upkeep", "UPKEEP"]].map(function (t) {
+      return '<button type="button" class="chip" data-engtab="' + t[0] + '" aria-pressed="' + (eng.tab === t[0]) + '">' + t[1] + "</button>";
+    }).join("") + "</div>" + (eng.tab === "controls" ? (haConf() ? '<button type="button" class="btn sm" data-eng="add">+ ADD DEVICE</button>' : "") : '<button type="button" class="btn sm" data-eng="newitem">+ ITEM</button>') + "</div>";
+    html += eng.tab === "controls" ? haControlsHtml() : upkeepHtml();
+    $("content").innerHTML = html + "</div>";
+  }
+  function haControlsHtml() {
+    if (!haConf()) return '<div class="stubbox"><span class="pill">SETUP</span><span>Controls talk to Home Assistant. Add its address and a token under <b>HOME ASSISTANT</b> in Systems. Steps are in the README under <b>Engineering</b>.</span></div>' +
+      '<div class="btnrow"><button type="button" class="btn" data-eng="systems">OPEN SYSTEMS</button></div>';
+    var devs = haDevices();
+    haLoad(false);
+    if (!devs.length) return '<div class="empty">No devices yet. Tap <b>+ ADD DEVICE</b> to pick one from Home Assistant. Only the devices you add appear here.</div>';
+    var html = (eng.err ? '<div class="err">' + esc(eng.err.msg) + "</div>" : "") + '<div class="eng-devs">';
+    devs.forEach(function (d) {
+      var s = eng.states[d.id], dom = haDomain(d.id), tog = HA_TOGGLE.indexOf(dom) > -1, on = s && s.state === "on";
+      var unit = s && s.attributes && s.attributes.unit_of_measurement ? " " + s.attributes.unit_of_measurement : "";
+      var val = !s ? "…" : s.missing ? "NOT FOUND" : s.state === "unavailable" ? "OFFLINE" : tog || dom === "binary_sensor" ? String(s.state).toUpperCase() : s.state + unit;
+      var armed = eng.arm === "dev:" + d.id && Date.now() - eng.armAt < 4000;
+      html += '<div class="eng-dev' + (on ? " on" : "") + (s && (s.missing || s.state === "unavailable") ? " off" : "") + '">' +
+        (tog ? '<button type="button" class="eng-tog" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '"' + (!s || s.missing || s.state === "unavailable" ? " disabled" : "") + ">" : '<div class="eng-tog ro">') +
+        '<span class="nm">' + esc(d.name) + '</span><span class="val tnum">' + esc(val) + "</span>" +
+        '<span class="sub">' + (tog ? (on ? "TAP TO TURN OFF" : "TAP TO TURN ON") : "READING") + (s && s.last_changed ? " · SINCE " + esc(sinceLabel(new Date(s.last_changed))) : "") + "</span>" +
+        (tog ? "</button>" : "</div>") +
+        '<button type="button" class="chip sm eng-rm" data-eng="rmdev" data-dev="' + esc(d.id) + '">' + (armed ? "TAP AGAIN TO REMOVE" : "REMOVE") + "</button></div>";
+    });
+    html += "</div>";
+    html += '<small class="muted">Updates every 30 seconds while this screen is open. Removing a device only takes it off this screen.</small>';
+    return html;
+  }
+  function upkeepHtml() {
+    var today = ymd(new Date()), list = upkeepItems().map(function (u) { return { u: u, s: upkeepStatus(u, today) }; });
+    if (!list.length) return '<div class="empty">Nothing tracked yet. Tap <b>+ ITEM</b> to add something that needs doing every so often, like an oil change every 5,000 miles or a furnace filter every 3 months.</div>';
+    list.sort(function (a, b) { return a.s.sort - b.s.sort; });
+    var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, soon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
+    var html = '<div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (soon ? " warn" : "") + '">' + soon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - soon) + " ON SCHEDULE</span></div>";
+    html += '<div class="eng-up">' + list.map(function (x) {
+      var u = x.u, s = x.s;
+      return '<div class="up-row ' + s.lvl + '"><button type="button" class="up-main" data-upedit="' + esc(u.id) + '"><span class="nm">' + esc(u.name) + "<small>" + esc([u.cat, u.every === 1 ? "every " + u.unit.replace(/s$/, "") : "every " + Number(u.every).toLocaleString() + " " + u.unit].filter(Boolean).join(" · ")) + "</small></span>" +
+        '<span class="meter"><span class="tr"><i style="width:' + Math.round(s.pct) + '%"></i></span><small>' + (byReading(u) ? (u.read != null ? "NOW " + Number(u.read).toLocaleString() + " " + (u.unit === "miles" ? "MI" : "H") : "") : u.last ? "LAST " + esc(shortDay(u.last)) : "") + "</small></span>" +
+        '<span class="due tnum">' + s.due + "</span></button>" +
+        '<button type="button" class="chip sm" data-updone="' + esc(u.id) + '">MARK DONE</button></div>';
+    }).join("") + "</div>";
+    return html + '<small class="muted">Saved on this iPad. Overdue items also show in CONDITION on the Bridge.</small>';
+  }
+
+  /* ---------- sheets ---------- */
+  function engSheet(cls, html) {
+    $("detailSheet").className = "sheet eng-sheet " + cls;
+    $("detailSheet").style.setProperty("--c", "var(--chrome-d)");
+    $("detailSheet").innerHTML = html;
+    showSheet("detailScrim");
+  }
+  function openAddDevice() {
+    eng.pick = { q: "", list: null, err: null };
+    engSheet("", '<div class="sbar"><span>+ ADD DEVICE</span><span>FROM HOME ASSISTANT</span></div><div class="sbody"><input type="search" id="haQ" placeholder="Search by name, e.g. Pond" autocomplete="off" aria-label="Search devices"><div id="haList"><div class="empty">Asking Home Assistant…</div></div></div>' +
+      '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>');
+    haFetch("/api/states").then(function (all) {
+      eng.pick.list = (all || []).filter(function (s) { return HA_SHOW.indexOf(haDomain(s.entity_id)) > -1; }).map(function (s) {
+        return { id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id, state: s.state };
+      }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    }).catch(function (e) { eng.pick.err = haErrText(e); }).then(paintPick);
+  }
+  function paintPick() {
+    var el = $("haList"), p = eng.pick;
+    if (!el || !p) return;
+    if (p.err) { el.innerHTML = '<div class="err">' + esc(p.err) + "</div>"; return; }
+    if (!p.list) return;
+    var q = p.q.trim().toLowerCase(), have = haDevices().map(function (d) { return d.id; });
+    var hits = p.list.filter(function (d) { return !q || d.name.toLowerCase().indexOf(q) > -1 || d.id.indexOf(q) > -1; });
+    el.innerHTML = (hits.length ? hits.slice(0, 60).map(function (d) {
+      var added = have.indexOf(d.id) > -1;
+      return '<div class="ha-hit"><span><b>' + esc(d.name) + "</b><small>" + esc(d.id) + " · " + esc(String(d.state).toUpperCase()) + "</small></span>" +
+        (added ? '<span class="pill ok">ADDED</span>' : '<button type="button" class="btn sm" data-haadd="' + esc(d.id) + '" data-haname="' + esc(d.name) + '">ADD</button>') + "</div>";
+    }).join("") : '<div class="empty">Nothing matches.</div>') + (hits.length > 60 ? '<div class="muted">' + (hits.length - 60) + " more. Narrow the search.</div>" : "") +
+      '<small class="muted">' + p.list.length + " switches, lights and sensors in Home Assistant.</small>";
+  }
+  function openUpkeepItem(id) {
+    var u = id ? upkeepItems().filter(function (x) { return x.id === id; })[0] : null, today = ymd(new Date());
+    var unit = u ? u.unit : "months";
+    engSheet("up-sheet", '<div class="sbar"><span>' + (u ? "EDIT ITEM" : "+ UPKEEP ITEM") + "</span><span>SAVED ON THIS IPAD</span></div><div class=\"sbody\">" +
+      '<label class="ov-sub" for="upName">WHAT</label><input type="text" id="upName" maxlength="80" placeholder="e.g. Oil change" value="' + esc(u ? u.name : "") + '">' +
+      '<label class="ov-sub" for="upCat">FOR</label><input type="text" id="upCat" maxlength="40" placeholder="e.g. Car, House, Tractor" value="' + esc(u ? u.cat || "" : "") + '">' +
+      '<label class="ov-sub" for="upEvery">EVERY</label><div class="up-every"><input type="number" id="upEvery" inputmode="numeric" min="1" step="1" value="' + (u ? u.every : 3) + '"><div class="chips" id="upUnit">' +
+        UNITS.map(function (x) { return '<button type="button" class="chip sm" data-upunit="' + x[0] + '" aria-pressed="' + (unit === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div></div>" +
+      '<div id="upTimeRow"' + (byReading({ unit: unit }) ? " hidden" : "") + '><label class="ov-sub" for="upLast">LAST DONE</label><input type="date" id="upLast" value="' + esc(u ? u.last || "" : today) + '"></div>' +
+      '<div id="upReadRow"' + (byReading({ unit: unit }) ? "" : " hidden") + '><label class="ov-sub" for="upLastRead">READING WHEN LAST DONE</label><input type="number" id="upLastRead" inputmode="numeric" min="0" value="' + (u && u.lastRead != null ? u.lastRead : "") + '">' +
+        '<label class="ov-sub" for="upRead">READING NOW</label><input type="number" id="upRead" inputmode="numeric" min="0" value="' + (u && u.read != null ? u.read : "") + '"></div>' +
+      '<div class="err" id="upErr" role="alert"></div></div><div class="sfoot btnrow">' + (u ? '<button type="button" class="btn ghost" data-updel="' + esc(u.id) + '">DELETE</button>' : "") +
+      '<button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-upsave="' + esc(u ? u.id : "") + '">SAVE</button></div>');
+    $("detailSheet").dataset.unit = unit;
+  }
+  function saveUpkeepItem(id) {
+    var name = $("upName").value.trim(), every = parseInt($("upEvery").value, 10), unit = $("detailSheet").dataset.unit, err = $("upErr");
+    if (!name) { err.textContent = "Give it a name."; return; }
+    if (!(every > 0)) { err.textContent = "EVERY needs a number above 0."; return; }
+    var item = { id: id || "u" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, cat: $("upCat").value.trim(), every: every, unit: unit };
+    if (byReading(item)) {
+      var lr = $("upLastRead").value, r = $("upRead").value;
+      item.lastRead = lr === "" ? null : +lr; item.read = r === "" ? (lr === "" ? null : +lr) : +r; item.last = null;
+      if (item.lastRead != null && item.read != null && item.read < item.lastRead) { err.textContent = "READING NOW can't be lower than the reading when last done."; return; }
+    } else item.last = $("upLast").value || null;
+    var list = upkeepItems().filter(function (x) { return x.id !== item.id; }); list.push(item); saveUpkeep(list);
+    closeDetail(); toast(id ? "Saved" : "Added: " + name); render(true);
+  }
+  function markDone(id) {
+    var list = upkeepItems(), u = list.filter(function (x) { return x.id === id; })[0];
+    if (!u) return;
+    if (byReading(u)) {
+      engSheet("up-sheet", '<div class="sbar"><span>MARK DONE</span><span>' + esc(u.name.toUpperCase()) + '</span></div><div class="sbody"><label class="ov-sub" for="upDoneRead">' + (u.unit === "miles" ? "ODOMETER" : "HOUR METER") + ' NOW</label>' +
+        '<input type="number" id="upDoneRead" inputmode="numeric" min="0" value="' + (u.read != null ? u.read : "") + '"><div class="err" id="upErr" role="alert"></div></div>' +
+        '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-updoneread="' + esc(u.id) + '">DONE</button></div>');
+      return;
+    }
+    u.last = ymd(new Date()); saveUpkeep(list); toast(u.name + " done. Next " + shortDay(addInterval(u.last, u.every, u.unit))); render(true);
+  }
+  function engSheetClick(b) {
+    var d = b.dataset;
+    if (d.haadd) { var devs = haDevices(); if (!devs.some(function (x) { return x.id === d.haadd; })) devs.push({ id: d.haadd, name: d.haname }); lsSet(LS_HADEV, devs); eng.at = 0; paintPick(); toast("Added: " + d.haname); if (state.screen === "engineering") render(true); return true; }
+    if (d.upunit) {
+      $("detailSheet").dataset.unit = d.upunit;
+      document.querySelectorAll("[data-upunit]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      $("upTimeRow").hidden = byReading({ unit: d.upunit }); $("upReadRow").hidden = !byReading({ unit: d.upunit });
+      return true;
+    }
+    if (d.upsave !== undefined) { saveUpkeepItem(d.upsave); return true; }
+    if (d.updel) {
+      if (eng.arm === "up:" + d.updel && Date.now() - eng.armAt < 4000) { saveUpkeep(upkeepItems().filter(function (x) { return x.id !== d.updel; })); eng.arm = null; closeDetail(); toast("Deleted"); render(true); }
+      else { eng.arm = "up:" + d.updel; eng.armAt = Date.now(); b.textContent = "TAP AGAIN TO DELETE"; }
+      return true;
+    }
+    if (d.updoneread) {
+      var list = upkeepItems(), u = list.filter(function (x) { return x.id === d.updoneread; })[0], v = $("upDoneRead").value;
+      if (v === "" || +v < 0) { $("upErr").textContent = "Enter the reading."; return true; }
+      u.lastRead = +v; u.read = +v; u.last = ymd(new Date()); saveUpkeep(list); closeDetail();
+      toast(u.name + " done. Next at " + (u.lastRead + u.every).toLocaleString() + (u.unit === "miles" ? " mi" : " h")); render(true);
+      return true;
+    }
+    return false;
+  }
+  function engClick(b) {
+    var d = b.dataset;
+    if (d.engtab) { eng.tab = d.engtab; lsSet(LS_ENGTAB, eng.tab); render(false); return true; }
+    if (d.hatoggle) { haToggle(d.hatoggle); return true; }
+    if (d.upedit) { openUpkeepItem(d.upedit); return true; }
+    if (d.updone) { markDone(d.updone); return true; }
+    if (!d.eng) return false;
+    if (d.eng === "add") openAddDevice();
+    else if (d.eng === "newitem") openUpkeepItem(null);
+    else if (d.eng === "systems") go("systems");
+    else if (d.eng === "rmdev") {
+      if (eng.arm === "dev:" + d.dev && Date.now() - eng.armAt < 4000) { lsSet(LS_HADEV, haDevices().filter(function (x) { return x.id !== d.dev; })); eng.arm = null; toast("Removed from this screen"); }
+      else { eng.arm = "dev:" + d.dev; eng.armAt = Date.now(); setTimeout(function () { if (state.screen === "engineering") render(true); }, 4100); }
+      render(true);
+    }
+    return true;
+  }
+  document.addEventListener("input", function (e) { if (e.target.id === "haQ" && eng.pick) { eng.pick.q = e.target.value; paintPick(); } });
+
+  /* --- Systems: Home Assistant --- */
+  function haSection() {
+    var c = haConf(), n = nasConf(), armed = eng.arm === "haforget" && Date.now() - eng.armAt < 4000;
+    return '<section id="sec-ha">' + phead("HOME ASSISTANT", c ? (eng.err ? "PROBLEM" : "SET") : "NOT SET") + '<dl class="kv">' +
+      "<dt>ADDRESS</dt><dd>" + (c ? esc(c.url) + (haViaRelay(c.url) ? ' <span class="muted">· through the Storage relay</span>' : "") : '<span class="muted">Not set</span>') + "</dd>" +
+      "<dt>TOKEN</dt><dd>" + (c ? "•••• " + esc(c.token.slice(-4)) : '<span class="muted">Not set</span>') + "</dd>" +
+      "<dt>DEVICES</dt><dd>" + haDevices().length + " on ENGINEERING</dd>" +
+      '<dt>CHANGE</dt><dd><div class="ov-place"><input type="url" id="haUrl" placeholder="' + (n ? esc(nasBase()) + "/ha" : "https://home-assistant-address") + '" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + (c ? esc(c.url) : "") + '">' +
+      '<input type="password" id="haTok" placeholder="' + (c ? "Token (leave blank to keep)" : "Long-lived access token") + '" autocomplete="off" autocapitalize="off" spellcheck="false"></div>' +
+      '<div class="btnrow" style="margin-top:8px">' + (n ? '<button type="button" class="btn ghost" data-act="harelay">USE THE STORAGE RELAY</button>' : "") + '<button type="button" class="btn" data-act="hasave">SAVE AND TEST</button>' +
+      (c ? '<button type="button" class="btn ghost" data-act="haforget">' + (armed ? "TAP AGAIN TO FORGET" : "FORGET") + "</button>" : "") + "</div>" +
+      '<div class="err" id="haErr" role="alert">' + (eng.err ? esc(eng.err.msg) : "") + "</div></dd></dl>" +
+      '<small class="muted">Use a token from a Home Assistant user made for TimothyOS. The address and token stay on this iPad. Only devices you add on ENGINEERING are shown.</small></section>';
+  }
+  function haSave() {
+    var url = ($("haUrl").value || "").trim().replace(/\/+$/, ""), tok = ($("haTok").value || "").trim(), cur = haConf(), errEl = $("haErr");
+    if (!/^https:\/\/[^\s]+$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url)) { errEl.textContent = "Use an https address (the Storage relay's address plus /ha works)."; return; }
+    if (!tok && !cur) { errEl.textContent = "Enter the long-lived access token."; return; }
+    lsSet(LS_HA, { url: url, token: tok || cur.token });
+    eng.err = null; eng.states = {}; eng.at = 0; errEl.textContent = "Testing…";
+    haFetch("/api/").then(function () { toast("Home Assistant connected"); }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; }).then(function () { render(true); });
+  }
+  function haSysClick(b) {
+    var a = b.dataset.act;
+    if (a === "harelay") { $("haUrl").value = nasBase() + "/ha"; $("haUrl").focus(); return true; }
+    if (a === "hasave") { haSave(); return true; }
+    if (a === "haforget") {
+      if (eng.arm === "haforget" && Date.now() - eng.armAt < 4000) { lsDel(LS_HA); eng.arm = null; eng.err = null; eng.states = {}; toast("Home Assistant forgotten on this iPad"); }
+      else { eng.arm = "haforget"; eng.armAt = Date.now(); setTimeout(function () { if (state.screen === "systems") render(true); }, 4100); }
+      render(true); return true;
+    }
+    if (a === "engineering") { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); return true; }
+    return false;
+  }
+
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
@@ -5840,7 +6132,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
@@ -5862,7 +6154,8 @@
     if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
-    if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }   /* tapping STORAGE again goes back to its front page */
+    if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
+    if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;   /* arriving: read the devices fresh */   /* tapping STORAGE again goes back to its front page */
     state.screen = screen;
     if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
@@ -5904,7 +6197,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if (habitsClick(b) || libraryClick(b) || storageSysClick(b) || (state.screen === "storage" && storageClick(b))) return;
+    if (habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);
@@ -6041,7 +6334,7 @@
   });
   $("detailScrim").addEventListener("click", function (e) {
     var b = e.target.closest("button");
-    if (b && bookSheetClick(b)) return;
+    if (b && (bookSheetClick(b) || engSheetClick(b))) return;
     if (b && b.dataset.spin) { summaryPress(b.dataset.spin); return; }
     if (b && b.dataset.act === "sumplain") { lsum = null; closeDetail(); writeSummary(); return; }
     if (b && b.dataset.qretry) { closeDetail(); retryCapture(b.dataset.qretry); return; }
