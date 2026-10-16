@@ -45,11 +45,13 @@ def tagged():
 FILES.update(tagged())
 
 DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden"}
-STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0}
+STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": []}
 HA_TOKEN = "ha-test-token"
 HA = {
     "switch.pond_lights_outlet": {"state": "off", "attributes": {"friendly_name": "Pond Lights Outlet"}},
-    "light.barn_porch": {"state": "on", "attributes": {"friendly_name": "Barn Porch"}},
+    "light.barn_porch": {"state": "on", "attributes": {"friendly_name": "Barn Porch", "supported_color_modes": ["brightness"], "color_mode": "brightness", "brightness": 128}},
+    "light.skylight_2": {"state": "on", "attributes": {"friendly_name": "Skylight 2", "supported_color_modes": ["color_temp", "hs"], "color_mode": "hs", "brightness": 178,
+        "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "min_color_temp_kelvin": 2000, "max_color_temp_kelvin": 6500, "effect_list": ["None", "Candle"], "effect": "None"}},
     "sensor.pond_water_temp": {"state": "61.4", "attributes": {"friendly_name": "Pond Water Temp", "unit_of_measurement": "°F"}},
     "automation.nightly": {"state": "on", "attributes": {"friendly_name": "Nightly Routine"}},
 }
@@ -99,6 +101,24 @@ class H(BaseHTTPRequestHandler):
             if eid not in HA or eid.split(".")[0] != m.group(1): return self.send_json(400, {"message": "bad entity"})
             HA[eid]["state"] = "off" if HA[eid]["state"] == "on" else "on"; STATS["toggles"] += 1
             return self.send_json(200, [ha_state(eid)])
+        m = re.match(r"^/api/services/([a-z_]+)/(turn_on|turn_off)$", api)
+        if method == "POST" and m:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            eid = body.get("entity_id")
+            if eid not in HA or eid.split(".")[0] != m.group(1): return self.send_json(400, {"message": "bad entity"})
+            STATS["calls"].append({"svc": m.group(1) + "." + m.group(2), **body})
+            v = HA[eid]; a = v["attributes"]
+            if m.group(2) == "turn_off": v["state"] = "off"
+            else:
+                v["state"] = "on"
+                if "brightness_pct" in body: a["brightness"] = round(body["brightness_pct"] * 2.55)
+                if "hs_color" in body:
+                    import colorsys
+                    a.update({"hs_color": body["hs_color"], "color_mode": "hs", "color_temp_kelvin": None,
+                              "rgb_color": [round(x * 255) for x in colorsys.hsv_to_rgb(body["hs_color"][0] / 360, body["hs_color"][1] / 100, 1)]})
+                if "color_temp_kelvin" in body: a.update({"color_temp_kelvin": body["color_temp_kelvin"], "color_mode": "color_temp", "rgb_color": [255, 200, 150]})
+                if "effect" in body: a["effect"] = body["effect"]
+            return self.send_json(200, [ha_state(eid)])
         return self.send_json(404, {"message": "not found"})
     def do_POST(self):
         u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
@@ -108,7 +128,9 @@ class H(BaseHTTPRequestHandler):
         u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
         if path.startswith("/ha/"): return self.ha("GET", path, q)
         if path == "/__hareset":   # tests start from a known Home Assistant
-            HA["switch.pond_lights_outlet"]["state"] = "off"; HA["light.barn_porch"]["state"] = "on"; return self.send_json(200, {})
+            HA["switch.pond_lights_outlet"]["state"] = "off"; HA["light.barn_porch"]["state"] = "on"; HA["light.barn_porch"]["attributes"]["brightness"] = 128
+            sk = HA["light.skylight_2"]; sk["state"] = "on"; sk["attributes"].update({"color_mode": "hs", "brightness": 178, "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "color_temp_kelvin": None, "effect": "None"})
+            STATS["calls"] = []; return self.send_json(200, {})
         if path == "/__stats":
             body = json.dumps(STATS).encode(); self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body); return
         ok = self.headers.get("Authorization") == "Bearer " + TOKEN or q.get("k", [""])[0] == TOKEN

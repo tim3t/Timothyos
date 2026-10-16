@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.25.0 · 2026-10-16
+- **ENGINEERING · CONTROLS grows up.** Everything here is kept on this iPad; nothing in Home Assistant is changed.
+  - **Card styles per device:** TOGGLE, DIMMER (drag the bar along the bottom), COLOR (the tile takes the light's own colour), COMPACT (one slim button) and READING (sensors). Picked when adding a device, changed later from its **⋯** button. Styles a device can't use are greyed out; new devices start on the richest one they support.
+  - **Full light panel** (tap a colour card, a list row or **⋯**): big ON / OFF, **COLOR** with a colour wheel and quick colors, **WHITE** warm-to-cool, **BRIGHTNESS**, and effects when the light has them. Only the controls a light supports appear. Dragging updates the light about three times a second, then once more when you let go.
+  - **CARDS / LIST** switch for the whole screen. List rows have a switch at the right; tap a row for the panel.
+  - **Groups** (your own, e.g. Outside, Living Room, Office): made while adding a device or under **GROUPS** (rename, reorder, delete). Tap a group's name to fold it; folds are remembered. **ALL OFF** per group. Devices without a group sit under UNGROUPED.
+
 ## 2.24.0 · 2026-10-15
 - **ENGINEERING, a new station** (under RESOURCES in ALL STATIONS). Two tabs, both empty to start.
   - **CONTROLS:** Home Assistant devices you pick with **+ ADD DEVICE** (search by name; switches, lights, fans, toggles and sensors). A switch or light is one big tap to turn on or off; a sensor shows its reading. Refreshed every 30 seconds while open. **REMOVE** takes a device off the screen only.

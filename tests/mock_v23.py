@@ -263,7 +263,8 @@ class H(BaseHTTPRequestHandler):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
         elif q.get("action") == "holidays":
             import datetime as _dt
-            t0 = _dt.date.today()
+            from zoneinfo import ZoneInfo
+            t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
         elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays"] + (["logcode"] if CODE else []), "calendars": CALS}

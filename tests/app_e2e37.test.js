@@ -1,9 +1,10 @@
-// ENGINEERING (2.24): Home Assistant through the Storage relay's /ha path (simulated on :8110) and
+// ENGINEERING (2.24, controls 2.25): Home Assistant through the Storage relay's /ha path (simulated on :8110) and
 // UPKEEP kept on the iPad. Not set up: points to Systems. HOME ASSISTANT in Systems: USE THE STORAGE
 // RELAY, a wrong token refused, the right one tested. CONTROLS starts empty; + ADD DEVICE searches
-// Home Assistant (switches, lights, sensors only), a switch toggles, a sensor reads, REMOVE takes a
-// device off the screen. UPKEEP starts empty; items by time and by miles, overdue ones in the
-// Bridge's CONDITION, MARK DONE, edit, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
+// Home Assistant, then a card style and an iPad-only group (new groups made on the way); a switch toggles;
+// Skylight 2's panel sends brightness, colour from the wheel (throttled), a quick color, white and an
+// effect; a DIMMER card's bar; ALL OFF, folding, LIST view, GROUPS (rename, reorder, delete); REMOVE.
+// UPKEEP starts empty; items by time and by miles, overdue ones in the Bridge's CONDITION, MARK DONE, edit, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:8110';
@@ -50,36 +51,116 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.ok((await txt(p, '#content')).includes('No devices yet'));
   await p.click('[data-eng="add"]'); await p.waitForSelector('.ha-hit');
   const all = await p.$$eval('.ha-hit b', n => n.map(x => x.textContent));
-  assert.deepStrictEqual(all, ['Barn Porch', 'Pond Lights Outlet', 'Pond Water Temp'], 'automations left out, sorted by name');
-  await p.fill('#haQ', 'pond lights'); await p.waitForTimeout(100);
-  assert.deepStrictEqual(await p.$$eval('.ha-hit b', n => n.map(x => x.textContent)), ['Pond Lights Outlet']);
-  await p.click('[data-haadd="switch.pond_lights_outlet"]'); await p.waitForTimeout(100);
-  assert.ok((await txt(p, '.ha-hit')).includes('ADDED'));
-  await p.fill('#haQ', 'temp'); await p.waitForTimeout(100);
-  await p.click('[data-haadd="sensor.pond_water_temp"]');
-  await p.click('#detailClose'); await p.waitForTimeout(300);
-  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hadev.v1')).map(d => d.id)), ['switch.pond_lights_outlet', 'sensor.pond_water_temp']);
-
-  // ---- tiles: the switch toggles, the sensor reads
+  assert.deepStrictEqual(all, ['Barn Porch', 'Pond Lights Outlet', 'Pond Water Temp', 'Skylight 2'], 'automations left out, sorted by name');
+  assert.ok((await txt(p, '.ha-hit:has-text("Skylight 2")')).includes('color, white, brightness'));
+  const addDev = async (q, id, opts) => {
+    if (!(await p.$('#haQ'))) { await p.click('[data-eng="add"]'); await p.waitForSelector('.ha-hit'); }
+    await p.fill('#haQ', q); await p.waitForTimeout(80);
+    await p.click('[data-hapick="' + id + '"]'); await p.waitForSelector('[data-haaddgo]');
+    if (opts.expect) assert.strictEqual(await p.getAttribute('[data-hastyle][aria-pressed="true"]', 'data-hastyle'), opts.expect, 'default style for ' + id);
+    if (opts.style) await p.click('[data-hastyle="' + opts.style + '"]');
+    if (opts.newGroup) { await p.fill('#haAddNewG', opts.newGroup); await p.click('[data-hanewg="add"]'); }
+    if (opts.group) await p.click('[data-hagrp]:text-is("' + opts.group + '")');
+    await p.click('[data-haaddgo]'); await p.waitForTimeout(250);
+  };
+  // the switch: COLOR and DIMMER don't fit it; a new group made on the way
+  await p.fill('#haQ', 'pond lights'); await p.waitForTimeout(80);
+  await p.click('[data-hapick="switch.pond_lights_outlet"]'); await p.waitForSelector('[data-haaddgo]');
+  assert.ok(await p.isDisabled('[data-hastyle="color"]') && await p.isDisabled('[data-hastyle="dimmer"]') && await p.isDisabled('[data-hastyle="reading"]'));
+  await p.click('#detailClose'); await p.waitForTimeout(250);
+  await addDev('pond lights', 'switch.pond_lights_outlet', { expect: 'toggle', newGroup: 'Outside' });
+  await addDev('temp', 'sensor.pond_water_temp', { expect: 'reading', group: 'OUTSIDE' });
+  await addDev('sky', 'light.skylight_2', { expect: 'color', newGroup: 'Living Room' });
+  await addDev('barn', 'light.barn_porch', { expect: 'dimmer', style: 'mini' });
+  const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hadev.v1')));
+  assert.deepStrictEqual(saved.map(d => [d.id, d.style]), [['switch.pond_lights_outlet', 'toggle'], ['sensor.pond_water_temp', 'reading'], ['light.skylight_2', 'color'], ['light.barn_porch', 'mini']]);
+  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hagroups.v1')).map(g => g.nm)), ['OUTSIDE', 'LIVING ROOM']);
   await p.waitForFunction(() => /61\.4 °F/.test(document.getElementById('content').textContent), null, { timeout: 5000 });
-  const tile = '.eng-dev:has([data-hatoggle="switch.pond_lights_outlet"])';
-  assert.ok((await txt(p, tile)).includes('POND LIGHTS OUTLET OFF TAP TO TURN ON'), await txt(p, tile));
-  assert.ok((await txt(p, '#eyebrow')).includes('CONTROLS · 2 DEVICES'));
+  assert.deepStrictEqual(await p.$$eval('.hg h2', n => n.map(x => x.textContent)), ['OUTSIDE', 'LIVING ROOM', 'UNGROUPED']);
+  assert.ok((await txt(p, '#eyebrow')).includes('CONTROLS · 4 DEVICES · 2 ON'), await txt(p, '#eyebrow'));
+  const sky = '.hc-color:has([data-hatoggle="light.skylight_2"])';
+  assert.ok(await p.$eval(sky, n => n.classList.contains('on') && /rgb\(97, ?180, ?255\)/.test(n.style.getPropertyValue('--lc'))), 'colour card in the light\'s colour');
+  assert.ok((await txt(p, sky)).includes('ON · 70% · COLOR'), await txt(p, sky));
+  assert.ok(await p.isVisible('.hm:has-text("Barn Porch")'), 'compact button');
   await p.screenshot({ path: D + 'eng-controls.png' });
+
+  // ---- the switch toggles, confirmed by a re-read
+  const tile = '.hc:has([data-hatoggle="switch.pond_lights_outlet"])';
+  assert.ok((await txt(p, tile)).includes('POND LIGHTS OUTLET OFF TAP TO TURN ON'), await txt(p, tile));
   const t0 = (await stats()).toggles;
-  await p.click('[data-hatoggle="switch.pond_lights_outlet"]');
-  await p.waitForFunction(() => document.querySelector('[data-hatoggle="switch.pond_lights_outlet"]').getAttribute('aria-pressed') === 'true');
+  await p.click(tile + ' .hc-main');
   await p.waitForTimeout(1200);
   assert.strictEqual((await stats()).toggles, t0 + 1, 'one toggle sent');
-  assert.ok((await txt(p, tile)).includes('ON TAP TO TURN OFF'), 'confirmed on by the re-read');
-  assert.ok(await p.$eval(tile, n => n.classList.contains('on')));
-  await p.screenshot({ path: D + 'eng-on.png' });
+  assert.ok((await txt(p, tile)).includes('ON TAP TO TURN OFF') && await p.$eval(tile, n => n.classList.contains('on')));
 
-  // ---- REMOVE (tap twice) takes it off this screen only
-  const rm = '.eng-dev:has([data-hatoggle="switch.pond_lights_outlet"]) [data-eng="rmdev"]';
-  await p.click(rm); assert.strictEqual(await txt(p, rm), 'TAP AGAIN TO REMOVE');
-  await p.click(rm); await p.waitForTimeout(200);
-  assert.strictEqual(await p.locator('[data-hatoggle]').count(), 0);
+  // ---- Skylight 2's panel: brightness, the wheel (throttled), a quick color, white, an effect
+  await p.click(sky + ' .hc-main'); await p.waitForSelector('#haWheel');
+  assert.ok((await txt(p, '#detailSheet .sbar')).includes('SKYLIGHT 2 LIVING ROOM'));
+  const calls = async () => (await stats()).calls;
+  await p.$eval('#haB', el => { el.value = 40; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
+  await p.waitForTimeout(300);
+  let c = await calls();
+  assert.deepStrictEqual(c[c.length - 1], { svc: 'light.turn_on', entity_id: 'light.skylight_2', brightness_pct: 40 });
+  const n0 = c.length, w = await (await p.$('#haWheel')).boundingBox();
+  await p.mouse.move(w.x + w.width / 2, w.y + w.height / 2); await p.mouse.down();
+  for (let i = 1; i <= 12; i++) { await p.mouse.move(w.x + w.width / 2 + i * (w.width * 0.4 / 12), w.y + w.height / 2); await p.waitForTimeout(40); }
+  await p.mouse.up(); await p.waitForTimeout(500);
+  c = await calls();
+  const wheel = c.slice(n0);
+  assert.ok(wheel.length >= 2 && wheel.length <= 6, 'wheel sends are throttled: ' + wheel.length);
+  const fin = wheel[wheel.length - 1];
+  assert.ok(fin.hs_color && Math.abs(fin.hs_color[0] - 90) <= 2 && Math.abs(fin.hs_color[1] - 80) <= 3, 'east of centre = hue 90, 80%: ' + JSON.stringify(fin));
+  await p.click('[data-hapreset="hs,0,95"]'); await p.waitForTimeout(250);
+  c = await calls(); assert.deepStrictEqual(c[c.length - 1].hs_color, [0, 95]);
+  await p.click('[data-hamode="ct"]'); await p.waitForSelector('#haK');
+  assert.deepStrictEqual(await p.$eval('#haK', el => [el.min, el.max]), ['2000', '6500']);
+  await p.$eval('#haK', el => { el.value = 3000; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
+  await p.waitForTimeout(250);
+  c = await calls(); assert.strictEqual(c[c.length - 1].color_temp_kelvin, 3000);
+  assert.ok(!('hs_color' in c[c.length - 1]), 'never colour and white in one call');
+  await p.click('[data-hafx="Candle"]'); await p.waitForTimeout(250);
+  c = await calls(); assert.strictEqual(c[c.length - 1].effect, 'Candle');
+  await p.screenshot({ path: D + 'eng-panel.png' });
+  // style change from the panel: DIMMER, then drag its bar
+  await p.click('[data-hastyle="dimmer"]'); await p.click('#detailClose'); await p.waitForTimeout(300);
+  const dim = '.hc-dimmer:has([data-hatoggle="light.skylight_2"]) .hc-lvl';
+  const bb = await (await p.$(dim)).boundingBox();
+  await p.mouse.move(bb.x + bb.width * 0.6, bb.y + bb.height / 2); await p.mouse.down();
+  await p.mouse.move(bb.x + bb.width * 0.25, bb.y + bb.height / 2, { steps: 6 }); await p.mouse.up(); await p.waitForTimeout(400);
+  c = await calls(); assert.ok(Math.abs(c[c.length - 1].brightness_pct - 25) <= 1, 'bar dims to 25%: ' + JSON.stringify(c[c.length - 1]));
+  assert.ok((await txt(p, dim)).includes('25%'));
+
+  // ---- ALL OFF for a group, folding, LIST view
+  await p.click(".hg:has(h2:text-is(\"LIVING ROOM\")) [data-haalloff]"); await p.waitForTimeout(300);
+  c = await calls(); assert.deepStrictEqual(c[c.length - 1], { svc: 'light.turn_off', entity_id: 'light.skylight_2' });
+  await p.click('[data-hafold]:has(h2:text-is("OUTSIDE"))'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.locator('[data-hgroup] .hc:has([data-hatoggle="switch.pond_lights_outlet"])').count(), 0, 'folded');
+  assert.deepStrictEqual(Object.keys(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hafold.v1')))).length, 1);
+  await p.click('[data-haview="list"]'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.locator('.hr').count(), 2, 'rows for the open groups');
+  const tb = (await stats()).toggles;
+  await p.click('.hr:has-text("Barn Porch") .sw'); await p.waitForTimeout(300);
+  assert.strictEqual((await stats()).toggles, tb + 1);
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.haview.v1'))), 'list');
+  await p.screenshot({ path: D + 'eng-list.png' });
+  await p.click('[data-hafold]:has(h2:text-is("OUTSIDE"))'); await p.click('[data-haview="cards"]');
+
+  // ---- GROUPS: rename, reorder, delete (devices move to UNGROUPED)
+  await p.click('[data-eng="groups"]'); await p.waitForSelector('.hg-row');
+  const lr = await p.getAttribute('.hg-row:nth-child(2) input', 'data-hagname');
+  await p.fill('#hgn-' + lr, 'Lounge'); await p.waitForTimeout(100);
+  await p.click('[data-hagmove="' + lr + ',-1"]');
+  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hagroups.v1')).map(g => g.nm)), ['LOUNGE', 'OUTSIDE']);
+  const out = await p.getAttribute('.hg-row:nth-child(2) input', 'data-hagname');
+  await p.click('[data-hagdel="' + out + '"]'); await p.click('[data-hagdel="' + out + '"]'); await p.waitForTimeout(100);
+  await p.click('#detailClose'); await p.waitForTimeout(250);
+  assert.deepStrictEqual(await p.$$eval('.hg h2', n => n.map(x => x.textContent)), ['LOUNGE', 'UNGROUPED']);
+
+  // ---- REMOVE (tap twice) takes a device off this screen only
+  await p.click('.hc:has([data-hatoggle="switch.pond_lights_outlet"]) .hc-more'); await p.waitForSelector('[data-harm]');
+  await p.click('[data-harm]'); assert.strictEqual(await txt(p, '[data-harm]'), 'TAP AGAIN TO REMOVE');
+  await p.click('[data-harm]'); await p.waitForTimeout(250);
+  assert.strictEqual(await p.locator('#content [data-hatoggle="switch.pond_lights_outlet"]').count(), 0);
   assert.ok((await txt(p, '#content')).includes('POND WATER TEMP'));
 
   // ---- UPKEEP starts empty

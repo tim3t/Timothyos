@@ -442,7 +442,9 @@ Home Assistant is reached through the Storage relay's `/ha` path, so it stays in
 2. **A token:** log in to Home Assistant as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it once; it is shown only once.
 3. **The relay:** UGOS → Docker → **Project** `timothyos` → edit the compose so it matches the one under Storage (the `HA_URL` line with Home Assistant's address, and the new `CADDYFILE`), then redeploy.
 4. **On the iPad:** **Systems → HOME ASSISTANT → USE THE STORAGE RELAY**, paste the token, **SAVE AND TEST**.
-5. **ENGINEERING → + ADD DEVICE**, search, **ADD**.
+5. **ENGINEERING → + ADD DEVICE**, search, **NEXT**, pick how it looks and which group, **ADD TO ENGINEERING**.
+
+**Using CONTROLS (2.25):** each device has a card style (TOGGLE, DIMMER, COLOR, COMPACT, READING) and a group, both set on this iPad from its **⋯** button. Lights open a panel with the controls they actually have: colour wheel and quick colors, white warm-to-cool, brightness, effects. **CARDS / LIST** switches the whole screen; **GROUPS** renames, reorders and deletes groups; tap a group's name to fold it; **ALL OFF** turns off everything switchable in that group. Groups are separate from the rooms set up in Home Assistant.
 
 A non-admin Home Assistant user can still switch every device in that Home Assistant. The list on ENGINEERING is what's shown, not a lock; the protection is Tailscale plus the two tokens. **FORGET** in Systems removes the address and token from the iPad; deleting the token in Home Assistant cuts it off everywhere.
 
