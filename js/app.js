@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.25.0";
+  var VERSION = "2.25.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6035,7 +6035,7 @@
     var html = '<div class="eng"><div class="eng-tabs"><div class="chips">' + [["controls", "CONTROLS"], ["upkeep", "UPKEEP"]].map(function (t) {
       return '<button type="button" class="chip" data-engtab="' + t[0] + '" aria-pressed="' + (eng.tab === t[0]) + '">' + t[1] + "</button>";
     }).join("") + "</div>";
-    if (ctl && haConf()) html += '<div class="eng-tools"><div class="seg" role="group" aria-label="View">' + [["cards", "CARDS"], ["list", "LIST"]].map(function (v) {
+    if (ctl && haConf()) html += '<div class="eng-tools"><div class="hseg" role="group" aria-label="View">' + [["cards", "CARDS"], ["list", "LIST"]].map(function (v) {
       return '<button type="button" data-haview="' + v[0] + '" aria-pressed="' + (view === v[0]) + '">' + v[1] + "</button>";
     }).join("") + '</div><button type="button" class="btn sm ghost" data-eng="groups">GROUPS</button><button type="button" class="btn sm" data-eng="add">+ ADD DEVICE</button></div>';
     else if (!ctl) html += '<button type="button" class="btn sm" data-eng="newitem">+ ITEM</button>';
@@ -6099,7 +6099,7 @@
   function haRowHtml(d) {
     var s = eng.states[d.id], c = devCaps(d), on = isOn(s), dead = isDead(s);
     return '<div class="hr' + (on ? " on" : "") + '" style="--lc: ' + (lampCss(d.id, s) || "var(--chrome-d)") + '"><button type="button" class="hr-main" data-hadev="' + esc(d.id) + '"><span class="lamp" aria-hidden="true"></span><span class="nm">' + esc(d.name) + '</span><span class="st tnum">' + esc(haStateTxt(d, s)) + "</span></button>" +
-      (c.sw ? '<button type="button" class="sw" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '" aria-label="' + esc(d.name) + (on ? ", on" : ", off") + '"' + (dead ? " disabled" : "") + "></button>" : '<span class="sw-ph"></span>') + "</div>";
+      (c.sw ? '<button type="button" class="hsw" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '" aria-label="' + esc(d.name) + (on ? ", on" : ", off") + '"' + (dead ? " disabled" : "") + "></button>" : '<span class="hsw-ph"></span>') + "</div>";
   }
   function upkeepHtml() {
     var today = ymd(new Date()), list = upkeepItems().map(function (u) { return { u: u, s: upkeepStatus(u, today) }; });

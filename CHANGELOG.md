@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.25.1 · 2026-10-16
+- **Fixed: Engineering's styles leaking onto other screens.** The list-view switch borrowed a class name already used by the colour swatches, so big toggle shapes sat over LIFE AREAS on Today and the STREAKS names on Habits; the CARDS / LIST control also outlined the Bridge's week bars; and small chips everywhere grew a pixel. Engineering now uses its own names, and a test checks the other screens keep their look.
+
 ## 2.25.0 · 2026-10-16
 - **ENGINEERING · CONTROLS grows up.** Everything here is kept on this iPad; nothing in Home Assistant is changed.
   - **Card styles per device:** TOGGLE, DIMMER (drag the bar along the bottom), COLOR (the tile takes the light's own colour), COMPACT (one slim button) and READING (sensors). Picked when adding a device, changed later from its **⋯** button. Styles a device can't use are greyed out; new devices start on the richest one they support.

@@ -25,6 +25,19 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   }, [K, R]);
   await p.reload(); await p.waitForTimeout(1500);
 
+  // ---- Engineering's styles stay out of other screens (2.25.1): the Life Areas / streak swatches (.sw)
+  // and the Bridge's week bars (.seg) keep their own look
+  const leak = await p.evaluate(() => {
+    const box = document.createElement('div'); box.innerHTML = '<div class="arow"><span class="sw"></span></div><div class="ov-day"><span class="seg"></span></div><button class="chip sm">X</button>';
+    document.body.appendChild(box);
+    const sw = getComputedStyle(box.querySelector('.sw')), seg = getComputedStyle(box.querySelector('.seg')), chip = getComputedStyle(box.querySelector('.chip'));
+    const r = { swW: sw.width, swRadius: sw.borderTopLeftRadius, segBorder: seg.borderTopWidth, segPad: seg.paddingTop, chipFont: chip.fontSize };
+    box.remove(); return r;
+  });
+  assert.ok(leak.swW !== '70px' && leak.swRadius !== '21px', 'swatch untouched: ' + JSON.stringify(leak));
+  assert.ok(leak.segBorder === '0px' && leak.segPad === '0px', 'week bars untouched: ' + JSON.stringify(leak));
+  assert.strictEqual(leak.chipFont, '13px', 'small chips keep 13px');
+
   // ---- not set up: CONTROLS points to Systems
   await p.click('[data-screen="engineering"].nav'); await p.waitForSelector('.eng');
   assert.strictEqual(await txt(p, '#title'), 'ENGINEERING');
@@ -139,7 +152,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await p.click('[data-haview="list"]'); await p.waitForTimeout(150);
   assert.strictEqual(await p.locator('.hr').count(), 2, 'rows for the open groups');
   const tb = (await stats()).toggles;
-  await p.click('.hr:has-text("Barn Porch") .sw'); await p.waitForTimeout(300);
+  await p.click('.hr:has-text("Barn Porch") .hsw'); await p.waitForTimeout(300);
   assert.strictEqual((await stats()).toggles, tb + 1);
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.haview.v1'))), 'list');
   await p.screenshot({ path: D + 'eng-list.png' });
