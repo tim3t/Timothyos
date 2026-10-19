@@ -463,6 +463,7 @@ button.arow:active { filter: brightness(1.2); }
 .calrow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 14px; align-items: center; min-height: 58px; border-bottom: 1px solid var(--line); }
 .calrow .st { align-self: stretch; background: var(--c); border-radius: 5px; margin-block: 10px; }
 .calrow small { display: block; color: var(--dim); }
+.calrow small a { color: var(--chrome-b); }
 .btnrow { display: flex; gap: 10px; flex-wrap: wrap; }
 .stublist { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .connect { max-width: 680px; display: grid; gap: 18px; }
@@ -1812,6 +1813,29 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .tr-pr .who b { font-family: var(--display); font-weight: 600; font-size: 20px; letter-spacing: .06em; }
 .tr-pr .who em { font-style: normal; color: var(--chrome-b); font-size: 15px; }
 .tr-link { justify-self: start; border: 0; background: none; color: var(--dim); font-family: var(--display); letter-spacing: .12em; font-size: 12px; padding: 6px 0; text-decoration: underline; text-underline-offset: 3px; }
+/* Your tarot books (2.29): a closed chip under each card; the drawer opens beneath it. A suggestion sits in a dashed box until ADD or DISMISS. */
+.tr-bk-box { display: grid; gap: 8px; min-width: 0; }
+.tr-bk-row { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; min-width: 0; }
+.tr-bk-chip, .tr-bk-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 14px; border-radius: 18px; border: 2px solid var(--line); background: transparent; color: var(--chrome-b); font-family: var(--display); font-size: 13px; letter-spacing: .14em; }
+.tr-bk-chip::before, .tr-bk-btn::before { content: ""; width: 14px; height: 12px; border: 1.5px solid currentColor; border-radius: 2px 2px 3px 3px; background: linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat; flex: none; }
+.tr-bk-chip[aria-expanded="true"] { background: var(--chrome-b); border-color: var(--chrome-b); color: var(--ink); }
+.tr-bk-btn:disabled { opacity: .5; }
+.tr-bk { display: grid; gap: 10px; border-left: 3px solid var(--chrome-b); padding: 4px 0 4px 12px; min-width: 0; }
+.tr-bk-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tr-bk-tab { min-height: 34px; padding: 0 12px; border-radius: 17px; border: 2px solid var(--line); background: transparent; font-family: var(--display); font-size: 13px; letter-spacing: .12em; color: var(--fg); }
+.tr-bk-tab[aria-pressed="true"] { background: var(--panel-2); border-color: var(--chrome-b); color: var(--chrome-b); }
+.tr-bk-text { font-size: 15px; line-height: 1.5; max-height: 18em; overflow: auto; padding-right: 6px; overscroll-behavior: contain; }
+.tr-bk-text p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.tr-bk-text p.li { padding-left: 14px; text-indent: -10px; }
+.tr-bk-text p.li::before { content: "• "; color: var(--chrome-b); }
+.tr-bk-h { display: block; margin: 10px 0 2px; font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--chrome-b); }
+.tr-bk-h:first-child { margin-top: 0; }
+.tr-bk-src { color: var(--dim); font-size: 13px; }
+.tr-bk-src a { color: var(--chrome-b); }
+.tr-bk-wait { font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--chrome-b); }
+.tr-sug { border: 2px dashed var(--chrome-b); border-radius: 0 16px 16px 0; padding: 10px 12px; display: grid; gap: 8px; background: color-mix(in srgb, var(--chrome-b) 6%, var(--panel)); min-width: 0; }
+.tr-sug-top { display: flex; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--chrome-b); }
+.tr-sug p { margin: 0; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .tr-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; max-width: 560px; }
 .tr-cell { aspect-ratio: 3 / 4; border-radius: 10px; border: 2px dashed var(--line); background: transparent; color: var(--dim); font-family: var(--display); font-size: 18px; }
 .tr-cell.on { border-style: solid; border-color: var(--chrome-a); background: color-mix(in srgb, var(--chrome-a) 22%, var(--panel)); color: var(--fg); }

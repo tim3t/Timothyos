@@ -1,3 +1,4 @@
+# Simulated bridge 1.25 (after ?action=tbmode&on=1): tarot books with placeholder passages (never real book text), IMPORT BOOKS in steps, scripted SUGGEST.
 # Simulated bridge 1.24: mock_v23 plus Tarot (readings, the week's card, meanings, spreads; invented, dated relative to today). Port 8105.
 # Simulated bridge 1.23: mock_v22 plus a linked Growth calendar (area "hobby"), an hour every evening, and holidays (invented dates relative to today). Port 8104.
 # Simulated bridge 1.16/1.17: everything in 1.14, plus Captain's Log search and its index (invented sample entries), and
@@ -259,6 +260,16 @@ BOOKS = [
   {"id": "bk5", "url": "https://www.notion.so/bk5", "title": "An Older Story", "author": "Cy Placeholder", "status": "read", "started": "2025-11-02", "finished": "2025-11-20", "rating": 3, "notes": "", "cover": "", "ol": "", "year": 1999, "created": "2025-11-02T12:00:00Z"},
 ]
 BCIDS = {}; BSAVES = []
+TB = {"on": False, "made": 0, "file": True, "imports": 0, "reads": [], "suggests": [], "fail": None}
+def tb_books(card):
+    if TB["made"] < 156: return []
+    nm = card
+    return [{"book": "dean", "name": "Liz Dean", "title": "The Ultimate Guide to Tarot", "source": "Chapter 4, page 1", "url": "https://www.notion.so/tb-dean-" + card,
+             "sections": [{"h": "AT A GLANCE", "p": ["• Key Meanings: sample keywords for " + nm]}, {"h": "UNDERSTANDING THE CARD", "p": ["Sample description of " + nm + "."]},
+                          {"h": "UPRIGHT MEANING", "p": ["Sample upright passage for " + nm + ".", "• Home: sample line"]}, {"h": "REVERSED MEANING", "p": ["Sample reversed passage for " + nm + "."]}]},
+            {"book": "crispin", "name": "Jessa Crispin", "title": "The Creative Tarot", "source": "The Cards, page 2", "url": "https://www.notion.so/tb-crispin-" + card,
+             "sections": [{"h": "THE CARD", "p": ["Sample picture of " + nm + "."]}, {"h": "HER READING", "p": ["Sample creative reading of " + nm + "."]}]}]
+def tb_counts(): return {"dean": min(78, TB["made"]), "crispin": max(0, TB["made"] - 78)}
 SEEN = {}
 POSTS = []
 CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "personal@example.com"}, {"area": "farm", "ok": True, "name": "Hilltop"}, {"area": "hobby", "ok": True, "name": "Growth"}]
@@ -280,8 +291,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
@@ -325,6 +336,16 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "tarot":
             rs = sorted([r for r in TAROT if q["from"] <= r["day"] <= q["to"]], key=lambda r: r["day"], reverse=True)
             body = {"ok": True, "version": "1.24.0", "readings": rs, "meanings": [{"id": "m-" + k, "kind": "meaning", "card": k, "text": v} for k, v in TMEAN.items() if v], "spreads": TSPREADS}
+        elif q.get("action") == "tbmode":
+            TB["on"] = q.get("on") == "1"; TB["fail"] = q.get("fail") or None
+            if "made" in q: TB.update(made=int(q["made"]), imports=0, reads=[], suggests=[])
+            body = {"ok": True}
+        elif q.get("action") == "tarotbooks" and TB["on"]:
+            body = {"ok": True, "version": "1.25.0", "books": tb_counts(), "per": 78, "file": TB["file"], "url": "https://www.notion.so/tarotbooks"}
+        elif q.get("action") == "tarotbook" and TB["on"]:
+            TB["reads"].append([q.get("card"), q.get("fresh")])
+            body = {"ok": True, "version": "1.25.0", "card": q.get("card"), "books": tb_books(q.get("card", ""))}
+        elif q.get("action") == "tbstats": body = {"ok": True, "tb": TB}
         elif q.get("action") == "hfail": HFAIL[0] = int(q.get("n", "1")); body = {"ok": True}
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
@@ -358,6 +379,15 @@ class H(BaseHTTPRequestHandler):
                     TAROT[:] = [x for x in TAROT if x["id"] != rid] + [rec]
                     body = {"ok": True, "version": "1.24.0", "reading": rec}
                     if r.get("cid"): TCID[r["cid"]] = body
+            elif act == "tarotbookimport" and TB["on"]:
+                TB["imports"] += 1; before = TB["made"]; TB["made"] = min(156, TB["made"] + 60)
+                body = {"ok": True, "version": "1.25.0", "made": TB["made"] - before, "books": tb_counts(), "left": 156 - TB["made"]}
+            elif act == "tarotsuggest" and TB["on"]:
+                TB["suggests"].append({k: b.get(k) for k in ("mode", "at", "q", "sname", "sum", "cards")})
+                if TB["fail"]: body = {"ok": False, "error": TB["fail"], "spend": SPEND}
+                else:
+                    cs = b.get("cards") or []; tgt = cs[b.get("at")]["id"] if b.get("mode") == "card" else "the whole spread"
+                    body = {"ok": True, "version": "1.25.0", "mode": b.get("mode"), "text": "Sample suggestion for " + tgt + ".\nA second line.", "model": "claude-sonnet-5-5", "cost": 0.0091, "spend": SPEND}
             elif act == "tarotmeaning":
                 TMEAN[b.get("card")] = b.get("text") or ""; body = {"ok": True, "card": b.get("card"), "meaning": {"card": b.get("card"), "text": b.get("text")} if b.get("text") else None}
             elif act == "tarotspread":

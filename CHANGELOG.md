@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.29.0 · 2026-10-19 (bridge 1.25)
+- **Your tarot books, beside every card.** Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot* now live in **📖 Tarot Books**, a private Notion database (one page per card per book, yours to read and edit). Set up once with **IMPORT BOOKS** in Systems.
+  - **BOOKS** under each card in a reading opens a drawer with both books, a tab each; reversed cards lead with Dean's reversed meaning. Closed until you ask.
+  - **SUGGEST A MEANING HERE** and **SUGGEST A READING FROM MY BOOKS** ask Claude, only when tapped, using only your two books, your own meaning, the question and your notes. The answer waits marked **NOT SAVED** until **ADD** (into your note or WHAT IT SAYS) or **DISMISS**. About 1¢ a card.
+  - **FROM YOUR BOOKS** in a card's history, for reading without suggestions.
+  - The book text stays in your Notion: never in the app's code, this repository or the iPad's storage.
+- **Bridge 1.25:** `tarotbooks`, `tarotbook`, `tarotbookimport`, `tarotsuggest`.
+
 ## 2.28.0 · 2026-10-19
 - **ENGINEERING · CONTROLS laid out by type**, as in the first Engineering mockup: **LIGHTS AND SWITCHES** on the left, **CLIMATE** and **SENSORS** on the right (stacked on narrow screens).
 - **Rooms as chips** over the lights (ALL, each of your rooms, OTHER for devices without one) instead of folding group sections. The choice is remembered; **ALL OFF HERE** turns off what the chosen room shows. Every tile shows its room. GROUPS is now **ROOMS** (still on this iPad only, separate from Home Assistant's areas).

@@ -368,6 +368,24 @@ TAROT (under REFLECT in ALL STATIONS) records the cards you draw from your own d
 
 Deleting a reading or spread puts it in Notion's trash, where it can be restored.
 
+### Your tarot books (app 2.29, bridge 1.25)
+
+Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot*, one Notion page per card per book (156 pages) in **📖 Tarot Books**, a private database in your Life Hub beside 🔮 Tarot. You can read and edit any page there; the app uses your version. The book text lives only in your Notion: never in the app's code, this repository or the iPad's storage.
+
+1. **Connect the database:** in Notion open **📖 Tarot Books → ••• → Connections → add TimothyOS bridge**.
+2. **Update the bridge to 1.25** (same steps as above: replace the code, save, run **setup**, then **Deploy → Manage deployments → pencil → New version → Deploy**). The log shows `Notion tarot books: OK (Liz Dean 0 of 78, Jessa Crispin 0 of 78; tap IMPORT BOOKS in Systems)`.
+3. **SYSTEMS → REFRESH NOW**, then under **TAROT** tap **IMPORT BOOKS**. It makes the pages from the import file already in the database, about three minutes in a few steps; keep the app open. When the row shows **78 of 78** for both, you can delete the **📦 Import file** page. Running it again only fills gaps; it never overwrites a page.
+
+**Using it:**
+- **BOOKS** under any card in a reading opens both books for that card, with a tab for each. For a reversed card Dean's reversed meaning comes first. **CLOSE BOOKS** folds it away. **OPEN IN NOTION** goes to that page. Your last choice of book stays chosen.
+- **SUGGEST A MEANING HERE** (inside the open drawer) asks Claude what the card could mean in that position, using only your two books, your MY MEANING for the card, your question and your notes. About 1¢. The answer sits in a dashed box marked **NOT SAVED** until you tap **ADD TO MY NOTE** (it goes after what you've written and saves like typing) or **DISMISS**.
+- **SUGGEST A READING FROM MY BOOKS** under **WHAT IT SAYS** does the same for the whole spread (about 1¢ plus half a cent a card); **ADD TO WHAT IT SAYS** puts it there.
+- A card's history (**EVERY TIME THIS CARD CAME UP**) has **FROM YOUR BOOKS** too, for reading without suggestions.
+- Suggestions count toward Ask's monthly total (they show as TAROT SUGGESTION in Systems). Nothing goes to Claude until you tap SUGGEST; SHARE WITH ASK is separate and still governs Ask.
+- The bridge remembers each card's passages for six hours, so an edit you make in Notion shows up within that time.
+
+The text came from the EPUB of Dean's book and a scan of Crispin's, so a few of Crispin's pages may carry small scanning slips (a joined word, a missing apostrophe). Fix them on the page in Notion.
+
 ## Storage (app 2.16)
 
 STORAGE browses folders on the NAS and plays audio (podcasts) from them. A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.28.0";
+  var VERSION = "2.29.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3113,7 +3113,7 @@
       var d = new Date(x.t), when = DOW[d.getDay()] + " " + hm(d);
       if (x.mode === "matched") return '<div class="ai-row"><span class="tnum">' + when + "</span><span>MATCHED TO THE CONSOLE</span><span></span><span class=\"tnum\">$" + Number(x.usd).toFixed(2) + "</span></div>";
       var k = function (n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "K" : String(n || 0); };
-      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
+      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
         '</span><span class="muted tnum">' + k((x.in || 0) + (x.cw || 0) + (x.cr || 0)) + " in · " + k(x.out) + ' out</span><span class="tnum">' + money(x.usd || 0) + "</span></div>";
     }).join("") + "</div>";
     html += '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
@@ -6846,12 +6846,12 @@
     var html = '<div class="tr-tools"><button type="button" class="btn sm ghost" data-trgo="home">‹ TAROT</button><button type="button" class="btn sm ghost" data-trdel="' + esc(r.id) + '"' + (r.pending && r.id.indexOf("cid:") === 0 ? " disabled" : "") + ">" + (armed ? "TAP AGAIN TO DELETE" : "DELETE") + "</button></div>";
     html += '<div class="tr-cols"><div class="tr-col">' + phead(esc(r.sname || trSpread(r.spread, r.cards.length).nm), dLabel(parseYmd(r.day)) + (r.weekly ? " · THIS WEEK'S CARD" : ""), "chrome-a") +
       '<h3 class="tr-q">' + esc(r.q || (r.weekly ? "Card for the week" : "Open reading")) + "</h3>" + trBoard(sp, r.cards, { cardPx: sp.pos.length > 6 ? 110 : 150 }) +
-      phead("WHAT IT SAYS", "YOUR READING", "chrome-c") + '<textarea id="trSum" data-trsum="' + esc(r.id) + '" rows="4" placeholder="The reading as a whole…">' + esc(r.sum || "") + "</textarea>" + (r.pending ? '<small class="muted">Not in Notion yet. It will go when the bridge answers.</small>' : "") + "</div>";
+      phead("WHAT IT SAYS", "YOUR READING", "chrome-c") + '<textarea id="trSum" data-trsum="' + esc(r.id) + '" rows="4" placeholder="The reading as a whole…">' + esc(r.sum || "") + "</textarea>" + (r.pending ? '<small class="muted">Not in Notion yet. It will go when the bridge answers.</small>' : "") + trbBox("s") + "</div>";
     html += '<div class="tr-col">' + phead("POSITIONS", sp.pos.length + (sp.pos.length === 1 ? " CARD" : " CARDS"), "chrome-b") + '<div class="tr-pos">' + sp.pos.map(function (p, i) {
       var c = r.cards[i]; if (!c) return "";
       var mine = trMeaning(c.id);
       return '<div class="tr-pr tr-' + trSuit(c.id) + '">' + trCard(c.id, c.rev) + '<div class="who"><span class="ov-sub">' + (i + 1) + " · " + esc(p.l) + "</span><b>" + esc(trName(c.id).toUpperCase()) + (c.rev ? " · REVERSED" : "") + "</b><em>" + esc(trKw(c.id, c.rev)) + "</em>" + (mine ? '<small><span class="muted">Mine:</span> ' + esc(mine) + "</small>" : "") +
-        '<textarea data-trnote="' + i + '" data-trid="' + esc(r.id) + '" rows="2" aria-label="Your note for ' + esc(p.l) + '" placeholder="What it means here…">' + esc((r.notes || [])[i] || "") + '</textarea><button type="button" class="tr-link" data-trhist="' + c.id + '">EVERY TIME THIS CARD CAME UP</button></div></div>';
+        '<textarea data-trnote="' + i + '" data-trid="' + esc(r.id) + '" rows="2" aria-label="Your note for ' + esc(p.l) + '" placeholder="What it means here…">' + esc((r.notes || [])[i] || "") + "</textarea>" + trbBox("p:" + i) + "</div></div>";
     }).join("") + "</div></div></div>";
     return html;
   }
@@ -6907,7 +6907,7 @@
     });
     var recent = rows.filter(function (x) { return x.r.day >= from; }), revN = recent.filter(function (x) { return x.rev; }).length;
     trSheet("tr-histsheet", '<div class="sbar"><span>' + esc(trName(id).toUpperCase()) + '</span><span>LAST 90 DAYS</span></div><div class="sbody"><div class="tr-hist">' + trCard(id, false) + '<div class="tx"><h3>' + esc(trName(id).toUpperCase()) + '</h3><span class="ov-sub">UPRIGHT</span><span>' + esc(trKw(id, false)) + '</span><span class="ov-sub">REVERSED</span><span>' + esc(trKw(id, true)) + "</span>" +
-      '<div class="tr-facts"><span class="pill">' + recent.length + (recent.length === 1 ? " TIME" : " TIMES") + '</span><span class="pill">' + revN + ' REVERSED</span></div><label class="ov-sub" for="trMean">MY MEANING</label><textarea id="trMean" data-trmean="' + id + '" rows="3" maxlength="2000" placeholder="Your own words for this card. They show wherever it turns up.">' + esc(trMeaning(id)) + "</textarea></div></div>" +
+      '<div class="tr-facts"><span class="pill">' + recent.length + (recent.length === 1 ? " TIME" : " TIMES") + '</span><span class="pill">' + revN + ' REVERSED</span></div><label class="ov-sub" for="trMean">MY MEANING</label><textarea id="trMean" data-trmean="' + id + '" rows="3" maxlength="2000" placeholder="Your own words for this card. They show wherever it turns up.">' + esc(trMeaning(id)) + "</textarea>" + trbBox("h:" + id) + "</div></div>" +
       '<span class="ov-sub">WHERE IT CAME UP</span><div class="tr-hrows">' + (rows.length ? rows.map(function (x) {
         return '<button type="button" class="tr-hrow" data-tropen="' + esc(x.r.id) + '"><small>' + esc(dLabel(parseYmd(x.r.day)) + " · " + (x.r.weekly ? "THIS WEEK'S CARD" : (x.r.sname || "") + " · " + x.l) + (x.rev ? " · REVERSED" : "")) + "</small><span>" + esc(x.r.q || (x.r.weekly ? "Card for the week" : "Open reading")) + "</span>" + (x.note ? '<span class="muted">' + esc(x.note) + "</span>" : "") + "</button>";
       }).join("") : '<span class="muted">Not in any reading in the last 13 weeks.</span>') + "</div></div>" +
@@ -6924,10 +6924,11 @@
   function trClick(b) {
     var d = b.dataset;
     if (d.trgo) { trGo(d.trgo); return true; }
-    if (d.tropen) { tr.open = d.tropen; tr.view = "reading"; tr.arm = null; if (!$("detailScrim").hidden) closeDetail(); if (state.screen !== "tarot") go("tarot"); else { render(false); $("content").scrollTop = 0; } return true; }
+    if (d.tropen) { tr.open = d.tropen; tr.view = "reading"; tr.arm = null; trb.opened = {}; if (!$("detailScrim").hidden) closeDetail(); if (state.screen !== "tarot") go("tarot"); else { render(false); $("content").scrollTop = 0; } return true; }
     if (d.trhist) { trHistory(d.trhist); return true; }
     if (d.aitarot) { if (d.aitarot === "1") lsSet(LS_AITAROT, true); else lsDel(LS_AITAROT); askReshare(); render(true); return true; }
     if (d.trretry) { tr.qErr = null; flushTarot(); render(true); return true; }
+    if (trbClick(b)) return true;
     if (state.screen !== "tarot") return false;
     if (d.trspread) { var dr = trDraft(); dr.spread = d.trspread; dr.cards = []; dr.sel = 0; dr.flip = null; if (trSpread(dr.spread, dr.n).pos.length !== 1) dr.weekly = false; trDraftSave(); render(true); return true; }
     if (d.trn) { var dn = trDraft(); dn.n = Math.max(1, Math.min(12, dn.n + +d.trn)); dn.cards = dn.cards.slice(0, dn.n); trDraftSave(); render(true); return true; }
@@ -7000,7 +7001,7 @@
       return true;
     }
     if (d.tropen || d.trhist) return trClick(b);
-    return false;
+    return trbClick(b);
   }
   document.addEventListener("input", function (e) {
     var t = e.target, d = t.dataset || {};
@@ -7047,7 +7048,7 @@
     var html = "<section>" + phead("TAROT", canTarot() ? (tr.err ? "PROBLEM" : "NOTION") : "SETUP");
     if (!canTarot()) return html + stubBox("Needs bridge 1.24 and the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Tarot</b>.") + "</section>";
     html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
-      '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>";
+      '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>" + trbSystemsRow();
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR READINGS</label><div class="btnrow">' +
       '<button type="button" class="chip" data-aitarot="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aitarot="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
       '<small class="muted">' + (on ? "Ask receives this week's card, the last 14 days of readings (cards, positions, your notes) and your meanings for those cards with each question. They go to Anthropic with the question." : "Off: your readings are never sent with Ask questions.") + "</small></section>";
@@ -7067,6 +7068,147 @@
     if (!out.length) return "";
     var txt = "TAROT (his readings, shared by Timothy's choice):\n" + out.join("\n");
     return txt.length > 4000 ? txt.slice(0, 4000) + "…" : txt;
+  }
+
+  /* ---------- Your tarot books (2.29, bridge 1.25) ---------- */
+  /* Passages from Liz Dean's and Jessa Crispin's books, one Notion page per card per book in 📖 Tarot Books
+     (private, in Timothy's Notion). BOOKS under a card reads that card's two pages through the bridge; the
+     text is kept in memory only, never in the iPad's storage, and never in this repository. SUGGEST sends
+     the card's passages, its position, the question, MY MEANING and the note to Claude, only when tapped;
+     the answer waits in a dashed box marked NOT SAVED until ADD puts it in the note (saved like your own
+     typing) or DISMISS drops it. Boxes are drawn by key (p:i a position, s the whole reading, h:CARD the
+     card's history sheet) so they redraw in place without disturbing the text around them. */
+  var trb = { cards: {}, opened: {}, tab: "dean", sug: {}, busy: null, err: {}, status: null, statusAt: 0, statusErr: null, importing: false, importMsg: "" };
+  function canBooks() { return state.caps.indexOf("tarotbooks") > -1; }
+  function canSuggest() { return state.caps.indexOf("tarotsuggest") > -1; }
+  function trbErrText(err) {
+    var code = err && (err.code || err.message);
+    if (code === "notion_not_shared") return "Notion won't share 📖 Tarot Books with the bridge yet. In Notion open it → ••• → Connections → add TimothyOS bridge.";
+    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.25 (steps in the README under Tarot books).";
+    if (code === "tarot_books_no_file") return "The import file isn't in 📖 Tarot Books any more, and no card pages are there yet.";
+    if (code === "tarot_books_bad_file") return "The import file in 📖 Tarot Books couldn't be read.";
+    if (code === "tarot_books_empty") return "Your books aren't in Notion yet. Systems → TAROT → IMPORT BOOKS.";
+    if (code === "busy") return "An import is already running. Give it a minute.";
+    return /^ai_/.test(code || "") ? describeAi(err) : describe(err);
+  }
+  function trbLoad(card, fresh) {
+    var c = trb.cards[card];
+    if (c && (c.loading || (c.books && !fresh))) return;
+    trb.cards[card] = { loading: true, books: c && c.books };
+    api({ action: "tarotbook", card: card, fresh: fresh ? "1" : "0" }).then(function (j) { trb.cards[card] = { books: j.books || [] }; })
+      .catch(function (err) { trb.cards[card] = { err: trbErrText(err) }; })
+      .then(trbPaint);
+  }
+  function trbPaint() { document.querySelectorAll("[data-trbox]").forEach(function (el) { el.outerHTML = trbBox(el.dataset.trbox); }); if (typeof growAll === "function") growAll(); }
+  /* Dean's sections in reading order: what's at a glance, then the meaning for the way the card fell, the other way, the rest. */
+  function trbSections(b, rev) {
+    var rank = function (h) { h = h.toUpperCase(); return /GLANCE/.test(h) ? 0 : /^REVERSED/.test(h) ? (rev ? 1 : 2) : /^UPRIGHT/.test(h) ? (rev ? 2 : 1) : /WISDOM/.test(h) ? 3 : 4; };
+    var secs = (b.sections || []).map(function (s, i) { return { s: s, i: i }; });
+    if (b.book === "dean") secs.sort(function (x, y) { return rank(x.s.h) - rank(y.s.h) || x.i - y.i; });
+    return secs.map(function (x) { return x.s; });
+  }
+  function trbPassage(b, rev) {
+    return '<div class="tr-bk-text" tabindex="0">' + trbSections(b, rev).map(function (s) {
+      return (s.h ? '<span class="tr-bk-h">' + esc(s.h) + "</span>" : "") + s.p.map(function (p) { return /^• /.test(p) ? '<p class="li">' + esc(p.slice(2)) + "</p>" : "<p>" + esc(p) + "</p>"; }).join("");
+    }).join("") + "</div>";
+  }
+  function trbSugHtml(at, s) {
+    return '<div class="tr-sug" role="status"><div class="tr-sug-top"><span>SUGGESTED FROM YOUR BOOKS · NOT SAVED</span><span>' + esc(modelName(s.model)) + " · " + money(s.cost || 0) + '</span></div><p>' + esc(s.text).replace(/\n+/g, "</p><p>") + '</p><div class="btnrow"><button type="button" class="btn sm" data-trbadd="' + at + '">' + (at < 0 ? "ADD TO WHAT IT SAYS" : "ADD TO MY NOTE") + '</button><button type="button" class="btn sm ghost" data-trbdis="' + at + '">DISMISS</button></div></div>';
+  }
+  function trbSugArea(r, at) {
+    if (!canSuggest() || !r) return "";
+    var k = r.id + ":" + at, s = trb.sug[k];
+    if (trb.busy === k) return '<div class="tr-bk-wait">READING YOUR BOOKS…</div>';
+    if (s) return trbSugHtml(at, s);
+    var n = r.cards.length, est = at < 0 ? Math.max(2, Math.round(1 + n * 0.6)) : 1;
+    return (trb.err[k] ? '<div class="err">' + esc(trb.err[k]) + "</div>" : "") + '<div class="tr-bk-row"><button type="button" class="tr-bk-btn" data-trbsug="' + at + '"' + (trb.busy ? " disabled" : "") + ">" + (at < 0 ? "SUGGEST A READING FROM MY BOOKS" : "SUGGEST A MEANING HERE") + '</button><small class="muted">≈ ' + est + "¢ · " + (at < 0 ? "all " + n + " cards, your question and notes" : "both books, this position, your question") + "</small></div>";
+  }
+  function trbBox(key) {
+    var r = trOpen(), card, rev = false, at = null;
+    if (key === "s") return canBooks() && r && r.cards.length > 1 ? '<div class="tr-bk-box" data-trbox="s">' + trbSugArea(r, -1) + "</div>" : '<div data-trbox="s"></div>';
+    if (key.indexOf("h:") === 0) card = key.slice(2);
+    else { at = +key.slice(2); var c = r && r.cards[at]; if (!c) return '<div data-trbox="' + key + '"></div>'; card = c.id; rev = !!c.rev; }
+    var open = !!trb.opened[key], hist = at === null;
+    var html = '<div class="tr-bk-box" data-trbox="' + key + '"><div class="tr-bk-row">' + (canBooks() ? '<button type="button" class="tr-bk-chip" data-trbk="' + key + '" aria-expanded="' + open + '">' + (open ? "CLOSE BOOKS" : hist ? "FROM YOUR BOOKS" : "BOOKS") + "</button>" : "") +
+      (hist ? "" : '<button type="button" class="tr-link" data-trhist="' + card + '">EVERY TIME THIS CARD CAME UP</button>') + "</div>";
+    if (!open || !canBooks()) return html + "</div>";
+    var got = trb.cards[card];
+    if (!got || got.loading && !got.books) { trbLoad(card); return html + '<div class="tr-bk"><div class="tr-bk-wait">OPENING YOUR BOOKS…</div></div></div>'; }
+    if (got.err) return html + '<div class="tr-bk"><div class="err">' + esc(got.err) + '</div><button type="button" class="chip sm" data-trbfresh="' + card + '">TRY AGAIN</button></div></div>';
+    var books = got.books || [];
+    if (!books.length) return html + '<div class="tr-bk"><span class="muted">' + esc(trbErrText({ code: "tarot_books_empty" })) + "</span></div></div>";
+    var b = books.filter(function (x) { return x.book === trb.tab; })[0] || books[0];
+    html += '<div class="tr-bk"><div class="tr-bk-tabs" role="group" aria-label="Book">' + books.map(function (x) { return '<button type="button" class="tr-bk-tab" data-trbtab="' + x.book + '" aria-pressed="' + (x === b) + '">' + esc(x.name.toUpperCase()) + "</button>"; }).join("") + "</div>" +
+      trbPassage(b, rev) + '<small class="tr-bk-src">' + esc(b.title + (b.source ? " · " + b.source : "")) + (b.url ? ' · <a href="' + esc(b.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</small>";
+    if (!hist) html += trbSugArea(r, at);
+    return html + "</div></div>";
+  }
+  function trbSuggest(r, at) {
+    var k = r.id + ":" + at;
+    if (trb.busy || !canSuggest()) return;
+    var pos = r.pos && r.pos.length === r.cards.length ? r.pos : trSpread(r.spread, r.cards.length).pos;
+    var body = { action: "tarotsuggest", mode: at < 0 ? "reading" : "card", at: at, q: r.q || "", sname: r.sname || "", sum: r.sum || "",
+      cards: r.cards.map(function (c, i) { return { id: c.id, rev: !!c.rev, pos: pos[i] ? pos[i].l : "", note: (r.notes || [])[i] || "", mine: trMeaning(c.id) }; }) };
+    trb.busy = k; delete trb.err[k]; trbPaint();
+    apiPost(body, 120000).then(function (j) {
+      trb.sug[k] = { text: j.text, cost: j.cost, model: j.model };
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+    }).catch(function (err) {
+      if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
+      trb.err[k] = trbErrText(err);
+    }).then(function () { trb.busy = null; trbPaint(); });
+  }
+  /* ADD: the suggestion goes into the note (or WHAT IT SAYS) after anything already there, and is saved like typing. */
+  function trbAdd(r, at) {
+    var k = r.id + ":" + at, s = trb.sug[k]; if (!s) return;
+    if (at < 0) trEdit(r, { sum: (r.sum ? r.sum.replace(/\s+$/, "") + "\n\n" : "") + s.text });
+    else { var notes = (r.notes || []).slice(); while (notes.length < r.cards.length) notes.push(""); notes[at] = (notes[at] ? notes[at].replace(/\s+$/, "") + "\n\n" : "") + s.text; trEdit(r, { notes: notes }); }
+    delete trb.sug[k];
+    render(true); toast(at < 0 ? "Added to WHAT IT SAYS. Make it your own." : "Added to your note. Make it your own.");
+  }
+  function trbClick(b) {
+    var d = b.dataset, r = trOpen();
+    if (d.trbk) { trb.opened[d.trbk] = !trb.opened[d.trbk]; trbPaint(); return true; }
+    if (d.trbtab) { trb.tab = d.trbtab; trbPaint(); return true; }
+    if (d.trbfresh) { trbLoad(d.trbfresh, true); trbPaint(); return true; }
+    if (d.trbimport) { trbImport(); return true; }
+    if (!r) return false;
+    if (d.trbsug != null) { trbSuggest(r, +d.trbsug); return true; }
+    if (d.trbadd != null) { trbAdd(r, +d.trbadd); return true; }
+    if (d.trbdis != null) { delete trb.sug[r.id + ":" + d.trbdis]; trbPaint(); return true; }
+    return false;
+  }
+  /* Systems: how many card pages each book has; IMPORT BOOKS while the import file is waiting. */
+  function trbStatus(force) {
+    if (!canBooks() || trb.statusLoading || (!force && Date.now() - trb.statusAt < 600000)) return;
+    trb.statusLoading = true;
+    api({ action: "tarotbooks" }).then(function (j) { trb.status = j; trb.statusErr = null; })
+      .catch(function (err) { trb.statusErr = trbErrText(err); })
+      .then(function () { trb.statusLoading = false; trb.statusAt = Date.now(); if (state.screen === "systems") render(true); });
+  }
+  function trbSystemsRow() {
+    if (!canBooks()) return "";
+    trbStatus(false);
+    var s = trb.status, n = s ? (s.books.dean || 0) + (s.books.crispin || 0) : 0, all = s && n >= (s.per || 78) * 2;
+    var sub = trb.statusErr ? '<small class="errtxt">' + esc(trb.statusErr) + "</small>" : s ? "<small>Liz Dean " + s.books.dean + " of " + s.per + " · Jessa Crispin " + s.books.crispin + " of " + s.per + (s.url ? ' · <a href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</small>" : "<small>Not loaded yet</small>";
+    var html = '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>📖 Tarot Books</b>' + sub + "</span>" +
+      '<span class="pill' + (all && !trb.statusErr ? " ok" : trb.statusErr ? " bad" : "") + '">' + (trb.statusErr ? "ERROR" : !s ? "WAITING" : all ? "OK" : n ? "PARTLY" : "EMPTY") + "</span></div>";
+    if (trb.importing || trb.importMsg) html += '<small class="muted">' + esc(trb.importMsg) + "</small>";
+    if (s && s.file && !all && !trb.importing) html += '<div class="btnrow"><button type="button" class="btn sm" data-trbimport="1">IMPORT BOOKS</button></div><small class="muted">Makes one Notion page per card per book from the import file in 📖 Tarot Books. About three minutes; keep the app open. Pages already there are left alone.</small>';
+    return html;
+  }
+  function trbImport() {
+    if (trb.importing) return;
+    trb.importing = true; trb.importMsg = "Importing… keep the app open."; render(true);
+    (function step() {
+      apiPost({ action: "tarotbookimport" }, 150000).then(function (j) {
+        var n = (j.books.dean || 0) + (j.books.crispin || 0);
+        trb.status = Object.assign({}, trb.status || { per: 78 }, { books: j.books });
+        if (j.left > 0 && j.made > 0) { trb.importMsg = "Importing… " + n + " of 156 pages. Keep the app open."; render(true); step(); return; }
+        trb.importing = false; trb.importMsg = j.left > 0 ? "Stopped with " + j.left + " still to make. Tap IMPORT BOOKS again." : n + " pages in 📖 Tarot Books. You can delete the import file page in Notion.";
+        trb.cards = {}; trbStatus(true); render(true);
+      }).catch(function (err) { trb.importing = false; trb.importMsg = trbErrText(err); render(true); });
+    })();
   }
 
   /* ---------- Text boxes grow with their text (2.26.1) ---------- */

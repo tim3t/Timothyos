@@ -71,17 +71,21 @@ var CONFIG = {
   NOTION_LIBRARY_DATABASE: '47fdad1d1217402fa84731a8aa146cba',
 
   // Your Notion Tarot (readings, card meanings, spreads).
-  NOTION_TAROT_DATABASE: '414eee50818e4ffd948e38f3923c0faf'
+  NOTION_TAROT_DATABASE: '414eee50818e4ffd948e38f3923c0faf',
+
+  // Your Notion Tarot Books: passages from two tarot books you own, one page per card per book.
+  // Private to your Notion; the passages are never in this code.
+  NOTION_TAROT_BOOKS_DATABASE: '29cd26305cea4270a6c40f36cbe75511'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.24.0';
+var VERSION = '1.25.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -131,6 +135,8 @@ function read_(p) {
   if (p.action === 'habits') return habits_(p.from, p.to);
   if (p.action === 'library') return library_();
   if (p.action === 'tarot') return tarot_(p.from, p.to);
+  if (p.action === 'tarotbooks') return tarotBooks_();
+  if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
 }
 function readError_(err) {
@@ -179,6 +185,8 @@ function doPost(e) {
     if (body.action === 'tarotmeaning') return json_(tarotMeaning_(body.card, body.text));
     if (body.action === 'tarotspread') return json_(tarotSpread_(body.spread));
     if (body.action === 'tarotremove') return json_(tarotRemove_(body.id));
+    if (body.action === 'tarotbookimport') return json_(tarotBookImport_());
+    if (body.action === 'tarotsuggest') return json_(tarotSuggest_(body));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
@@ -228,6 +236,7 @@ function setup() {
   console.log('Notion habits: ' + habitsStatus_());
   console.log('Notion library: ' + libraryStatus_());
   console.log('Notion tarot: ' + tarotStatus_());
+  console.log('Notion tarot books: ' + tarotBooksStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK (questions ' + aiFast_() + ', THINK HARDER ' + AI.DEEP + '). This month $' + ai.usd.toFixed(2) + ', reminder at $' + ai.budget.toFixed(2) + (ai.cont ? ' (continued)' : '') + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -1888,6 +1897,203 @@ function tarotRemove_(id) {
 function tarotStatus_() {
   try { var t = new Date(), f = new Date(t.getTime() - 90 * 864e5), n = tarot_(f.toISOString().slice(0, 10), t.toISOString().slice(0, 10)).readings.length; return 'OK (' + n + (n === 1 ? ' reading' : ' readings') + ' in 90 days)'; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Tarot (... > Connections)' : ''); }
+}
+
+// ---- Tarot Books (bridge 1.25) ----------------------------------------------------
+// Passages from two tarot books Timothy owns, one page per card per book in 📖 Tarot Books, a private
+// database in his Notion. A page's body is the passage: a heading per section, then its paragraphs.
+// The book text lives only there, never in this code or the app's repository. It is read when he opens
+// BOOKS on a card, and sent to Claude only when he taps SUGGEST. A suggestion is never saved here.
+var TAROT_BOOKS = { dean: { name: 'Liz Dean', title: 'The Ultimate Guide to Tarot' }, crispin: { name: 'Jessa Crispin', title: 'The Creative Tarot' } };
+var TB_RUN_MS = 50000;   // one IMPORT call stops after about 50 seconds; the app calls again until every page is made
+function tarotBooksSource_() { return sourceFor_(CONFIG.NOTION_TAROT_BOOKS_DATABASE, 'NOTION_TAROT_BOOKS_SOURCE'); }
+function tbGen_() { return CacheService.getScriptCache().get('tbgen') || '0'; }
+function tbBump_() { CacheService.getScriptCache().put('tbgen', Utilities.getUuid().slice(0, 8), 21600); }
+function tbBookOf_(name) { for (var k in TAROT_BOOKS) if (TAROT_BOOKS[k].name === name) return k; return null; }
+/** Deck order (Major Arcana, then Wands, Cups, Swords, Pentacles), the two books side by side. */
+function tbOrder_(code, book) { var i = code.charAt(0) === 'M' ? Number(code.slice(1)) : 22 + 'WCSP'.indexOf(code.charAt(0)) * 14 + Number(code.slice(1)) - 1; return i * 2 + (book === 'crispin' ? 1 : 0); }
+/** Every page in the database: card pages by book and code, and the pages without a card (the import file's). */
+function tbPages_(ds) {
+  var have = {}, loose = [];
+  queryAll_(ds, null, 4).forEach(function (pg) {
+    var p = pg.properties || {}, b = tbBookOf_(sel_(p.Book)), c = plain_(p.Card && p.Card.rich_text).trim();
+    if (b && TAROT_CARD.test(c)) have[b + ':' + c] = pg; else if (!c) loose.push(pg);
+  });
+  return { have: have, loose: loose };
+}
+function tbCount_(have) { var n = { dean: 0, crispin: 0 }; Object.keys(have).forEach(function (k) { n[k.split(':')[0]]++; }); return n; }
+/** How many card pages each book has, and whether the import file is still there. */
+function tarotBooks_() {
+  var cache = CacheService.getScriptCache(), key = 'tbooks:' + tbGen_(), hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var got = tbPages_(tarotBooksSource_()), n = tbCount_(got.have);
+  var out = { ok: true, version: VERSION, books: n, per: 78, file: got.loose.length > 0, url: 'https://www.notion.so/' + String(CONFIG.NOTION_TAROT_BOOKS_DATABASE).replace(/-/g, '') };
+  cache.put(key, JSON.stringify(out), 600);
+  return out;
+}
+function tarotBooksStatus_() {
+  try { var r = tarotBooks_(); return 'OK (Liz Dean ' + r.books.dean + ' of 78, Jessa Crispin ' + r.books.crispin + ' of 78' + (r.file && r.books.dean + r.books.crispin < 156 ? '; tap IMPORT BOOKS in Systems' : '') + ')'; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Tarot Books (... > Connections)' : ''); }
+}
+/** The children of several pages at once (first 100 blocks each, in parallel), then any further ones in turn. */
+function tbChildren_(ids) {
+  var first;
+  if (typeof UrlFetchApp.fetchAll === 'function' && ids.length > 1) {
+    var token = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
+    first = UrlFetchApp.fetchAll(ids.map(function (id) {
+      return { url: 'https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', method: 'get', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token, 'Notion-Version': NOTION_VERSION } };
+    })).map(function (res) {
+      var code = res.getResponseCode(), body = {};
+      try { body = JSON.parse(res.getContentText() || '{}'); } catch (x) { body = {}; }
+      if (code >= 300) { var e = new Error((body && body.message) || ('Notion HTTP ' + code)); e.notion = code === 404 ? 'notion_not_shared' : code === 429 ? 'notion_busy' : 'notion_error'; throw e; }
+      return body;
+    });
+  } else first = ids.map(function (id) { return notion_('get', '/blocks/' + id + '/children?page_size=100'); });
+  return first.map(function (body, i) {
+    var out = body.results || [], cur = body;
+    for (var k = 0; cur.has_more && k < 4; k++) { cur = notion_('get', '/blocks/' + ids[i] + '/children?page_size=100&start_cursor=' + encodeURIComponent(cur.next_cursor)); out = out.concat(cur.results || []); }
+    return out;
+  });
+}
+/** A page body as sections: a heading starts one; paragraphs and list items follow it. Anything else is left out. */
+function tbSections_(blocks) {
+  var secs = [], cur = null;
+  blocks.forEach(function (b) {
+    var t = b.type, text = plain_((b[t] || {}).rich_text);
+    if (/^heading_[123]$/.test(t)) { cur = { h: text.trim(), p: [] }; secs.push(cur); return; }
+    if (['paragraph', 'bulleted_list_item', 'numbered_list_item', 'quote'].indexOf(t) === -1 || !text.trim()) return;
+    if (!cur) { cur = { h: '', p: [] }; secs.push(cur); }
+    cur.p.push(/list_item$/.test(t) ? '• ' + text : text);
+  });
+  return secs;
+}
+/** Sections as blocks for a new page: headings, paragraphs, and list items for lines starting "• ". */
+function tbBlocks_(sections) {
+  var out = [];
+  (Array.isArray(sections) ? sections : []).forEach(function (s) {
+    if (s && s.h) out.push({ type: 'heading_3', heading_3: { rich_text: rt_(String(s.h).slice(0, 200)) } });
+    ((s && s.p) || []).forEach(function (p) {
+      p = String(p || '').trim(); if (!p) return;
+      if (/^• /.test(p)) out.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: rtLong_(p.slice(2)) } });
+      else out.push({ type: 'paragraph', paragraph: { rich_text: rtLong_(p) } });
+    });
+  });
+  return out.slice(0, 100);
+}
+/** One card's passages from both books (remembered 6 hours; fresh=1 reads Notion again). */
+function tarotBook_(card, fresh) {
+  if (!TAROT_CARD.test(card)) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), key = 'tbook:' + tbGen_() + ':' + card, hit = fresh ? null : cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var pages = queryAll_(tarotBooksSource_(), { property: 'Card', rich_text: { equals: card } }, 1).filter(function (pg) { return tbBookOf_(sel_((pg.properties || {}).Book)); });
+  pages.sort(function (a, b) { return tbBookOf_(sel_(a.properties.Book)) === 'dean' ? -1 : tbBookOf_(sel_(b.properties.Book)) === 'dean' ? 1 : 0; });
+  var kids = pages.length ? tbChildren_(pages.map(function (pg) { return pg.id; })) : [];
+  var books = pages.map(function (pg, i) {
+    var k = tbBookOf_(sel_(pg.properties.Book));
+    return { book: k, name: TAROT_BOOKS[k].name, title: TAROT_BOOKS[k].title, source: plain_(pg.properties.Source && pg.properties.Source.rich_text), url: pg.url || '', sections: tbSections_(kids[i]) };
+  });
+  var out = { ok: true, version: VERSION, card: card, books: books };
+  try { cache.put(key, JSON.stringify(out), 21600); } catch (x) { /* too large to cache */ }
+  return out;
+}
+/**
+ * IMPORT BOOKS: turns the import file (a JSON file attached to a page in the database with no card) into
+ * card pages. Pages that already exist are left alone, so running it again only fills gaps. Each call
+ * works for about 50 seconds and says how many are left.
+ */
+function tarotBookImport_() {
+  var t0 = Date.now(), lock = LockService.getScriptLock();
+  if (!lock.tryLock(2000)) return { ok: false, error: 'busy' };
+  try {
+    var ds = tarotBooksSource_(), got = tbPages_(ds), url = null;
+    for (var i = 0; i < got.loose.length && !url; i++) {
+      (notion_('get', '/blocks/' + got.loose[i].id + '/children?page_size=50').results || []).forEach(function (b) {
+        if (!url && b.type === 'file' && b.file) url = (b.file.file && b.file.file.url) || (b.file.external && b.file.external.url) || null;
+      });
+    }
+    var n = tbCount_(got.have);
+    if (!url) return n.dean + n.crispin ? { ok: true, version: VERSION, made: 0, books: n, left: 0 } : { ok: false, error: 'tarot_books_no_file' };
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true }), data = null;
+    try { data = res.getResponseCode() < 300 ? JSON.parse(res.getContentText()) : null; } catch (x) { data = null; }
+    if (!data || !Array.isArray(data.cards)) return { ok: false, error: 'tarot_books_bad_file' };
+    var todo = data.cards.filter(function (c) { return c && TAROT_BOOKS[c.book] && TAROT_CARD.test(String(c.code)) && !got.have[c.book + ':' + c.code]; }), made = 0;
+    for (var j = 0; j < todo.length && Date.now() - t0 < TB_RUN_MS; j++) {
+      var c = todo[j], bk = TAROT_BOOKS[c.book];
+      notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
+        properties: { Title: { title: rt_(tarotName_(c.code) + ' · ' + bk.name) }, Card: { rich_text: rt_(c.code) }, Book: { select: { name: bk.name } },
+          Source: { rich_text: rt_(String(c.source || '').slice(0, 200)) }, Order: { number: tbOrder_(c.code, c.book) } },
+        children: tbBlocks_(c.sections) });
+      n[c.book]++; made++;
+    }
+    tbBump_();
+    return { ok: true, version: VERSION, made: made, books: n, left: todo.length - made };
+  } finally {
+    lock.releaseLock();
+  }
+}
+var TAROT_SUGGEST_RULES = [
+  'You help Timothy interpret tarot cards he has drawn. Your answer is a starting point for his own notes on the reading.',
+  'Use only the passages from his two tarot books given below (Liz Dean, The Ultimate Guide to Tarot; Jessa Crispin, The Creative Tarot) and his own meaning for a card when one is given. Bring in nothing from other tarot sources or general lore.',
+  'Say which book an idea comes from (Dean or Crispin). Where the books differ, say so briefly. When he has his own meaning for a card, start from it.',
+  "Weigh the card's position, the question and the other cards. For a reversed card use Dean's reversed meaning; Crispin rarely treats reversals, so don't invent one for her.",
+  'Plain prose in the second person, calm and concrete. No headings, no lists, no emoji, no em dashes. Quote no more than a few words from either book. Never present health, legal or money outcomes as certain.'
+].join('\n');
+/** For a whole reading, the core of each passage: key meanings, upright or reversed, the wisdom line, Crispin's reading. */
+function tbText_(books, core, rev) {
+  return books.map(function (b) {
+    var secs = b.sections.filter(function (s) {
+      if (!core) return true;
+      var h = s.h.toUpperCase();
+      if (/SYMBOL|KABBALA|ASTROLOGY|UNDERSTANDING|REFLECTION|MATERIALS/.test(h)) return false;
+      if (/^UPRIGHT/.test(h)) return !rev;
+      return true;
+    }).map(function (s) {
+      var p = core && /GLANCE/.test(s.h) ? s.p.filter(function (x) { return /Key Meaning/i.test(x); }) : s.p;
+      return p.length ? (s.h ? s.h + '\n' : '') + p.join('\n') : '';
+    }).filter(Boolean);
+    return '--- ' + b.name + ', ' + b.title + (b.source ? ' (' + b.source + ')' : '') + '\n' + secs.join('\n\n');
+  }).join('\n\n');
+}
+/** SUGGEST: Claude's reading of one card in its position (mode card, at = its index) or of the whole spread. Nothing is saved. */
+function tarotSuggest_(body) {
+  if (!aiKey_()) return { ok: false, error: 'ai_not_configured' };
+  var mode = body.mode === 'reading' ? 'reading' : 'card', raw = Array.isArray(body.cards) ? body.cards : [];
+  if (!raw.length || raw.length > 20) return { ok: false, error: 'bad_request' };
+  var cards = raw.map(function (c) { c = c || {}; return { id: String(c.id || ''), rev: !!c.rev, pos: String(c.pos || '').slice(0, 40), note: String(c.note || '').slice(0, 2000), mine: String(c.mine || '').slice(0, 2000) }; });
+  var at = mode === 'card' ? Number(body.at) : -1;
+  if (cards.some(function (c) { return !TAROT_CARD.test(c.id); }) || (mode === 'card' && !(at >= 0 && at < cards.length && at === Math.floor(at)))) return { ok: false, error: 'bad_request' };
+  var q = String(body.q || '').slice(0, 200), sname = String(body.sname || '').slice(0, 60), sum = String(body.sum || '').slice(0, 6000);
+  var spend = aiSpend_();
+  if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
+  var need = mode === 'card' ? [cards[at]] : cards, any = false;
+  var passages = need.map(function (c) {
+    var books = tarotBook_(c.id, false).books || [];
+    if (books.length) any = true;
+    return '=== ' + tarotName_(c.id) + (mode === 'reading' && c.rev ? ' (reversed)' : '') + '\n' + (books.length ? tbText_(books, mode === 'reading', c.rev) : '(No passages in his books for this card.)');
+  }).join('\n\n');
+  if (!any) return { ok: false, error: 'tarot_books_empty' };
+  var reading = 'THE READING\n' + (sname ? 'Spread: ' + sname + '\n' : '') + (q ? 'Question: ' + q + '\n' : 'Question: none given\n') +
+    cards.map(function (c, i) { return (i + 1) + '. ' + (c.pos || 'Card') + ': ' + tarotName_(c.id) + (c.rev ? ' (reversed)' : '') + (c.mine ? '\n   His own meaning for this card: ' + c.mine : '') + (c.note ? '\n   His note here so far: ' + c.note : ''); }).join('\n') +
+    (mode === 'reading' && sum ? '\nWhat he has written about the whole reading so far: ' + sum : '');
+  var task = mode === 'card' ? 'TASK\nSuggest what card ' + (at + 1) + ' (' + (cards[at].pos || 'Card') + ': ' + tarotName_(cards[at].id) + (cards[at].rev ? ', reversed' : '') + ') could mean in this position, for this question. Two to four sentences.'
+    : 'TASK\nSuggest a reading of the whole spread: how the cards answer the question together, in order. Four to six sentences.';
+  var model = AI.SUMMARY, payload = { model: model, max_tokens: mode === 'card' ? 800 : 1500, system: TAROT_SUGGEST_RULES,
+    messages: [{ role: 'user', content: 'PASSAGES FROM HIS BOOKS\n\n' + passages + '\n\n' + reading + '\n\n' + task }], output_config: { effort: AI.FAST_EFFORT } };
+  var betas = [];
+  if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+  var res;
+  try { res = claude_(payload, betas); } catch (e) {
+    if (!e.ai) throw e;
+    return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
+  }
+  var served = res.model || model, u = res.usage || {}, cost = aiCost_(served, u);
+  aiAddSpend_(cost);
+  aiLogAdd_({ t: new Date().toISOString(), mode: 'tarot', model: served, steps: 1, in: u.input_tokens || 0, out: u.output_tokens || 0,
+    cw: u.cache_creation_input_tokens || 0, cr: u.cache_read_input_tokens || 0, usd: Math.round(cost * 100000) / 100000, unknown: aiPrice_(served) ? undefined : true });
+  var text = (res.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n\n').trim();
+  if (res.stop_reason === 'refusal') text = '';
+  if (!text) return { ok: false, error: 'ai_error', detail: 'no_text', spend: aiSpend_() };
+  return { ok: true, version: VERSION, mode: mode, text: text, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
 }
 
 // ---- Ask Claude ---------------------------------------------------------------
