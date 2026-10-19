@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.26.0";
+  var VERSION = "2.26.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6965,6 +6965,34 @@
     var txt = "TAROT (his readings, shared by Timothy's choice):\n" + out.join("\n");
     return txt.length > 4000 ? txt.slice(0, 4000) + "…" : txt;
   }
+
+  /* ---------- Text boxes grow with their text (2.26.1) ---------- */
+  /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
+     redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
+     max-height in CSS (Ask) stops there and scrolls inside. Scroll positions around it are kept. */
+  function growBox(ta, typing) {
+    if (!ta || ta.tagName !== "TEXTAREA" || ta.classList.contains("cl-text") || !ta.offsetParent) return;
+    /* a pass after a redraw only sizes new boxes and ones that overflow; shrinking waits for typing
+       (and never touches scroll needlessly: setting it would stop a smooth scroll under way) */
+    if (!typing && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
+    var keep = [], el = ta.parentElement;
+    for (; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight) keep.push([el, el.scrollTop]);
+    var edge = ta.offsetHeight - ta.clientHeight, cap = parseFloat(getComputedStyle(ta).maxHeight) || Infinity;
+    ta.style.height = "auto";
+    var want = ta.scrollHeight + edge;
+    ta.style.height = Math.min(want, cap) + "px";
+    ta.style.overflowY = want > cap ? "auto" : "hidden";
+    keep.forEach(function (k) { if (k[0].scrollTop !== k[1]) k[0].scrollTop = k[1]; });
+  }
+  var growPending = 0;
+  function growAll() {
+    if (growPending) return;
+    growPending = requestAnimationFrame(function () { growPending = 0; document.querySelectorAll("textarea:not(.cl-text)").forEach(function (ta) { growBox(ta, false); }); });
+  }
+  document.addEventListener("input", function (e) { if (e.target.tagName === "TEXTAREA") growBox(e.target, true); }, true);
+  new MutationObserver(growAll).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  var growW = window.innerWidth;
+  window.addEventListener("resize", function () { if (window.innerWidth !== growW) { growW = window.innerWidth; document.querySelectorAll("textarea:not(.cl-text)").forEach(function (ta) { growBox(ta, true); }); } });
 
   function render(keepScroll) {
     var wrap = $("tlwrap");

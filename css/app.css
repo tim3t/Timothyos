@@ -927,6 +927,7 @@ textarea {
   padding: 10px 14px; font: inherit; font-size: 17px; color: var(--fg); resize: vertical;
 }
 textarea:focus { border-color: var(--chrome-b); outline: none; }
+textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their text (growBox) */
 
 
 /* ---------- Weekly Review ---------- */
@@ -1113,7 +1114,7 @@ textarea:focus { border-color: var(--chrome-b); outline: none; }
 .prop .tx b { font-weight: 600; }
 .prop .tx small { color: var(--dim); font-size: 14px; }
 .prop .btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
-#askText { width: 100%; min-height: 64px; background: var(--panel-2); border: 2px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 18px; resize: none; }
+#askText { width: 100%; min-height: 64px; max-height: 40vh; background: var(--panel-2); border: 2px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 18px; resize: none; }
 #askText:focus { border-color: var(--chrome-a); outline: none; }
 .chip[aria-pressed="true"]#askDeep { background: var(--chrome-a); border-color: var(--chrome-a); color: var(--ink); }
 .aimeter { position: relative; height: 12px; background: var(--panel-2); border-radius: 0 6px 6px 0; margin-bottom: 6px; max-width: 360px; }   /* no overflow clip: the reminder mark sits proud of the bar */

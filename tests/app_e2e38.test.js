@@ -74,10 +74,23 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   s = await until(async () => { const x = await stats(); const l = x.tsaves[x.tsaves.length - 1]; return l && l.notes && l.notes[0] === 'Growth with care.' ? x : null; });
   saved = s.tsaves[s.tsaves.length - 1];
   assert.ok(saved.id && !saved.cid, 'edits go to the saved page: ' + JSON.stringify([saved.id, saved.cid]));
+  // text boxes grow with their text (2.26.1): all of it visible, no inner scrolling
+  const box = sel => p.$eval(sel, el => ({ h: el.offsetHeight, sh: el.scrollHeight, ch: el.clientHeight }));
+  const g0 = await box('#trSum');
+  await p.fill('#trSum', Array.from({ length: 12 }, (_, i) => 'Line ' + (i + 1) + ' of the reading as a whole.').join('\n'));
+  await p.waitForTimeout(100);
+  const g1 = await box('#trSum');
+  assert.ok(g1.h > g0.h + 120 && g1.sh <= g1.ch + 2, 'grew to fit: ' + JSON.stringify([g0, g1]));
+  await p.fill('#trSum', 'Short again.'); await p.waitForTimeout(100);
+  assert.ok((await box('#trSum')).h < g1.h - 100, 'and shrinks back');
 
   // ---- a card's history and MY MEANING
   await p.click('.tr-pr:nth-child(1) .tr-link'); await p.waitForSelector('.tr-hist');
   assert.ok((await txt(p, '#detailSheet')).includes('THE EMPRESS') && (await txt(p, '.tr-hrows')).includes('Sample question for the season'));
+  await p.fill('#trMean', 'Tending, not forcing.\nA second line.\nA third.\nA fourth.\nA fifth.\nA sixth.');
+  await p.waitForTimeout(100);
+  const gm = await p.$eval('#trMean', el => [el.scrollHeight, el.clientHeight]);
+  assert.ok(gm[0] <= gm[1] + 2, 'a box in a sheet grows too: ' + gm);
   await p.fill('#trMean', 'Tending, not forcing.');
   await until(async () => (await stats()).tmean.M3 === 'Tending, not forcing.');
   await p.click('#detailClose'); await p.waitForTimeout(300);
@@ -120,7 +133,11 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   // ---- Systems: the row, and Ask off then on
   await p.click('#status'); await p.waitForSelector('[data-aitarot]');
   const sysT = await txt(p, 'section:has([data-aitarot])'); assert.ok(sysT.includes('OK') && sysT.includes('🔮 Tarot'), sysT);
-  await p.click('#askBtn'); await p.fill('#askText', 'Anything for today?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200);
+  await p.click('#askBtn');
+  await p.fill('#askText', Array.from({ length: 40 }, (_, i) => 'line ' + i).join('\n')); await p.waitForTimeout(100);
+  const ga = await p.$eval('#askText', el => [el.offsetHeight, innerHeight * 0.4 + 1, getComputedStyle(el).overflowY]);
+  assert.ok(ga[0] <= ga[1] && ga[2] === 'auto', 'Ask stops at its cap and scrolls inside: ' + ga);
+  await p.fill('#askText', 'Anything for today?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200);
   s = await stats(); assert.ok(!s.asks[s.asks.length - 1].ctx.includes('TAROT'), 'off: readings never sent');
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   await p.click('[data-aitarot="1"]');

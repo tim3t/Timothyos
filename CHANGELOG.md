@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.26.1 · 2026-10-19
+- **Text boxes grow with their text, everywhere.** Tarot notes and readings, Review answers, Library notes, the Systems lists, Engineering and the rest now size themselves to what's written as you type (and shrink back), so nothing hides behind a scroll. The Ask box grows up to 40% of the screen, then scrolls inside. The Captain's Log editor keeps its own sizing.
+
 ## 2.26.0 · 2026-10-19 (bridge 1.24)
 - **TAROT, a new station** (REFLECT), saved to a new **🔮 Tarot** database in Notion.
   - **This week's card** (Monday to Sunday) with its keywords, your own meaning and a note for the week. Also on the **Bridge** (a TAROT panel) and in that week's **Review**.
