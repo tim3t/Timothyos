@@ -92,7 +92,7 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const 
   sent = (await tb()).suggests.slice(-1)[0];
   assert.deepStrictEqual([sent.mode, sent.sum], ['reading', 'Momentum, then hold loosely.']);
   await p.click('[data-trbadd="-1"]');
-  assert.strictEqual(await p.inputValue('#trSum'), 'Momentum, then hold loosely.\n\nSample suggestion for the whole spread.\nA second line.');
+  assert.strictEqual(await p.inputValue('[data-trsum]'), 'Momentum, then hold loosely.\n\nSample suggestion for the whole spread.\nA second line.');
   await until(async () => { const s = await stats(); const l = s.tsaves[s.tsaves.length - 1]; return l && l.sum === 'Momentum, then hold loosely.\n\nSample suggestion for the whole spread.\nA second line.'; });
 
   // ---- Claude busy: said in place, nothing added

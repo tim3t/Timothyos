@@ -79,7 +79,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.25.0';
+var VERSION = '1.25.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -139,8 +139,11 @@ function read_(p) {
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
 }
+/** Another request held the script lock past its wait (LockService throws "Lock timeout"): the app retries "busy" quietly. */
+function lockBusy_(err) { return /lock timeout|another process was holding the lock/i.test(String((err && err.message) || err)); }
 function readError_(err) {
   if (err && err.notion) return { ok: false, error: err.notion, detail: err.message };
+  if (lockBusy_(err)) return { ok: false, error: 'busy' };
   return { ok: false, error: 'server_error', detail: String((err && err.message) || err) };
 }
 
@@ -192,6 +195,7 @@ function doPost(e) {
     return json_({ ok: false, error: 'unknown_action' });
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
+    if (lockBusy_(err)) return json_({ ok: false, error: 'busy' });
     return json_({ ok: false, error: 'server_error', detail: String((err && err.message) || err) });
   }
 }
@@ -2002,8 +2006,11 @@ function tarotBook_(card, fresh) {
  * works for about 50 seconds and says how many are left.
  */
 function tarotBookImport_() {
-  var t0 = Date.now(), lock = LockService.getScriptLock();
-  if (!lock.tryLock(2000)) return { ok: false, error: 'busy' };
+  // Not the script lock: an import step runs for most of a minute, and holding the lock that long made every
+  // save (tarot notes, tasks, the log) wait and fail. A flag in the cache keeps two imports from overlapping.
+  var t0 = Date.now(), cache = CacheService.getScriptCache();
+  if (cache.get('tbimporting')) return { ok: false, error: 'tarot_books_importing' };
+  cache.put('tbimporting', '1', 120);
   try {
     var ds = tarotBooksSource_(), got = tbPages_(ds), url = null;
     for (var i = 0; i < got.loose.length && !url; i++) {
@@ -2028,7 +2035,7 @@ function tarotBookImport_() {
     tbBump_();
     return { ok: true, version: VERSION, made: made, books: n, left: todo.length - made };
   } finally {
-    lock.releaseLock();
+    cache.remove('tbimporting');
   }
 }
 var TAROT_SUGGEST_RULES = [

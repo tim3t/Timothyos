@@ -373,7 +373,7 @@ Deleting a reading or spread puts it in Notion's trash, where it can be restored
 Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot*, one Notion page per card per book (156 pages) in **📖 Tarot Books**, a private database in your Life Hub beside 🔮 Tarot. You can read and edit any page there; the app uses your version. The book text lives only in your Notion: never in the app's code, this repository or the iPad's storage.
 
 1. **Connect the database:** in Notion open **📖 Tarot Books → ••• → Connections → add TimothyOS bridge**.
-2. **Update the bridge to 1.25** (same steps as above: replace the code, save, run **setup**, then **Deploy → Manage deployments → pencil → New version → Deploy**). The log shows `Notion tarot books: OK (Liz Dean 0 of 78, Jessa Crispin 0 of 78; tap IMPORT BOOKS in Systems)`.
+2. **Update the bridge to 1.25** (1.25.1 or later) (same steps as above: replace the code, save, run **setup**, then **Deploy → Manage deployments → pencil → New version → Deploy**). The log shows `Notion tarot books: OK (Liz Dean 0 of 78, Jessa Crispin 0 of 78; tap IMPORT BOOKS in Systems)`.
 3. **SYSTEMS → REFRESH NOW**, then under **TAROT** tap **IMPORT BOOKS**. It makes the pages from the import file already in the database, about three minutes in a few steps; keep the app open. When the row shows **78 of 78** for both, you can delete the **📦 Import file** page. Running it again only fills gaps; it never overwrites a page.
 
 **Using it:**

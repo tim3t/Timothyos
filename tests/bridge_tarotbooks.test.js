@@ -159,6 +159,18 @@ props.AI_SPEND = JSON.stringify({ month: ctx.aiMonth_(), usd: 99, calls: 3 });
 assert.strictEqual(post({ action: 'tarotsuggest', mode: 'card', at: 0, cards: [{ id: 'M7' }] }).error, 'ai_budget');
 assert.strictEqual(claudeCalls.length, 2);
 
+// ---- an import step doesn't hold the script lock (saves elsewhere would wait and fail); two never overlap
+cache.tbimporting = '1';
+assert.strictEqual(post({ action: 'tarotbookimport' }).error, 'tarot_books_importing');
+delete cache.tbimporting;
+assert.ok(!/getScriptLock/.test(ctx.tarotBookImport_.toString()), 'no script lock in the import');
+// ---- a save that waits too long for the lock answers "busy" (retried quietly by the app), not a server error
+const realLock = ctx.LockService.getScriptLock;
+ctx.LockService.getScriptLock = () => ({ waitLock() { throw new Error('Lock timeout: another process was holding the lock for too long.'); }, tryLock() { return false; }, releaseLock() {} });
+r = post({ action: 'tarotsave', reading: { cid: 'c-lock-0001', day: '2026-10-19', spread: 'one', sname: 'ONE CARD', q: '', pos: [{ l: 'THE CARD', x: 0, y: 0 }], cards: [{ id: 'M0' }], notes: [''], sum: '' } });
+assert.deepStrictEqual([r.ok, r.error], [false, 'busy']);
+ctx.LockService.getScriptLock = realLock;
+
 // ---- without the import file and with no pages, IMPORT says so
 pages.length = 0; ctx.tbBump_();
 assert.strictEqual(post({ action: 'tarotbookimport' }).error, 'tarot_books_no_file');

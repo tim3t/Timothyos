@@ -84,13 +84,13 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   assert.ok(saved.id && !saved.cid, 'edits go to the saved page: ' + JSON.stringify([saved.id, saved.cid]));
   // text boxes grow with their text (2.26.1): all of it visible, no inner scrolling
   const box = sel => p.$eval(sel, el => ({ h: el.offsetHeight, sh: el.scrollHeight, ch: el.clientHeight }));
-  const g0 = await box('#trSum');
-  await p.fill('#trSum', Array.from({ length: 12 }, (_, i) => 'Line ' + (i + 1) + ' of the reading as a whole.').join('\n'));
+  const g0 = await box('[data-trsum]');
+  await p.fill('[data-trsum]', Array.from({ length: 12 }, (_, i) => 'Line ' + (i + 1) + ' of the reading as a whole.').join('\n'));
   await p.waitForTimeout(100);
-  const g1 = await box('#trSum');
+  const g1 = await box('[data-trsum]');
   assert.ok(g1.h > g0.h + 120 && g1.sh <= g1.ch + 2, 'grew to fit: ' + JSON.stringify([g0, g1]));
-  await p.fill('#trSum', 'Short again.'); await p.waitForTimeout(100);
-  assert.ok((await box('#trSum')).h < g1.h - 100, 'and shrinks back');
+  await p.fill('[data-trsum]', 'Short again.'); await p.waitForTimeout(100);
+  assert.ok((await box('[data-trsum]')).h < g1.h - 100, 'and shrinks back');
 
   // ---- a card's history and MY MEANING
   await p.click('.tr-pr:nth-child(1) .tr-link'); await p.waitForSelector('.tr-hist');

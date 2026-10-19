@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.29.1 · 2026-10-19 (bridge 1.25.1)
+- **Fixed: the cursor jumping out of a tarot note and the last few letters disappearing.** Two causes: the note boxes had no stable identity, so any redraw (a save landing, a sync) dropped the keyboard; and a save arriving from Notion could briefly put back the older text from before your last few keys. Every text box now keeps its place, cursor and text through a redraw, and what you're typing always wins over a copy coming back from Notion. A new reading keeps your typing as it gets its Notion id. Text typed in one reading can no longer appear in another's box.
+- **Typing is saved when you leave the app** (home screen, app switch, lock), not only after the 1.2 s pause. MY MEANING too.
+- **Fixed: red "Lock timeout" and TIMEOUT errors on saves while the books were importing.** Each IMPORT BOOKS step held the bridge's lock for most of a minute, so saves queued behind it timed out. The import no longer takes the lock, and a save that does meet a busy bridge now answers BUSY and is retried quietly (a few seconds apart) instead of showing an error.
+
 ## 2.29.0 · 2026-10-19 (bridge 1.25)
 - **Your tarot books, beside every card.** Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot* now live in **📖 Tarot Books**, a private Notion database (one page per card per book, yours to read and edit). Set up once with **IMPORT BOOKS** in Systems.
   - **BOOKS** under each card in a reading opens a drawer with both books, a tab each; reversed cards lead with Dean's reversed meaning. Closed until you ask.

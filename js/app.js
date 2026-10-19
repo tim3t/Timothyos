@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.29.0";
+  var VERSION = "2.29.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -189,7 +189,7 @@
     var code = err && err.code;
     /* no_key: Google delivered the request without its details (a redirect turned it into an empty GET);
        key_unreadable: Google's settings store answered empty for a moment. Neither is a wrong key. */
-    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "") || code === "no_key" || code === "key_unreadable" || code === "notion_busy" || (!!err && err.name === "TypeError");
+    return code === "http_404" || code === "bad_json" || /^http_5/.test(code || "") || code === "no_key" || code === "key_unreadable" || code === "notion_busy" || code === "busy" || (!!err && err.name === "TypeError");
   }
   /* iPadOS cuts off requests when the screen locks or you switch apps. */
   var lastHidden = 0;
@@ -334,6 +334,7 @@
     if (code === "no_key") return "Google delivered the request without its details, even after retrying. Usually temporary; try again in a moment.";
     if (code === "key_unreadable") return "Google's settings store didn't answer, even after retrying. Usually temporary; try again in a moment.";
     if (code === "server_error") return "The script hit an error: " + (err.detail || "unknown") + ".";
+    if (code === "busy") return "The bridge was busy with another request, even after retrying. It will try again on its own.";
     if (code === "bad_json") return "Google sent an error page instead of data, even after retrying. Usually temporary. If it persists, check that the URL ends in /exec.";
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
     if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs.";
@@ -6635,7 +6636,7 @@
     { id: "celtic", nm: "CELTIC CROSS", why: "Ten cards, the full picture", pos: [{ l: "PRESENT", x: 1, y: 1.5 }, { l: "CHALLENGE", x: 1, y: 1.5, c: 1 }, { l: "FOUNDATION", x: 1, y: 2.5 }, { l: "RECENT PAST", x: 0, y: 1.5 }, { l: "BEST OUTCOME", x: 1, y: 0.5 }, { l: "NEAR FUTURE", x: 2, y: 1.5 }, { l: "SELF", x: 3.4, y: 3 }, { l: "SURROUNDINGS", x: 3.4, y: 2 }, { l: "HOPES AND FEARS", x: 3.4, y: 1 }, { l: "OUTCOME", x: 3.4, y: 0 }] },
     { id: "free", nm: "FREE", why: "Any number, in a row", free: true, pos: [] }
   ];
-  var tr = { data: lsGet(LS_TAROT), q: lsGet(LS_TAROTQ) || {}, err: null, inflight: false, flushing: false, view: "home", open: null, draft: lsGet(LS_TAROTDRAFT), bld: null, pickTab: "major", pickRev: false, hist: null, arm: null, armAt: 0, timers: {}, sheet: null };
+  var tr = { data: lsGet(LS_TAROT), q: lsGet(LS_TAROTQ) || {}, err: null, inflight: false, flushing: false, view: "home", open: null, draft: lsGet(LS_TAROTDRAFT), bld: null, pickTab: "major", pickRev: false, hist: null, arm: null, armAt: 0, timers: {}, sheet: null, dirty: {}, alias: {}, uk: {}, mdirty: {}, mtimers: {} };
   function canTarot() { return state.caps.indexOf("tarot") > -1; }
   function trName(id) { return id[0] === "M" ? TR_MAJ[+id.slice(1)] : TR_RANKS[+id.slice(1) - 1] + " of " + TR_SUITS[id[0]].nm; }
   function trSuit(id) { return id[0] === "M" ? "major" : TR_SUITS[id[0]].id; }
@@ -6680,10 +6681,13 @@
       if (tr.q[k] === it) delete tr.q[k];
       lsSet(LS_TAROTQ, tr.q);
       trApplySaved(it, j);
-      tr.flushing = false; tr.qErr = null;
+      tr.flushing = false; tr.qErr = null; it.tries = 0;
       if (Object.keys(tr.q).length) flushTarot(); else { tr.data && (tr.data.fetched = 0); loadTarot(true); }
     }).catch(function (err) {
-      tr.flushing = false; tr.qErr = { at: Date.now(), msg: trErrText(err) };
+      tr.flushing = false;
+      /* the bridge busy with another request (its lock), or Google slow to answer: not a failure yet, try again shortly */
+      if (err && (err.code === "busy" || err.name === "AbortError") && (it.tries = (it.tries || 0) + 1) <= 6) { setTimeout(flushTarot, 4000 * it.tries); return; }
+      tr.qErr = { at: Date.now(), msg: trErrText(err) };
       if (["tarot", "bridge"].indexOf(state.screen) > -1) render(true);
     });
   }
@@ -6694,7 +6698,12 @@
       rs.unshift(j.reading); tr.data.readings = rs;
       /* later edits queued against the temporary id now point at the real page */
       Object.keys(tr.q).forEach(function (k2) { var b = tr.q[k2].body; if (b.reading && b.reading.cid === it.body.reading.cid && !b.reading.id) { b.reading.id = j.reading.id; delete b.reading.cid; } });
-      if (tr.open === "cid:" + (it.body.reading && it.body.reading.cid)) tr.open = j.reading.id;
+      var tmp = "cid:" + (it.body.reading && it.body.reading.cid);
+      if (it.body.reading && it.body.reading.cid && tmp !== j.reading.id) {
+        tr.alias[tmp] = j.reading.id; tr.uk[j.reading.id] = it.body.reading.cid;
+        if (tr.dirty[tmp]) { tr.dirty[j.reading.id] = Object.assign({}, tr.dirty[tmp], tr.dirty[j.reading.id]); delete tr.dirty[tmp]; }
+      }
+      if (tr.open === tmp) tr.open = j.reading.id;
       lsSet(LS_TAROTQ, tr.q);
     }
     if (j.spread) tr.data.spreads = tr.data.spreads.filter(function (s) { return s.id !== j.spread.id && s.id !== it.tmp; }).concat([j.spread]);
@@ -6708,9 +6717,11 @@
       var r = b.reading, id = r.id || "cid:" + r.cid, i = rs.map(function (x) { return x.id; }).indexOf(id), pend = Object.assign({}, r, { id: id, pending: true });
       if (i > -1) rs[i] = Object.assign({}, rs[i], pend); else rs.unshift(pend);
     });
+    rs = rs.map(function (r) { var dk = tr.dirty[r.id]; return dk ? Object.assign({}, r, dk) : r; });
     return rs.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
   }
-  function trMeaning(card) { var m = tr.data && tr.data.meanings && tr.data.meanings[card]; var qd = tr.q["m:" + card]; return qd ? qd.body.text : m || ""; }
+  function trMeaning(card) { if (tr.mdirty[card] != null) return tr.mdirty[card]; var m = tr.data && tr.data.meanings && tr.data.meanings[card]; var qd = tr.q["m:" + card]; return qd ? qd.body.text : m || ""; }
+  function trMeanNow(card) { clearTimeout(tr.mtimers[card]); delete tr.mtimers[card]; var text = tr.mdirty[card]; delete tr.mdirty[card]; if (text != null) trQueue("m:" + card, { body: { action: "tarotmeaning", card: card, text: text } }); }
   function trMySpreads() { return ((tr.data && tr.data.spreads) || []).map(function (s) { return { id: s.id, nm: s.title, why: "My spread", mine: true, pos: s.pos }; }); }
   function trFreePos(n) { var o = []; for (var i = 0; i < n; i++) o.push({ l: "CARD " + (i + 1), x: i % 6, y: Math.floor(i / 6) }); return o; }
   function trSpread(id, n) {
@@ -6721,22 +6732,32 @@
     var a = ymd(w0), b = ymd(addDays(w0, 6));
     return trReadings().filter(function (r) { return r.weekly && r.day >= a && r.day <= b; })[0] || null;
   }
-  function trOpen() { return trReadings().filter(function (r) { return r.id === tr.open; })[0] || null; }
+  function trOpen() { var id = trId(tr.open); return trReadings().filter(function (r) { return r.id === id; })[0] || null; }
   function trSaveReading(r) {
     var body = { cid: r.id && r.id.indexOf("cid:") === 0 ? r.id.slice(4) : undefined, id: r.id && r.id.indexOf("cid:") !== 0 ? r.id : undefined, day: r.day, spread: r.spread, sname: r.sname, q: r.q || "", pos: r.pos, cards: r.cards, notes: r.notes || [], sum: r.sum || "", weekly: !!r.weekly };
     trQueue("r:" + (body.id || "cid:" + body.cid), { body: { action: "tarotsave", reading: body } });
   }
-  /* Typing in a note or the reading: saved 1.2 s after the last key. */
+  /* Typing in a note or the reading: saved 1.2 s after the last key, or at once when you leave the app.
+     Until then the words live in tr.dirty, drawn over every other copy (Notion's, a save still on its way),
+     so a reload or a save landing mid-sentence can't take back what you typed (2.29.1). A brand-new
+     reading's temporary id (cid:…) is followed to its Notion id when its first save lands (tr.alias). */
+  function trId(id) { while (tr.alias[id]) id = tr.alias[id]; return id; }
+  function trUk(id) { return String(tr.uk[id] || id).replace(/^cid:/, "").replace(/[^\w-]/g, ""); }
   function trEdit(r, patch) {
+    var key = trId(r.id);
     Object.assign(r, patch);
-    var key = r.id;
+    tr.dirty[key] = Object.assign(tr.dirty[key] || {}, patch);
     clearTimeout(tr.timers[key]);
-    tr.timers[key] = setTimeout(function () { trSaveReading(r); }, 1200);
-    /* until it goes, keep the edit in the queue's shadow so a redraw shows it */
-    var cur = tr.q["r:" + key];
-    if (cur) Object.assign(cur.body.reading, patch);
-    else if (tr.data) { tr.data.readings.forEach(function (x) { if (x.id === key) Object.assign(x, patch); }); lsSet(LS_TAROT, tr.data); }
+    tr.timers[key] = setTimeout(function () { trSaveNow(key); }, 1200);
   }
+  function trSaveNow(key) {
+    key = trId(key); clearTimeout(tr.timers[key]); delete tr.timers[key];
+    Object.keys(tr.timers).forEach(function (k) { if (trId(k) === key) { clearTimeout(tr.timers[k]); delete tr.timers[k]; } });
+    var r = trReadings().filter(function (x) { return x.id === key; })[0];
+    delete tr.dirty[key];
+    if (r) trSaveReading(r);
+  }
+  document.addEventListener("visibilitychange", function () { if (document.hidden) { Object.keys(tr.timers).forEach(trSaveNow); Object.keys(tr.mtimers).forEach(trMeanNow); } });
 
   /* --- the board: a spread laid out --- */
   var TR_CW = 1, TR_CH = 5 / 3, TR_GX = 0.16, TR_GY = 0.14;
@@ -6846,12 +6867,12 @@
     var html = '<div class="tr-tools"><button type="button" class="btn sm ghost" data-trgo="home">‹ TAROT</button><button type="button" class="btn sm ghost" data-trdel="' + esc(r.id) + '"' + (r.pending && r.id.indexOf("cid:") === 0 ? " disabled" : "") + ">" + (armed ? "TAP AGAIN TO DELETE" : "DELETE") + "</button></div>";
     html += '<div class="tr-cols"><div class="tr-col">' + phead(esc(r.sname || trSpread(r.spread, r.cards.length).nm), dLabel(parseYmd(r.day)) + (r.weekly ? " · THIS WEEK'S CARD" : ""), "chrome-a") +
       '<h3 class="tr-q">' + esc(r.q || (r.weekly ? "Card for the week" : "Open reading")) + "</h3>" + trBoard(sp, r.cards, { cardPx: sp.pos.length > 6 ? 110 : 150 }) +
-      phead("WHAT IT SAYS", "YOUR READING", "chrome-c") + '<textarea id="trSum" data-trsum="' + esc(r.id) + '" rows="4" placeholder="The reading as a whole…">' + esc(r.sum || "") + "</textarea>" + (r.pending ? '<small class="muted">Not in Notion yet. It will go when the bridge answers.</small>' : "") + trbBox("s") + "</div>";
+      phead("WHAT IT SAYS", "YOUR READING", "chrome-c") + '<textarea id="trSum-' + trUk(r.id) + '" data-trsum="' + esc(r.id) + '" rows="4" placeholder="The reading as a whole…">' + esc(r.sum || "") + "</textarea>" + (r.pending ? '<small class="muted">Not in Notion yet. It will go when the bridge answers.</small>' : "") + trbBox("s") + "</div>";
     html += '<div class="tr-col">' + phead("POSITIONS", sp.pos.length + (sp.pos.length === 1 ? " CARD" : " CARDS"), "chrome-b") + '<div class="tr-pos">' + sp.pos.map(function (p, i) {
       var c = r.cards[i]; if (!c) return "";
       var mine = trMeaning(c.id);
       return '<div class="tr-pr tr-' + trSuit(c.id) + '">' + trCard(c.id, c.rev) + '<div class="who"><span class="ov-sub">' + (i + 1) + " · " + esc(p.l) + "</span><b>" + esc(trName(c.id).toUpperCase()) + (c.rev ? " · REVERSED" : "") + "</b><em>" + esc(trKw(c.id, c.rev)) + "</em>" + (mine ? '<small><span class="muted">Mine:</span> ' + esc(mine) + "</small>" : "") +
-        '<textarea data-trnote="' + i + '" data-trid="' + esc(r.id) + '" rows="2" aria-label="Your note for ' + esc(p.l) + '" placeholder="What it means here…">' + esc((r.notes || [])[i] || "") + "</textarea>" + trbBox("p:" + i) + "</div></div>";
+        '<textarea id="trNote-' + trUk(r.id) + "-" + i + '" data-trnote="' + i + '" data-trid="' + esc(r.id) + '" rows="2" aria-label="Your note for ' + esc(p.l) + '" placeholder="What it means here…">' + esc((r.notes || [])[i] || "") + "</textarea>" + trbBox("p:" + i) + "</div></div>";
     }).join("") + "</div></div></div>";
     return html;
   }
@@ -6866,7 +6887,7 @@
       html += '<button type="button" class="tr-cell' + (i > -1 ? " on" + (b.pos[i].c ? " x" : "") : "") + '" data-trcell="' + x + "," + y + '" aria-label="Row ' + (y + 1) + ", column " + (x + 1) + (i > -1 ? ", position " + (i + 1) : ", empty") + '">' + (i > -1 ? i + 1 : "") + "</button>";
     }
     html += '</div><small class="muted">Positions are numbered in the order you place them. Tap a placed square again to remove it.</small></div><div class="tr-col">' + phead("POSITIONS", b.pos.length ? b.pos.length + (b.pos.length === 1 ? " CARD" : " CARDS") : "NONE YET", "chrome-b") + '<div class="tr-plist">' + (b.pos.length ? b.pos.map(function (p, i) {
-      return '<div class="tr-pl"><b>' + (i + 1) + '</b><input type="text" maxlength="40" data-trplabel="' + i + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (i + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + i + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
+      return '<div class="tr-pl"><b>' + (i + 1) + '</b><input type="text" id="trPL' + i + '" maxlength="40" data-trplabel="' + i + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (i + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + i + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
     }).join("") : '<span class="muted">Place a position on the grid to start.</span>') + "</div>";
     if (b.pos.length) html += phead("PREVIEW", "", "chrome-c") + trBoard({ pos: trNorm(b.pos) }, [], { edit: true, cardPx: 90 });
     html += '<div class="tr-tools"><span></span><button type="button" class="btn" data-tract="bsave"' + (b.pos.length && b.nm.trim() ? "" : " disabled") + ">SAVE SPREAD</button></div>";
@@ -7008,13 +7029,14 @@
     if (t.id === "trQ") { trDraft().q = t.value; trDraftSave(); return; }
     if (t.id === "trBName" && tr.bld) { tr.bld.nm = t.value; var sb = document.querySelector('[data-tract="bsave"]'); if (sb) sb.disabled = !(tr.bld.pos.length && t.value.trim()); return; }
     if (d.trplabel != null && tr.bld) { tr.bld.pos[+d.trplabel].l = t.value; return; }
-    if (d.trsum) { var r = trReadings().filter(function (x) { return x.id === d.trsum; })[0]; if (r) trEdit(r, { sum: t.value }); return; }
-    if (d.trnote != null) { var rn = trReadings().filter(function (x) { return x.id === d.trid; })[0]; if (rn) { var notes = (rn.notes || []).slice(); while (notes.length < rn.cards.length) notes.push(""); notes[+d.trnote] = t.value; trEdit(rn, { notes: notes }); } return; }
+    if (d.trsum) { var r = trReadings().filter(function (x) { return x.id === trId(d.trsum); })[0]; if (r) trEdit(r, { sum: t.value }); return; }
+    if (d.trnote != null) { var rn = trReadings().filter(function (x) { return x.id === trId(d.trid); })[0]; if (rn) { var notes = (rn.notes || []).slice(); while (notes.length < rn.cards.length) notes.push(""); notes[+d.trnote] = t.value; trEdit(rn, { notes: notes }); } return; }
     if (d.trmean) {
-      var card = d.trmean, text = t.value;
-      if (tr.data) { tr.data.meanings[card] = text; lsSet(LS_TAROT, tr.data); }
-      clearTimeout(tr.timers["m:" + card]);
-      tr.timers["m:" + card] = setTimeout(function () { trQueue("m:" + card, { body: { action: "tarotmeaning", card: card, text: text } }); }, 1200);
+      var card = d.trmean;
+      if (tr.data) { tr.data.meanings[card] = t.value; lsSet(LS_TAROT, tr.data); }
+      tr.mdirty[card] = t.value;
+      clearTimeout(tr.mtimers[card]);
+      tr.mtimers[card] = setTimeout(function () { trMeanNow(card); }, 1200);
     }
   });
   document.addEventListener("change", function (e) {
@@ -7088,7 +7110,7 @@
     if (code === "tarot_books_no_file") return "The import file isn't in 📖 Tarot Books any more, and no card pages are there yet.";
     if (code === "tarot_books_bad_file") return "The import file in 📖 Tarot Books couldn't be read.";
     if (code === "tarot_books_empty") return "Your books aren't in Notion yet. Systems → TAROT → IMPORT BOOKS.";
-    if (code === "busy") return "An import is already running. Give it a minute.";
+    if (code === "tarot_books_importing") return "An import is already running. Give it a minute.";
     return /^ai_/.test(code || "") ? describeAi(err) : describe(err);
   }
   function trbLoad(card, fresh) {

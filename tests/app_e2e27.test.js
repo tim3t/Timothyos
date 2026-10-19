@@ -48,7 +48,8 @@ const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contai
   await p.keyboard.type('o1701'); await p.waitForSelector('#clFind', { timeout: 5000 });
   assert.ok(await p.isVisible('.cl-cal'), 'unlocked');
   /* numbers stored as numbers (timestamps, request timings in ms) can contain any four digits; the code would be text */
-  const ls = (await p.evaluate(() => Object.values(localStorage).join('\n'))).replace(/\d{10,}/g, '#').replace(/(:\s*)-?\d+(\.\d+)?(?=[,}\]])/g, '$1#');
+  /* random ids (UUIDs, Notion's 32-character ids) can contain any four digits too; the code would sit in plain text */
+  const ls = (await p.evaluate(() => Object.values(localStorage).join('\n'))).replace(/[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/gi, '#').replace(/\d{10,}/g, '#').replace(/(:\s*)-?\d+(\.\d+)?(?=[,}\]])/g, '$1#');
   assert.ok(!ls.includes('1701') && !ls.includes('OMEGA'), 'the code is never stored');
   await p.click('[data-lact="lock"]'); await p.waitForTimeout(300);
 

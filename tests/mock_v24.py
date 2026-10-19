@@ -260,6 +260,8 @@ BOOKS = [
   {"id": "bk5", "url": "https://www.notion.so/bk5", "title": "An Older Story", "author": "Cy Placeholder", "status": "read", "started": "2025-11-02", "finished": "2025-11-20", "rating": 3, "notes": "", "cover": "", "ol": "", "year": 1999, "created": "2025-11-02T12:00:00Z"},
 ]
 BCIDS = {}; BSAVES = []
+BUSY = [0]   # the next n tarotsaves answer "busy" (?action=busysave&n=…), like Apps Script's lock timing out
+SLOW = [0]   # ms each tarotsave takes (?action=slowsave&ms=…), so saves overlap typing
 TB = {"on": False, "made": 0, "file": True, "imports": 0, "reads": [], "suggests": [], "fail": None}
 def tb_books(card):
     if TB["made"] < 156: return []
@@ -346,6 +348,8 @@ class H(BaseHTTPRequestHandler):
             TB["reads"].append([q.get("card"), q.get("fresh")])
             body = {"ok": True, "version": "1.25.0", "card": q.get("card"), "books": tb_books(q.get("card", ""))}
         elif q.get("action") == "tbstats": body = {"ok": True, "tb": TB}
+        elif q.get("action") == "slowsave": SLOW[0] = int(q.get("ms", "0")); body = {"ok": True}
+        elif q.get("action") == "busysave": BUSY[0] = int(q.get("n", "0")); body = {"ok": True}
         elif q.get("action") == "hfail": HFAIL[0] = int(q.get("n", "1")); body = {"ok": True}
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
@@ -366,8 +370,10 @@ class H(BaseHTTPRequestHandler):
             tk = next((t for t in TASKS if t["id"] == b.get("id")), None)
             if str(act or "").startswith("log"): body = logact(b)
             elif act == "tarotsave":
+                if SLOW[0]: import time; time.sleep(SLOW[0] / 1000)
                 r = dict(b.get("reading") or {}); TSAVES.append(r)
-                if r.get("cid") in TCID: body = dict(TCID[r["cid"]], duplicate=True)
+                if BUSY[0]: BUSY[0] -= 1; body = {"ok": False, "error": "busy"}
+                elif r.get("cid") in TCID: body = dict(TCID[r["cid"]], duplicate=True)
                 elif r.get("id") and not any(x["id"] == r["id"] for x in TAROT): body = {"ok": False, "error": "not_writable"}
                 else:
                     rid = r.get("id") or "tr-n" + str(len(TSAVES))

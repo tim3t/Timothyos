@@ -89,6 +89,7 @@ run app_e2e36.test.js     # BREAKS: lunch shown despite ignored Out of office, n
 run app_e2e37.test.js     # ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
 run app_e2e38.test.js     # TAROT: Bridge card, readings, Celtic Cross, meanings, spreads, Review, Ask option
 run app_e2e39.test.js       # TAROT BOOKS: IMPORT in steps, BOOKS drawer, SUGGEST, ADD/DISMISS, history, never stored (after e2e38: same mock)
+run app_e2e40.test.js       # TYPING SURVIVES SAVING: cursor and text kept while saves land, new-reading id, busy retried quietly, saved on leaving, every field has an id
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 
