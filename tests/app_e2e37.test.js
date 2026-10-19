@@ -64,7 +64,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.ok((await txt(p, '#content')).includes('No devices yet'));
   await p.click('[data-eng="add"]'); await p.waitForSelector('.ha-hit');
   const all = await p.$$eval('.ha-hit b', n => n.map(x => x.textContent));
-  assert.deepStrictEqual(all, ['Barn Porch', 'Pond Lights Outlet', 'Pond Water Temp', 'Skylight 2'], 'automations left out, sorted by name');
+  assert.deepStrictEqual(all, ['Barn Porch', 'Main Floor', 'Pond Lights Outlet', 'Pond Water Temp', 'Skylight 2'], 'automations left out, sorted by name');
   assert.ok((await txt(p, '.ha-hit:has-text("Skylight 2")')).includes('color, white, brightness'));
   const addDev = async (q, id, opts) => {
     if (!(await p.$('#haQ'))) { await p.click('[data-eng="add"]'); await p.waitForSelector('.ha-hit'); }
@@ -85,12 +85,30 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await addDev('temp', 'sensor.pond_water_temp', { expect: 'reading', group: 'OUTSIDE' });
   await addDev('sky', 'light.skylight_2', { expect: 'color', newGroup: 'Living Room' });
   await addDev('barn', 'light.barn_porch', { expect: 'dimmer', style: 'mini' });
+  await addDev('main', 'climate.main_floor', {});   /* a thermostat: no card styles to choose */
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hadev.v1')));
-  assert.deepStrictEqual(saved.map(d => [d.id, d.style]), [['switch.pond_lights_outlet', 'toggle'], ['sensor.pond_water_temp', 'reading'], ['light.skylight_2', 'color'], ['light.barn_porch', 'mini']]);
+  assert.deepStrictEqual(saved.map(d => [d.id, d.style]), [['switch.pond_lights_outlet', 'toggle'], ['sensor.pond_water_temp', 'reading'], ['light.skylight_2', 'color'], ['light.barn_porch', 'mini'], ['climate.main_floor', 'climate']]);
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hagroups.v1')).map(g => g.nm)), ['OUTSIDE', 'LIVING ROOM']);
   await p.waitForFunction(() => /61\.4 °F/.test(document.getElementById('content').textContent), null, { timeout: 5000 });
-  assert.deepStrictEqual(await p.$$eval('.hg h2', n => n.map(x => x.textContent)), ['OUTSIDE', 'LIVING ROOM', 'UNGROUPED']);
-  assert.ok((await txt(p, '#eyebrow')).includes('CONTROLS · 4 DEVICES · 2 ON'), await txt(p, '#eyebrow'));
+  // 2.28: laid out by type; rooms as chips over the lights; each tile carries its room
+  assert.deepStrictEqual(await p.$$eval('.ec-sec > .phead h2', n => n.map(x => x.textContent)), ['LIGHTS AND SWITCHES', 'CLIMATE', 'SENSORS']);
+  assert.deepStrictEqual(await p.$$eval('[data-haroom]', n => n.map(x => x.textContent)), ['ALL', 'OUTSIDE', 'LIVING ROOM', 'OTHER']);
+  const sensT = await txt(p, '.ec-sens'); assert.ok(sensT.includes('OUTSIDE') && sensT.includes('POND WATER TEMP') && sensT.includes('61.4'), sensT);
+  assert.ok((await txt(p, '.hc:has([data-hatoggle="switch.pond_lights_outlet"])')).startsWith('OUTSIDE POND LIGHTS OUTLET'));
+  assert.ok((await txt(p, '#eyebrow')).includes('CONTROLS · 5 DEVICES · 2 ON'), await txt(p, '#eyebrow'));
+  // climate: the thermostat, + and − sent once after the taps settle, and modes
+  await p.waitForFunction(() => /NOW 66/.test((document.querySelector('.ec-clim') || {}).textContent || ''), null, { timeout: 5000 });
+  const cl = await txt(p, '.ec-clim');
+  assert.ok(cl.includes('MAIN FLOOR · NOW 66°F') && cl.includes('68°F') && cl.includes('Heating to 68°F · humidity 41%'), cl);
+  let cc = (await stats()).calls.length;
+  await p.click('[data-haclim="1"]'); await p.click('[data-haclim="1"]');
+  assert.ok((await txt(p, '.ec-clim .tgt')).startsWith('70'), 'shown at once');
+  await p.waitForTimeout(1400);
+  let cs = (await stats()).calls.slice(cc);
+  assert.deepStrictEqual(cs, [{ svc: 'climate.set_temperature', entity_id: 'climate.main_floor', temperature: 70 }], 'one call after the taps');
+  await p.click('[data-hahvac="cool"]'); await p.waitForTimeout(400);
+  cs = (await stats()).calls; assert.deepStrictEqual(cs[cs.length - 1], { svc: 'climate.set_hvac_mode', entity_id: 'climate.main_floor', hvac_mode: 'cool' });
+  assert.strictEqual(await p.getAttribute('[data-hahvac="cool"]', 'aria-pressed'), 'true');
   const sky = '.hc-color:has([data-hatoggle="light.skylight_2"])';
   assert.ok(await p.$eval(sky, n => n.classList.contains('on') && /rgb\(97, ?180, ?255\)/.test(n.style.getPropertyValue('--lc'))), 'colour card in the light\'s colour');
   assert.ok((await txt(p, sky)).includes('ON · 70% · COLOR'), await txt(p, sky));
@@ -143,22 +161,23 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   c = await calls(); assert.ok(Math.abs(c[c.length - 1].brightness_pct - 25) <= 1, 'bar dims to 25%: ' + JSON.stringify(c[c.length - 1]));
   assert.ok((await txt(p, dim)).includes('25%'));
 
-  // ---- ALL OFF for a group, folding, LIST view
-  await p.click(".hg:has(h2:text-is(\"LIVING ROOM\")) [data-haalloff]"); await p.waitForTimeout(300);
+  // ---- a room's chip shows just that room; ALL OFF HERE; LIST view
+  await p.click('[data-haroom]:text-is("LIVING ROOM")'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.locator('#content [data-hatoggle="switch.pond_lights_outlet"]').count(), 0, 'only the living room');
+  assert.ok(await p.isVisible('.ec-clim') && await p.isVisible('.ec-sens'), 'climate and sensors stay');
+  await p.click('[data-haalloff]'); await p.waitForTimeout(300);
   c = await calls(); assert.deepStrictEqual(c[c.length - 1], { svc: 'light.turn_off', entity_id: 'light.skylight_2' });
-  await p.click('[data-hafold]:has(h2:text-is("OUTSIDE"))'); await p.waitForTimeout(150);
-  assert.strictEqual(await p.locator('[data-hgroup] .hc:has([data-hatoggle="switch.pond_lights_outlet"])').count(), 0, 'folded');
-  assert.deepStrictEqual(Object.keys(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hafold.v1')))).length, 1);
-  await p.click('[data-haview="list"]'); await p.waitForTimeout(150);
-  assert.strictEqual(await p.locator('.hr').count(), 2, 'rows for the open groups');
+  assert.notStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.haroom.v1'))), 'all', 'room remembered');
+  await p.click('[data-haroom="all"]'); await p.click('[data-haview="list"]'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.locator('.hr').count(), 4, 'rows for the lights and the sensor');
   const tb = (await stats()).toggles;
   await p.click('.hr:has-text("Barn Porch") .hsw'); await p.waitForTimeout(300);
   assert.strictEqual((await stats()).toggles, tb + 1);
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.haview.v1'))), 'list');
   await p.screenshot({ path: D + 'eng-list.png' });
-  await p.click('[data-hafold]:has(h2:text-is("OUTSIDE"))'); await p.click('[data-haview="cards"]');
+  await p.click('[data-haview="cards"]');
 
-  // ---- GROUPS: rename, reorder, delete (devices move to UNGROUPED)
+  // ---- ROOMS: rename, reorder, delete (devices move to OTHER)
   await p.click('[data-eng="groups"]'); await p.waitForSelector('.hg-row');
   const lr = await p.getAttribute('.hg-row:nth-child(2) input', 'data-hagname');
   await p.fill('#hgn-' + lr, 'Lounge'); await p.waitForTimeout(100);
@@ -167,7 +186,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   const out = await p.getAttribute('.hg-row:nth-child(2) input', 'data-hagname');
   await p.click('[data-hagdel="' + out + '"]'); await p.click('[data-hagdel="' + out + '"]'); await p.waitForTimeout(100);
   await p.click('#detailClose'); await p.waitForTimeout(250);
-  assert.deepStrictEqual(await p.$$eval('.hg h2', n => n.map(x => x.textContent)), ['LOUNGE', 'UNGROUPED']);
+  assert.deepStrictEqual(await p.$$eval('[data-haroom]', n => n.map(x => x.textContent)), ['ALL', 'LOUNGE', 'OTHER']);
 
   // ---- REMOVE (tap twice) takes a device off this screen only
   await p.click('.hc:has([data-hatoggle="switch.pond_lights_outlet"]) .hc-more'); await p.waitForSelector('[data-harm]');

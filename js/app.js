@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.27.0";
+  var VERSION = "2.28.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5845,7 +5845,7 @@
   var LS_UPKEEP = "tos.upkeep.v1";    /* [{ id, name, cat, every, unit, last, lastRead, read }] */
   var LS_ENGTAB = "tos.engtab.v1";
   var HA_TOGGLE = ["switch", "light", "fan", "input_boolean"];
-  var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor"]);
+  var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor", "climate"]);
   var UNITS = [["days", "DAYS"], ["weeks", "WEEKS"], ["months", "MONTHS"], ["years", "YEARS"], ["miles", "MILES"], ["hours", "HOURS"]];
   var eng = { tab: lsGet(LS_ENGTAB) === "upkeep" ? "upkeep" : "controls", states: {}, err: null, at: 0, inflight: false, pick: null, arm: null, armAt: 0, sheetKind: null, sheetId: null, sheetMode: "hs", dragging: null };
   function haConf() { var c = lsGet(LS_HA); return c && c.url && c.token ? c : null; }
@@ -5884,7 +5884,7 @@
      are this iPad's own (never Home Assistant's rooms). Light changes go out at most ~3 a second while
      you drag, then once more when you let go; a re-read follows. */
   var LS_HAGROUPS = "tos.hagroups.v1";   /* [{ id, nm }] */
-  var LS_HAFOLD = "tos.hafold.v1";       /* { groupId: 1 } folded */
+  var LS_HAROOM = "tos.haroom.v1";       /* 2.28: the room shown under LIGHTS AND SWITCHES ("all", a room id, "_none") */
   var LS_HAVIEW = "tos.haview.v1";       /* "cards" | "list" */
   var HA_GCOL = ["chrome-d", "chrome-a", "chrome-b", "chrome-c"];
   var HA_STYLES = [
@@ -5900,6 +5900,7 @@
     if (!haConf() || eng.inflight || !devs.length) return;
     if (!force && Date.now() - eng.at < 20000) return;
     eng.inflight = true;
+    if (eng.unit === undefined && devs.some(function (d) { return haDomain(d.id) === "climate"; })) { eng.unit = null; haFetch("/api/config").then(function (j) { eng.unit = (j && j.unit_system && j.unit_system.temperature) || "°"; haRepaint(); }, function () { eng.unit = undefined; }); }
     Promise.all(devs.map(function (d) {
       return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) {
         if (eng.dragging === d.id || Date.now() - ((hq[d.id] && hq[d.id].last) || 0) < 1500) return;   /* a change of yours is still on its way */
@@ -5921,13 +5922,13 @@
   function capsOf(id, s) {
     var dom = haDomain(id), a = (s && s.attributes) || {}, m = a.supported_color_modes || [];
     var col = dom === "light" && m.some(function (x) { return ["hs", "xy", "rgb", "rgbw", "rgbww"].indexOf(x) > -1; }), ct = dom === "light" && m.indexOf("color_temp") > -1;
-    return { sw: HA_TOGGLE.indexOf(dom) > -1, b: dom === "light" && (col || ct || m.indexOf("brightness") > -1 || m.indexOf("white") > -1), col: col, ct: ct,
+    return { sw: HA_TOGGLE.indexOf(dom) > -1, clim: dom === "climate", b: dom === "light" && (col || ct || m.indexOf("brightness") > -1 || m.indexOf("white") > -1), col: col, ct: ct,
       kmin: a.min_color_temp_kelvin || 2000, kmax: a.max_color_temp_kelvin || 6500, fx: a.effect_list && a.effect_list.length ? a.effect_list.slice(0, 12) : null };
   }
   function devCaps(d) { var s = eng.states[d.id]; return s && !s.missing ? capsOf(d.id, s) : d.caps || capsOf(d.id, null); }
-  function capsWords(c) { return !c.sw ? "reading" : [c.col ? "color" : "", c.ct ? "white" : "", c.b ? "brightness" : "", !c.b ? "on and off" : ""].filter(Boolean).join(", "); }
-  function bestStyle(c) { return !c.sw ? "reading" : c.col || c.ct ? "color" : c.b ? "dimmer" : "toggle"; }
-  function styleOf(d) { var c = devCaps(d), st = HA_STYLES.filter(function (x) { return x[0] === d.style; })[0]; return st && st[3](c) ? d.style : bestStyle(c); }
+  function capsWords(c) { return c.clim ? "thermostat" : !c.sw ? "reading" : [c.col ? "color" : "", c.ct ? "white" : "", c.b ? "brightness" : "", !c.b ? "on and off" : ""].filter(Boolean).join(", "); }
+  function bestStyle(c) { return c.clim ? "climate" : !c.sw ? "reading" : c.col || c.ct ? "color" : c.b ? "dimmer" : "toggle"; }
+  function styleOf(d) { var c = devCaps(d); if (c.clim) return "climate"; var st = HA_STYLES.filter(function (x) { return x[0] === d.style; })[0]; return st && st[3](c) ? d.style : bestStyle(c); }
   function haGroups() { return lsGet(LS_HAGROUPS) || []; }
   function haGroupOf(d) { return haGroups().some(function (g) { return g.id === d.g; }) ? d.g : null; }
   function saveDev(id, patch) { lsSet(LS_HADEV, haDevices().map(function (d) { return d.id === id ? Object.assign({}, d, patch) : d; })); }
@@ -5969,7 +5970,7 @@
       .catch(function (e) { toast("Not switched: " + haErrText(e)); haLoad(true); });
   }
   function haAllOff(gid) {
-    var ids = haDevices().filter(function (d) { return (gid === "_none" ? !haGroupOf(d) : d.g === gid) && devCaps(d).sw && isOn(eng.states[d.id]); }).map(function (d) { return d.id; });
+    var ids = haDevices().filter(function (d) { return (gid === "all" || (gid === "_none" ? !haGroupOf(d) : d.g === gid)) && devCaps(d).sw && isOn(eng.states[d.id]); }).map(function (d) { return d.id; });
     if (!ids.length) return;
     ids.forEach(function (id) { eng.states[id].state = "off"; });
     haRepaint();
@@ -6045,55 +6046,108 @@
     }).join("") + "</div>";
     if (ctl && haConf()) html += '<div class="eng-tools"><div class="hseg" role="group" aria-label="View">' + [["cards", "CARDS"], ["list", "LIST"]].map(function (v) {
       return '<button type="button" data-haview="' + v[0] + '" aria-pressed="' + (view === v[0]) + '">' + v[1] + "</button>";
-    }).join("") + '</div><button type="button" class="btn sm ghost" data-eng="groups">GROUPS</button><button type="button" class="btn sm" data-eng="add">+ ADD DEVICE</button></div>';
+    }).join("") + '</div><button type="button" class="btn sm ghost" data-eng="groups">ROOMS</button><button type="button" class="btn sm" data-eng="add">+ ADD DEVICE</button></div>';
     else if (!ctl) html += '<button type="button" class="btn sm" data-eng="newitem">+ ITEM</button>';
     html += "</div>" + (ctl ? haControlsHtml(view) : upkeepHtml());
     $("content").innerHTML = html + "</div>";
   }
+  /* 2.28: laid out by type, as in the first Engineering mockup. LIGHTS AND SWITCHES on the left with the
+     rooms as chips (ALL, each room that has some, OTHER for the rest; remembered in tos.haroom.v1),
+     CLIMATE and SENSORS on the right. Each tile carries its room. Doors and scenes are for later. */
+  function haRoomName(d) { var g = haGroups().filter(function (x) { return x.id === d.g; })[0]; return g ? g.nm : ""; }
+  function haKind(d) { var c = devCaps(d); return c.clim ? "climate" : c.sw ? "light" : "sensor"; }
   function haControlsHtml(view) {
     if (!haConf()) return '<div class="stubbox"><span class="pill">SETUP</span><span>Controls talk to Home Assistant. Add its address and a token under <b>HOME ASSISTANT</b> in Systems. Steps are in the README under <b>Engineering</b>.</span></div>' +
       '<div class="btnrow"><button type="button" class="btn" data-eng="systems">OPEN SYSTEMS</button></div>';
     var devs = haDevices();
     haLoad(false);
     if (!devs.length) return '<div class="empty">No devices yet. Tap <b>+ ADD DEVICE</b> to pick one from Home Assistant. Only the devices you add appear here.</div>';
-    var groups = haGroups(), fold = lsGet(LS_HAFOLD) || {};
-    var buckets = groups.map(function (g, i) { return { id: g.id, nm: g.nm, c: "var(--" + HA_GCOL[i % HA_GCOL.length] + ")", devs: devs.filter(function (d) { return d.g === g.id; }) }; });
-    var loose = devs.filter(function (d) { return !haGroupOf(d); });
-    if (loose.length) buckets.push({ id: "_none", nm: groups.length ? "UNGROUPED" : "ALL DEVICES", c: groups.length ? "var(--dim)" : "var(--chrome-d)", devs: loose });
+    var lights = devs.filter(function (d) { return haKind(d) === "light"; }), clim = devs.filter(function (d) { return haKind(d) === "climate"; }), sens = devs.filter(function (d) { return haKind(d) === "sensor"; });
     var html = eng.err ? '<div class="err">' + esc(eng.err.msg) + "</div>" : "";
-    buckets.forEach(function (b) {
-      var closed = !!fold[b.id], non = b.devs.filter(function (d) { return isOn(eng.states[d.id]); }).length;
-      var offable = b.devs.some(function (d) { return devCaps(d).sw && isOn(eng.states[d.id]); });
-      html += '<section class="hg' + (closed ? " closed" : "") + '" style="--c: ' + b.c + '" data-hgroup="' + b.id + '"><div class="hg-head">' +
-        '<button type="button" class="hg-tog" data-hafold="' + b.id + '" aria-expanded="' + !closed + '"><span class="cap" aria-hidden="true">' + (closed ? "▸" : "▾") + "</span><h2>" + esc(b.nm) + '</h2><span class="rule"></span>' +
-        '<span class="meta">' + b.devs.length + (b.devs.length === 1 ? " DEVICE" : " DEVICES") + (non ? " · " + non + " ON" : "") + "</span></button>" +
-        (offable ? '<button type="button" class="chip sm" data-haalloff="' + b.id + '">ALL OFF</button>' : "") + "</div>";
-      if (!closed) {
-        if (!b.devs.length) html += '<div class="muted">Empty. Move a device here from its ⋯ button.</div>';
-        else if (view === "list") html += '<div class="hr-rows">' + b.devs.map(haRowHtml).join("") + "</div>";
-        else {
-          var big = b.devs.filter(function (d) { return styleOf(d) !== "mini"; }), small = b.devs.filter(function (d) { return styleOf(d) === "mini"; });
-          if (big.length) html += '<div class="hc-grid">' + big.map(haCardHtml).join("") + "</div>";
-          if (small.length) html += '<div class="hm-row">' + small.map(haMiniHtml).join("") + "</div>";
-        }
+    html += '<div class="ec-cols' + (lights.length && (clim.length || sens.length) ? "" : " one") + '">';
+    if (lights.length) {
+      var rooms = haGroups(), used = rooms.filter(function (g) { return lights.some(function (d) { return d.g === g.id; }); }), loose = lights.some(function (d) { return !haGroupOf(d); });
+      var room = lsGet(LS_HAROOM) || "all";
+      if (room === "_none" ? !loose : room !== "all" && !used.some(function (g) { return g.id === room; })) room = "all";
+      var shown = lights.filter(function (d) { return room === "all" || (room === "_none" ? !haGroupOf(d) : d.g === room); });
+      var non = shown.filter(function (d) { return isOn(eng.states[d.id]); }).length;
+      var chip = function (id, nm, i) { return '<button type="button" class="chip sm" data-haroom="' + id + '" aria-pressed="' + (room === id) + '"' + (i != null ? ' style="--c: var(--' + HA_GCOL[i % HA_GCOL.length] + ')"' : "") + ">" + esc(nm) + "</button>"; };
+      html += '<section class="ec-sec ec-lights">' + phead("LIGHTS AND SWITCHES", non ? non + " ON" : "ALL OFF", "chrome-b") +
+        '<div class="ec-rooms">' + (used.length ? '<div class="chips" role="group" aria-label="Rooms">' + chip("all", "ALL") + used.map(function (g) { return chip(g.id, g.nm, rooms.indexOf(g)); }).join("") + (loose ? chip("_none", "OTHER") : "") + "</div>" : "<span></span>") +
+        (non ? '<button type="button" class="chip sm" data-haalloff="' + room + '">ALL OFF' + (room === "all" ? "" : " HERE") + "</button>" : "") + "</div>";
+      if (view === "list") html += '<div class="hr-rows">' + shown.map(haRowHtml).join("") + "</div>";
+      else {
+        var big = shown.filter(function (d) { return styleOf(d) !== "mini"; }), small = shown.filter(function (d) { return styleOf(d) === "mini"; });
+        if (big.length) html += '<div class="hc-grid">' + big.map(haCardHtml).join("") + "</div>";
+        if (small.length) html += '<div class="hm-row">' + small.map(haMiniHtml).join("") + "</div>";
       }
       html += "</section>";
-    });
-    return html + '<small class="muted">Updates every 30 seconds while this screen is open. Groups, card styles and the view are kept on this iPad.</small>';
+    }
+    if (clim.length || sens.length) {
+      html += '<div class="ec-side">';
+      if (clim.length) html += '<section class="ec-sec">' + phead("CLIMATE", clim.length > 1 ? clim.length + " ZONES" : "", "chrome-d") + clim.map(haClimateHtml).join("") + "</section>";
+      if (sens.length) {
+        html += '<section class="ec-sec ec-sens">' + phead("SENSORS", "", "chrome-c");
+        if (view === "list") html += '<div class="hr-rows">' + sens.map(haRowHtml).join("") + "</div>";
+        else {
+          var sb = sens.filter(function (d) { return styleOf(d) !== "mini"; }), ss = sens.filter(function (d) { return styleOf(d) === "mini"; });
+          if (sb.length) html += '<div class="hc-grid">' + sb.map(haCardHtml).join("") + "</div>";
+          if (ss.length) html += '<div class="hm-row">' + ss.map(haMiniHtml).join("") + "</div>";
+        }
+        html += "</section>";
+      }
+      html += "</div>";
+    }
+    return html + '</div><small class="muted">Updates every 30 seconds while this screen is open. Rooms, card styles and the view are kept on this iPad.</small>';
+  }
+  /* A thermostat: target with + and −, the room's temperature and humidity, and its modes. */
+  var HA_HVAC = { heat: "HEAT", cool: "COOL", heat_cool: "AUTO", auto: "AUTO", off: "OFF" };
+  function haClimateHtml(d) {
+    var s = eng.states[d.id], a = (s && s.attributes) || {}, dead = isDead(s), u = eng.unit || "°", rm = haRoomName(d);
+    var one = typeof a.temperature === "number", step = a.target_temp_step || (u === "°C" ? 0.5 : 1);
+    var act = { heating: "Heating", cooling: "Cooling", idle: "Holding", off: "Off", fan: "Fan only", drying: "Drying" }[a.hvac_action] || (s && s.state === "off" ? "Off" : "");
+    var sub = [act && one && act !== "Off" ? act + " to " + a.temperature + u : act, typeof a.current_humidity === "number" ? "humidity " + a.current_humidity + "%" : ""].filter(Boolean).join(" · ");
+    var modes = (a.hvac_modes || []).filter(function (m) { return HA_HVAC[m]; }).slice(0, 4);
+    return '<div class="ec-clim' + (dead && s ? " dead" : "") + '"><div class="cl-main"><span class="rm">' + esc(((rm ? rm + " · " : "") + d.name).toUpperCase()) + (typeof a.current_temperature === "number" ? " · NOW " + a.current_temperature + esc(u) : "") + "</span>" +
+      '<span class="tgt tnum">' + (dead ? esc(haStateTxt(d, s)) : one ? esc(String(a.temperature)) + "<small>" + esc(u) + "</small>" : typeof a.target_temp_low === "number" ? a.target_temp_low + "–" + a.target_temp_high + "<small>" + esc(u) + "</small>" : esc(String(s.state).toUpperCase())) + "</span>" +
+      '<span class="sub">' + esc(sub) + "</span>" +
+      (modes.length && !dead ? '<div class="chips">' + modes.map(function (m) { return '<button type="button" class="chip sm" data-hahvac="' + m + '" data-dev="' + esc(d.id) + '" aria-pressed="' + (s.state === m) + '">' + HA_HVAC[m] + "</button>"; }).join("") + "</div>" : "") + "</div>" +
+      (one && !dead ? '<div class="cl-step"><button type="button" data-haclim="' + step + '" data-dev="' + esc(d.id) + '" aria-label="Warmer">+</button><button type="button" data-haclim="' + -step + '" data-dev="' + esc(d.id) + '" aria-label="Cooler">−</button></div>' : "") + haMore(d) + "</div>";
+  }
+  function haClimStep(id, delta) {
+    var s = eng.states[id]; if (!s || s.missing) return;
+    var a = s.attributes, lo = a.min_temp != null ? a.min_temp : -50, hi = a.max_temp != null ? a.max_temp : 150;
+    a.temperature = Math.max(lo, Math.min(hi, Math.round((a.temperature + delta) * 10) / 10));
+    var q = hq["clim:" + id] || (hq["clim:" + id] = {});
+    hq[id] = hq[id] || { data: {}, last: 0, t: 0, rr: 0 }; hq[id].last = Date.now();   /* hold off re-reads while you tap */
+    clearTimeout(q.t);
+    q.t = setTimeout(function () {
+      hq[id].last = Date.now();
+      haFetch("/api/services/climate/set_temperature", { method: "POST", body: { entity_id: id, temperature: a.temperature } })
+        .then(function () { setTimeout(function () { haLoad(true); }, 1600); }, function (e) { toast("Not changed: " + haErrText(e)); haLoad(true); });
+    }, 900);
+    render(true);
+  }
+  function haHvac(id, mode) {
+    var s = eng.states[id]; if (!s || s.missing) return;
+    s.state = mode; render(true);
+    haFetch("/api/services/climate/set_hvac_mode", { method: "POST", body: { entity_id: id, hvac_mode: mode } })
+      .then(function () { setTimeout(function () { haLoad(true); }, 1000); }, function (e) { toast("Not changed: " + haErrText(e)); haLoad(true); });
   }
   function haMore(d) { return '<button type="button" class="hc-more" data-hadev="' + esc(d.id) + '" aria-label="' + esc(d.name) + ' settings">⋯</button>'; }
+  function haNm(d) { var rm = haRoomName(d); return (rm ? '<span class="rm">' + esc(rm) + "</span>" : "") + '<span class="nm">' + esc(d.name) + "</span>"; }
   function haCardHtml(d) {
     var s = eng.states[d.id], st = styleOf(d), on = isOn(s), dead = isDead(s), lc = lampCss(d.id, s), txt = haStateTxt(d, s), p = pctOf(s);
     var since = s && s.last_changed && !dead ? " · SINCE " + esc(sinceLabel(new Date(s.last_changed))) : "";
     var cls = "hc hc-" + st + (on ? " on" : "") + (dead && s ? " dead" : "");
     if (st === "reading") {
       var a = (s && s.attributes) || {};
-      return '<div class="' + cls + '"><div class="hc-main ro"><span class="nm">' + esc(d.name) + '</span><span class="val tnum">' + esc(dead ? txt : s.state) + (a.unit_of_measurement && !dead ? "<small> " + esc(a.unit_of_measurement) + "</small>" : "") +
+      return '<div class="' + cls + '"><div class="hc-main ro">' + haNm(d) + '<span class="val tnum">' + esc(dead ? txt : s.state) + (a.unit_of_measurement && !dead ? "<small> " + esc(a.unit_of_measurement) + "</small>" : "") +
         '</span><span class="sub">READING' + since + "</span></div>" + haMore(d) + "</div>";
     }
-    if (st === "color") return '<div class="' + cls + '" style="--lc: ' + (lc || "var(--panel-2)") + '"><button type="button" class="hc-main" data-hadev="' + esc(d.id) + '"><span class="bulb" aria-hidden="true"></span><span class="nm">' + esc(d.name) + '</span><span class="sub">' + esc(txt) + "</span></button>" + haMore(d) +
+    if (st === "color") return '<div class="' + cls + '" style="--lc: ' + (lc || "var(--panel-2)") + '"><button type="button" class="hc-main" data-hadev="' + esc(d.id) + '"><span class="bulb" aria-hidden="true"></span>' + haNm(d) + '<span class="sub">' + esc(txt) + "</span></button>" + haMore(d) +
       '<button type="button" class="hc-pwr" data-hatoggle="' + esc(d.id) + '"' + (dead ? " disabled" : "") + ">" + (on ? "TURN OFF" : "TURN ON") + "</button></div>";
-    var main = '<button type="button" class="hc-main" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '"' + (dead ? " disabled" : "") + '><span class="nm">' + esc(d.name) + '</span><span class="val tnum">' +
+    var main = '<button type="button" class="hc-main" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '"' + (dead ? " disabled" : "") + '>' + haNm(d) + '<span class="val tnum">' +
       esc(dead ? txt : st === "dimmer" && on && p != null ? p + "%" : on ? "ON" : "OFF") + '</span><span class="sub">' + (dead ? "" : on ? "TAP TO TURN OFF" : "TAP TO TURN ON") + since + "</span></button>";
     return '<div class="' + cls + '">' + main + haMore(d) + (st === "dimmer" && !dead ? '<div class="hc-lvl" data-halvl="' + esc(d.id) + '" role="slider" tabindex="0" aria-label="' + esc(d.name) + ' brightness" aria-valuemin="1" aria-valuemax="100" aria-valuenow="' + (on ? p || 100 : 0) + '">' +
       '<i style="width:' + (on ? p || 100 : 0) + '%"></i><span>' + (on && p != null ? p + "%" : "DRAG TO DIM") + "</span></div>" : "") + "</div>";
@@ -6135,7 +6189,7 @@
   function openAddDevice() {
     eng.sheetKind = "add";
     eng.pick = { q: "", list: null, err: null, d: null };
-    engSheet("", '<div class="sbar"><span>+ ADD DEVICE</span><span>FROM HOME ASSISTANT</span></div><div class="sbody"><div class="hp-steps"><b>1 PICK</b><em>2 STYLE + GROUP</em></div><input type="search" id="haQ" placeholder="Search by name, e.g. Pond" autocomplete="off" aria-label="Search devices"><div id="haList"><div class="empty">Asking Home Assistant…</div></div></div>' +
+    engSheet("", '<div class="sbar"><span>+ ADD DEVICE</span><span>FROM HOME ASSISTANT</span></div><div class="sbody"><div class="hp-steps"><b>1 PICK</b><em>2 STYLE + ROOM</em></div><input type="search" id="haQ" placeholder="Search by name, e.g. Pond" autocomplete="off" aria-label="Search devices"><div id="haList"><div class="empty">Asking Home Assistant…</div></div></div>' +
       '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>');
     haFetch("/api/states").then(function (all) {
       eng.pick.list = (all || []).filter(function (s) { return HA_SHOW.indexOf(haDomain(s.entity_id)) > -1; }).map(function (s) {
@@ -6158,6 +6212,7 @@
       '<small class="muted">' + p.list.length + " switches, lights and sensors in Home Assistant.</small>";
   }
   function stylePickHtml(c, cur) {
+    if (c.clim) return '<small class="muted">Shown as a thermostat under CLIMATE: target temperature, + and −, and its modes.</small>';
     return '<div class="hp-styles">' + HA_STYLES.map(function (x) {
       var ok = x[3](c);
       return '<button type="button" class="hp-style" data-hastyle="' + x[0] + '" aria-pressed="' + (cur === x[0]) + '"' + (ok ? "" : " disabled") + '><span class="pv pv-' + x[0] + '" aria-hidden="true">' + (x[0] === "reading" ? "61.4°" : "") + "</span><b>" + x[1] + "</b><small>" + (ok ? x[2] : "Not for this device") + "</small></button>";
@@ -6171,11 +6226,11 @@
   }
   function paintAddStep2() {
     var d = eng.pick.d;
-    $("detailSheet").innerHTML = '<div class="sbar"><span>+ ADD DEVICE</span><span>FROM HOME ASSISTANT</span></div><div class="sbody"><div class="hp-steps"><em>1 PICK</em><b>2 STYLE + GROUP</b></div>' +
+    $("detailSheet").innerHTML = '<div class="sbar"><span>+ ADD DEVICE</span><span>FROM HOME ASSISTANT</span></div><div class="sbody"><div class="hp-steps"><em>1 PICK</em><b>2 STYLE + ROOM</b></div>' +
       '<div class="hp-read"><b>' + esc(d.name.toUpperCase()) + "</b><small>" + esc(d.id) + " · " + esc(capsWords(d.caps)) + "</small></div>" +
       '<div class="hp-sec"><span class="ov-sub">HOW IT LOOKS</span>' + stylePickHtml(d.caps, d.style) + "</div>" +
-      '<div class="hp-sec"><span class="ov-sub">WHICH GROUP</span>' + groupChipsHtml(d.g) +
-      '<div class="hp-newg"><input type="text" id="haAddNewG" maxlength="30" placeholder="Or a new group, e.g. Kitchen" aria-label="New group name"><button type="button" class="btn sm ghost" data-hanewg="add">+ GROUP</button></div></div></div>' +
+      '<div class="hp-sec"><span class="ov-sub">WHICH ROOM</span>' + groupChipsHtml(d.g) +
+      '<div class="hp-newg"><input type="text" id="haAddNewG" maxlength="30" placeholder="Or a new room, e.g. Kitchen" aria-label="New room name"><button type="button" class="btn sm ghost" data-hanewg="add">+ ROOM</button></div></div></div>' +
       '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-haaddgo="1">ADD TO ENGINEERING</button></div>';
   }
 
@@ -6269,7 +6324,7 @@
     var d = haDevices().filter(function (x) { return x.id === eng.sheetId; })[0];
     if (!d) { closeDetail(); return; }
     var s = eng.states[d.id], c = devCaps(d), on = isOn(s), dead = isDead(s), a = (s && s.attributes) || {}, lc = lampCss(d.id, s) || "var(--chrome-d)", p = pctOf(s);
-    var gname = (haGroups().filter(function (g) { return g.id === d.g; })[0] || { nm: "UNGROUPED" }).nm;
+    var gname = (haGroups().filter(function (g) { return g.id === d.g; })[0] || { nm: "NO ROOM" }).nm;
     var h = '<div class="sbar"><span>' + esc(d.name.toUpperCase()) + "</span><span>" + esc(gname) + '</span></div><div class="sbody">';
     if (!c.sw) h += '<div class="hp-read"><b class="tnum">' + esc(haStateTxt(d, s)) + "</b><small>" + esc(d.id) + (s && s.last_changed ? " · changed " + esc(sinceLabel(new Date(s.last_changed))) : "") + "</small></div>";
     else {
@@ -6291,7 +6346,7 @@
       }
     }
     h += '<hr class="hp-split"><div class="hp-sec"><span class="ov-sub">CARD STYLE · ON THIS IPAD</span>' + stylePickHtml(c, styleOf(d)) + "</div>";
-    h += '<div class="hp-sec"><span class="ov-sub">GROUP · ON THIS IPAD</span>' + groupChipsHtml(haGroupOf(d)) + "</div></div>";
+    h += '<div class="hp-sec"><span class="ov-sub">ROOM · ON THIS IPAD</span>' + groupChipsHtml(haGroupOf(d)) + "</div></div>";
     h += '<div class="sfoot btnrow"><button type="button" class="btn ghost" data-harm="' + esc(d.id) + '">' + (eng.arm === "rm" && Date.now() - eng.armAt < 4000 ? "TAP AGAIN TO REMOVE" : "REMOVE FROM SCREEN") + '</button><button type="button" class="btn" id="detailClose">DONE</button></div>';
     $("detailSheet").style.setProperty("--c", c.sw && on ? lc : "var(--chrome-d)");
     $("detailSheet").innerHTML = h;
@@ -6330,14 +6385,14 @@
   function openGroups() { eng.sheetKind = "groups"; eng.arm = null; engSheet("hg-sheet", ""); paintGroups(); }
   function paintGroups() {
     var gs = haGroups(), devs = haDevices();
-    $("detailSheet").innerHTML = '<div class="sbar"><span>GROUPS</span><span>ON THIS IPAD ONLY</span></div><div class="sbody"><div class="hg-edit">' + (gs.length ? gs.map(function (g, i) {
+    $("detailSheet").innerHTML = '<div class="sbar"><span>ROOMS</span><span>ON THIS IPAD ONLY</span></div><div class="sbody"><div class="hg-edit">' + (gs.length ? gs.map(function (g, i) {
       var n = devs.filter(function (d) { return d.g === g.id; }).length;
-      return '<div class="hg-row" style="--c: var(--' + HA_GCOL[i % HA_GCOL.length] + ')"><i aria-hidden="true"></i><input type="text" id="hgn-' + g.id + '" maxlength="30" value="' + esc(g.nm) + '" aria-label="Group name" data-hagname="' + g.id + '">' +
+      return '<div class="hg-row" style="--c: var(--' + HA_GCOL[i % HA_GCOL.length] + ')"><i aria-hidden="true"></i><input type="text" id="hgn-' + g.id + '" maxlength="30" value="' + esc(g.nm) + '" aria-label="Room name" data-hagname="' + g.id + '">' +
         '<button type="button" class="btn sm ghost" data-hagmove="' + g.id + ',-1"' + (i === 0 ? " disabled" : "") + ' aria-label="Move up">▲</button><button type="button" class="btn sm ghost" data-hagmove="' + g.id + ',1"' + (i === gs.length - 1 ? " disabled" : "") + ' aria-label="Move down">▼</button>' +
         '<button type="button" class="btn sm ghost hg-del" data-hagdel="' + g.id + '">' + (eng.arm === "gdel:" + g.id && Date.now() - eng.armAt < 4000 ? "TAP AGAIN" : "DELETE" + (n ? " (" + n + ")" : "")) + "</button></div>";
-    }).join("") : '<div class="empty">No groups yet. Make one below, then put devices in it from each device\'s ⋯ button.</div>') +
-      '</div><div class="hp-newg"><input type="text" id="haNewG" maxlength="30" placeholder="New group, e.g. Outside" aria-label="New group name"><button type="button" class="btn sm" data-hanewg="groups">+ GROUP</button></div>' +
-      '<small class="muted">Kept on this iPad, separate from the rooms in Home Assistant. Deleting a group keeps its devices; they move to UNGROUPED. The order here is the order on the screen.</small></div>' +
+    }).join("") : '<div class="empty">No rooms yet. Make one below, then put devices in it from each device\'s ⋯ button.</div>') +
+      '</div><div class="hp-newg"><input type="text" id="haNewG" maxlength="30" placeholder="New room, e.g. Outside" aria-label="New room name"><button type="button" class="btn sm" data-hanewg="groups">+ ROOM</button></div>' +
+      '<small class="muted">Kept on this iPad, separate from the areas in Home Assistant. Deleting a room keeps its devices; they show under OTHER. The order here is the order of the room chips.</small></div>' +
       '<div class="sfoot btnrow"><button type="button" class="btn" id="detailClose">DONE</button></div>';
   }
 
@@ -6347,7 +6402,9 @@
     if (d.hatoggle) { haToggle(d.hatoggle); return true; }
     if (d.hadev) { openDevSheet(d.hadev); return true; }
     if (d.haview) { lsSet(LS_HAVIEW, d.haview); render(true); return true; }
-    if (d.hafold) { var f = lsGet(LS_HAFOLD) || {}; if (f[d.hafold]) delete f[d.hafold]; else f[d.hafold] = 1; lsSet(LS_HAFOLD, f); render(true); return true; }
+    if (d.haroom) { lsSet(LS_HAROOM, d.haroom); render(true); return true; }
+    if (d.haclim) { haClimStep(d.dev, +d.haclim); return true; }
+    if (d.hahvac) { haHvac(d.dev, d.hahvac); return true; }
     if (d.haalloff) { haAllOff(d.haalloff); return true; }
     return false;
   }
@@ -6373,7 +6430,7 @@
     }
     if (d.hanewg) {
       var inp = $(d.hanewg === "add" ? "haAddNewG" : "haNewG"), nm = inp ? inp.value.trim() : "";
-      if (!nm) { toast("Type a name for the group first"); if (inp) inp.focus(); return true; }
+      if (!nm) { toast("Type a name for the room first"); if (inp) inp.focus(); return true; }
       var ng = newGroup(nm);
       if (d.hanewg === "add") { p.d.g = ng.id; paintAddStep2(); } else paintGroups();
       render(true); return true;
@@ -6381,7 +6438,7 @@
     if (d.haaddgo) {
       var nd = p.d, devs = haDevices().filter(function (x) { return x.id !== nd.id; });
       devs.push({ id: nd.id, name: nd.name, style: nd.style, g: nd.g, caps: nd.caps }); lsSet(LS_HADEV, devs);
-      if (nd.g) { var fo = lsGet(LS_HAFOLD) || {}; delete fo[nd.g]; lsSet(LS_HAFOLD, fo); }
+      if ((lsGet(LS_HAROOM) || "all") !== "all") lsSet(LS_HAROOM, nd.g || "_none");   /* show where it landed */
       eng.at = 0; closeDetail(); toast("Added: " + nd.name); render(true); return true;
     }
     if (d.hamode) { eng.sheetMode = d.hamode; paintDevSheet(); return true; }
@@ -6406,7 +6463,7 @@
     if (d.hagdel) {
       if (eng.arm === "gdel:" + d.hagdel && Date.now() - eng.armAt < 4000) {
         lsSet(LS_HAGROUPS, haGroups().filter(function (x) { return x.id !== d.hagdel; })); eng.arm = null;
-        toast("Group deleted. Its devices are under UNGROUPED."); paintGroups(); render(true);
+        toast("Room deleted. Its devices are under OTHER."); paintGroups(); render(true);
       } else { eng.arm = "gdel:" + d.hagdel; eng.armAt = Date.now(); paintGroups(); }
       return true;
     }

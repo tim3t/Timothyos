@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.28.0 · 2026-10-19
+- **ENGINEERING · CONTROLS laid out by type**, as in the first Engineering mockup: **LIGHTS AND SWITCHES** on the left, **CLIMATE** and **SENSORS** on the right (stacked on narrow screens).
+- **Rooms as chips** over the lights (ALL, each of your rooms, OTHER for devices without one) instead of folding group sections. The choice is remembered; **ALL OFF HERE** turns off what the chosen room shows. Every tile shows its room. GROUPS is now **ROOMS** (still on this iPad only, separate from Home Assistant's areas).
+- **CLIMATE:** thermostats from Home Assistant can be added: target temperature with + and − (sent once your taps settle), the room's temperature and humidity, what it's doing, and its modes (HEAT, COOL, AUTO, OFF).
+- **SENSORS** have their own area. Doors and scenes are planned for later.
+
 ## 2.27.0 · 2026-10-19
 - **Tarot card faces.** Every Major Arcana card now has its own mark instead of a shared sun: a flower for the Fool, infinity over a wand for the Magician, the crescent between pillars for the High Priestess, the Venus sign, a crown, crossed keys, linked rings, the chariot, infinity over a heart, the lantern, the wheel, scales, the hanged man, the scythe, water poured between cups, chains, the struck tower, the star, the crescent moon, the sun, the trumpet and the laurel wreath.
 - **Minor Arcana show their count.** Two to Ten carry that many suit marks, laid out like playing-card pips; the Ace is one large mark; the courts carry a sign above the mark (Page a star, Knight a chevron, Queen a three-point crown, King a five-point crown). Everywhere cards appear: TAROT, the Bridge, Review and card history.

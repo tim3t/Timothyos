@@ -1843,3 +1843,29 @@ body.nas-pad-min .content { padding-bottom: 72px; }
   .tr-hist > .tr-card { width: 120px; }
   .tr-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* Engineering 2.28: by type, rooms as chips, climate and sensors */
+.ec-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.ec-cols.one { grid-template-columns: minmax(0, 1fr); }
+.ec-side { display: grid; gap: 22px; min-width: 0; }
+.ec-sec { display: grid; gap: 12px; min-width: 0; align-content: start; }
+.ec-rooms { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ec-rooms .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.hc-main .rm, .ec-clim .rm { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--dim); text-transform: uppercase; }
+.hc.on .hc-main .rm { color: color-mix(in srgb, var(--ink) 70%, transparent); }
+.ec-sens .hc-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.hc-reading .hc-main .val { white-space: nowrap; }
+.ec-sens .hc { min-height: 112px; }
+.ec-sens .hc-reading .hc-main .val { font-size: 40px; }
+.ec-clim { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; background: var(--panel); border-radius: 0 28px 28px 0; border-left: 10px solid var(--chrome-d); padding: 16px 60px 16px 18px; }
+.ec-clim.dead { background-image: var(--hatch); opacity: .6; }
+.ec-clim .cl-main { display: grid; gap: 6px; min-width: 0; }
+.ec-clim .tgt { font-family: var(--display); font-weight: 600; font-size: clamp(56px, 7vw, 84px); line-height: .95; letter-spacing: .02em; }
+.ec-clim .tgt small { font-size: .32em; letter-spacing: .08em; margin-left: 2px; }
+.ec-clim .sub { color: var(--dim); font-size: 16px; }
+.ec-clim .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.ec-clim .chip[aria-pressed="true"] { --c: var(--chrome-d); }
+.ec-clim .cl-step { display: grid; gap: 10px; }
+.ec-clim .cl-step button { width: 64px; height: 64px; border-radius: 32px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); font-family: var(--display); font-size: 30px; line-height: 1; }
+.ec-clim .cl-step button:active { background: var(--chrome-d); color: var(--ink); }
+@media (max-width: 1060px) { .ec-cols { grid-template-columns: minmax(0, 1fr); } }

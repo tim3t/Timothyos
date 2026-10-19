@@ -53,6 +53,8 @@ HA = {
     "light.skylight_2": {"state": "on", "attributes": {"friendly_name": "Skylight 2", "supported_color_modes": ["color_temp", "hs"], "color_mode": "hs", "brightness": 178,
         "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "min_color_temp_kelvin": 2000, "max_color_temp_kelvin": 6500, "effect_list": ["None", "Candle"], "effect": "None"}},
     "sensor.pond_water_temp": {"state": "61.4", "attributes": {"friendly_name": "Pond Water Temp", "unit_of_measurement": "°F"}},
+    "climate.main_floor": {"state": "heat", "attributes": {"friendly_name": "Main Floor", "hvac_modes": ["off", "heat", "cool", "heat_cool"], "current_temperature": 66, "temperature": 68,
+        "hvac_action": "heating", "current_humidity": 41, "min_temp": 50, "max_temp": 90, "target_temp_step": 1}},
     "automation.nightly": {"state": "on", "attributes": {"friendly_name": "Nightly Routine"}},
 }
 def ha_state(eid):
@@ -90,6 +92,7 @@ class H(BaseHTTPRequestHandler):
             STATS["ha_denied"] += 1; return self.send_json(401, {"message": "Unauthorized"})
         api = path[3:]
         if method == "GET" and api == "/api/": return self.send_json(200, {"message": "API running."})
+        if method == "GET" and api == "/api/config": return self.send_json(200, {"unit_system": {"temperature": "°F"}, "location_name": "Home"})
         if method == "GET" and api == "/api/states": return self.send_json(200, [ha_state(e) for e in HA])
         if method == "GET" and api.startswith("/api/states/"):
             eid = api[len("/api/states/"):]
@@ -100,6 +103,15 @@ class H(BaseHTTPRequestHandler):
             eid = body.get("entity_id")
             if eid not in HA or eid.split(".")[0] != m.group(1): return self.send_json(400, {"message": "bad entity"})
             HA[eid]["state"] = "off" if HA[eid]["state"] == "on" else "on"; STATS["toggles"] += 1
+            return self.send_json(200, [ha_state(eid)])
+        m = re.match(r"^/api/services/climate/(set_temperature|set_hvac_mode)$", api)
+        if method == "POST" and m:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            eid = body.get("entity_id")
+            if eid not in HA or not eid.startswith("climate."): return self.send_json(400, {"message": "bad entity"})
+            STATS["calls"].append({"svc": "climate." + m.group(1), **body})
+            if m.group(1) == "set_temperature": HA[eid]["attributes"]["temperature"] = body["temperature"]
+            else: HA[eid]["state"] = body["hvac_mode"]
             return self.send_json(200, [ha_state(eid)])
         m = re.match(r"^/api/services/([a-z_]+)/(turn_on|turn_off)$", api)
         if method == "POST" and m:
@@ -130,6 +142,7 @@ class H(BaseHTTPRequestHandler):
         if path == "/__hareset":   # tests start from a known Home Assistant
             HA["switch.pond_lights_outlet"]["state"] = "off"; HA["light.barn_porch"]["state"] = "on"; HA["light.barn_porch"]["attributes"]["brightness"] = 128
             sk = HA["light.skylight_2"]; sk["state"] = "on"; sk["attributes"].update({"color_mode": "hs", "brightness": 178, "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "color_temp_kelvin": None, "effect": "None"})
+            HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
             STATS["calls"] = []; return self.send_json(200, {})
         if path == "/__stats":
             body = json.dumps(STATS).encode(); self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body); return
