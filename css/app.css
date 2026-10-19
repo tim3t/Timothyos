@@ -1740,7 +1740,9 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .tr-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 7%; background: var(--s); }
 .tr-card .num { font-family: var(--display); font-weight: 600; font-size: 14cqw; letter-spacing: .1em; color: var(--s); padding-top: 8%; }
 .tr-card .art { display: grid; place-items: center; min-height: 0; }
-.tr-card .art svg { width: 62%; height: auto; color: var(--s); }
+.tr-card .art svg { width: 62%; height: auto; max-height: 100%; color: var(--s); overflow: visible; }
+.tr-card .art svg.pips { width: 70%; }
+.tr-card .art svg.court { width: 60%; }
 .tr-card .nm { font-family: var(--display); font-size: 10cqw; letter-spacing: .08em; text-transform: uppercase; line-height: 1.1; }
 .tr-card.rev .art, .tr-card.rev .num { transform: rotate(180deg); }
 .tr-card .rv { position: absolute; top: 9%; right: 6%; font-family: var(--display); font-size: 9cqw; letter-spacing: .1em; background: var(--s); color: var(--ink); border-radius: 6px; padding: 0 5px; }

@@ -50,9 +50,17 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   assert.strictEqual(await p.locator('.tr-slot').count(), 10);
   await p.fill('#trQ', 'Sample question for the season');
   await p.click('[data-trslot="0"]', { position: { x: 20, y: 12 } }); await p.waitForSelector('.tr-pick');
+  // card faces (2.27): every Major Arcana card its own mark
+  const majors = await p.$$eval('.tr-pick .tr-card .art', n => n.map(x => x.innerHTML));
+  assert.strictEqual(majors.length, 22); assert.strictEqual(new Set(majors).size, 22, 'no two Major Arcana marks alike');
   await p.click('[data-trpick="M3"]'); await p.waitForTimeout(500);
   assert.ok((await txt(p, '#detailSheet .sbar')).startsWith('2 · CHALLENGE'), 'next position offered');
-  await p.click('[data-trtab="swords"]'); await p.check('#trRev');
+  await p.click('[data-trtab="swords"]');
+  // Minor Arcana: pips for Two to Ten, one mark for the Ace, a sign above the mark for courts
+  const pips = await p.$$eval('.tr-pick .tr-card .art', n => n.map(x => [x.querySelectorAll('.pip').length, !!x.querySelector('svg.court')]));
+  assert.deepStrictEqual(pips.map(x => x[0]), [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0, 0, 0]);
+  assert.deepStrictEqual(pips.slice(10).map(x => x[1]), [true, true, true, true]);
+  await p.check('#trRev');
   await p.click('[data-trpick="S5"]'); await p.waitForTimeout(500);
   await p.click('#detailClose'); await p.waitForTimeout(300);
   assert.ok(await p.isDisabled('[data-tract="save"]'), 'not until every position has a card');

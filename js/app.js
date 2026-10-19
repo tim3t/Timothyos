@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.26.1";
+  var VERSION = "2.27.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6515,13 +6515,59 @@
   var TR_DECK = TR_MAJ.map(function (_, i) { return "M" + i; });
   "WCSP".split("").forEach(function (s) { for (var r = 1; r <= 14; r++) TR_DECK.push(s + r); });
   var TR_TABS = [["major", "MAJOR"], ["wands", "WANDS"], ["cups", "CUPS"], ["swords", "SWORDS"], ["pent", "PENTACLES"]];
-  var TR_GLYPH = {
-    major: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="6" fill="currentColor"/><g stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 3v8M20 29v8M3 20h8M29 20h8M8 8l5.5 5.5M26.5 26.5L32 32M32 8l-5.5 5.5M13.5 26.5L8 32"/></g></svg>',
-    wands: '<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"><path d="M14 36L27 4"/><path d="M22 15c4-1 7 1 8 4M19 22c-4-1-7 1-8 4"/></g></svg>',
-    cups: '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 6h22c0 10-4 15-11 15S9 16 9 6z" fill="currentColor"/><g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M20 21v10M12 34h16"/></g></svg>',
-    swords: '<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"><path d="M20 3v25M12 27h16M20 28v8"/></g><path d="M20 3l3 5h-6z" fill="currentColor"/></svg>',
-    pent: '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="2.6"/><path d="M20 8l3.4 10.4H34l-8.6 6.3 3.3 10.3L20 28.6 11.3 35l3.3-10.3L6 18.4h10.6z" fill="currentColor"/></svg>'
-  };
+  /* Card faces (2.27): each Major Arcana card has its own mark; Minor Arcana show their count as pips
+     (Two to Ten), one large mark for the Ace, and a small sign above the mark for the courts (Page a star,
+     Knight a chevron, Queen a three-point crown, King a five-point crown). All drawn here, nothing stored. */
+  var TR_F = 'fill="currentColor" stroke="none"', TR_INF = '<path d="M20 10c-3-4-10-4-10 0s7 4 10 0 10-4 10 0-7 4-10 0z"/>';
+  var TR_MAJOR_ART = [
+    /* 0 The Fool: the flower in his hand */ '<circle cx="20" cy="7.5" r="3.8" ' + TR_F + '/><circle cx="25.2" cy="11.3" r="3.8" ' + TR_F + '/><circle cx="23.2" cy="17.4" r="3.8" ' + TR_F + '/><circle cx="16.8" cy="17.4" r="3.8" ' + TR_F + '/><circle cx="14.8" cy="11.3" r="3.8" ' + TR_F + '/><circle cx="20" cy="13" r="2.4" stroke="none" style="fill:var(--tr-face)"/><path d="M20 21v15"/><path d="M20 30c-5 0-8-3-8-6 5 0 8 3 8 6z" ' + TR_F + "/>",
+    /* I The Magician */ TR_INF + '<path d="M20 18v18"/><path d="M16 22h8M16 33h8"/>',
+    /* II The High Priestess */ '<path d="M8 6v29M32 6v29M5 6h6M29 6h6M5 35h6M29 35h6"/><path d="M24 13a8 8 0 1 0 0 14a6 6 0 1 1 0-14z" ' + TR_F + "/>",
+    /* III The Empress */ '<circle cx="20" cy="14" r="8"/><path d="M20 22v14M13 30h14"/>',
+    /* IV The Emperor */ '<path d="M7 29V14l7 6 6-10 6 10 7-6v15z"/><path d="M7 34h26"/>',
+    /* V The Hierophant */ '<circle cx="10" cy="30" r="4"/><path d="M13 27L31 9M27 13l3 3M24 16l3 3"/><circle cx="30" cy="30" r="4"/><path d="M27 27L9 9M13 13l-3 3M16 16l-3 3"/>',
+    /* VI The Lovers */ '<circle cx="15" cy="24" r="8"/><circle cx="25" cy="24" r="8"/><path d="M20 4l1.6 3.4 3.4 1.6-3.4 1.6L20 14l-1.6-3.4L15 9l3.4-1.6z" ' + TR_F + "/>",
+    /* VII The Chariot */ '<path d="M6 12h28"/><path d="M10 12v4M30 12v4"/><path d="M9 17h22v8H9z"/><circle cx="13" cy="31" r="4"/><circle cx="27" cy="31" r="4"/>',
+    /* VIII Strength */ TR_INF + '<path d="M20 36c-7-5-11-9-11-13a5 5 0 0 1 11-2 5 5 0 0 1 11 2c0 4-4 8-11 13z"/>',
+    /* IX The Hermit */ '<path d="M20 3v4M15 7h10l2 4H13z"/><path d="M13 11h14v18H13z"/><path d="M20 15l1.3 3h3l-2.4 2 1 3-2.9-1.8-2.9 1.8 1-3-2.4-2h3z" ' + TR_F + '/><path d="M15 29l-1 4h12l-1-4"/>',
+    /* X Wheel of Fortune */ '<circle cx="20" cy="20" r="15"/><circle cx="20" cy="20" r="4"/><path d="M20 5v11M20 24v11M5 20h11M24 20h11M9.4 9.4l7.8 7.8M22.8 22.8l7.8 7.8M30.6 9.4l-7.8 7.8M17.2 22.8l-7.8 7.8"/>',
+    /* XI Justice */ '<path d="M20 5v29M13 35h14M8 10h24"/><path d="M8 10l-5 11h10zM32 10l-5 11h10z"/><path d="M3 21a5 3 0 0 0 10 0M27 21a5 3 0 0 0 10 0"/>',
+    /* XII The Hanged Man */ '<path d="M7 5h26M20 5v6"/><path d="M20 11v13"/><path d="M20 15l6 4-6 3"/><path d="M14 19l6 3 6-3"/><circle cx="20" cy="29" r="4"/>',
+    /* XIII Death */ '<path d="M11 36L27 5"/><path d="M27 5c-9-3-18 2-21 11 7-6 14-7 21-5"/>',
+    /* XIV Temperance */ '<path d="M5 9h10l-2 8H7z"/><path d="M25 25h10l-2 8h-6z"/><path d="M13 13c6 0 13 4 15 12" stroke-dasharray="2 3"/>',
+    /* XV The Devil */ '<rect x="4" y="15" width="14" height="9" rx="4.5" transform="rotate(-30 11 19.5)"/><rect x="13" y="16" width="14" height="9" rx="4.5" transform="rotate(30 20 20.5)"/><rect x="22" y="15" width="14" height="9" rx="4.5" transform="rotate(-30 29 19.5)"/>',
+    /* XVI The Tower */ '<path d="M12 36V14h16v22"/><path d="M11 14V9h4v3h3V9h4v3h3V9h4v5"/><path d="M18 36v-6h4v6"/><path d="M33 2l-6 9h5l-6 9" stroke-width="2"/>',
+    /* XVII The Star */ '<path d="M20 6l3 9 9-3-6 8 6 8-9-3-3 9-3-9-9 3 6-8-6-8 9 3z" ' + TR_F + '/><circle cx="6" cy="6" r="1.6" ' + TR_F + '/><circle cx="34" cy="6" r="1.6" ' + TR_F + '/><circle cx="34" cy="35" r="1.6" ' + TR_F + '/><circle cx="6" cy="35" r="1.6" ' + TR_F + "/>",
+    /* XVIII The Moon */ '<path d="M24 5a13 13 0 1 0 0 24a10 10 0 1 1 0-24z" ' + TR_F + '/><path d="M13 33v2M20 33v4M27 33v2"/>',
+    /* XIX The Sun */ '<circle cx="20" cy="20" r="6" ' + TR_F + '/><path d="M20 3v8M20 29v8M3 20h8M29 20h8M8 8l5.5 5.5M26.5 26.5L32 32M32 8l-5.5 5.5M13.5 26.5L8 32"/>',
+    /* XX Judgement */ '<path d="M6 30l20-20"/><path d="M24 6l10 10-4 2-8-8z"/><path d="M10 26l4 4"/><path d="M13 23l5 2-2 5"/>',
+    /* XXI The World */ '<path d="M18 35C10 33 6 27 6 20S9 8 14 4M22 35c8-2 12-8 12-15S31 8 26 4"/><path d="M7 27l-4 1M6 20l-4-1M8 13l-3-3M11 8l-1-4M33 27l4 1M34 20l4-1M32 13l3-3M29 8l1-4"/><path d="M15 38l5-4 5 4"/>'
+  ];
+  /* The suit marks, 40 x 40, with the line width as a parameter so pips stay crisp when drawn small. */
+  function trSuitArt(s, sw) {
+    var g = function (inner) { return '<g stroke="currentColor" stroke-width="' + sw + '" stroke-linecap="round" fill="none">' + inner + "</g>"; };
+    if (s === "wands") return g('<path d="M14 36L27 4"/><path d="M22 15c4-1 7 1 8 4M19 22c-4-1-7 1-8 4"/>');
+    if (s === "cups") return '<path d="M9 6h22c0 10-4 15-11 15S9 16 9 6z" fill="currentColor"/>' + g('<path d="M20 21v10M12 34h16"/>');
+    if (s === "swords") return g('<path d="M20 3v25M12 27h16M20 28v8"/>') + '<path d="M20 3l3 5h-6z" fill="currentColor"/>';
+    return '<circle cx="20" cy="20" r="15" fill="none" stroke="currentColor" stroke-width="' + sw * 0.87 + '"/><path d="M20 8l3.4 10.4H34l-8.6 6.3 3.3 10.3L20 28.6 11.3 35l3.3-10.3L6 18.4h10.6z" fill="currentColor"/>';
+  }
+  /* pip centres in a 40 x 60 box, playing-card style */
+  var TR_PIPS = { 2: [[20, 12], [20, 48]], 3: [[20, 10], [20, 30], [20, 50]], 4: [[11, 12], [29, 12], [11, 48], [29, 48]], 5: [[11, 12], [29, 12], [20, 30], [11, 48], [29, 48]],
+    6: [[11, 12], [29, 12], [11, 30], [29, 30], [11, 48], [29, 48]], 7: [[11, 12], [29, 12], [20, 21], [11, 30], [29, 30], [11, 48], [29, 48]],
+    8: [[11, 10], [29, 10], [20, 20], [11, 30], [29, 30], [20, 40], [11, 50], [29, 50]], 9: [[11, 9], [29, 9], [11, 23], [29, 23], [20, 30], [11, 37], [29, 37], [11, 51], [29, 51]],
+    10: [[11, 8], [29, 8], [20, 15], [11, 23], [29, 23], [11, 37], [29, 37], [20, 45], [11, 52], [29, 52]] };
+  var TR_COURT = { 11: '<path d="M20 2l1.5 3 3.3.5-2.4 2.3.6 3.2-3-1.6-3 1.6.6-3.2-2.4-2.3 3.3-.5z" fill="currentColor"/>', 12: '<path d="M13 9l7-6 7 6" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>',
+    13: '<path d="M12 11V4l4 4 4-5 4 5 4-4v7z" fill="currentColor"/>', 14: '<path d="M10 11V3l3 4 3-5 4 4 4-4 3 5 3-4v8z" fill="currentColor"/>' };
+  function trArt(id) {
+    var s = trSuit(id), n = +id.slice(1);
+    if (id[0] === "M") return '<svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none">' + TR_MAJOR_ART[n] + "</g></svg>";
+    if (n === 1) return '<svg viewBox="0 0 40 40" aria-hidden="true">' + trSuitArt(s, 3) + "</svg>";
+    if (n <= 10) {
+      var k = n >= 9 ? 0.26 : 0.3;
+      return '<svg class="pips" viewBox="0 0 40 60" aria-hidden="true">' + TR_PIPS[n].map(function (p) { return '<g class="pip" transform="translate(' + p[0] + " " + p[1] + ") scale(" + k + ') translate(-20 -20)">' + trSuitArt(s, 5.5) + "</g>"; }).join("") + "</svg>";
+    }
+    return '<svg class="court" viewBox="0 0 40 46" aria-hidden="true">' + TR_COURT[n] + '<g transform="translate(0 10)">' + trSuitArt(s, 3) + "</g></svg>";
+  }
   /* Spreads: x, y in card units; c = crossing. */
   var TR_SPREADS = [
     { id: "one", nm: "ONE CARD", why: "A single pull", pos: [{ l: "THE CARD", x: 0, y: 0 }] },
@@ -6541,7 +6587,7 @@
   function trKw(id, rev) { if (id[0] === "M") return TR_MAJ_KW[+id.slice(1)][rev ? 1 : 0]; var k = TR_RANK_KW[+id.slice(1) - 1] + " · " + TR_SUITS[id[0]].theme; return rev ? "blocked or inward: " + k : k; }
   function trCard(id, rev, extra) {
     var s = trSuit(id);
-    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + TR_GLYPH[s] + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="rv">R</span>' : "") + "</span>";
+    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + trArt(id) + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="rv">R</span>' : "") + "</span>";
   }
   function trErrText(err) {
     var code = err && (err.code || err.message);

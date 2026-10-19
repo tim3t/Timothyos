@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.27.0 · 2026-10-19
+- **Tarot card faces.** Every Major Arcana card now has its own mark instead of a shared sun: a flower for the Fool, infinity over a wand for the Magician, the crescent between pillars for the High Priestess, the Venus sign, a crown, crossed keys, linked rings, the chariot, infinity over a heart, the lantern, the wheel, scales, the hanged man, the scythe, water poured between cups, chains, the struck tower, the star, the crescent moon, the sun, the trumpet and the laurel wreath.
+- **Minor Arcana show their count.** Two to Ten carry that many suit marks, laid out like playing-card pips; the Ace is one large mark; the courts carry a sign above the mark (Page a star, Knight a chevron, Queen a three-point crown, King a five-point crown). Everywhere cards appear: TAROT, the Bridge, Review and card history.
+
 ## 2.26.1 · 2026-10-19
 - **Text boxes grow with their text, everywhere.** Tarot notes and readings, Review answers, Library notes, the Systems lists, Engineering and the rest now size themselves to what's written as you type (and shrink back), so nothing hides behind a scroll. The Ask box grows up to 40% of the screen, then scrolls inside. The Captain's Log editor keeps its own sizing.
 
