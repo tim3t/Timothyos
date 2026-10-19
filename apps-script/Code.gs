@@ -68,17 +68,20 @@ var CONFIG = {
   NOTION_HABITS_DATABASE: '441619b34ada41d49e05bed92372589b',
 
   // Your Notion Library (one page per book).
-  NOTION_LIBRARY_DATABASE: '47fdad1d1217402fa84731a8aa146cba'
+  NOTION_LIBRARY_DATABASE: '47fdad1d1217402fa84731a8aa146cba',
+
+  // Your Notion Tarot (readings, card meanings, spreads).
+  NOTION_TAROT_DATABASE: '414eee50818e4ffd948e38f3923c0faf'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.23.0';
+var VERSION = '1.24.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -114,7 +117,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -127,6 +130,7 @@ function read_(p) {
   if (p.action === 'ledger') return ledger_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'habits') return habits_(p.from, p.to);
   if (p.action === 'library') return library_();
+  if (p.action === 'tarot') return tarot_(p.from, p.to);
   return null;
 }
 function readError_(err) {
@@ -171,6 +175,10 @@ function doPost(e) {
     if (body.action === 'habitset') return json_(habitSet_(body.day));
     if (body.action === 'booksave') return json_(bookSave_(body.book));
     if (body.action === 'bookremove') return json_(bookRemove_(body.id));
+    if (body.action === 'tarotsave') return json_(tarotSave_(body.reading));
+    if (body.action === 'tarotmeaning') return json_(tarotMeaning_(body.card, body.text));
+    if (body.action === 'tarotspread') return json_(tarotSpread_(body.spread));
+    if (body.action === 'tarotremove') return json_(tarotRemove_(body.id));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
@@ -219,6 +227,7 @@ function setup() {
   console.log("Captain's Log search: " + logSearchSetup_());
   console.log('Notion habits: ' + habitsStatus_());
   console.log('Notion library: ' + libraryStatus_());
+  console.log('Notion tarot: ' + tarotStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK (questions ' + aiFast_() + ', THINK HARDER ' + AI.DEEP + '). This month $' + ai.usd.toFixed(2) + ', reminder at $' + ai.budget.toFixed(2) + (ai.cont ? ' (continued)' : '') + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -1722,6 +1731,163 @@ function bookRemove_(id) {
 function libraryStatus_() {
   try { var n = library_().books.length; return 'OK (' + n + (n === 1 ? ' book)' : ' books)'); }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Library (... > Connections)' : ''); }
+}
+
+// ---- Tarot ---------------------------------------------------------------------
+// One database, three kinds of page: Reading (one per reading; Weekly marks the card for the week),
+// Meaning (your own words for a card, one per card) and Spread (a layout you made). The app's own
+// record of positions, cards and notes is in Data; Cards and Interpretation are there to read in Notion.
+var TAROT_MAJOR = ['The Fool', 'The Magician', 'The High Priestess', 'The Empress', 'The Emperor', 'The Hierophant', 'The Lovers', 'The Chariot', 'Strength', 'The Hermit', 'Wheel of Fortune', 'Justice', 'The Hanged Man', 'Death', 'Temperance', 'The Devil', 'The Tower', 'The Star', 'The Moon', 'The Sun', 'Judgement', 'The World'];
+var TAROT_RANKS = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Page', 'Knight', 'Queen', 'King'];
+var TAROT_SUITS = { W: 'Wands', C: 'Cups', S: 'Swords', P: 'Pentacles' };
+var TAROT_CARD = /^(M([0-9]|1[0-9]|2[01])|[WCSP]([1-9]|1[0-4]))$/;
+function tarotSource_() { return sourceFor_(CONFIG.NOTION_TAROT_DATABASE, 'NOTION_TAROT_SOURCE'); }
+function tarotName_(c) { return c.charAt(0) === 'M' ? TAROT_MAJOR[Number(c.slice(1))] : TAROT_RANKS[Number(c.slice(1)) - 1] + ' of ' + TAROT_SUITS[c.charAt(0)]; }
+function tarotGen_() { return CacheService.getScriptCache().get('tgen') || '0'; }
+function tarotBump_() { CacheService.getScriptCache().put('tgen', Utilities.getUuid().slice(0, 8), 21600); }
+/** Rich text for longer stored values: up to 40 pieces of 2,000 characters. */
+function rtLong_(text) {
+  var out = [];
+  for (var i = 0; i < text.length && out.length < 40; i += 2000) out.push({ text: { content: text.slice(i, i + 2000) } });
+  return out;
+}
+function tarotData_(p) { try { return JSON.parse(plain_(p.Data && p.Data.rich_text) || '{}') || {}; } catch (e) { return {}; } }
+function toTarot_(pg) {
+  var p = pg.properties || {}, kind = sel_(p.Kind) || 'Reading', d = tarotData_(p);
+  var base = { id: pg.id, url: pg.url, kind: kind.toLowerCase(), title: plain_(p.Title && p.Title.title), day: day_(p.Date), created: pg.created_time || '' };
+  if (kind === 'Meaning') { base.card = plain_(p.Card && p.Card.rich_text); base.text = plain_(p.Interpretation && p.Interpretation.rich_text); return base; }
+  base.pos = Array.isArray(d.pos) ? d.pos : [];
+  if (kind === 'Spread') return base;
+  base.spread = d.spread || ''; base.sname = plain_(p.Spread && p.Spread.rich_text); base.q = typeof d.q === 'string' ? d.q : base.title;
+  base.cards = Array.isArray(d.cards) ? d.cards : []; base.notes = Array.isArray(d.notes) ? d.notes : [];
+  base.sum = plain_(p.Interpretation && p.Interpretation.rich_text); base.weekly = !!(p.Weekly && p.Weekly.checkbox);
+  return base;
+}
+/** Readings dated from..to (at most 400 days), plus every Meaning and Spread. */
+function tarot_(from, to) {
+  from = String(from || ''); to = String(to || '');
+  if (!realDay_(from) || !realDay_(to) || from > to) return { ok: false, error: 'bad_range' };
+  if ((new Date(to + 'T12:00:00Z') - new Date(from + 'T12:00:00Z')) / 864e5 > 400) return { ok: false, error: 'range_too_long' };
+  var cache = CacheService.getScriptCache(), key = 'tarot:' + tarotGen_() + ':' + from + ':' + to, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var ds = tarotSource_();
+  var readings = queryAll_(ds, { and: [{ property: 'Kind', select: { equals: 'Reading' } }, { property: 'Date', date: { on_or_after: from } }, { property: 'Date', date: { on_or_before: to } }] }, 10,
+    [{ property: 'Date', direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }]).map(toTarot_);
+  var other = queryAll_(ds, { or: [{ property: 'Kind', select: { equals: 'Meaning' } }, { property: 'Kind', select: { equals: 'Spread' } }] }, 5).map(toTarot_);
+  var out = { ok: true, version: VERSION, readings: readings, meanings: other.filter(function (x) { return x.kind === 'meaning' && x.card; }), spreads: other.filter(function (x) { return x.kind === 'spread'; }) };
+  try { cache.put(key, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function tarotPos_(pos, n) {
+  if (!Array.isArray(pos) || pos.length !== n) return null;
+  var ok = true, out = pos.map(function (q) {
+    q = q || {};
+    var l = String(q.l || '').trim(), x = Number(q.x), y = Number(q.y);
+    if (!l || l.length > 40 || !(x >= 0 && x <= 12) || !(y >= 0 && y <= 12)) ok = false;
+    return { l: l, x: x, y: y, c: q.c ? 1 : 0 };
+  });
+  return ok ? out : null;
+}
+function tarotOwn_(id, ds) {
+  var cur = notion_('get', '/pages/' + String(id || ''));
+  return cur.parent && String(cur.parent.data_source_id || '').replace(/-/g, '') === ds.replace(/-/g, '') ? cur : null;
+}
+/** Save a reading: new (cid) or changed (id). The whole reading is sent each time. */
+function tarotSave_(r) {
+  r = r || {};
+  var cards = Array.isArray(r.cards) ? r.cards : [], seen = {}, bad = !cards.length || cards.length > 20;
+  cards = cards.map(function (c) { c = c || {}; var id = String(c.id || ''); if (!TAROT_CARD.test(id) || seen[id]) bad = true; seen[id] = 1; return { id: id, rev: !!c.rev }; });
+  var pos = tarotPos_(r.pos, cards.length), notes = Array.isArray(r.notes) ? r.notes.slice(0, cards.length).map(function (x) { return String(x || '').slice(0, 2000); }) : [];
+  var q = String(r.q || '').trim(), sum = String(r.sum || '').trim(), sname = String(r.sname || '').trim(), spread = String(r.spread || '');
+  if (bad || !pos || !realDay_(String(r.day || '')) || q.length > 200 || sum.length > 6000 || sname.length > 60 || !/^[\w-]{1,40}$/.test(spread)) return { ok: false, error: 'bad_request' };
+  if (r.weekly && cards.length !== 1) return { ok: false, error: 'bad_request' };
+  var readable = cards.map(function (c, i) { return (i + 1) + ' ' + pos[i].l + ': ' + tarotName_(c.id) + (c.rev ? ' (reversed)' : ''); }).join('; ');
+  var props = {
+    Title: { title: rt_(q || (r.weekly ? 'Card for the week: ' + tarotName_(cards[0].id) : 'Open reading')) },
+    Date: { date: { start: String(r.day) } }, Kind: { select: { name: 'Reading' } }, Weekly: { checkbox: !!r.weekly },
+    Spread: { rich_text: sname ? rt_(sname) : [] }, Cards: { rich_text: rt_(readable) }, Interpretation: { rich_text: sum ? rt_(sum) : [] },
+    Data: { rich_text: rtLong_(JSON.stringify({ spread: spread, q: q, pos: pos, cards: cards, notes: notes })) }
+  };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = tarotSource_(), cache = CacheService.getScriptCache(), pg;
+    if (r.id) {
+      if (!tarotOwn_(r.id, ds)) return { ok: false, error: 'not_writable' };
+      pg = notion_('patch', '/pages/' + String(r.id), { properties: props });
+    } else {
+      if (!/^[A-Za-z0-9-]{8,64}$/.test(String(r.cid || ''))) return { ok: false, error: 'bad_request' };
+      var prior = cache.get('tcid:' + r.cid);
+      if (prior) { var p0 = JSON.parse(prior); p0.duplicate = true; return p0; }
+      pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    }
+    if (r.weekly) {   /* one card for the week: any other in the same Monday-to-Sunday week is unmarked */
+      var d0 = new Date(String(r.day) + 'T12:00:00Z'), mon = new Date(d0.getTime() - ((d0.getUTCDay() + 6) % 7) * 864e5), sun = new Date(mon.getTime() + 6 * 864e5);
+      queryAll_(ds, { and: [{ property: 'Weekly', checkbox: { equals: true } }, { property: 'Date', date: { on_or_after: mon.toISOString().slice(0, 10) } }, { property: 'Date', date: { on_or_before: sun.toISOString().slice(0, 10) } }] }, 1)
+        .forEach(function (o) { if (o.id.replace(/-/g, '') !== pg.id.replace(/-/g, '')) notion_('patch', '/pages/' + o.id, { properties: { Weekly: { checkbox: false } } }); });
+    }
+    tarotBump_();
+    var out = { ok: true, version: VERSION, reading: toTarot_(pg) };
+    if (!r.id) cache.put('tcid:' + r.cid, JSON.stringify(out), 21600);
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** Your own meaning for a card: one page per card; empty text puts it in Notion's trash. */
+function tarotMeaning_(card, text) {
+  card = String(card || ''); text = String(text || '').trim();
+  if (!TAROT_CARD.test(card) || text.length > 2000) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = tarotSource_(), have = queryAll_(ds, { and: [{ property: 'Kind', select: { equals: 'Meaning' } }, { property: 'Card', rich_text: { equals: card } }] }, 1), pg = null;
+    if (!text) { have.forEach(function (o) { notion_('patch', '/pages/' + o.id, { in_trash: true }); }); }
+    else {
+      var props = { Title: { title: rt_(tarotName_(card)) }, Kind: { select: { name: 'Meaning' } }, Card: { rich_text: rt_(card) }, Interpretation: { rich_text: rt_(text) } };
+      pg = have.length ? notion_('patch', '/pages/' + have[0].id, { properties: props }) : notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    }
+    tarotBump_();
+    return { ok: true, version: VERSION, meaning: pg ? toTarot_(pg) : null, card: card };
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** A spread you made: name and positions (label, place on the grid, crossing). */
+function tarotSpread_(s) {
+  s = s || {};
+  var nm = String(s.nm || '').trim().toUpperCase(), n = Array.isArray(s.pos) ? s.pos.length : 0, pos = tarotPos_(s.pos, n);
+  if (!nm || nm.length > 40 || !n || n > 20 || !pos) return { ok: false, error: 'bad_request' };
+  var props = { Title: { title: rt_(nm) }, Kind: { select: { name: 'Spread' } }, Spread: { rich_text: rt_(nm) }, Cards: { rich_text: rt_(pos.map(function (q, i) { return (i + 1) + ' ' + q.l; }).join('; ')) }, Data: { rich_text: rtLong_(JSON.stringify({ pos: pos })) } };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = tarotSource_(), pg;
+    if (s.id) { if (!tarotOwn_(s.id, ds)) return { ok: false, error: 'not_writable' }; pg = notion_('patch', '/pages/' + String(s.id), { properties: props }); }
+    else pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    tarotBump_();
+    return { ok: true, version: VERSION, spread: toTarot_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** A reading or spread to Notion's trash (restorable there). */
+function tarotRemove_(id) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = tarotSource_(), cur = tarotOwn_(id, ds);
+    if (!cur) return { ok: false, error: 'not_writable' };
+    notion_('patch', '/pages/' + cur.id, { in_trash: true });
+    tarotBump_();
+    return { ok: true, version: VERSION, removed: cur.id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function tarotStatus_() {
+  try { var t = new Date(), f = new Date(t.getTime() - 90 * 864e5), n = tarot_(f.toISOString().slice(0, 10), t.toISOString().slice(0, 10)).readings.length; return 'OK (' + n + (n === 1 ? ' reading' : ' readings') + ' in 90 days)'; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Tarot (... > Connections)' : ''); }
 }
 
 // ---- Ask Claude ---------------------------------------------------------------

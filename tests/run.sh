@@ -29,6 +29,7 @@ run bridge_ask.test.js
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
+run bridge_tarot.test.js
 run bridge_logsearch.test.js
 run bridge_logask.test.js
 [ "${1:-}" = "bridge" ] && exit $fail
@@ -51,6 +52,7 @@ python3 mock_v20.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.10: + Captain's Lo
 python3 mock_v21.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.14: + Habits, Library  :8102
 python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search      :8103
 python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.23: + Growth, holidays :8104
+python3 mock_v24.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.24: + Tarot             :8105
 python3 mock_relay.py >/dev/null 2>&1 & pids+=($!)   # Storage relay (NAS)           :8110
 sleep 1.5
 
@@ -84,6 +86,7 @@ run app_e2e34.test.js     # GROWTH: renamed area, Growth calendar linked: Today,
 run app_e2e35.test.js     # HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 run app_e2e36.test.js     # BREAKS: lunch shown despite ignored Out of office, never counted as work
 run app_e2e37.test.js     # ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
+run app_e2e38.test.js     # TAROT: Bridge card, readings, Celtic Cross, meanings, spreads, Review, Ask option
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

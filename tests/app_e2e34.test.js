@@ -50,7 +50,9 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 
   // --- Review shows Growth hours
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
-  await p.click('.rl-card.cur'); await p.waitForTimeout(1500);   /* this week: a "due" card only exists early in the week */
+  /* this week's card, by its date: it is "cur" most of the week but "due" from Sunday 14:00 (2.26: failed on Sunday evenings) */
+  const mon34 = await p.evaluate(() => { const d = new Date(); d.setHours(12); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
+  await p.click('.rl-card[data-rweek="' + mon34 + '"]'); await p.waitForTimeout(1500);
   const rows = (await p.locator('.rv-row').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
   console.log('review rows:', rows.join(' | '));
   assert.ok(rows.some(r => r.startsWith('GROWTH')), 'Growth hours in the review');

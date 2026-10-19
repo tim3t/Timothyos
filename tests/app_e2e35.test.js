@@ -27,7 +27,8 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   const evs = await p.$$eval('.ev', n => n.map(x => ({ past: x.classList.contains('past'), tm: (x.querySelector('.tm') || {}).textContent || '' })));
   for (const e of evs) {
     const m = e.tm.match(/(\d\d):(\d\d)\s*$|-(\d\d):(\d\d)/); if (!m) continue;
-    const end = m[3] ? +m[3] * 60 + +m[4] : +m[1] * 60 + +m[2];
+    let end = m[3] ? +m[3] * 60 + +m[4] : +m[1] * 60 + +m[2];
+    if (end === 0) end = 24 * 60;   /* ends at midnight tonight (2.26: the weekend away block read as already over) */
     if (Math.abs(end - nowMin) > 1) assert.strictEqual(e.past, end < nowMin, 'past matches its end time: ' + JSON.stringify(e));
   }
   console.log('today blocks:', evs.map(e => (e.past ? '✓' : '·') + e.tm).join(' '));

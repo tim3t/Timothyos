@@ -349,6 +349,25 @@ Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **�
 - Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
 - Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
 
+## Tarot (app 2.26, bridge 1.24)
+
+TAROT (under REFLECT in ALL STATIONS) records the cards you draw from your own deck: this week's card and any reading through the week, in any spread. Everything is saved to the **🔮 Tarot** database in Notion (beside Habits and Library), one page per reading, with the cards written out so they read well in Notion too.
+
+1. **Connect the database:** in Notion open **🔮 Tarot → ••• → Connections → add TimothyOS bridge**.
+2. **Update the bridge to 1.24:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion tarot: OK (0 readings in 90 days)`.
+3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
+
+**Using it:**
+- **This week's card:** **RECORD THIS WEEK'S CARD** (or the Bridge's TAROT panel), tap the position, pick the card, mark it **REVERSED** if it came out that way. Weeks run Monday to Sunday. It shows on the Bridge and in that week's Review.
+- **A reading:** **+ NEW READING**, pick a spread (one card up to the Celtic Cross, **FREE** for any number, or one of yours), an optional question, then tap each position and pick the card you drew. **DRAW HERE** shuffles on the iPad for days without your deck.
+- **Your reading:** a note per position and **WHAT IT SAYS** for the whole; saved a moment after you stop typing.
+- **A card's history:** tap any card for every reading it came up in, and **MY MEANING**, your own words for it, shown wherever it turns up.
+- **MY SPREADS:** place positions on a grid, name them, mark one as crossing.
+- **Patterns:** suits, reversals and repeat cards over 90 days; your weekly cards over 8 weeks.
+- **Ask:** **Systems → TAROT → SHARE WITH ASK** sends this week's card, the last 14 days of readings and your meanings for those cards with each question. Off by default; switching it off applies to the very next question.
+
+Deleting a reading or spread puts it in Notion's trash, where it can be restored.
+
 ## Storage (app 2.16)
 
 STORAGE browses folders on the NAS and plays audio (podcasts) from them. A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
@@ -534,6 +553,7 @@ When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NE
 - **UNLINK** also deletes all cached calendar data from the iPad.
 - **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and never go to the ASK button. With SHARE LOG WITH ASK on, only entries you pick in the open LOG (62 at most per question, with the PIN) go to Claude, for that question. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
 - **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
+- **Tarot:** the bridge reads and writes only the 🔮 Tarot database: readings, card meanings and spreads. Removing one moves it to Notion's trash. Readings go to Ask only with SHARE WITH ASK on.
 - **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are typed into Systems and kept only on the iPad. ENGINEERING shows only the devices you add, but a Home Assistant token can switch any device, so treat it like a key.
 - **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
 

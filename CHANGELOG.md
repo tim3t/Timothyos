@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.26.0 · 2026-10-19 (bridge 1.24)
+- **TAROT, a new station** (REFLECT), saved to a new **🔮 Tarot** database in Notion.
+  - **This week's card** (Monday to Sunday) with its keywords, your own meaning and a note for the week. Also on the **Bridge** (a TAROT panel) and in that week's **Review**.
+  - **Readings in any spread:** one card, Past · Present · Future, Situation · Action · Outcome, Five-card cross, Horseshoe, Celtic Cross (laid out with the crossing card), **FREE** for any number, and **MY SPREADS** you build on a grid. Record the cards you drew position by position (with REVERSED), or **DRAW HERE**.
+  - **Notes** per position and for the whole reading, saved shortly after you stop typing. Changes made offline wait on the iPad and go when the bridge answers.
+  - **Card history** for any card, with **MY MEANING** in your own words. **Patterns** over 90 days: suits, reversals, cards that keep coming back, and the last 8 weekly cards.
+  - **SHARE WITH ASK** in Systems (off by default) sends this week's card and the last 14 days of readings with Ask questions.
+- **Ask: turning a sharing switch off now applies to the very next question.** Ask keeps a short snapshot of your day; changing SHARE WITH ASK (finances or tarot) now rebuilds it instead of waiting for it to expire.
+- **Bridge 1.24:** `tarot`, `tarotsave`, `tarotmeaning`, `tarotspread`, `tarotremove`.
+
 ## 2.25.1 · 2026-10-16
 - **Fixed: Engineering's styles leaking onto other screens.** The list-view switch borrowed a class name already used by the colour swatches, so big toggle shapes sat over LIFE AREAS on Today and the STREAKS names on Habits; the CARDS / LIST control also outlined the Bridge's week bars; and small chips everywhere grew a pixel. Engineering now uses its own names, and a test checks the other screens keep their look.
 
