@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.30.0 · 2026-10-20
+- **STORAGE shows each track's length instead of its size.** Read from a few kilobytes of each file when a folder opens (MP3, including variable bitrate and files with large artwork; M4A/M4B; FLAC; WAV) and remembered on this iPad. Other formats show their length once played; documents keep their size.
+- **HABITS: changing the water goal no longer rewrites the past.** A new goal counts from the day you choose it; every earlier day is judged by the goal it had, in streaks, the 30-day rate, the 12-week grid and the Review. A past day's tile shows its own goal, and the note under the goal chips lists recent changes. Changing back the same day leaves no trace.
+
 ## 2.29.2 · 2026-10-20
 - **Fixed: giant letters in empty spread positions.** The position names (PAST, PRESENT, CHALLENGE…) on cards not yet picked were sized against the whole screen instead of the card, so they overflowed and the Celtic Cross was unreadable. They're now sized to the card, sit at its foot where a filled card shows its name (clear of the number and of the crossing card), and the crossing card's label reads level across it.
 

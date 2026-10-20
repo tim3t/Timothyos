@@ -43,9 +43,32 @@ def tagged():
     return {**album, "/Podcasts/Show B/ep b1.mp3": (open(mp3, "rb").read(), "2026-09-01T10:00:00Z"),
             "/Music/Album/cover.png": (open(cov, "rb").read(), "2026-07-01T10:00:00Z")}
 FILES.update(tagged())
+def lengths():
+    """2.30 track lengths: one file per way of reading a length, made with ffmpeg (skipped without it). Expected seconds in LENGTHS."""
+    import subprocess, tempfile, os, shutil
+    if not shutil.which("ffmpeg"): return {}
+    d = tempfile.mkdtemp(); q = ["-loglevel", "error", "-y"]; out = {}
+    src = lambda s: ["-f", "lavfi", "-t", str(s), "-i", "sine=frequency=330:sample_rate=22050"]
+    big = os.path.join(d, "big.png")
+    subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-i", "nullsrc=s=600x600,geq=random(1)*255:128:128", "-frames:v", "1", big], check=True)   # noise: a picture too big for the first read
+    jobs = [("vbr.mp3", 75, ["-c:a", "libmp3lame", "-q:a", "9"]),                                    # Xing header (variable bitrate)
+            ("cbr.mp3", 61, ["-c:a", "libmp3lame", "-b:a", "32k", "-write_xing", "0"]),               # no header: bitrate and size
+            ("art.mp3", 42, ["-c:a", "libmp3lame", "-b:a", "32k", "-id3v2_version", "3"]),            # artwork in the tag, frames after it
+            ("end.m4a", 63, ["-c:a", "aac", "-b:a", "32k"]),                                           # moov after the audio
+            ("fast.m4a", 50, ["-c:a", "aac", "-b:a", "32k", "-movflags", "+faststart"]),               # moov first
+            ("song.flac", 33, ["-c:a", "flac"]),
+            ("talk.ogg", 20, ["-c:a", "libvorbis"])]                                                   # not read: shows once played
+    for fname, secs, args in jobs:
+        f = os.path.join(d, fname)
+        extra = ["-i", big, "-map", "0:a", "-map", "1:v", "-c:v", "png", "-metadata:s:v", "comment=Cover (front)"] if fname == "art.mp3" else []
+        try: subprocess.run(["ffmpeg", *q, *src(secs), *extra, *args, f], check=True)
+        except Exception: continue
+        out["/Music/Lengths/" + fname] = (open(f, "rb").read(), "2026-10-01T10:00:00Z")
+    return out
+FILES.update(lengths())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden"}
-STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": []}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths"}
+STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {
     "switch.pond_lights_outlet": {"state": "off", "attributes": {"friendly_name": "Pond Lights Outlet"}},
@@ -164,6 +187,7 @@ class H(BaseHTTPRequestHandler):
                 self.send_response(206); self.cors(); self.send_header("Content-Range", "bytes %d-%d/%d" % (a, b, len(data)))
             else:
                 chunk = data; self.send_response(200); self.cors()
+            STATS["sent"][path] = STATS["sent"].get(path, 0) + len(chunk)
             self.send_header("Accept-Ranges", "bytes"); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(chunk))); self.end_headers(); self.wfile.write(chunk); return
         self.send_response(404); self.cors(); self.send_header("Content-Length", "0"); self.end_headers()
 

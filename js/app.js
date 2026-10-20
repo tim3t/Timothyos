@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.29.2";
+  var VERSION = "2.30.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4830,28 +4830,48 @@
   var WATER_GOALS = [2, 2.5, 3, 3.5, 4];
   var hb = { data: lsGet(LS_HABITS), q: lsGet(LS_HABITQ) || {}, err: null, inflight: false, flushing: false, timer: null, pop: null };
   function canHabits() { return state.caps.indexOf("habits") > -1; }
-  function waterGoal() { var c = lsGet(LS_HABITCFG) || {}; return WATER_GOALS.indexOf(c.goal) > -1 ? c.goal : 3; }
+  /* The water goal keeps its history (2.30): a change starts on the day it's made, and every earlier day is judged
+     by the goal it had then. tos.habitcfg.v1 = { goal, hist: [{ from: yyyy-mm-dd, goal }] }, oldest first; the
+     first entry's from is "" (every day before the first change). waterGoal() is today's, waterGoal(key) that day's. */
+  function hGoals() {
+    var c = lsGet(LS_HABITCFG) || {}, g = WATER_GOALS.indexOf(c.goal) > -1 ? c.goal : 3;
+    var h = (Array.isArray(c.hist) ? c.hist : []).filter(function (x) { return x && typeof x.from === "string" && WATER_GOALS.indexOf(x.goal) > -1; });
+    return h.length ? h : [{ from: "", goal: g }];
+  }
+  function waterGoal(key) {
+    key = key || ymd(new Date());
+    var g = null;
+    hGoals().forEach(function (x) { if (g === null || x.from <= key) g = x.goal; });
+    return g;
+  }
+  function setWaterGoal(goal) {
+    var today = ymd(new Date()), h = hGoals().filter(function (x) { return x.from < today; });
+    if (!h.length) h = [{ from: "", goal: goal }];
+    else if (h[h.length - 1].goal !== goal) h.push({ from: today, goal: goal });
+    lsSet(LS_HABITCFG, { goal: goal, hist: h });
+  }
   function litres(n) { return (n % 1 ? n.toFixed(1) : String(n)) + " L"; }
   function hDay(key) { return hb.q[key] || (hb.data && hb.data.days[key]) || null; }
-  function hWin(id, d) {
+  function hWin(id, d, key) {
     if (!d) return null;
     if (id === "med" || id === "walk") return !!d[id];
-    if (id === "water") return d.water == null ? null : d.water >= waterGoal();
+    if (id === "water") return d.water == null ? null : d.water >= waterGoal(key);
     return d.card == null ? null : d.card === "kept";
   }
   function hStreak(id) {
     var t = sod(new Date()), n = 0;
-    for (var i = hWin(id, hDay(ymd(t))) ? 0 : 1; i < 400 && hWin(id, hDay(ymd(addDays(t, -i)))) === true; i++) n++;
+    var at = function (i) { var k = ymd(addDays(t, -i)); return hWin(id, hDay(k), k); };
+    for (var i = at(0) ? 0 : 1; i < 400 && at(i) === true; i++) n++;
     return n;
   }
   function hBest(id) {
     var t = sod(new Date()), best = 0, run = 0;
-    for (var i = 370; i >= 0; i--) { if (hWin(id, hDay(ymd(addDays(t, -i)))) === true) { run++; best = Math.max(best, run); } else run = 0; }
+    for (var i = 370; i >= 0; i--) { var k = ymd(addDays(t, -i)); if (hWin(id, hDay(k), k) === true) { run++; best = Math.max(best, run); } else run = 0; }
     return best;
   }
   function hRate(id, days) {
     var t = sod(new Date()), w = 0, c = 0;
-    for (var i = 1; i <= days; i++) { var x = hWin(id, hDay(ymd(addDays(t, -i)))); if (x !== null) { c++; if (x) w++; } }
+    for (var i = 1; i <= days; i++) { var k = ymd(addDays(t, -i)), x = hWin(id, hDay(k), k); if (x !== null) { c++; if (x) w++; } }
     return c ? Math.round(w / c * 100) : null;
   }
   function habitsErrText(err) {
@@ -4925,7 +4945,7 @@
     return out;
   }
   function habitTile(h, key, d) {
-    var isToday = key === ymd(new Date()), st = isToday ? hStreak(h.id) : 0, win = hWin(h.id, d);
+    var isToday = key === ymd(new Date()), st = isToday ? hStreak(h.id) : 0, win = hWin(h.id, d, key);
     var cls = "hb-tile" + (win ? " done" : "") + (hb.pop === h.id ? " pop" : ""), foot = '<span class="hb-st">' + (isToday ? (st ? st + "-DAY STREAK" : "START A STREAK") : "") + "</span>";
     var style = ' style="--c: var(--' + h.c + ')"';
     if (h.id === "med" || h.id === "walk") {
@@ -4934,7 +4954,7 @@
         (on ? (h.id === "med" ? "DONE" : "WALKED") : "NOT YET") + "</span>" + foot + "</button>";
     }
     if (h.id === "water") {
-      var w = d && d.water != null ? d.water : 0, goal = waterGoal();
+      var w = d && d.water != null ? d.water : 0, goal = waterGoal(key);
       return '<div class="' + cls + '"' + style + '><span class="hb-nm">WATER</span><span class="hb-big">' + litres(w) + ' <small>OF ' + litres(goal) + ' · 1 L BOTTLES</small></span><div class="hb-bottles">' + bottles(w, goal, true) +
         '</div><div class="hb-seg"><button type="button" class="chip" data-hstep="-0.5" aria-label="Half a bottle less">− ½</button><button type="button" class="chip" data-hstep="0.5">+ ½ BOTTLE</button></div>' + foot + "</div>";
     }
@@ -4944,15 +4964,15 @@
       '<button type="button" class="chip" style="--c: var(--warn)" data-hcard="swiped" aria-pressed="' + (c === "swiped") + '">SWIPED</button></div>' + foot + "</div>";
   }
   function habitGrid(h) {
-    var t = sod(new Date()), dow = (t.getDay() + 6) % 7, start = 77 + dow, cells = "", goal = waterGoal();
+    var t = sod(new Date()), dow = (t.getDay() + 6) % 7, start = 77 + dow, cells = "";
     for (var i = start; i > start - 84; i--) {
       if (i < 0) { cells += '<span class="hb-cell future"></span>'; continue; }
-      var dt = addDays(t, -i), key = ymd(dt), d = hDay(key), x = hWin(h.id, d), cls = "hb-cell", style = "";
+      var dt = addDays(t, -i), key = ymd(dt), d = hDay(key), x = hWin(h.id, d, key), cls = "hb-cell", style = "";
       if (x === null) cls += " none";
-      else if (h.id === "water") style = ' style="background: color-mix(in srgb, var(--work) ' + Math.round(18 + 82 * Math.min(1, d.water / goal)) + '%, var(--panel-2))"';
+      else if (h.id === "water") style = ' style="background: color-mix(in srgb, var(--work) ' + Math.round(18 + 82 * Math.min(1, d.water / waterGoal(key))) + '%, var(--panel-2))"';
       else if (x) cls += " win";
       if (i === 0) cls += " today";
-      var tip = dLabel(dt) + " · " + (x === null ? "not recorded" : h.id === "water" ? litres(d.water) : h.id === "card" ? (x ? "did not swipe" : "swiped") : x ? "done" : "missed");
+      var tip = dLabel(dt) + " · " + (x === null ? "not recorded" : h.id === "water" ? litres(d.water) + " of " + litres(waterGoal(key)) : h.id === "card" ? (x ? "did not swipe" : "swiped") : x ? "done" : "missed");
       cells += '<button type="button" class="' + cls + '"' + style + ' data-hday="' + key + '" title="' + tip + '" aria-label="' + tip + '"></button>';
     }
     return '<div class="hb-g" style="--c: var(--' + h.c + ')"><h3>' + h.name + '</h3><div class="hb-cells">' + cells + "</div></div>";
@@ -4964,7 +4984,7 @@
     var html = '<div class="hb"><div class="hb-top"><section>' + phead(today ? "TODAY" : dLabel(state.anchor), habitMeta());
     if (hb.err && !hb.data) html += '<div class="err">' + esc(hb.err.msg) + "</div>";
     html += '<div class="hb-tiles">' + HABITS.map(function (h) { return habitTile(h, key, d); }).join("") + "</div>" +
-      '<div class="hb-goal"><span>WATER GOAL</span>' + WATER_GOALS.map(function (g) { return '<button type="button" class="chip" style="--c: var(--work)" data-hgoal="' + g + '" aria-pressed="' + (g === waterGoal()) + '">' + litres(g) + "</button>"; }).join("") + "</div>" +
+      '<div class="hb-goal"><span>WATER GOAL</span>' + WATER_GOALS.map(function (g) { return '<button type="button" class="chip" style="--c: var(--work)" data-hgoal="' + g + '" aria-pressed="' + (g === waterGoal()) + '">' + litres(g) + "</button>"; }).join("") + "</div>" + goalHistNote() +
       (hb.err && hb.err.write ? '<div class="err">' + esc(hb.err.msg) + "</div>" : "") +
       '<p class="muted hb-note">A day you don\'t touch stays blank, never counted as a miss. Earlier days: the arrows, or tap a square below.</p></section>';
     html += "<section>" + phead("STREAKS", "", "chrome-a") + '<div class="hb-srow head"><span></span><span></span><span>NOW</span><span>BEST</span><span>30 DAYS</span></div>' + HABITS.map(function (h) {
@@ -4977,6 +4997,11 @@
       '<span><i style="background: color-mix(in srgb, var(--work) 35%, var(--panel-2))"></i><i style="background: color-mix(in srgb, var(--work) 70%, var(--panel-2))"></i><i style="background: var(--work)"></i>WATER, LESS TO GOAL</span></div></section></div>';
     hb.pop = null;
     $("content").innerHTML = html;
+  }
+  /* Under the goal chips: a change counts from today; earlier goals stay with their days. */
+  function goalHistNote() {
+    var all = hGoals(), h = all.map(function (x, i) { return { x: x, prev: all[i - 1] }; }).filter(function (y) { return y.x.from; }).slice(-3).reverse();
+    return '<p class="muted hb-note">A new goal counts from today; earlier days keep the goal they had.' + (h.length ? " " + h.map(function (y) { return litres(y.x.goal) + " from " + dLabel(parseYmd(y.x.from)) + (y.prev ? " (was " + litres(y.prev.goal) + ")" : ""); }).join(" · ") : "") + "</p>";
   }
   /* The same four, one tap each, on the Bridge. */
   function habitsPanel(today) {
@@ -4995,27 +5020,27 @@
     if (!canHabits()) return "";
     loadHabits(false);
     if (!hb.data) return "<section>" + phead("HABITS", "") + '<div class="empty">' + (hb.err ? esc(hb.err.msg) : "Loading your habits from Notion…") + "</div></section>";
-    var t = ymd(new Date()), goal = waterGoal();
+    var t = ymd(new Date()), goal = waterGoal(ymd(addDays(w0, 6)) < t ? ymd(addDays(w0, 6)) : t);
     var html = "<section>" + phead("HABITS", "THIS WEEK, DAY BY DAY") + '<div class="hb-wk head"><span></span>' + ["M", "T", "W", "T", "F", "S", "S"].map(function (x) { return "<span>" + x + "</span>"; }).join("") + '<span>WEEK</span><span>VS 12 WEEKS</span></div>';
     HABITS.forEach(function (h) {
       var cells = "", wins = 0, cnt = 0, sum = 0;
       for (var k = 0; k < 7; k++) {
         var key = ymd(addDays(w0, k));
         if (key > t) { cells += '<span class="d future"></span>'; continue; }
-        var d = hDay(key), x = hWin(h.id, d);
+        var d = hDay(key), x = hWin(h.id, d, key);
         if (x === null) { cells += '<span class="d none"></span>'; continue; }
         cnt++; if (x) wins++;
         if (h.id === "water") { sum += d.water; cells += '<span class="d ' + (x ? "win" : "part") + ' tnum">' + (d.water % 1 ? d.water.toFixed(1) : d.water) + "</span>"; }
         else cells += '<span class="d' + (x ? " win" : "") + '"></span>';
       }
       var pw = 0, pc = 0;
-      for (var j = 1; j <= 84; j++) { var y = hWin(h.id, hDay(ymd(addDays(w0, -j)))); if (y !== null) { pc++; if (y) pw++; } }
+      for (var j = 1; j <= 84; j++) { var kj = ymd(addDays(w0, -j)), y = hWin(h.id, hDay(kj), kj); if (y !== null) { pc++; if (y) pw++; } }
       var exp = pc ? pw / pc * cnt : null, diff = exp === null ? null : wins - exp;
       var tot = h.id === "water" ? (cnt ? litres(Math.round(sum / cnt * 10) / 10) + '<small class="muted"> AVG</small>' : "–") : wins + '<small class="muted"> / ' + cnt + "</small>";
       var vs = diff === null || !cnt ? '<span class="vs">–</span>' : Math.abs(diff) < .5 ? '<span class="vs">ON PACE</span>' : diff > 0 ? '<span class="vs up">▲ ' + diff.toFixed(1) + " DAYS</span>" : '<span class="vs down">▼ ' + Math.abs(diff).toFixed(1) + " DAYS</span>";
       html += '<div class="hb-wk" style="--c: var(--' + h.c + ')"><span class="nm">' + h.name + "</span>" + cells + '<span class="tot tnum">' + tot + "</span>" + vs + "</div>";
     });
-    return html + '<small class="muted">Water shows litres each day; a full square means ' + litres(goal) + " or more. Read live from the Habits database, so a day changed later shows here too.</small></section>";
+    return html + '<small class="muted">Water shows litres each day; a full square means that day\'s goal (' + litres(goal) + " at the end of the week) or more. Read live from the Habits database, so a day changed later shows here too.</small></section>";
   }
   /* ALL REVIEWS trends: share of recorded days won, week by week. */
   function habitsTrend(win) {
@@ -5025,7 +5050,7 @@
       HABITS.map(function (h) {
         return '<span class="nm" style="color: var(--' + h.c + ')">' + h.name + "</span>" + win.map(function (x) {
           var w = 0, c = 0;
-          for (var k = 0; k < 7; k++) { var key = ymd(addDays(x.w0, k)); if (key > t) break; var y = hWin(h.id, hDay(key)); if (y !== null) { c++; if (y) w++; } }
+          for (var k = 0; k < 7; k++) { var key = ymd(addDays(x.w0, k)); if (key > t) break; var y = hWin(h.id, hDay(key), key); if (y !== null) { c++; if (y) w++; } }
           return '<span class="c tnum" style="--c: var(--' + h.c + '); --f: ' + (c ? Math.round(w / c * 100) : 0) + '%"' + (c ? "" : ' data-none="1"') + ' title="Week ' + isoWeek(x.w0) + ": " + w + " of " + c + '">' + (c ? w : "") + "</span>";
         }).join("");
       }).join("") + '<span></span>' + win.map(function (x) { return '<span class="wkn tnum">' + isoWeek(x.w0) + "</span>"; }).join("") + "</div></div>";
@@ -5034,10 +5059,10 @@
     var key = state.screen === "habits" ? ymd(state.anchor) : ymd(new Date()), d = hDay(key) || {};
     if (b.dataset.hbool) { var id = b.dataset.hbool, on = !d[id], p = {}; p[id] = on; hb.pop = on ? id : null; setHabit(key, p); return true; }
     if (b.dataset.hwater) { var k = +b.dataset.hwater; setHabit(key, { water: d.water === k ? k - .5 : k }); return true; }
-    if (b.dataset.hstep) { var nw = Math.max(0, Math.min(12, (d.water || 0) + Number(b.dataset.hstep))); hb.pop = nw >= waterGoal() && (d.water || 0) < waterGoal() ? "water" : null; setHabit(key, { water: nw }); return true; }
+    if (b.dataset.hstep) { var nw = Math.max(0, Math.min(12, (d.water || 0) + Number(b.dataset.hstep))); hb.pop = nw >= waterGoal(key) && (d.water || 0) < waterGoal(key) ? "water" : null; setHabit(key, { water: nw }); return true; }
     if (b.dataset.hcard) { var v = b.dataset.hcard; hb.pop = d.card !== v && v === "kept" ? "card" : null; setHabit(key, { card: d.card === v ? null : v }); return true; }
     if (b.dataset.hcycle) { setHabit(key, { card: d.card == null ? "kept" : d.card === "kept" ? "swiped" : null }); return true; }
-    if (b.dataset.hgoal) { lsSet(LS_HABITCFG, { goal: Number(b.dataset.hgoal) }); render(true); return true; }
+    if (b.dataset.hgoal) { setWaterGoal(Number(b.dataset.hgoal)); render(true); return true; }
     if (b.dataset.hday) { state.anchor = parseYmd(b.dataset.hday); render(true); return true; }
     return false;
   }
@@ -5430,6 +5455,7 @@
       var at = pos + 10, data = b.subarray(at, Math.min(end, at + size));
       if (at + size > end) { if (id !== "APIC") break; }
       if (id === "TIT2" || id === "TPE1" || id === "TALB") out[{ TIT2: "t", TPE1: "a", TALB: "al" }[id]] = id3Text(data.subarray(1), data[0]);
+      else if (id === "TLEN") { var ms = parseInt(id3Text(data.subarray(1), data[0]), 10); if (ms > 0) out.len = ms / 1000; }
       else if (id === "TRCK" || id === "TPOS") { var nv = parseInt(id3Text(data.subarray(1), data[0]), 10); if (nv > 0) out[id === "TRCK" ? "n" : "d"] = nv; }   /* "3/12" → 3 */
       else if (id === "APIC" && at + size <= end && !out.pic) {
         var enc = data[0], i = 1;
@@ -5498,6 +5524,127 @@
       }
       if (pl.path === path) { mediaMeta(); paintPlayer(); }
     }).catch(function () { /* no tags: the filename stands in */ });
+  }
+  /* ---------- track lengths (2.30): read from the files themselves ---------- */
+  /* A folder's lengths are read when it opens, two files at a time, with small ranged reads (no download):
+     MP3, the first frame after the ID3 tag: its Xing/Info or VBRI header counts the frames (exact even for
+     variable bitrate), else the tag's TLEN, else bitrate and file size. M4A/M4B, the movie header (mvhd),
+     hopping over the audio when the header sits at the end. FLAC, STREAMINFO. WAV, byte rate and data size.
+     Remembered on this iPad by path and file size (tos.naslen.v1); -1 marks one that couldn't be read, so it
+     isn't asked again. A file you've played shows the length the player measured. */
+  var LS_NASLEN = "tos.naslen.v1", nasLen = lsGet(LS_NASLEN) || {}, LEN_EXT = /\.(mp3|m4a|m4b|flac|wav)$/i;
+  function lenOf(it) {
+    var r = playOf(it.path); if (r && r.d) return r.d;
+    var x = nasLen[it.path]; return x && x.s > 0 && (x.z === it.size || !it.size) ? x.s : null;
+  }
+  function u32(b, i) { return ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0; }
+  function le32(b, i) { return (b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0; }
+  function tag4(b, i) { return String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]); }
+  var MP3_BR = { 1: [[0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448], [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384], [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]],
+    2: [[0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256], [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160], [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]] };
+  var MP3_SR = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+  /* b: bytes starting at file offset base; the first real frame at or after index from (the next frame must follow it). */
+  function mp3Len(b, from, base, total, tlen) {
+    for (var i = from; i + 4 < b.length && i < from + 16384; i++) {
+      if (b[i] !== 255 || (b[i + 1] & 0xE0) !== 0xE0) continue;
+      var v = (b[i + 1] >> 3) & 3, lay = (b[i + 1] >> 1) & 3, bri = b[i + 2] >> 4, sri = (b[i + 2] >> 2) & 3;
+      if (v === 1 || lay === 0 || bri === 0 || bri === 15 || sri === 3) continue;
+      var l = 4 - lay, sr = MP3_SR[v][sri], br = MP3_BR[v === 3 ? 1 : 2][l - 1][bri], pad = (b[i + 2] >> 1) & 1, mono = (b[i + 3] >> 6) === 3;
+      var spf = l === 1 ? 384 : l === 2 || v === 3 ? 1152 : 576, flen = l === 1 ? (Math.floor(12 * br * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * br * 1000 / sr) + pad;
+      if (i + flen + 1 < b.length && (b[i + flen] !== 255 || (b[i + flen + 1] & 0xE0) !== 0xE0)) continue;   /* not followed by a frame: a false sync */
+      var xo = i + 4 + (l === 3 ? (v === 3 ? (mono ? 17 : 32) : (mono ? 9 : 17)) : 0), x = xo + 12 <= b.length ? tag4(b, xo) : "";
+      if ((x === "Xing" || x === "Info") && (u32(b, xo + 4) & 1)) return u32(b, xo + 8) * spf / sr;
+      if (i + 54 <= b.length && tag4(b, i + 36) === "VBRI") return u32(b, i + 50) * spf / sr;
+      if (tlen) return tlen;
+      return (total - base - i) * 8 / (br * 1000);
+    }
+    return tlen || null;
+  }
+  function mp3LenRead(it) {
+    return rangeGet(it.path, 0, 65535).then(function (buf) {
+      var b = new Uint8Array(buf), end = 0, tag = parseId3(buf);
+      if (b.length >= 10 && b[0] === 73 && b[1] === 68 && b[2] === 51) end = 10 + ((b[6] & 127) << 21 | (b[7] & 127) << 14 | (b[8] & 127) << 7 | (b[9] & 127)) + (b[5] & 0x10 ? 10 : 0);
+      if (tag && !(nasTags[it.path] && nasTags[it.path].s)) saveTag(it.path, tag, true);   /* the track scan needn't read it again */
+      var tlen = tag && tag.len;
+      if (end + 8192 <= b.length) return mp3Len(b, end, 0, it.size, tlen);
+      return rangeGet(it.path, end, end + 32767).then(function (b2) { return mp3Len(new Uint8Array(b2), 0, end, it.size, tlen); });   /* a big tag (artwork): read past it */
+    });
+  }
+  function mp4LenRead(it) {
+    var hop = function (off, n) {
+      if (n > 8 || off + 8 > it.size) return null;
+      return rangeGet(it.path, off, off + 65535).then(function (buf) {
+        var b = new Uint8Array(buf), i = 0;
+        while (i + 8 <= b.length) {
+          var size = u32(b, i), type = tag4(b, i + 4), hdr = 8;
+          if (size === 1) { if (i + 16 > b.length) break; size = u32(b, i + 8) * 4294967296 + u32(b, i + 12); hdr = 16; }
+          else if (size === 0) size = it.size - off - i;
+          if (size < hdr) return null;
+          if (type === "moov") {
+            for (var j = i + hdr; j + 8 <= Math.min(b.length, i + size);) {
+              var s2 = u32(b, j);
+              if (tag4(b, j + 4) === "mvhd") {
+                var p = j + 8, v1 = b[p] === 1;
+                if (p + (v1 ? 32 : 20) > b.length) return null;
+                var ts = v1 ? u32(b, p + 20) : u32(b, p + 12), du = v1 ? u32(b, p + 24) * 4294967296 + u32(b, p + 28) : u32(b, p + 16);
+                return ts ? du / ts : null;
+              }
+              if (s2 < 8) break;
+              j += s2;
+            }
+            return null;
+          }
+          if (i + size > b.length) return hop(off + i + size, n + 1);   /* the audio (mdat) runs past this read: jump over it */
+          i += size;
+        }
+        return hop(off + i, n + 1);
+      });
+    };
+    return Promise.resolve(hop(0, 0));
+  }
+  function flacLenRead(it) {
+    return rangeGet(it.path, 0, 4095).then(function (buf) {
+      var b = new Uint8Array(buf);
+      if (b.length < 42 || tag4(b, 0) !== "fLaC" || (b[4] & 127) !== 0) return null;
+      var sr = (b[18] << 12) | (b[19] << 4) | (b[20] >> 4), n = (b[21] & 15) * 4294967296 + u32(b, 22);
+      return sr && n ? n / sr : null;
+    });
+  }
+  function wavLenRead(it) {
+    return rangeGet(it.path, 0, 65535).then(function (buf) {
+      var b = new Uint8Array(buf), rate = 0;
+      if (b.length < 12 || tag4(b, 0) !== "RIFF" || tag4(b, 8) !== "WAVE") return null;
+      for (var i = 12; i + 8 <= b.length;) {
+        var id = tag4(b, i), sz = le32(b, i + 4);
+        if (id === "fmt " && i + 20 <= b.length) rate = le32(b, i + 16);
+        if (id === "data") return rate ? (sz && sz !== 0xFFFFFFFF ? sz : it.size - i - 8) / rate : null;
+        i += 8 + sz + (sz & 1);
+      }
+      return null;
+    });
+  }
+  function lenRead(it) {
+    var n = it.name.toLowerCase();
+    return /\.mp3$/.test(n) ? mp3LenRead(it) : /\.m4[ab]$/.test(n) ? mp4LenRead(it) : /\.flac$/.test(n) ? flacLenRead(it) : wavLenRead(it);
+  }
+  function lenScan(dir) {
+    var l = nas.lists[dir];
+    if (!l || nas.lscan === dir) return;
+    var todo = l.items.filter(function (x) { return !x.dir && LEN_EXT.test(x.name) && lenOf(x) === null && !(nasLen[x.path] && nasLen[x.path].z === x.size); });
+    if (!todo.length) return;
+    var tok = nas.lscan = dir, lastPaint = 0;
+    var paint = function (force) { if (state.screen === "storage" && nas.view === "browse" && nas.dir === dir && (force || Date.now() - lastPaint > 500)) { lastPaint = Date.now(); render(true); } };
+    var one = function () {
+      var it = todo.shift();
+      if (!it || nas.lscan !== tok) return Promise.resolve();
+      return lenRead(it).then(function (s) { nasLen[it.path] = { s: s > 0 && isFinite(s) ? Math.round(s) : -1, z: it.size }; }, function () { /* unreachable now: tried again next time */ })
+        .then(function () { paint(false); return one(); });
+    };
+    Promise.all([one(), one()]).then(function () {
+      if (nas.lscan === tok) nas.lscan = null;
+      var keys = Object.keys(nasLen); if (keys.length > 3000) keys.slice(0, keys.length - 3000).forEach(function (k) { delete nasLen[k]; });
+      lsSet(LS_NASLEN, nasLen); lsSet(LS_NASTAGS, nasTags); paint(true);
+    });
   }
   function mediaMeta() {
     if (!("mediaSession" in navigator) || !window.MediaMetadata || !pl.path) return;
@@ -5656,7 +5803,7 @@
     if (it.dir) return '<button type="button" class="nas-row" data-nasdir="' + esc(it.path) + '">' + (nasArt[it.path] ? artHtml(it.path, "nas-ic aud") : '<span class="nas-ic dir"></span>') + '<span class="nas-nm">' + esc(it.name) + '</span><span class="nas-m"></span><span class="nas-m">OPEN ▸</span></button>';
     return '<button type="button" class="nas-row' + (it.path === pl.path ? " cur" : "") + (r && r.done ? " played" : "") + (audio ? "" : " other") + '"' + (audio ? ' data-nasplay="' + esc(it.path) + '"' : " disabled") + ">" + (audio ? artHtml(parentOf(it.path), "nas-ic aud") : '<span class="nas-ic doc"></span>') +
       '<span class="nas-nm">' + (audio && !r ? '<i class="nas-new" aria-label="New"></i>' : "") + (audio && nas.showTrack && state.screen === "storage" && nas.view === "browse" && nasTags[it.path] && nasTags[it.path].n ? '<span class="nas-tn">' + (nasTags[it.path].d > 1 ? nasTags[it.path].d + "·" : "") + p2(nasTags[it.path].n) + "</span>" : "") + esc(audio ? dispName(it.path) : it.name) + (it.mod ? "<small>" + esc(dLabel(new Date(it.mod))) + " " + new Date(it.mod).getFullYear() + "</small>" : "") + "</span>" +
-      '<span class="nas-m tnum">' + (r && r.d ? mmss(r.d) : sizeLabel(it.size)) + '</span><span class="nas-m">' + (audio ? rowState(it) : "CAN'T PLAY") + "</span></button>";
+      '<span class="nas-m tnum">' + (audio ? (lenOf(it) ? mmss(lenOf(it)) : "") : sizeLabel(it.size)) + '</span><span class="nas-m">' + (audio ? rowState(it) : "CAN'T PLAY") + "</span></button>";
   }
   function crumbs(dir) {
     var parts = dir.split("/").filter(Boolean), acc = "", out = '<button type="button" class="chip sm" data-nasdir="/">NAS</button>';
@@ -5702,6 +5849,7 @@
     var mp3s = audio.some(function (x) { return /\.mp3$/i.test(x.name); }), srt = sortOf(dir);
     if (srt === "track" && !mp3s) srt = "name";
     if (srt === "track") scanFolder(dir);
+    lenScan(dir);
     var sorter = sorterFor(srt);
     nas.showTrack = srt === "track";
     var shown = files.filter(match).filter(function (x) {

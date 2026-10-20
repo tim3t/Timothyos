@@ -339,7 +339,7 @@ Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **�
 **Habits**
 - **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EVENING WALK**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
 - It saves to Notion a moment after your last tap. Without a connection it waits on the iPad and goes when you're back.
-- **Water goal:** the chips under the tiles (2 to 4 L, 3 L to start). Streaks and the grid count a day as won at the goal or more.
+- **Water goal:** the chips under the tiles (2 to 4 L, 3 L to start). Streaks and the grid count a day as won at the goal or more. A new goal counts from the day you choose it; earlier days keep the goal they had, so raising it never turns past days into misses (app 2.30). The note under the chips lists recent changes. The history is kept on this iPad.
 - Earlier days: the arrows beside the title, or tap a square in **LAST 12 WEEKS**.
 - **REVIEW** shows the week's habits day by day; **ALL REVIEWS** shows them week by week.
 
@@ -468,6 +468,8 @@ To share another folder later, add another `- PATH:/media/NAME:ro` line under th
 **On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **Systems → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, tap **SAVE AND TEST**.
 
 **Using it:** folders on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. The place in each file, speed and "play the next one" are saved **on this iPad only**. While something plays, a small pill on every other screen pauses it or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too. **Artwork:** put a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder to give it art. MP3 titles, show names and artwork are read from the files' own tags as they play. **TRACK #** (folders with MP3s) reads the tags of the whole folder and orders it by disc and track; each folder remembers its own sort. **HIDE FOLDER** keeps a folder off Storage on this iPad; Systems → STORAGE lists hidden folders with UNHIDE.
+
+**Lengths (app 2.30):** each track shows its length instead of its file size. When a folder opens, TimothyOS reads a small piece of each MP3, M4A/M4B, FLAC or WAV (a few kilobytes, not the whole file) to find it, and remembers it on this iPad. Other formats (OGG, Opus, AAC) show their length once you've played them. Documents still show their size.
 
 ## Engineering (app 2.24)
 
