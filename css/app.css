@@ -1564,7 +1564,8 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 body.nas-pad .content { padding-bottom: 96px; }
 body.nas-pad-min .content { padding-bottom: 72px; }
 .nas-tn { font-family: var(--display); color: var(--dim); letter-spacing: .06em; margin-right: 10px; font-variant-numeric: tabular-nums; }
-.nas-scan { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--personal); }
+.nas-scan, .nas-trk { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--personal); }
+.nas-trk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 
 .a-holiday { --c: var(--chrome-c); }
 

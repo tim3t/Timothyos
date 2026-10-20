@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.30.0";
+  var VERSION = "2.30.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5441,36 +5441,102 @@
     var label = enc === 1 ? "utf-16" : enc === 2 ? "utf-16be" : enc === 3 ? "utf-8" : "latin1";
     try { return new TextDecoder(label).decode(u8).replace(/\u0000+$/, "").split("\u0000")[0].trim(); } catch (e) { return ""; }
   }
-  function parseId3(buf) {
-    var b = new Uint8Array(buf), out = {};
-    if (b.length < 10 || b[0] !== 73 || b[1] !== 68 || b[2] !== 51) return null;   /* "ID3" */
-    var ver = b[3], flags = b[5], ss = function (i) { return (b[i] & 127) << 21 | (b[i + 1] & 127) << 14 | (b[i + 2] & 127) << 7 | (b[i + 3] & 127); };
-    if (ver < 3 || ver > 4 || flags & 0x80) return null;   /* v2.2 and whole-tag unsynchronisation are rare; filenames stand in */
-    var end = Math.min(b.length, 10 + ss(6)), pos = 10;
-    if (flags & 0x40) pos += ver === 4 ? ss(10) : ((b[10] << 24 | b[11] << 16 | b[12] << 8 | b[13]) >>> 0) + 4;
-    while (pos + 10 <= end) {
-      var id = String.fromCharCode(b[pos], b[pos + 1], b[pos + 2], b[pos + 3]);
-      if (!/^[A-Z0-9]{4}$/.test(id)) break;
-      var size = ver === 4 ? ss(pos + 4) : ((b[pos + 4] << 24 | b[pos + 5] << 16 | b[pos + 6] << 8 | b[pos + 7]) >>> 0);
-      var at = pos + 10, data = b.subarray(at, Math.min(end, at + size));
-      if (at + size > end) { if (id !== "APIC") break; }
-      if (id === "TIT2" || id === "TPE1" || id === "TALB") out[{ TIT2: "t", TPE1: "a", TALB: "al" }[id]] = id3Text(data.subarray(1), data[0]);
-      else if (id === "TLEN") { var ms = parseInt(id3Text(data.subarray(1), data[0]), 10); if (ms > 0) out.len = ms / 1000; }
-      else if (id === "TRCK" || id === "TPOS") { var nv = parseInt(id3Text(data.subarray(1), data[0]), 10); if (nv > 0) out[id === "TRCK" ? "n" : "d"] = nv; }   /* "3/12" → 3 */
-      else if (id === "APIC" && at + size <= end && !out.pic) {
-        var enc = data[0], i = 1;
-        while (i < data.length && data[i]) i++;
-        var mime = new TextDecoder("latin1").decode(data.subarray(1, i)) || "image/jpeg"; i += 2;   /* the null, then the picture type */
-        if (enc === 1 || enc === 2) { while (i + 1 < data.length && (data[i] || data[i + 1])) i += 2; i += 2; } else { while (i < data.length && data[i]) i++; i++; }
-        if (i < data.length) out.pic = { mime: /^image\//.test(mime) ? mime : "image/" + mime.toLowerCase().replace("jpg", "jpeg"), data: data.slice(i) };
+  /* ID3v2.2, 2.3 and 2.4. Frames are walked over a buffer holding bytes [base, base + b.length) of the file; when a
+     frame runs past what was read (usually a big picture placed before the text frames), the walk stops and says where
+     the next frame starts, so a second read can carry on from there without fetching the picture (2.30.1). */
+  var ID3_V22 = { TT2: "TIT2", TP1: "TPE1", TAL: "TALB", TRK: "TRCK", TPA: "TPOS", TLE: "TLEN", PIC: "APIC" };
+  function id3Head(b) {
+    if (b.length < 10 || b[0] !== 73 || b[1] !== 68 || b[2] !== 51 || b[3] < 2 || b[3] > 4) return null;   /* "ID3" */
+    var ss = function (i) { return (b[i] & 127) << 21 | (b[i + 1] & 127) << 14 | (b[i + 2] & 127) << 7 | (b[i + 3] & 127); };
+    var ver = b[3], flags = b[5], size = ss(6), pos = 10;
+    if (flags & 0x40 && ver > 2 && b.length >= 14) pos += ver === 4 ? ss(10) : ((b[10] << 24 | b[11] << 16 | b[12] << 8 | b[13]) >>> 0) + 4;
+    return { ver: ver, unsync: !!(flags & 0x80) && ver < 4, pos: pos, end: 10 + size, total: 10 + size + (flags & 0x10 ? 10 : 0) };
+  }
+  /* Unsynchronisation: an encoder put a 0x00 after every 0xFF; take them out again. */
+  function deUnsync(u8) {
+    var out = new Uint8Array(u8.length), n = 0;
+    for (var i = 0; i < u8.length; i++) { out[n++] = u8[i]; if (u8[i] === 255 && u8[i + 1] === 0) i++; }
+    return out.subarray(0, n);
+  }
+  function id3Walk(b, base, h, pos, out, wantPic) {
+    var hl = h.ver === 2 ? 6 : 10;
+    while (pos + hl <= h.end) {
+      var i = pos - base;
+      if (i < 0 || i + hl > b.length) return pos;   /* the next frame header isn't in this read */
+      var id = h.ver === 2 ? String.fromCharCode(b[i], b[i + 1], b[i + 2]) : String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3]);
+      if (!/^[A-Z0-9]{3,4}$/.test(id)) return null;   /* padding: the end of the frames */
+      var size = h.ver === 2 ? (b[i + 3] << 16 | b[i + 4] << 8 | b[i + 5]) : h.ver === 4 ? ((b[i + 4] & 127) << 21 | (b[i + 5] & 127) << 14 | (b[i + 6] & 127) << 7 | (b[i + 7] & 127)) : ((b[i + 4] << 24 | b[i + 5] << 16 | b[i + 6] << 8 | b[i + 7]) >>> 0);
+      var fmt = h.ver === 2 ? 0 : b[i + 9], key = h.ver === 2 ? ID3_V22[id] : id, at = i + hl, next = pos + hl + size;
+      if (size <= 0 || next > h.end + 4) return null;
+      var useful = key === "TIT2" || key === "TPE1" || key === "TALB" || key === "TRCK" || key === "TPOS" || key === "TLEN" || (wantPic && key === "APIC" && !out.pic);
+      if (!useful) { pos = next; continue; }
+      if (at + size > b.length) return pos;   /* this frame runs past the read: start the next read here */
+      var data = b.subarray(at, at + size);
+      if (h.ver === 4) {
+        if (fmt & 0x0C) { pos = next; continue; }   /* compressed or encrypted: not read */
+        if (fmt & 0x40) data = data.subarray(1);    /* grouping identity */
+        if (fmt & 0x01) data = data.subarray(4);    /* data length indicator */
+        if (fmt & 0x02) data = deUnsync(data);
+      } else if (h.ver === 3) {
+        if (fmt & 0xC0) { pos = next; continue; }
+        if (fmt & 0x20) data = data.subarray(1);    /* grouping identity */
       }
-      pos = at + size;
+      if (key === "APIC") {
+        var enc = data[0], j = 1, mime;
+        if (h.ver === 2) { mime = "image/" + new TextDecoder("latin1").decode(data.subarray(1, 4)).toLowerCase().replace("jpg", "jpeg"); j = 4; }
+        else { while (j < data.length && data[j]) j++; mime = new TextDecoder("latin1").decode(data.subarray(1, j)) || "image/jpeg"; j++; }
+        j++;   /* the picture type */
+        if (enc === 1 || enc === 2) { while (j + 1 < data.length && (data[j] || data[j + 1])) j += 2; j += 2; } else { while (j < data.length && data[j]) j++; j++; }
+        if (j < data.length) out.pic = { mime: /^image\//.test(mime) ? mime : "image/" + mime.toLowerCase().replace("jpg", "jpeg"), data: data.slice(j) };
+      } else {
+        var txt = id3Text(data.subarray(1), data[0]);
+        if (key === "TLEN") { var ms = parseInt(txt, 10); if (ms > 0) out.len = ms / 1000; }
+        else if (key === "TRCK" || key === "TPOS") { var nv = parseInt(txt, 10); if (nv > 0) out[key === "TRCK" ? "n" : "d"] = nv; }   /* "3/12" or "003" → 3 */
+        else out[{ TIT2: "t", TPE1: "a", TALB: "al" }[key]] = txt;
+      }
+      pos = next;
     }
+    return null;
+  }
+  /* A tag already in hand (from byte 0): what it holds, null if there's no tag. */
+  function parseId3(buf) {
+    var b = new Uint8Array(buf), h = id3Head(b), out = {};
+    if (!h) return null;
+    if (h.unsync) { b = new Uint8Array([].slice.call(b, 0, 10).concat([].slice.call(deUnsync(b.subarray(10, Math.min(b.length, h.end)))))); h.end = Math.min(h.end, b.length); }
+    id3Walk(b, 0, h, h.pos, out, true);
     return out;
   }
+  /* For the TRACK # scan: the text frames however the tag is laid out. 64 KB first; if a frame runs past it, read on
+     from the next frame (up to six more reads, skipping pictures). An unsynchronised tag is read whole (up to 1 MB).
+     No number in an ID3v2 tag: the ID3v1.1 tag in the last 128 bytes may carry one. */
+  function scanTags(it) {
+    return rangeGet(it.path, 0, 65535).then(function (buf) {
+      var b = new Uint8Array(buf), h = id3Head(b), out = {};
+      var v1 = function () {
+        if (out.n || !it.size || it.size < 256) return out;
+        return rangeGet(it.path, it.size - 128, it.size - 1).then(function (e) {
+          var x = new Uint8Array(e);
+          if (x.length === 128 && x[0] === 84 && x[1] === 65 && x[2] === 71) {   /* "TAG" */
+            if (x[125] === 0 && x[126] > 0) out.n = x[126];
+            if (!out.t) { var tt = new TextDecoder("latin1").decode(x.subarray(3, 33)).replace(/\u0000.*$/, "").trim(); if (tt) out.t = tt; }
+          }
+          return out;
+        }, function () { return out; });
+      };
+      if (!h) return v1();
+      if (h.unsync) return (h.end <= b.length ? Promise.resolve(buf) : rangeGet(it.path, 0, Math.min(h.end, 1048576) - 1)).then(function (whole) { out = parseId3(whole) || {}; delete out.pic; return v1(); });
+      var go = function (bb, base, pos, hops) {
+        var stop = id3Walk(bb, base, h, pos, out, false);
+        if (stop === null || hops >= 6) return v1();
+        return rangeGet(it.path, stop, Math.min(h.end, stop + 65535)).then(function (nb) { return go(new Uint8Array(nb), stop, stop, hops + 1); });
+      };
+      return go(b, 0, h.pos, 0);
+    });
+  }
   /* Remembered per file. "s" marks a file whose tag has been read, so a file without one isn't asked again. */
-  function saveTag(path, t, quiet) {
-    nasTags[path] = { t: t.t || "", a: t.a || "", al: t.al || "", n: t.n || 0, d: t.d || 0, s: 1 };
+  function saveTag(path, t, quiet, it) {
+    var was = nasTags[path] || {};
+    nasTags[path] = { t: t.t || "", a: t.a || "", al: t.al || "", n: t.n || 0, d: t.d || 0, s: 1, m: it ? it.mod : was.m || 0, z: it ? it.size : was.z || 0 };
     var keys = Object.keys(nasTags); if (keys.length > 2000) keys.slice(0, keys.length - 2000).forEach(function (k) { delete nasTags[k]; });
     if (!quiet) lsSet(LS_NASTAGS, nasTags);
   }
@@ -5479,14 +5545,15 @@
   function scanFolder(dir) {
     var l = nas.lists[dir];
     if (!l || (nas.scan && nas.scan.dir === dir)) return;
-    var todo = l.items.filter(function (x) { return !x.dir && /\.mp3$/i.test(x.name) && !(nasTags[x.path] && nasTags[x.path].s); }).map(function (x) { return x.path; });
+    /* read again when the file has changed since (retagged), or was read before 2.30.1 (no m) */
+    var todo = l.items.filter(function (x) { var e = nasTags[x.path]; return !x.dir && /\.mp3$/i.test(x.name) && !(e && e.s && e.m === x.mod && e.z === x.size); });
     if (!todo.length) return;
     var sc = nas.scan = { dir: dir, done: 0, total: todo.length }, lastPaint = 0;
     var paint = function (force) { if (state.screen === "storage" && nas.view === "browse" && nas.dir === dir && (force || Date.now() - lastPaint > 400)) { lastPaint = Date.now(); render(true); } };
     var one = function () {
-      var path = todo.shift();
-      if (!path || nas.scan !== sc) return Promise.resolve();
-      return rangeGet(path, 0, 65535).then(function (buf) { saveTag(path, parseId3(buf) || {}, true); }, function () { /* unreadable: its filename stands in */ })
+      var it = todo.shift();
+      if (!it || nas.scan !== sc) return Promise.resolve();
+      return scanTags(it).then(function (tg) { saveTag(it.path, tg || {}, true, it); }, function () { /* unreadable: its filename stands in */ })
         .then(function () { sc.done++; paint(false); return one(); });
     };
     Promise.all([one(), one(), one(), one()]).then(function () {
@@ -5564,7 +5631,7 @@
     return rangeGet(it.path, 0, 65535).then(function (buf) {
       var b = new Uint8Array(buf), end = 0, tag = parseId3(buf);
       if (b.length >= 10 && b[0] === 73 && b[1] === 68 && b[2] === 51) end = 10 + ((b[6] & 127) << 21 | (b[7] & 127) << 14 | (b[8] & 127) << 7 | (b[9] & 127)) + (b[5] & 0x10 ? 10 : 0);
-      if (tag && !(nasTags[it.path] && nasTags[it.path].s)) saveTag(it.path, tag, true);   /* the track scan needn't read it again */
+      if (tag && tag.n && !(nasTags[it.path] && nasTags[it.path].s)) saveTag(it.path, tag, true, it);   /* found the number: the track scan needn't read it again */
       var tlen = tag && tag.len;
       if (end + 8192 <= b.length) return mp3Len(b, end, 0, it.size, tlen);
       return rangeGet(it.path, end, end + 32767).then(function (b2) { return mp3Len(new Uint8Array(b2), 0, end, it.size, tlen); });   /* a big tag (artwork): read past it */
@@ -5864,6 +5931,11 @@
       '<div class="chips">' + (mp3s ? [["track", "TRACK #"]] : []).concat([["name", "A TO Z"], ["newest", "NEWEST"]]).map(function (s) { return '<button type="button" class="chip sm" data-nassort="' + s[0] + '" aria-pressed="' + (srt === s[0]) + '">' + s[1] + "</button>"; }).join("") + "</div>" +
       '<button type="button" class="chip sm nas-hide" data-nas="hide">HIDE FOLDER</button></div>';
     if (nas.scan && nas.scan.dir === dir) html += '<div class="nas-scan">READING TRACK NUMBERS · ' + nas.scan.done + " OF " + nas.scan.total + "</div>";
+    else if (srt === "track") {
+      var mp3l = audio.filter(function (x) { return /\.mp3$/i.test(x.name); }), withN = mp3l.filter(function (x) { return nasTags[x.path] && nasTags[x.path].n; }).length;
+      html += '<div class="nas-trk">' + (withN === mp3l.length ? "IN TRACK ORDER · " + withN + " MP3S NUMBERED" : withN + " OF " + mp3l.length + " MP3S HAVE A TRACK NUMBER" + (withN ? " · THE REST GO LAST" : "")) +
+        ' <button type="button" class="chip sm" data-nas="rescan">READ TAGS AGAIN</button></div>';
+    }
     var dshown = dirs.filter(match).sort(byName);
     if (!dshown.length && !shown.length) html += '<div class="empty">' + (q || nas.filter !== "all" ? "Nothing here matches." : "This folder is empty.") + "</div>";
     else html += '<div class="nas-list" data-order="' + esc(JSON.stringify(order)) + '">' + dshown.map(function (x) { return fileRow(x); }).join("") + shown.map(function (x) { return fileRow(x); }).join("") + "</div>";
@@ -5907,6 +5979,7 @@
     }
     if (d.nasfilter) { nas.filter = d.nasfilter; render(true); return true; }
     if (d.nassort) { nasSorts[nas.dir] = d.nassort; lsSet(LS_NASSORT, nasSorts); render(true); return true; }
+    if (d.nas === "rescan") { var rl = nas.lists[nas.dir]; (rl ? rl.items : []).forEach(function (x) { if (nasTags[x.path]) nasTags[x.path].s = 0; }); lsSet(LS_NASTAGS, nasTags); nas.scan = null; render(true); return true; }
     if (d.nasspeed) { nasPref.speed = +d.nasspeed; lsSet(LS_NASPREF, nasPref); if (pl.el) pl.el.playbackRate = nasPref.speed; render(true); mediaState(); return true; }
     if (d.nassleep) { setSleep(d.nassleep); render(true); return true; }
     if (d.nasauto) { nasPref.auto = d.nasauto === "1"; lsSet(LS_NASPREF, nasPref); render(true); return true; }

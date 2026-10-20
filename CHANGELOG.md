@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.30.1 · 2026-10-20
+- **Fixed: TRACK # doing nothing in some folders.** Four causes, all fixed:
+  - **Tags remembered from before you numbered the files** were never read again. The app now notes each file's date and size with its tags and reads them again when the file changes (after retagging).
+  - **A big cover picture placed before the track number** pushed the number past the part of the file the scan read. The scan now steps over the picture to the frames after it, without downloading it.
+  - **ID3v2.2 tags and "unsynchronised" tags** (written by some taggers) were skipped. Both are read now, as is ID3v2.4's data-length layout.
+  - **Files with only an old ID3v1 tag** now give their track number from the end of the file.
+- **TRACK # says what it found:** "IN TRACK ORDER" or "120 OF 176 MP3S HAVE A TRACK NUMBER", with **READ TAGS AGAIN** to read the whole folder afresh.
+
 ## 2.30.0 · 2026-10-20
 - **STORAGE shows each track's length instead of its size.** Read from a few kilobytes of each file when a folder opens (MP3, including variable bitrate and files with large artwork; M4A/M4B; FLAC; WAV) and remembered on this iPad. Other formats show their length once played; documents keep their size.
 - **HABITS: changing the water goal no longer rewrites the past.** A new goal counts from the day you choose it; every earlier day is judged by the goal it had, in streaks, the 30-day rate, the 12-week grid and the Review. A past day's tile shows its own goal, and the note under the goal chips lists recent changes. Changing back the same day leaves no trace.

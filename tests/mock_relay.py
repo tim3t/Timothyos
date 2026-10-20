@@ -66,8 +66,42 @@ def lengths():
         out["/Music/Lengths/" + fname] = (open(f, "rb").read(), "2026-10-01T10:00:00Z")
     return out
 FILES.update(lengths())
+def tagkinds():
+    """2.30.1 TRACK #: tags written by hand, one per layout that used to hide the number. Name order a..f, track order c e b d a f."""
+    import subprocess, tempfile, os, shutil, random
+    if not shutil.which("ffmpeg"): return {}
+    f = os.path.join(tempfile.mkdtemp(), "raw.mp3")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-t", "4", "-i", "sine=frequency=440:sample_rate=22050",
+                    "-c:a", "libmp3lame", "-b:a", "32k", "-id3v2_version", "0", "-write_xing", "0", f], check=True)
+    audio = open(f, "rb").read()
+    ss = lambda n: bytes([(n >> 21) & 127, (n >> 14) & 127, (n >> 7) & 127, n & 127])
+    txt = lambda s: b"\x00" + s.encode("latin1")
+    f23 = lambda i, d: i.encode() + len(d).to_bytes(4, "big") + b"\x00\x00" + d
+    f24 = lambda i, d, fmt=0: i.encode() + ss(len(d)) + bytes([0, fmt]) + d
+    f22 = lambda i, d: i.encode() + len(d).to_bytes(3, "big") + d
+    tag = lambda ver, body, flags=0: b"ID3" + bytes([ver, 0, flags]) + ss(len(body)) + body
+    rnd = random.Random(7)
+    pic = lambda n: b"\x00image/png\x00\x03\x00" + bytes(rnd.randrange(256) for _ in range(n))
+    def unsync(b):
+        out = bytearray()
+        for i, x in enumerate(b):
+            out.append(x)
+            if x == 255: out.append(0)
+        return bytes(out)
+    v1 = lambda title, n: b"TAG" + title.encode().ljust(30, b"\x00") + b"\x00" * 30 + b"\x00" * 30 + b"2026" + b"\x00" * 28 + b"\x00" + bytes([n]) + b"\xff"
+    pad = b"\x00" * 200
+    files = {
+        "a art first.mp3": tag(3, f23("APIC", pic(300000)) + f23("TIT2", txt("Episode Five")) + f23("TRCK", txt("5")) + pad) + audio,
+        "b v22.mp3": tag(2, f22("TT2", txt("Episode Three")) + f22("TRK", txt("3")) + pad) + audio,
+        "c unsync.mp3": tag(3, unsync(f23("APIC", b"\x00image/png\x00\x03\x00" + b"\xff\xe0\xff\xfb" * 500) + f23("TIT2", txt("Episode One")) + f23("TRCK", txt("1/176")) + pad), 0x80) + audio,
+        "d v1 only.mp3": audio + v1("Episode Four", 4),
+        "e v24.mp3": tag(4, f24("TIT2", b"\x03Episode Two") + f24("TRCK", ss(4) + b"\x03002", 0x01) + pad) + audio,
+        "f stale.mp3": tag(3, f23("TIT2", txt("Episode Six")) + f23("TRCK", txt("6")) + pad) + audio,
+    }
+    return {"/Podcasts/Show C/" + k: (v, "2026-10-1%dT10:00:00Z" % i) for i, (k, v) in enumerate(files.items())}
+FILES.update(tagkinds())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths"}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C"}
 STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {
