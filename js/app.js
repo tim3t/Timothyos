@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.29.1";
+  var VERSION = "2.29.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6770,7 +6770,7 @@
     pos.forEach(function (p, i) {
       var c = cards[i], next = !c && opts.edit && cards.slice(0, i).every(Boolean);
       h += '<button type="button" class="tr-slot' + (p.c ? " cross" : "") + '" style="left:' + (p.x * (TR_CW + TR_GX) / bw * 100) + "%;top:" + (p.y * (TR_CH + TR_GY) / bh * 100) + "%;width:" + (TR_CW / bw * 100) + "%;height:" + (TR_CH / bh * 100) + '%" data-trslot="' + i + '" aria-label="' + esc((i + 1) + ". " + p.l + (c ? ": " + trName(c.id) + (c.rev ? ", reversed" : "") : ": empty")) + '">' +
-        '<span class="pos">' + (i + 1) + "</span>" + (c ? trCard(c.id, c.rev, opts.flip === i ? "flip" : "") : '<span class="tr-card empty' + (next ? " next" : "") + '">' + esc(p.l) + "</span>") + "</button>";
+        '<span class="pos">' + (i + 1) + "</span>" + (c ? trCard(c.id, c.rev, opts.flip === i ? "flip" : "") : '<span class="tr-card empty' + (next ? " next" : "") + '"><span class="lab">' + esc(p.l) + "</span></span>") + "</button>";
     });
     return h + "</div>";
   }

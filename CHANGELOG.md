@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.29.2 · 2026-10-20
+- **Fixed: giant letters in empty spread positions.** The position names (PAST, PRESENT, CHALLENGE…) on cards not yet picked were sized against the whole screen instead of the card, so they overflowed and the Celtic Cross was unreadable. They're now sized to the card, sit at its foot where a filled card shows its name (clear of the number and of the crossing card), and the crossing card's label reads level across it.
+
 ## 2.29.1 · 2026-10-19 (bridge 1.25.1)
 - **Fixed: the cursor jumping out of a tarot note and the last few letters disappearing.** Two causes: the note boxes had no stable identity, so any redraw (a save landing, a sync) dropped the keyboard; and a save arriving from Notion could briefly put back the older text from before your last few keys. Every text box now keeps its place, cursor and text through a redraw, and what you're typing always wins over a copy coming back from Notion. A new reading keeps your typing as it gets its Notion id. Text typed in one reading can no longer appear in another's box.
 - **Typing is saved when you leave the app** (home screen, app switch, lock), not only after the 1.2 s pause. MY MEANING too.

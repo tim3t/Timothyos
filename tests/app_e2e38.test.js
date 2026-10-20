@@ -48,6 +48,12 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   await p.click('[data-trgo="new"]'); await p.waitForSelector('.tr-spreads');
   await p.click('[data-trspread="celtic"]');
   assert.strictEqual(await p.locator('.tr-slot').count(), 10);
+  // empty positions (2.29.2): the label is sized to its card (it once measured the whole screen), stays inside it, sits clear of the crossing card
+  const labs = await p.$$eval('.tr-card.empty .lab', n => n.map(x => { const r = x.getBoundingClientRect(), c = x.parentNode.getBoundingClientRect(); return [x.textContent, parseFloat(getComputedStyle(x).fontSize), r.left >= c.left - 1 && r.right <= c.right + 1 && r.top >= c.top - 1 && r.bottom <= c.bottom + 1, r]; }));
+  assert.strictEqual(labs.length, 10);
+  labs.forEach(l => assert.ok(l[1] <= 20 && l[2], 'label fits its card: ' + JSON.stringify(l.slice(0, 3))));
+  const lp = labs.find(l => l[0] === 'PRESENT')[3], lc = labs.find(l => l[0] === 'CHALLENGE')[3];
+  assert.ok(lp.bottom <= lc.top || lp.top >= lc.bottom, 'PRESENT and CHALLENGE labels don\'t overlap');
   await p.fill('#trQ', 'Sample question for the season');
   await p.click('[data-trslot="0"]', { position: { x: 20, y: 12 } }); await p.waitForSelector('.tr-pick');
   // card faces (2.27): every Major Arcana card its own mark

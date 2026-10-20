@@ -1749,7 +1749,13 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .tr-card .rv { position: absolute; top: 9%; right: 6%; font-family: var(--display); font-size: 9cqw; letter-spacing: .1em; background: var(--s); color: var(--ink); border-radius: 6px; padding: 0 5px; }
 .tr-card.back { background: repeating-linear-gradient(45deg, var(--panel-2) 0 6px, var(--panel) 6px 12px); box-shadow: inset 0 0 0 2px var(--line); }
 .tr-card.back::before, .tr-card.empty::before { display: none; }
-.tr-card.empty { background: transparent; box-shadow: none; border: 2px dashed var(--line); grid-template-rows: 1fr; place-items: center; color: var(--dim); font-family: var(--display); letter-spacing: .1em; font-size: 10cqw; padding: 8%; }
+.tr-card.empty { background: transparent; box-shadow: none; border: 2px dashed var(--line); grid-template-rows: 1fr; color: var(--dim); font-family: var(--display); letter-spacing: .1em; padding: 8%; }
+/* The label sits inside the card so cqw measures the card (an element's own cqw measures the container around it:
+   on the card itself it was sized to the whole screen). At the foot of the card, where a filled card shows its name,
+   clear of the number badge and of a crossing card laid over the middle. The crossing card's label runs along it,
+   upright on screen once the card is turned. */
+.tr-card.empty .lab { align-self: end; margin-bottom: 4%; font-size: clamp(9px, 13cqw, 20px); letter-spacing: .06em; line-height: 1.15; overflow-wrap: anywhere; min-width: 0; }
+.tr-slot.cross .tr-card.empty .lab { align-self: center; justify-self: center; margin: 0; writing-mode: vertical-rl; transform: rotate(180deg); max-height: 100%; font-size: clamp(10px, 13cqw, 18px); }
 .tr-card.empty.next { border-color: var(--chrome-a); color: var(--chrome-a); }
 .tr-card.flip { animation: trflip 420ms var(--ease-out, ease-out) both; }
 @keyframes trflip { from { transform: rotateY(90deg); opacity: .2; } }
