@@ -2,25 +2,33 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D19, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D39, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
 ```
 iPad app (static, GitHub Pages: https://tim3t.github.io/Timothyos/)
   index.html · css/app.css · js/app.js (one IIFE, no build step) · sw.js (offline shell)
-        │ HTTPS: GET ?key=…&action=… for reads, POST text/plain JSON {key, action, …} for writes
-        ▼
+  │ HTTPS: GET ?key=…&action=… for reads, POST text/plain JSON {key, action, …} for writes
+  ▼
 Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Google account)
-  ├─ CalendarApp: Work (read-only, shared to personal) + Personal (default calendar)
-  └─ UrlFetchApp → Notion API (Notion-Version 2025-09-03)
-       ├─ 🎯 Master Task List  db 6c4a440d571e49e0b4076c18d5712c1f  ds 2198e74a-792a-4301-b4a5-9b16249af496
-       ├─ 🗓️ Key Dates         db 8184db37aacb4d96943b2067558b92ab  ds fd94b232-b63a-4e6a-bc8c-dad020821e32
-       └─ 🧭 Weekly Reviews    db 459bcacdc38d4bad9f58b4579fa9f4fd  ds 02a65d24-fe78-4dda-bb27-69eededf9f95
-     Both live under 🏠 Timothy's Life Hub (page 31893ad51450814c8a3be31c1f26aed8).
+  ├─ CalendarApp: Work (read-only forever, shared to personal), Personal (default calendar),
+  │    farm (FARM_CALENDAR_ID) and Growth (GROWTH_CALENDAR_ID) once linked, US holidays (read-only)
+  ├─ UrlFetchApp → Notion API (Notion-Version 2025-09-03), databases in CONFIG:
+  │    🎯 Master Task List   db 6c4a440d571e49e0b4076c18d5712c1f  ds 2198e74a-792a-4301-b4a5-9b16249af496
+  │    🗓️ Key Dates          db 8184db37aacb4d96943b2067558b92ab  ds fd94b232-b63a-4e6a-bc8c-dad020821e32
+  │    🧭 Weekly Reviews     db 459bcacdc38d4bad9f58b4579fa9f4fd  ds 02a65d24-fe78-4dda-bb27-69eededf9f95
+  │    Replicator Queue, Captain's Log, Habits, Library, 🔮 Tarot, 📖 Tarot Books, 🐝 Apiary
+  │    (ids in CONFIG; data source ids looked up once and kept in Script Properties)
+  ├─ UrlFetchApp → YNAB API (GET only, YNAB_TOKEN)
+  └─ UrlFetchApp → Claude Messages API (ANTHROPIC_API_KEY): ASK, Log Ask, summaries, tarot suggestions
+     All Notion databases live under 🏠 Timothy's Life Hub (page 31893ad51450814c8a3be31c1f26aed8).
+
+iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search), and the Storage relay
+  (Caddy + Tailscale on the NAS, read-only files; /ha proxies Home Assistant for ENGINEERING).
 ```
 
-Current versions: **app 2.0.0**, **bridge 1.6.0**.
+Current versions: **app 2.31.1**, **bridge 1.27.0**.
 
 ### Bridge actions
 
@@ -64,7 +72,7 @@ Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`
 
 - **Secrets never go in code, chat, or commits.** The access key and `NOTION_TOKEN` live only in the bridge's Script Properties (and the key in the iPad app). The repo is public.
 - **Tarot books are copyrighted.** Passages from Timothy's two tarot books (Dean, Crispin) live only in his private 📖 Tarot Books database. Never put book text in this repo, tests, mocks, commits, published pages or artifacts; use placeholder text. The app keeps passages in memory only (never localStorage).
-- **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to Master Task List, Key Dates, Weekly Reviews, Replicator Queue and Captain's Log; keep it that way. When reading the workspace to plan, read structure (schemas), not content.
+- **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to Master Task List, Key Dates, Weekly Reviews, Replicator Queue, Captain's Log, Habits, Library, 🔮 Tarot, 📖 Tarot Books and 🐝 Apiary (Timothy connects each one himself); keep it that way. When reading the workspace to plan, read structure (schemas), not content.
 - **Work calendar is read-only forever.** Don't add write paths for it.
 - **Farm calendar** (bridge 1.8): area `farm`, ID only in Script Property `FARM_CALENDAR_ID` (never in code: its name is personal). `sources_()` leaves it out until set. The app's `setAreas()` moves `farm` from STANDBY_AREAS to LIVE when the bridge lists it, labels it with the calendar's name, and adds it to Capture's `WRITABLE`. Tests: `mock_v18.py` + `app_e2e19`.
 - **Don't change Notion schemas or create databases** without asking first.
@@ -153,7 +161,7 @@ Standby: `#standby` overlay over everything. `checkIdle()` every 15 s against `t
 
 ## Ask Claude
 
-Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no SDK). Models (`AI`): `claude-sonnet-5-5` for fast (effort `low`, `max_tokens` 6000) and summary (effort `medium`), `claude-opus-5-5` for deep (effort `medium`, `max_tokens` 12000); both get `fallbacks: "default"` with beta `server-side-fallback-2026-07-01` and thinking blocks passed back unchanged. Script Property `AI_FAST_MODEL` may be `claude-haiku-5-5` or `claude-haiku-4-5` (no effort sent to 4.5, no fallbacks for either); `compareModels()` runs Sonnet, Opus and Haiku 5.5 side by side from the editor. Tools: `get_events`, `get_tasks`, `get_key_dates`, `get_week` (read) and `propose_*` (collected, never executed). Spend: `aiPrice_()` matches `AI_PRICES` by model-family prefix (dated names too; unknown models priced high and flagged `unknown`), kept in `AI_SPEND`, with one `AI_LOG` entry per question (no text). `AI_BUDGET_USD` (default 8) is the reminder: calls stop with `ai_budget` until `aicontinue` sets `AI_CONTINUE` to this month; `AI_CAP_USD` (default 10) is only shown, the real stop is the Console spend limit. App: `briefing()` builds the snapshot (ignored events already left out); `runProposal()` performs confirmed changes through the existing actions (addtask, focus, status, the capture queue for key dates and events, review drafts). Never add a web tool, a Work-calendar write, or any tool that writes without CONFIRM. Tests: `bridge_ask.test.js` (scripted API), `mock_v16.py` + `app_e2e17` (CONTINUE, MATCH, log).
+Bridge: `ask_()` in `Code.gs`, raw HTTP to the Messages API (Apps Script has no SDK). Models (`AI`): `claude-sonnet-5-5` for fast (effort `low`, `max_tokens` 6000) and summary (effort `medium`), `claude-opus-5-5` for deep (effort `medium`, `max_tokens` 12000); both get `fallbacks: "default"` with beta `server-side-fallback-2026-07-01` and thinking blocks passed back unchanged. Script Property `AI_FAST_MODEL` may be `claude-haiku-5-5` or `claude-haiku-4-5` (no effort sent to 4.5, no fallbacks for either); `compareModels()` runs Sonnet, Opus and Haiku 5.5 side by side from the editor. Tools: `get_events`, `get_tasks`, `get_key_dates`, `get_week` (read) and `propose_*` (collected, never executed). Claude sees only each tool's name, description and input_schema, so the descriptions in `AI_TOOLS` must say exactly what `aiTool_()` / `aiCheck_()` do and refuse (1.27 audit): `get_week` and `propose_review_draft` refuse a non-Monday with the right Monday named (`aiMonday_`); `aiOption_` refuses a life_area or key date type that isn't one of the database's options (listing them), skipping the check when the options can't be read; event minutes 5 to 600; `AREA_LABEL` covers every calendar area (hobby = Growth). Change a handler, change its description, and extend `bridge_ask.test.js`. Spend: `aiPrice_()` matches `AI_PRICES` by model-family prefix (dated names too; unknown models priced high and flagged `unknown`), kept in `AI_SPEND`, with one `AI_LOG` entry per question (no text). `AI_BUDGET_USD` (default 8) is the reminder: calls stop with `ai_budget` until `aicontinue` sets `AI_CONTINUE` to this month; `AI_CAP_USD` (default 10) is only shown, the real stop is the Console spend limit. App: `briefing()` builds the snapshot (ignored events already left out); `runProposal()` performs confirmed changes through the existing actions (addtask, focus, status, the capture queue for key dates and events, review drafts). Never add a web tool, a Work-calendar write, or any tool that writes without CONFIRM. Tests: `bridge_ask.test.js` (scripted API), `mock_v16.py` + `app_e2e17` (CONTINUE, MATCH, log).
 
 ## Life areas and colors
 
@@ -207,5 +215,12 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 
 ## Roadmap (standby modules)
 
-- **Notes in Capture** (Notion).
-- Later: Home Assistant; moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.
+Done since the first roadmap: Home Assistant (ENGINEERING, 2.24). Pinned by Timothy for later, in no order:
+- **Rename the app to Bridge** (home-screen name, title; TIMOTHYOS stays as the system name in the top bar), with a Systems BACKUP / RESTORE of the iPad-only settings first, since iPadOS reads the name only when the app is added again. Proposed, awaiting his go-ahead.
+- **A home-screen widget** through Scriptable reading the bridge (iPadOS web apps can't have widgets). Proposed.
+- **Ask and breaks:** the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
+- **ENGINEERING:** doors and scenes; AUTO thermostat with two setpoints.
+- **Arboretum** (plants), **MEALS** (standby tile), **Notes in Capture**.
+- **Habits:** keep each day's water goal in Notion (needs a schema change: ask first).
+- **Log italics** (Unicode italic): paused by Timothy.
+- Moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.

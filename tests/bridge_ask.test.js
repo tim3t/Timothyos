@@ -1,5 +1,6 @@
 // Ask Claude in the bridge: tool loop, proposals (never executed), spend tracking,
-// the monthly budget, repeat-safe replies, error mapping, and partial review saves.
+// the monthly budget, repeat-safe replies, error mapping, and partial review saves; the tools' descriptions
+// against their handlers (1.27): Monday-only weeks, the Growth label, Life Area and type options.
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = { NOTION_TOKEN: 'ntn_test' }, cache = {};
 const DS = 'ds-1111', DB = '6c4a440d571e49e0b4076c18d5712c1f', DS2 = 'ds-2222', DB2 = '8184db37aacb4d96943b2067558b92ab';
@@ -169,4 +170,69 @@ ctx.compareModels();
 assert.strictEqual(sent.length, 15, 'fifteen model calls');
 assert.deepStrictEqual(sent.map(b => b.model + ':' + ((b.output_config || {}).effort || '-')).slice(0, 3), ['claude-sonnet-5-5:low', 'claude-opus-5-5:medium', 'claude-haiku-5-5:low']);
 assert.ok(sent.every(b => b.system[1].text.includes('use your tools')), 'editor run says the snapshot is missing');
+
+// ---- tool audit (bridge 1.27): what each description promises, the handler keeps
+const toolResult = (i) => sent[i].messages[sent[i].messages.length - 1].content[0];
+// get_week refuses a day that isn't a Monday and names the right one, so the model can call again
+sent = []; script = [
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'w1', name: 'get_week', input: { week_start: '2026-10-07' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'w2', name: 'get_week', input: { week_start: '2026-10-05' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Done.' }] }];
+assert.ok(ask().ok);
+let twk = toolResult(1);
+console.log('get_week on a Wednesday:', twk.content);
+assert.strictEqual(twk.is_error, true);
+assert.strictEqual(twk.content, 'week_start 2026-10-07 is a Wednesday, not a Monday. The Monday of that week is 2026-10-05. Call again with that.');
+twk = toolResult(2);
+assert.ok(!twk.is_error && twk.content.startsWith('FINISHED:'), 'the Monday it named is accepted');
+// a review draft for a Sunday is refused the same way (it would have landed on the wrong week)
+sent = []; script = [
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'rv1', name: 'propose_review_draft', input: { week_start: '2026-10-11', summary: 'Sample' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+const rrv = ask();
+assert.strictEqual(rrv.proposals.length, 0);
+assert.ok(toolResult(1).is_error && toolResult(1).content.includes('The Monday of that week is 2026-10-05'));
+// Growth calendar events reach Claude labelled Growth, not "undefined"
+props.GROWTH_CALENDAR_ID = 'growth-cal';
+const gev = { getTitle: () => 'Sample pottery class', getId: () => 'g1', getStartTime: () => new Date('2026-10-07T23:00:00Z'), getEndTime: () => new Date('2026-10-08T00:30:00Z'),
+  isAllDayEvent: () => false, getLocation: () => '', getMyStatus: () => 'YES' };
+ctx.CalendarApp.getCalendarById = id => id === 'growth-cal' ? { getName: () => 'Growth', getTimeZone: () => 'UTC', getEvents: () => [gev] } : null;
+sent = []; script = [
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'ge', name: 'get_events', input: { from: '2026-10-07', to: '2026-10-07' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+assert.ok(ask().ok);
+const tge = toolResult(1).content;
+console.log('get_events with Growth:', tge);
+assert.ok(tge.includes(' · Growth · Sample pottery class') && !tge.includes('undefined'), tge);
+assert.strictEqual(ctx.AREA_LABEL.hobby, 'Growth');
+delete props.GROWTH_CALENDAR_ID;
+// the descriptions say what the code does
+const T = {}; sent[0].tools.forEach(t => { T[t.name] = t; });
+assert.strictEqual(sent[0].tools.length, 10, 'still ten tools: none added');
+assert.ok(T.get_events.description.includes('Growth calendar'));
+assert.ok(/OPEN tasks/.test(T.get_tasks.description) && T.get_tasks.description.includes('use get_week'));
+assert.ok(T.get_week.description.includes('must be a Monday'));
+assert.ok(T.propose_add_event.description.includes('propose_add_key_date') && T.propose_add_key_date.description.includes('propose_add_event'), 'event and key date point at each other');
+assert.ok(sent[0].tools.every(t => !/—/.test(t.description + JSON.stringify(t.input_schema))), 'no em dashes');
+assert.deepStrictEqual(T.propose_add_event.input_schema.properties.minutes, { type: 'integer', minimum: 5, maximum: 600, description: 'Length in minutes, default 30' });
+// a Life Area or type that isn't one of the database's options comes back as an error listing them
+const AREAS = ['🌱 Sample Growth', '🏠 Sample Home'];
+const realFetch = ctx.UrlFetchApp.fetch;
+ctx.UrlFetchApp.fetch = (url, opts) => (opts.method || 'get').toLowerCase() === 'get' && url.indexOf('/data_sources/') > -1
+  ? { getResponseCode: () => 200, getContentText: () => JSON.stringify({ properties: { 'Life Area': { select: { options: AREAS.map(n => ({ name: n })) } }, Type: { select: { options: [{ name: 'Deadline' }] } } } }) }
+  : realFetch(url, opts);
+Object.keys(cache).filter(k => k.indexOf('opts:') === 0).forEach(k => delete cache[k]);
+sent = []; script = [
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'la1', name: 'propose_add_task', input: { title: 'Sample', life_area: 'Growth' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'la2', name: 'propose_add_task', input: { title: 'Sample', life_area: '🌱 Sample Growth', priority: '🟢 Low' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'kd1', name: 'propose_add_key_date', input: { title: 'Sample', start: '2026-11-01', type: 'Birthday' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'ev1', name: 'propose_add_event', input: { title: 'Sample', date: '2026-11-01', start_time: '25:00' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+const rla = ask();
+assert.strictEqual(toolResult(1).content, 'life_area must be exactly one of: 🌱 Sample Growth | 🏠 Sample Home (or left out).');
+assert.ok(!toolResult(2).is_error, 'an exact Life Area is accepted');
+assert.strictEqual(toolResult(3).content, 'type must be exactly one of: Deadline (or left out).');
+assert.ok(toolResult(4).is_error && toolResult(4).content.includes('HH:MM'));
+assert.deepStrictEqual(rla.proposals.map(p => p.kind), ['add_task'], 'only the valid one became a proposal');
+ctx.UrlFetchApp.fetch = realFetch;
 console.log('ALL ASK CHECKS PASSED');

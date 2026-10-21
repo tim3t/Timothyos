@@ -83,7 +83,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.26.0';
+var VERSION = '1.27.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -2300,7 +2300,7 @@ var AI_RULES = [
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
   "Facts: use only the snapshot below and your tools. Never invent events, tasks, dates or numbers. If something isn't in the data, say so. Times are local.",
   "You can read his Work and Personal calendars (and his farm calendar, area 'farm', and his Growth calendar, area 'hobby', when the snapshot lists them), his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
-  "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar (or the farm calendar for farm and bee work, when it's linked), or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
+  "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar (or the farm calendar for farm and bee work, or the Growth calendar for personal growth and hobbies, when linked), or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
   "The Work calendar is read-only: never propose anything for it. A reminder is a short Personal calendar event at the reminder time; his devices alert him.",
   "Use exact task ids from the snapshot or get_tasks. Use Life Area, priority and key date type names exactly as listed in the snapshot."
 ].join('\n');
@@ -2372,34 +2372,43 @@ function claude_(payload, betas) {
   return body;
 }
 
+// Claude sees only each tool's name, description and input_schema, never the code below them, so every
+// description says what its handler actually does and refuses (bridge 1.27 audit). Keep them in step.
 var AI_TOOLS = [
-  { name: 'get_events', description: 'Work, Personal and (when linked) farm calendar events between two dates (inclusive, at most 62 days). Ignored booking blocks are already left out.',
-    input_schema: { type: 'object', properties: { from: { type: 'string', description: 'yyyy-mm-dd' }, to: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['from', 'to'], additionalProperties: false } },
-  { name: 'get_tasks', description: "Tasks picked for a day (its priorities) and every open task in the Master Task List, with ids, status, priority, Life Area and due date.",
-    input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd' } }, required: ['day'], additionalProperties: false } },
-  { name: 'get_key_dates', description: 'Every key date (deadlines, windows, birthdays, anniversaries, events, reminders). Yearly ones repeat every year.',
+  { name: 'get_events', description: 'Calendar events from `from` to `to`, both days included, at most 62 days. Covers Work and Personal, plus the farm calendar (area Farm) and the Growth calendar (area Growth) once each is linked. Each line: weekday, date, start-end time (local) or "all day", area, title. Untitled events read "Busy". Events he declined (outside Work) and titles on his ignored list are left out. At most 200 events, earliest first.',
+    input_schema: { type: 'object', properties: { from: { type: 'string', description: 'First day, yyyy-mm-dd' }, to: { type: 'string', description: 'Last day, yyyy-mm-dd, on or after from' } }, required: ['from', 'to'], additionalProperties: false } },
+  { name: 'get_tasks', description: 'Two lists from the Master Task List: the tasks picked as priorities for `day` (any status, done ones included), then up to 120 OPEN tasks (every status except Done), soonest due date first, undated last. Each line: the task id in [brackets], title, status, priority, Life Area, due date and picked day. Finished tasks are not here: use get_week for what was done in a week.',
+    input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd; the day whose picked priorities to list' } }, required: ['day'], additionalProperties: false } },
+  { name: 'get_key_dates', description: 'Every key date in his Key Dates database (no public holidays), oldest first: start (and end for a window), title, type, Life Area, and "yearly" when it repeats. For a yearly date the start is the original year; work out this year\'s date yourself.',
     input_schema: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'get_week', description: 'One week (Monday start): tasks finished, priorities picked, and the saved weekly review if there is one.',
-    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'Monday, yyyy-mm-dd' } }, required: ['week_start'], additionalProperties: false } },
-  { name: 'propose_add_task', description: 'Propose a new To Do task in the Master Task List. Optionally pick it as a priority for a day.',
-    input_schema: { type: 'object', properties: { title: { type: 'string' }, life_area: { type: 'string' }, priority: { type: 'string' }, focus_day: { type: 'string', description: 'yyyy-mm-dd, to pick it for that day' } }, required: ['title'], additionalProperties: false } },
-  { name: 'propose_set_focus', description: 'Propose picking an existing task as a priority for a day, or unpicking it (day "none").',
-    input_schema: { type: 'object', properties: { task_id: { type: 'string' }, task_title: { type: 'string' }, day: { type: 'string', description: 'yyyy-mm-dd, or "none" to unpick' } }, required: ['task_id', 'task_title', 'day'], additionalProperties: false } },
-  { name: 'propose_set_status', description: 'Propose changing a task status.',
-    input_schema: { type: 'object', properties: { task_id: { type: 'string' }, task_title: { type: 'string' }, status: { type: 'string', enum: TASK_STATUSES } }, required: ['task_id', 'task_title', 'status'], additionalProperties: false } },
-  { name: 'propose_add_key_date', description: 'Propose a new key date. Add an end date for a window; yearly for birthdays, anniversaries and seasons.',
-    input_schema: { type: 'object', properties: { title: { type: 'string' }, start: { type: 'string', description: 'yyyy-mm-dd' }, end: { type: 'string', description: 'yyyy-mm-dd, for windows' }, life_area: { type: 'string' }, type: { type: 'string' }, yearly: { type: 'boolean' } }, required: ['title', 'start'], additionalProperties: false } },
-  { name: 'propose_add_event', description: 'Propose an event or reminder on the Personal calendar, on the farm calendar for farm and bee work, or on the Growth calendar for personal growth and hobbies, when those are linked (never Work). Give a date and start time, or all_day.',
-    input_schema: { type: 'object', properties: { title: { type: 'string' }, calendar: { type: 'string', enum: ['personal', 'farm', 'growth'], description: 'default personal' }, date: { type: 'string', description: 'yyyy-mm-dd' }, start_time: { type: 'string', description: 'HH:MM, 24-hour' }, minutes: { type: 'integer', description: 'length, default 30' }, all_day: { type: 'boolean' } }, required: ['title', 'date'], additionalProperties: false } },
-  { name: 'propose_review_draft', description: "Propose text for a week's review fields. Timothy reviews them on the Review screen before saving.",
-    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'Monday, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
+  { name: 'get_week', description: 'One Monday-to-Sunday week: tasks marked Done whose last edit fell in that week, tasks picked as priorities on any day of it, and the saved weekly review if there is one. week_start must be a Monday; any other day is refused with the right Monday named, so call again with that.',
+    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'The Monday that starts the week, yyyy-mm-dd' } }, required: ['week_start'], additionalProperties: false } },
+  { name: 'propose_add_task', description: 'Propose a new To Do task in the Master Task List, for something to do with no set time. Optionally pick it as a priority for focus_day. Use this, not an event, for "remind me to X" with no time given. Nothing is created until Timothy confirms.',
+    input_schema: { type: 'object', properties: { title: { type: 'string', description: 'At most 200 characters' }, life_area: { type: 'string', description: 'Exactly one of the LIFE AREAS names in the snapshot, emoji included; leave out if unsure' }, priority: { type: 'string', enum: TASK_PRIORITIES }, focus_day: { type: 'string', description: 'yyyy-mm-dd, to pick it as a priority for that day' } }, required: ['title'], additionalProperties: false } },
+  { name: 'propose_set_focus', description: 'Propose picking an existing open task as a priority for a day, or unpicking it with day "none". Nothing changes until Timothy confirms.',
+    input_schema: { type: 'object', properties: { task_id: { type: 'string', description: 'The id shown in [brackets] in the snapshot or get_tasks, copied exactly' }, task_title: { type: 'string', description: 'The task title, shown to Timothy on the proposal' }, day: { type: 'string', description: 'yyyy-mm-dd, or "none" to unpick' } }, required: ['task_id', 'task_title', 'day'], additionalProperties: false } },
+  { name: 'propose_set_status', description: "Propose changing an existing task's status, for example marking it Done. Nothing changes until Timothy confirms.",
+    input_schema: { type: 'object', properties: { task_id: { type: 'string', description: 'The id shown in [brackets] in the snapshot or get_tasks, copied exactly' }, task_title: { type: 'string', description: 'The task title, shown to Timothy on the proposal' }, status: { type: 'string', enum: TASK_STATUSES } }, required: ['task_id', 'task_title', 'status'], additionalProperties: false } },
+  { name: 'propose_add_key_date', description: 'Propose a key date: a deadline, a window (give an end date), or something that repeats every year such as a birthday, anniversary or season (yearly true). Key dates count down on his dashboard; they are not timed calendar events and do not alert at a time. For something happening once at a time of day, use propose_add_event. Nothing is created until Timothy confirms.',
+    input_schema: { type: 'object', properties: { title: { type: 'string', description: 'At most 200 characters' }, start: { type: 'string', description: 'yyyy-mm-dd' }, end: { type: 'string', description: 'yyyy-mm-dd, on or after start; only for a window' }, life_area: { type: 'string', description: 'Exactly one of the LIFE AREAS names in the snapshot, emoji included; leave out if unsure' }, type: { type: 'string', description: 'Exactly one of the KEY DATE TYPES names in the snapshot, emoji included; leave out if unsure' }, yearly: { type: 'boolean', description: 'true if it repeats every year' } }, required: ['title', 'start'], additionalProperties: false } },
+  { name: 'propose_add_event', description: 'Propose a one-time calendar event: something at a time on a day, or a reminder ("remind me at 3pm to...", which becomes a short event his devices alert him to). Goes on the Personal calendar unless calendar is farm (farm and bee work) or growth (personal growth and hobbies); those two are refused until linked. Never the Work calendar. Give start_time, or all_day true. For a deadline, a window or anything yearly, use propose_add_key_date. Nothing is created until Timothy confirms.',
+    input_schema: { type: 'object', properties: { title: { type: 'string', description: 'At most 200 characters' }, calendar: { type: 'string', enum: ['personal', 'farm', 'growth'], description: 'Default personal' }, date: { type: 'string', description: 'yyyy-mm-dd' }, start_time: { type: 'string', description: 'HH:MM, 24-hour, local time; required unless all_day' }, minutes: { type: 'integer', minimum: 5, maximum: 600, description: 'Length in minutes, default 30' }, all_day: { type: 'boolean' } }, required: ['title', 'date'], additionalProperties: false } },
+  { name: 'propose_review_draft', description: "Propose text for one week's review fields; only the fields you give are filled. They wait on the Review screen as an unsaved draft until Timothy edits and saves. week_start must be a Monday; any other day is refused with the right Monday named.",
+    input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'The Monday that starts the week, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
 ];
 
-var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm' };
+var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm', hobby: 'Growth' };
 function aiDay_(s) { return YMD.test(String(s || '')); }
+/** '' for a Monday, else an error naming that week's Monday (so the model can retry with it). */
+function aiMonday_(ymd, field) {
+  if (!aiDay_(ymd) || !realDay_(ymd)) return field + ' must be a Monday, yyyy-mm-dd.';
+  var dow = new Date(ymd + 'T12:00:00Z').getUTCDay();
+  return dow === 1 ? '' : field + ' ' + ymd + ' is a ' + WEEKDAYS[dow] + ', not a Monday. The Monday of that week is ' + addDaysYmd_(ymd, -((dow + 6) % 7)) + '. Call again with that.';
+}
 function aiLine_(ev, tz) {
-  if (ev.allDay) return ev.start + ' all day · ' + AREA_LABEL[ev.area] + ' · ' + ev.title;
-  return Utilities.formatDate(new Date(ev.start), tz, 'EEE yyyy-MM-dd HH:mm') + '-' + Utilities.formatDate(new Date(ev.end), tz, 'HH:mm') + ' · ' + AREA_LABEL[ev.area] + ' · ' + ev.title;
+  var area = AREA_LABEL[ev.area] || ev.area;
+  if (ev.allDay) return ev.start + ' all day · ' + area + ' · ' + ev.title;
+  return Utilities.formatDate(new Date(ev.start), tz, 'EEE yyyy-MM-dd HH:mm') + '-' + Utilities.formatDate(new Date(ev.end), tz, 'HH:mm') + ' · ' + area + ' · ' + ev.title;
 }
 function aiTaskLine_(t) {
   return '[' + t.id + '] ' + t.title + ' · ' + [t.status, t.priority, t.area, t.due ? 'due ' + t.due : '', t.focus ? 'picked ' + t.focus : ''].filter(String).join(' · ');
@@ -2428,7 +2437,8 @@ function aiTool_(name, input, ctx) {
     return { text: kd.dates.map(function (d) { return d.start + (d.end ? ' to ' + d.end : '') + ' · ' + d.title + ' · ' + [d.type, d.area, d.yearly ? 'yearly' : ''].filter(String).join(' · '); }).join('\n') || 'No key dates.' };
   }
   if (name === 'get_week') {
-    if (!aiDay_(input.week_start)) return { error: 'week_start must be a Monday, yyyy-mm-dd.' };
+    var notMon = aiMonday_(input.week_start, 'week_start');
+    if (notMon) return { error: notMon };
     var w0 = Utilities.parseDate(input.week_start, tz, 'yyyy-MM-dd'), w1 = Utilities.parseDate(addDaysYmd_(input.week_start, 7), tz, 'yyyy-MM-dd');
     var wk = week_(input.week_start, w0.toISOString(), w1.toISOString());
     if (!wk.ok) return { error: 'Could not read that week.' };
@@ -2445,14 +2455,21 @@ function aiTool_(name, input, ctx) {
   }
   return { error: 'Unknown tool ' + name };
 }
+/** '' when the value is empty or one of the database's own options, else an error listing them. Unreadable options don't block. */
+function aiOption_(v, source, field, name) {
+  if (v == null || v === '') return '';
+  var opts;
+  try { opts = selectOptions_(source(), field); } catch (e) { return ''; }
+  return !opts.length || opts.indexOf(v) > -1 ? '' : name + ' must be exactly one of: ' + opts.join(' | ') + ' (or left out).';
+}
 function aiCheck_(name, i) {
   var str = function (v, max) { return typeof v === 'string' && v.trim() && v.length <= max; };
-  if (name === 'propose_add_task') return !str(i.title, 200) ? 'title is required (200 characters at most).' : i.focus_day && !aiDay_(i.focus_day) ? 'focus_day must be yyyy-mm-dd.' : '';
+  if (name === 'propose_add_task') return !str(i.title, 200) ? 'title is required (200 characters at most).' : i.focus_day && !aiDay_(i.focus_day) ? 'focus_day must be yyyy-mm-dd.' : i.priority && TASK_PRIORITIES.indexOf(i.priority) === -1 ? 'priority must be one of: ' + TASK_PRIORITIES.join(', ') + '.' : aiOption_(i.life_area, tasksSource_, 'Life Area', 'life_area');
   if (name === 'propose_set_focus') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : i.day !== 'none' && !aiDay_(i.day) ? 'day must be yyyy-mm-dd, or "none" to unpick.' : '';
   if (name === 'propose_set_status') return !/^[0-9a-f-]{32,36}$/i.test(String(i.task_id || '')) ? 'Use an exact task id.' : TASK_STATUSES.indexOf(i.status) === -1 ? 'Unknown status.' : '';
-  if (name === 'propose_add_key_date') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.start) ? 'start must be yyyy-mm-dd.' : i.end && (!aiDay_(i.end) || i.end < i.start) ? 'end must be yyyy-mm-dd, on or after start.' : '';
-  if (name === 'propose_add_event') return !str(i.title, 200) ? 'title is required.' : i.calendar === 'farm' && !farmCalendarId_() ? 'The farm calendar is not linked yet. Use personal.' : i.calendar === 'growth' && !growthCalendarId_() ? 'The Growth calendar is not linked yet. Use personal.' : !aiDay_(i.date) ? 'date must be yyyy-mm-dd.' : !i.all_day && !/^\d{2}:\d{2}$/.test(String(i.start_time || '')) ? 'Give start_time as HH:MM, or all_day.' : '';
-  if (name === 'propose_review_draft') return !aiDay_(i.week_start) ? 'week_start must be yyyy-mm-dd.' : '';
+  if (name === 'propose_add_key_date') return !str(i.title, 200) ? 'title is required.' : !aiDay_(i.start) ? 'start must be yyyy-mm-dd.' : i.end && (!aiDay_(i.end) || i.end < i.start) ? 'end must be yyyy-mm-dd, on or after start.' : aiOption_(i.life_area, datesSource_, 'Life Area', 'life_area') || aiOption_(i.type, datesSource_, 'Type', 'type');
+  if (name === 'propose_add_event') return !str(i.title, 200) ? 'title is required.' : i.calendar === 'farm' && !farmCalendarId_() ? 'The farm calendar is not linked yet. Use personal.' : i.calendar === 'growth' && !growthCalendarId_() ? 'The Growth calendar is not linked yet. Use personal.' : !aiDay_(i.date) ? 'date must be yyyy-mm-dd.' : !i.all_day && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(i.start_time || '')) ? 'Give start_time as HH:MM (24-hour), or all_day.' : i.minutes != null && !(i.minutes >= 5 && i.minutes <= 600) ? 'minutes must be 5 to 600.' : '';
+  if (name === 'propose_review_draft') return aiMonday_(i.week_start, 'week_start');
   return '';
 }
 

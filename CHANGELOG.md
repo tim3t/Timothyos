@@ -1,5 +1,12 @@
 # Changelog
 
+## Bridge 1.27 · 2026-10-21 (app unchanged at 2.31.1)
+- **ASK's tools now say exactly what they do**, so Claude picks and fills them right the first time. Claude only ever sees a tool's name and description, never the code, so each one was checked against what the bridge actually does.
+- **Fixed: a week asked for by a day other than Monday** quietly read the wrong seven days and missed the saved review. ASK now gets told the right Monday and asks again. A drafted review for a non-Monday is refused the same way.
+- **Fixed: Growth calendar events reached Claude unlabelled** ("undefined"). They now read Growth, and the calendar tool mentions the Growth calendar.
+- **Clearer choices for Claude:** "remind me" with no time is a task; something at a time is a calendar event; a deadline, window or yearly date is a key date. The task tool says it lists open tasks only and points to the week tool for finished ones.
+- **A Life Area, priority or key date type Claude gets slightly wrong is caught before you see the card**, with the right names listed so it can fix it, instead of failing when you tap CONFIRM.
+
 ## 2.31.1 · 2026-10-21
 - **Fixed: a meeting with "Lunch" in its name counted as a break.** A break now needs the event's whole title to be one of your BREAKS (capitals, extra spaces and a trailing full stop don't matter, and an "Out of office —" in front is still fine). "Lunch" and "Out of office — Lunch" stay breaks; a monthly team lunch meeting counts as Work again. A longer title can be added to the list if you want it treated as a break.
 
