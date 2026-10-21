@@ -3,7 +3,8 @@
 // a box tells what it held; a check opens with EARLIER / LATER; a new check in five steps (picks, frame counts,
 // a super added, mite load worked out) is saved as plain sentences with the stack and a reminder task, and offers
 // the other hive next; a check edited and deleted (two taps); a hive added from the yard; the yard list ticked and
-// added to; a failed save waits with RETRY; Systems' row and SHARE WITH ASK; no emoji; phone width.
+// added to; TRUE UP STACK (feeder, excluder, a super with its own frame count, moved and removed pieces, logged
+// on an earlier date); a failed save waits with RETRY; Systems' row and SHARE WITH ASK; no emoji; phone width.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:8105/macros/s/test/exec?key=' + K;
@@ -95,7 +96,7 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   await until(async () => (await aps()).saves.length === 1);
   const sv = (await aps()).saves[0];
   assert.deepStrictEqual([sv.kind, sv.hive, sv.who, sv.queen, sv.mood, sv.feed, sv.mites, sv.notes, sv.next], ['check', 'ap-h1', 'Solo, sample', 'Eggs, larvae; solid pattern', 'Calm', 'Refilled 1:1', 1.7, 'Sample note about the check', 'Sample next time']);
-  assert.strictEqual(sv.frames, 'Bottom deep 9/10 drawn; Top deep 3/10 drawn; Bottom super 50% capped; Top super 0% capped');
+  assert.strictEqual(sv.frames, 'Bottom deep 9/10 drawn; Top deep 3/10 drawn; Bottom super 50% capped; Top super 0/9 filled, 0% capped');
   assert.strictEqual(sv.pests, 'Sugar roll: 5 mites (1.7%)');
   assert.strictEqual(sv.did, 'Added a super; Fed');
   assert.strictEqual(sv.stores, 'Honey ok');
@@ -153,6 +154,59 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   await until(async () => { const y = (await aps()).yard; return y.data.list.length === 3 && y.data.list[0].done; });
   assert.strictEqual(await p.getAttribute('[data-aplist="0"]', 'aria-pressed'), 'true');
   assert.ok(await p.evaluate(() => document.getElementById('apYear').open), 'the drawer stays open across redraws');
+
+  // ---- TRUE UP STACK (2.32): add what was done but not logged, set frames and capped, move, remove, log it too
+  await p.click('[data-aphive="ap-h2"]'); await p.waitForSelector('.ap-checks');   // from the yard, where the list is
+  await p.click('[data-apact="trueup"]'); await p.waitForSelector('.ap-pieces');
+  assert.strictEqual(await txt(p, '.ap-crumbs'), 'APIARY › BRAMBLE › TRUE UP STACK');
+  assert.strictEqual(await p.locator('.ap-piece').count(), 3);
+  await p.click('[data-aptuadd="feeder"]'); await p.click('[data-aptuadd="excluder"]'); await p.click('[data-aptuadd="super"]');
+  assert.ok(await p.isDisabled('[data-aptuadd="feeder"]') && await p.isDisabled('[data-aptuadd="excluder"]'), 'one feeder, one excluder');
+  const kinds = () => p.$$eval('.ap-stage .ap-stack .box', n => n.map(x => x.className.split(' ')[1]));
+  assert.deepStrictEqual(await kinds(), ['feeder', 'super', 'super', 'excluder', 'deep', 'deep'], 'each piece lands where it sits on a hive');
+  // the new super is open: 10 frames, 3 filled, 25% capped
+  assert.strictEqual(await p.getAttribute('[data-aptun="9"]', 'aria-pressed'), 'true', 'supers default to 9 frames');
+  await p.click('[data-aptun="10"]');
+  for (let i = 0; i < 3; i++) await p.click('[data-apn="tudrawn"][data-apd="1"]');
+  await p.click('[data-aptucap="25"]');
+  assert.strictEqual(await p.locator('.ap-stage .box.super').nth(0).locator('.f').count(), 10);
+  assert.strictEqual(await p.locator('.ap-stage .box.super').nth(0).locator('.f.on').count(), 3);
+  // the older super goes up above it
+  await p.click('[data-aptusel="2"]'); await p.click('[data-aptumove="-1"]');
+  // the feeder's syrup
+  await p.click('[data-aptusel="0"]'); await p.click('[data-aptulevel="LOW"]');
+  // a medium added by mistake, removed with two taps
+  await p.click('[data-aptuadd="medium"]');
+  assert.deepStrictEqual(await kinds(), ['feeder', 'super', 'super', 'excluder', 'medium', 'deep', 'deep']);
+  await p.click('[data-aptux]'); assert.strictEqual(await txt(p, '[data-aptux]'), 'TAP AGAIN TO REMOVE');
+  await p.click('[data-aptux]');
+  assert.deepStrictEqual(await kinds(), ['feeder', 'super', 'super', 'excluder', 'deep', 'deep']);
+  const back3 = await p.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 3); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
+  await p.click('[data-aptulog]'); await p.fill('#apTuDay', back3);
+  assert.ok((await txt(p, '.ap-form')).includes('Added a super; Added a queen excluder; Added a feeder (logged later)'));
+  await p.screenshot({ path: D + 'apiary-trueup.png' });
+  const nSaves = (await aps()).saves.length;
+  await p.click('[data-apact="savetu"]'); await p.waitForSelector('.ap-checks');
+  await until(async () => (await aps()).saves.length === nSaves + 2);
+  const [hv, ck] = (await aps()).saves.slice(nSaves);
+  assert.deepStrictEqual([hv.kind, hv.id, hv.name, hv.queen], ['hive', 'ap-h2', 'Bramble', 'Fern'], 'the hive first, as it was');
+  assert.deepStrictEqual(hv.data.boxes, [{ k: 'feeder', level: 'LOW' }, { k: 'super', fill: 0.5 }, { k: 'super', n: 10, drawn: 3, fill: 0.25 }, { k: 'excluder' }, { k: 'deep', drawn: 6 }, { k: 'deep', drawn: 9 }]);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(hv.data.trued));
+  assert.deepStrictEqual([ck.kind, ck.hive, ck.day, ck.did], ['check', 'ap-h2', back3, 'Added a super; Added a queen excluder; Added a feeder (logged later)']);
+  assert.strictEqual(ck.frames, 'Bottom deep 9/10 drawn; Top deep 6/10 drawn; Bottom super 3/10 filled, 25% capped; Top super 50% capped; Feeder low');
+  assert.ok(!ck.boxes, 'the log entry leaves the stack to the hive save');
+  assert.ok((await txt(p, '#apReadout')).includes('Trued up'));
+  await p.click('.ap-stage [data-apbox="0"]');
+  assert.ok((await txt(p, '#apReadout')).startsWith('FEEDER Syrup low'));
+  await p.click('.ap-stage [data-apbox="2"]');
+  assert.ok((await txt(p, '#apReadout')).startsWith('BOTTOM SUPER 3 of 10 frames filled, about 25% capped'), await txt(p, '#apReadout'));
+  // the next check counts the new pieces: a super's frames filled out of its own count
+  await p.click('[data-apact="new"]'); await p.waitForSelector('.ap-steps'); await p.click('[data-apact="fwd"]');
+  assert.ok((await txt(p, '.ap-q')).includes('BOTTOM SUPER · FILLED') && (await txt(p, '.ap-q')).includes('last 3 of 10'));
+  await p.click('[data-apact="back"]'); await p.click('[data-apact="cancel"]'); await p.waitForSelector('.ap-checks');
+  await p.click('.ap-crumbs [data-apgo="yard"]'); await p.waitForSelector('.ap-hivebtn');
+  assert.strictEqual(await p.locator('[data-aphive="ap-h2"] .box.feeder').count(), 1, 'the yard draws the feeder');
+  assert.strictEqual(await p.locator('[data-aphive="ap-h2"] .box.excluder').count(), 1);
 
   // ---- a save that fails waits, with RETRY
   await mode('on=1&fail=1');

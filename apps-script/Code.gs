@@ -83,7 +83,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.27.0';
+var VERSION = '1.28.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -2167,12 +2167,20 @@ function apiaryCleanData_(d) {
   var s = JSON.stringify(d);
   return s.length > 6000 ? null : d;
 }
+/* The pieces a stack can hold (bridge 1.28): frames n 6..12 (deep, medium, super), drawn 0..n, fill 0..1
+   (medium, super), a feeder's level, a queen excluder with nothing. null means not counted yet. */
+var APIARY_PIECES = { deep: { n: 1 }, medium: { n: 1, cap: 1 }, super: { n: 1, cap: 1 }, feeder: {}, excluder: {} };
 function apiaryBoxes_(b) {
-  if (!Array.isArray(b) || !b.length || b.length > 8) return false;
+  if (!Array.isArray(b) || !b.length || b.length > 12) return false;
   return b.every(function (x) {
-    if (!x || (x.k !== 'deep' && x.k !== 'super')) return false;
-    var v = x.k === 'deep' ? x.drawn : x.fill;
-    return v === null || v === undefined || (typeof v === 'number' && v >= 0 && v <= (x.k === 'deep' ? 10 : 1));
+    var P = x && APIARY_PIECES[x.k];
+    if (!P) return false;
+    var n = x.n == null ? 10 : x.n;
+    if (P.n && !(n === Math.floor(n) && n >= 6 && n <= 12)) return false;
+    if (x.drawn != null && !(P.n && typeof x.drawn === 'number' && x.drawn >= 0 && x.drawn <= n)) return false;
+    if (x.fill != null && !(P.cap && typeof x.fill === 'number' && x.fill >= 0 && x.fill <= 1)) return false;
+    if (x.level != null && !(x.k === 'feeder' && ['EMPTY', 'LOW', 'FULL'].indexOf(x.level) > -1)) return false;
+    return true;
   });
 }
 /**

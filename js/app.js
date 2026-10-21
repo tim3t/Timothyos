@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.31.1";
+  var VERSION = "2.32.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -7509,6 +7509,7 @@
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Apiary database with the bridge yet. In Notion open 🐝 Apiary → ••• → Connections → add TimothyOS bridge, then REFRESH.";
     if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.26 (steps in the README under Apiary).";
+    if (code === "bad_request") return "The bridge refused it. Mediums, feeders and excluders need bridge 1.28 (steps in the README under Apiary).";
     return describe(err);
   }
   function apId(id) { return ap.alias[id] || id; }
@@ -7603,7 +7604,7 @@
     hs.forEach(function (h) { h.data = h.data || {}; if (!apBoxesOk(h.data.boxes)) h.data.boxes = [{ k: "deep", drawn: null }]; });
     return hs.sort(function (a, b) { return (+a.data.order || 99) - (+b.data.order || 99) || String(a.created || "~").localeCompare(String(b.created || "~")); });
   }
-  function apBoxesOk(b) { return Array.isArray(b) && b.length > 0 && b.every(function (x) { return x && (x.k === "deep" || x.k === "super"); }); }
+  function apBoxesOk(b) { return Array.isArray(b) && b.length > 0 && b.every(function (x) { return x && AP_PIECES[x.k]; }); }
   function apHive(id) { id = apId(id); return apHives().filter(function (h) { return h.id === id; })[0] || null; }
   function apChecks(hiveId) {
     var hid = hiveId ? apId(hiveId) : null;
@@ -7623,35 +7624,131 @@
   }
 
   /* --- the stack --- */
+  /* Pieces (2.32), top to bottom in Data.boxes. Deeps, mediums and supers hold frames: n (default deep 10, medium 10,
+     super 9; changeable per box) and drawn (frames drawn, or filled for a super; null = not counted). Mediums and
+     supers also carry fill, the capped share 0..1. A feeder carries level (empty | low | full | null); a queen
+     excluder nothing. rank sets where a new piece goes: on top of its own kind, below anything ranked above it. */
+  var AP_PIECES = { feeder: { nm: "Feeder", rank: 0, max: 1 }, super: { nm: "Super", rank: 1, n: 9, cap: 1, max: 5 }, excluder: { nm: "Queen excluder", rank: 2, max: 1 },
+    medium: { nm: "Medium", rank: 3, n: 10, cap: 1, max: 4 }, deep: { nm: "Deep", rank: 4, n: 10, max: 4 } };
+  var AP_ADD = ["deep", "medium", "super", "excluder", "feeder"], AP_CAPS = [0, 25, 50, 75, 90, 100], AP_LEVELS = ["EMPTY", "LOW", "FULL"];
   function apLight(hex) { var n = parseInt(String(hex || "#000").slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150; }
+  function apN(b) { return +b.n || (AP_PIECES[b.k] || {}).n || 0; }
   function apBoxName(boxes, i) {
-    if (boxes[i].k === "super") { var s = 0, ns = 0; boxes.forEach(function (b, j) { if (b.k === "super") { ns++; if (j > i) s++; } }); return ns > 1 ? (s === 0 ? "Bottom super" : s === ns - 1 ? "Top super" : "Super " + (s + 1)) : "Honey super"; }
-    var d = 0, nd = 0; boxes.forEach(function (b, j) { if (b.k === "deep") { nd++; if (j > i) d++; } });
-    return nd > 1 ? (d === 0 ? "Bottom deep" : d === nd - 1 ? "Top deep" : "Deep " + (d + 1)) : "Deep";
+    var k = boxes[i].k, nm = AP_PIECES[k].nm, s = 0, ns = 0;
+    boxes.forEach(function (b, j) { if (b.k === k) { ns++; if (j > i) s++; } });
+    if (ns < 2) return k === "super" ? "Honey super" : nm;
+    return s === 0 ? "Bottom " + nm.toLowerCase() : s === ns - 1 ? "Top " + nm.toLowerCase() : nm + " " + (s + 1);
   }
-  function apStack(h, u, pick) {
-    var boxes = h.data.boxes, html = '<div class="ap-stack" data-apstack="' + esc(h.id) + '" style="--u:' + u + 'px"' + (pick ? "" : ' aria-hidden="true"') + '><span class="lid"></span>', below = 0;
-    for (var i = boxes.length - 1; i >= 0; i--) if (boxes[i].k === "deep") below++;
+  function apNewPiece(k) { var P = AP_PIECES[k]; return P.n ? (P.cap ? { k: k, n: P.n, drawn: 0, fill: 0 } : { k: k, n: P.n, drawn: 0 }) : k === "feeder" ? { k: k, level: null } : { k: k }; }
+  /* Where a new piece goes; returns its index. */
+  function apSlot(boxes, k) { var r = AP_PIECES[k].rank, at = 0; while (at < boxes.length && AP_PIECES[boxes[at].k].rank < r) at++; return at; }
+  function apInsert(boxes, k) { var at = apSlot(boxes, k); boxes.splice(at, 0, apNewPiece(k)); return at; }
+  /* Box indexes kept in an object ({2: 1}) follow a piece put in (by 1) or taken off (by -1) at index at. */
+  function apShiftKeys(o, at, by) {
+    var c = {};
+    Object.keys(o || {}).forEach(function (k) { var n = +k; if (by > 0) c[n >= at ? n + 1 : n] = 1; else if (n !== at) c[n > at ? n - 1 : n] = 1; });
+    return c;
+  }
+  function apCount(boxes, k) { return boxes.filter(function (b) { return b.k === k; }).length; }
+  /* One piece in words: "Bottom super 6/9 filled, 50% capped". Empty when nothing is known. */
+  function apPieceText(boxes, i, what) {
+    var b = boxes[i], P = AP_PIECES[b.k], parts = [];
+    if (!P.n) return b.k === "feeder" && b.level && !what ? "Feeder " + b.level.toLowerCase() : "";
+    if (b.drawn != null && (!what || what.d)) parts.push(b.drawn + "/" + apN(b) + (b.k === "super" ? " filled" : " drawn"));
+    if (P.cap && b.fill != null && (!what || what.f)) parts.push(Math.round(b.fill * 100) + "% capped");
+    return parts.length ? apBoxName(boxes, i) + " " + parts.join(", ") : "";
+  }
+  function apStack(h, u, pick, sel) {
+    var boxes = h.data.boxes, html = '<div class="ap-stack" data-apstack="' + esc(h.id) + '" style="--u:' + u + 'px"' + (pick ? "" : ' aria-hidden="true"') + '><span class="lid"></span>', brood = 0;
+    boxes.forEach(function (b) { if (b.k === "deep" || b.k === "medium") brood++; });
     boxes.forEach(function (b, i) {
-      var tag = pick ? "button" : "span", attr = pick ? ' type="button" data-apbox="' + i + '" aria-label="' + esc(apBoxName(boxes, i)) + '"' : "", sel = pick && ap.box === i ? " sel" : "";
-      if (b.k === "super") { html += "<" + tag + attr + ' class="box super' + (b.fill == null ? " unknown" : "") + sel + '"><i style="height:' + Math.round((b.fill || 0) * 100) + '%"></i></' + tag + ">"; return; }
-      below--;
-      var paint = below % 2 ? h.data.paint || "#2f4a8f" : h.data.paint2 || h.data.paint || "#b4423c", f = "";
-      for (var n = 0; n < 10; n++) f += '<span class="f' + (b.drawn != null && n < b.drawn ? " on" : "") + '"></span>';
-      html += "<" + tag + attr + ' class="box deep' + (b.drawn == null ? " unknown" : "") + sel + '" style="--paint:' + paint + ";--tick:" + (apLight(paint) ? "#0a0a0d" : "#efe8dc") + '">' + f + "</" + tag + ">";
+      var tag = pick ? "button" : "span", attr = pick ? ' type="button" data-apbox="' + i + '" aria-label="' + esc(apBoxName(boxes, i)) + '"' : "", on = pick && sel === i ? " sel" : "", f = "", n = apN(b);
+      for (var x = 0; x < n; x++) f += '<span class="f' + (b.drawn != null && x < b.drawn ? " on" : "") + '"></span>';
+      if (b.k === "feeder") { html += "<" + tag + attr + ' class="box feeder' + (b.level ? "" : " unknown") + on + '"><i style="height:' + ({ FULL: 85, LOW: 30, EMPTY: 0 }[b.level] || 0) + '%"></i></' + tag + ">"; return; }
+      if (b.k === "excluder") { html += "<" + tag + attr + ' class="box excluder' + on + '"></' + tag + ">"; return; }
+      if (b.k === "super") { html += "<" + tag + attr + ' class="box super' + (b.fill == null && b.drawn == null ? " unknown" : "") + on + '"><i style="height:' + Math.round((b.fill || 0) * 100) + '%"></i>' + f + "</" + tag + ">"; return; }
+      brood--;
+      var paint = brood % 2 ? h.data.paint || "#2f4a8f" : h.data.paint2 || h.data.paint || "#b4423c";
+      html += "<" + tag + attr + ' class="box ' + b.k + (b.drawn == null ? " unknown" : "") + on + '" style="--paint:' + paint + ";--tick:" + (apLight(paint) ? "#0a0a0d" : "#efe8dc") + '">' + f + "</" + tag + ">";
     });
     return html + '<span class="bottom"></span><span class="legs"><span></span><span></span></span></div>';
   }
   function apBoxRead(h, i) {
-    var b = h.data.boxes[i], nm = apBoxName(h.data.boxes, i).toUpperCase();
-    if (!b) return apBoxHint();
-    if (b.k === "super") return "<b>" + nm + "</b><span>" + (b.fill == null ? "Not logged since it went on. The next check fills it in." : "About " + Math.round(b.fill * 100) + "% capped at the last check.") + "</span>";
-    return "<b>" + nm + "</b><span>" + (b.drawn == null ? "Not counted since it went on. The next check fills it in." : b.drawn + " of 10 frames drawn at the last count.") + "</span>";
+    var b = h.data.boxes[i];
+    if (!b) return apBoxHint(h);
+    var nm = apBoxName(h.data.boxes, i).toUpperCase(), t;
+    if (b.k === "feeder") t = b.level ? "Syrup " + b.level.toLowerCase() + " at the last look." : "On the hive. Syrup level not logged.";
+    else if (b.k === "excluder") t = "Keeps the queen in the boxes below it.";
+    else {
+      var parts = [];
+      if (b.drawn != null) parts.push(b.drawn + " of " + apN(b) + " frames " + (b.k === "super" ? "filled" : "drawn"));
+      if (AP_PIECES[b.k].cap && b.fill != null) parts.push("about " + Math.round(b.fill * 100) + "% capped");
+      t = parts.length ? parts.join(", ").replace(/^./, function (c) { return c.toUpperCase(); }) + " at the last count." : "Not counted since it went on. The next check fills it in.";
+    }
+    return "<b>" + nm + "</b><span>" + t + "</span>";
   }
-  function apBoxHint() { return "<b>THE STACK</b><span>Tap a box to see what was in it at the last check.</span>"; }
+  function apBoxHint(h) { return "<b>THE STACK</b><span>Tap a box to see what was in it at the last check." + (h && h.data.trued ? " Trued up " + apDay(h.data.trued) + "." : "") + "</span>"; }
+
+  /* --- TRUE UP STACK (2.32): set the stack as it really stands, without a check --- */
+  function apTrueUpStart(h) { ap.tu = { hive: h.id, boxes: JSON.parse(JSON.stringify(h.data.boxes)), orig: JSON.stringify(h.data.boxes), sel: null, log: false, day: ymd(new Date()) }; }
+  /* What changed, in words, for the optional log entry. */
+  function apTuSummary(T) {
+    var before = JSON.parse(T.orig), out = [], kinds = function (bs) { return bs.map(function (b) { return b.k; }).join(); };
+    AP_ADD.forEach(function (k) {
+      var d = apCount(T.boxes, k) - apCount(before, k), nm = AP_PIECES[k].nm.toLowerCase(), many = Math.abs(d) + " " + nm + "s";
+      if (d > 0) out.push("Added " + (d === 1 ? "a " + nm : many));
+      if (d < 0) out.push("Took off " + (d === -1 ? "a " + nm : many));
+    });
+    if (!out.length && kinds(T.boxes) !== kinds(before)) out.push("Rearranged the boxes");
+    if (!out.length && JSON.stringify(T.boxes) !== T.orig) out.push("Trued up frame counts");
+    return out.join("; ");
+  }
+  function apTrueUpHtml() {
+    var h = apHive(ap.hive), T = ap.tu, bs = T.boxes, armed = ap.arm === "tux:" + T.sel && Date.now() - ap.armAt < 4000, sum = apTuSummary(T);
+    var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase(), "hive"], ["TRUE UP STACK"]]);
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack({ id: h.id, data: Object.assign({}, h.data, { boxes: bs }) }, 1.7, true, T.sel) + '<div class="ap-readout"><b>' + esc(h.name.toUpperCase()) + "</b><span>" +
+      AP_ADD.filter(function (k) { return apCount(bs, k); }).map(function (k) { var c = apCount(bs, k); return c + " " + (k === "excluder" ? "excluder" : AP_PIECES[k].nm.toLowerCase()) + (c > 1 ? "s" : ""); }).join(", ") + "</span></div></div>";
+    html += '<article class="ap-card ap-form"><h2>TRUE UP STACK</h2><small class="muted">For changes made at the hive but not logged. Top of the hive first; tap a piece to set it.</small>' +
+      '<div class="btnrow ap-adds">' + AP_ADD.map(function (k) { var full = apCount(bs, k) >= AP_PIECES[k].max; return '<button type="button" class="chip sm" data-aptuadd="' + k + '"' + (full ? " disabled" : "") + ">+ " + (k === "excluder" ? "EXCLUDER" : AP_PIECES[k].nm.toUpperCase()) + "</button>"; }).join("") + "</div>";
+    html += '<div class="ap-pieces" role="list">' + bs.map(function (b, i) {
+      var P = AP_PIECES[b.k], open = T.sel === i, line = apPieceText(bs, i) || (P.n ? apBoxName(bs, i) + " not counted" : b.k === "feeder" ? "Feeder, level not set" : apBoxName(bs, i));
+      var row = '<div class="ap-piece' + (open ? " open" : "") + '" role="listitem"><button type="button" class="ap-prow" data-aptusel="' + i + '" aria-expanded="' + open + '"><span class="k k-' + b.k + '" aria-hidden="true"></span><span>' + esc(line) + '</span><span class="go" aria-hidden="true">' + (open ? "▴" : "▾") + "</span></button>";
+      if (!open) return row + "</div>";
+      row += '<div class="ap-pset">';
+      if (P.n) {
+        row += '<span class="ap-lab">FRAMES IN THIS BOX</span><div class="btnrow ap-picks">' + [8, 9, 10].map(function (v) { return '<button type="button" class="chip sm" data-aptun="' + v + '" aria-pressed="' + (apN(b) === v) + '">' + v + "</button>"; }).join("") + "</div>" +
+          apStepper("tudrawn", i, b.drawn, b.k === "super" ? "FRAMES FILLED" : "FRAMES DRAWN", "of " + apN(b), apN(b));
+        if (P.cap) row += '<span class="ap-lab">CAPPED</span><div class="btnrow ap-picks">' + AP_CAPS.map(function (v) { return '<button type="button" class="chip sm" style="--c: var(--hero)" data-aptucap="' + v + '" aria-pressed="' + (b.fill != null && Math.round(b.fill * 100) === v) + '">' + v + "%</button>"; }).join("") + "</div>";
+      }
+      if (b.k === "feeder") row += '<span class="ap-lab">SYRUP</span><div class="btnrow ap-picks">' + AP_LEVELS.map(function (v) { return '<button type="button" class="chip sm" data-aptulevel="' + v + '" aria-pressed="' + (b.level === v) + '">' + v + "</button>"; }).join("") + "</div>";
+      row += '<div class="btnrow"><button type="button" class="chip sm" data-aptumove="-1"' + (i === 0 ? " disabled" : "") + '>▲ UP</button><button type="button" class="chip sm" data-aptumove="1"' + (i === bs.length - 1 ? " disabled" : "") + ">▼ DOWN</button>" +
+        '<button type="button" class="chip sm' + (armed ? " ap-armed" : "") + '" data-aptux="' + i + '"' + (bs.length < 2 ? " disabled" : "") + ">" + (armed ? "TAP AGAIN TO REMOVE" : "REMOVE") + "</button></div></div>";
+      return row + "</div>";
+    }).join("") + "</div>";
+    html += '<div class="btnrow"><button type="button" class="chip sm" data-aptulog="1" aria-pressed="' + T.log + '">LOG THIS TOO</button></div>' +
+      (T.log ? '<label class="ap-lab" for="apTuDay">DATE YOU DID IT</label><input type="date" id="apTuDay" data-aptuday="1" value="' + esc(T.day) + '" max="' + ymd(new Date()) + '">' +
+        '<small class="muted">Adds a check on that date: ' + esc((sum || "Trued up the stack") + " (logged later)") + ".</small>" : '<small class="muted">Only the stack changes. Turn on LOG THIS TOO to add it to the hive\'s history with the date you did it.</small>') +
+      '<div class="ap-navrow"><button type="button" class="btn sm ghost" data-apgo="hive">CANCEL</button><button type="button" class="btn sm" data-apact="savetu">SAVE STACK</button></div></article></div>';
+    return html;
+  }
+  /* The hive with its new stack; with LOG THIS TOO, a short check after it (the hive goes first in the queue). */
+  function apSaveTrueUp() {
+    var T = ap.tu, h = apHive(T.hive);
+    if (JSON.stringify(T.boxes) === T.orig && !T.log) { toast("Nothing changed"); return false; }
+    var data = Object.assign({}, h.data, { boxes: T.boxes, trued: ymd(new Date()) }), item = { kind: "hive", name: h.name, queen: h.queen || "", day: h.day || null, notes: h.notes || "", data: data }, key;
+    if (String(h.id).indexOf("cid:") === 0) { item.cid = h.id.slice(4); key = "h:" + h.id; } else { item.id = h.id; key = "h:" + h.id; }
+    apQueue(key, { action: "apiarysave", item: item });
+    if (T.log && /^\d{4}-\d{2}-\d{2}$/.test(T.day || "")) {
+      var cid = newCid(), frames = T.boxes.map(function (b, i) { return apPieceText(T.boxes, i); }).filter(Boolean).reverse().join("; ");
+      apQueue("c:cid:" + cid, { action: "apiarysave", item: { kind: "check", cid: cid, hive: apId(h.id), day: T.day, who: "", queen: "", frames: frames, stores: "", feed: "", mood: "", pests: "",
+        did: (apTuSummary(T) || "Trued up the stack") + " (logged later)", issue: "", notes: "", next: "", mites: null, honey: null, data: { v: 1, trueup: 1 } } });
+    }
+    ap.tu = null; ap.box = null;
+    return true;
+  }
 
   /* --- moving between levels: the stack you tapped flies to its place on the next level --- */
-  var AP_DEPTH = { yard: 0, hiveedit: 1, hive: 1, check: 2, new: 2, checkedit: 3 };
+  var AP_DEPTH = { yard: 0, hiveedit: 1, hive: 1, check: 2, new: 2, stackedit: 2, checkedit: 3 };
   function apNav(view, from) {
     var deeper = (AP_DEPTH[view] || 0) > (AP_DEPTH[ap.view] || 0), src = from && from.getBoundingClientRect ? from.getBoundingClientRect() : null, sid = from && from.dataset ? from.dataset.apstack : null;
     ap.view = view; ap.arm = null;
@@ -7679,6 +7776,7 @@
     var h = ap.hive && apHive(ap.hive);
     if (ap.view === "yard" || !h) return { e: "APIARY · " + (ap.data ? apHives().length + (apHives().length === 1 ? " HIVE" : " HIVES") : "NOTION"), t: "APIARY" };
     if (ap.view === "hiveedit") return { e: "APIARY · " + (h.pending && !h.name ? "NEW HIVE" : "EDIT HIVE"), t: (h.name || "NEW HIVE").toUpperCase() };
+    if (ap.view === "stackedit") return { e: "APIARY · TRUE UP STACK", t: h.name.toUpperCase() };
     return { e: "APIARY · " + (ap.view === "new" ? "NEW CHECK" : ap.view === "check" || ap.view === "checkedit" ? "CHECK" : h.queen ? "QUEEN " + h.queen.toUpperCase() : "HIVE"), t: h.name.toUpperCase() };
   }
   function renderApiary() {
@@ -7689,9 +7787,10 @@
     if (ap.view !== "yard" && ap.view !== "hiveedit" && !apHive(ap.hive)) ap.view = "yard";
     if ((ap.view === "check" || ap.view === "checkedit") && !apChecks(ap.hive).filter(function (c) { return c.id === apId(ap.check); }).length) ap.view = "hive";
     if (ap.view === "new" && (!ap.draft || apId(ap.draft.hive) !== apId(ap.hive))) ap.view = "hive";
+    if (ap.view === "stackedit" && (!ap.tu || apId(ap.tu.hive) !== apId(ap.hive))) ap.view = "hive";
     var nq = Object.keys(ap.q).length;
     var html = '<div class="ap">' + (ap.qErr && nq ? '<div class="err">' + nq + " change" + (nq === 1 ? "" : "s") + " not in Notion yet: " + esc(ap.qErr.msg) + ' <button type="button" class="chip sm" data-apretry="1">RETRY</button></div>' : ap.qErr ? '<div class="err">Not saved: ' + esc(ap.qErr.msg) + "</div>" : "");
-    html += '<div class="ap-view">' + ({ yard: apYardHtml, hive: apHiveHtml, check: apCheckHtml, new: apNewHtml, checkedit: apCheckEditHtml, hiveedit: apHiveEditHtml })[ap.view]() + "</div>";
+    html += '<div class="ap-view">' + ({ yard: apYardHtml, hive: apHiveHtml, check: apCheckHtml, new: apNewHtml, checkedit: apCheckEditHtml, hiveedit: apHiveEditHtml, stackedit: apTrueUpHtml })[ap.view]() + "</div>";
     $("content").innerHTML = html + "</div>";
   }
   function apCrumbs(parts) {
@@ -7743,7 +7842,7 @@
       var other = apHives().filter(function (x) { return x.id !== h.id && !apChecks(x.id).some(function (c) { return c.day === ymd(new Date()); }); })[0];
       html += '<div class="ap-saved"><span>✓ SAVED' + (cs.some(function (c) { return c.pending; }) ? " · GOES TO NOTION WHEN THE BRIDGE ANSWERS" : "") + "</span>" + (other ? '<button type="button" class="btn sm" data-apnextcheck="' + esc(other.id) + '">CHECK ' + esc(other.name.toUpperCase()) + " NEXT ›</button>" : "") + "</div>";
     }
-    html += '<div class="ap-hive"><div class="ap-stage">' + apStack(h, 1.9, true) + '<div class="ap-readout" id="apReadout">' + (ap.box == null ? apBoxHint() : apBoxRead(h, ap.box)) + "</div></div>";
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack(h, 1.9, true, ap.box) + '<div class="ap-readout" id="apReadout">' + (ap.box == null ? apBoxHint(h) : apBoxRead(h, ap.box)) + '</div><button type="button" class="btn sm ghost ap-tubtn" data-apact="trueup">TRUE UP STACK</button></div>';
     html += '<div class="ap-info"><div class="ap-hhead"><div><h2>' + esc(h.name.toUpperCase()) + "</h2><p>" + [h.queen ? "Queen " + esc(h.queen) : "", cs.length + (cs.length === 1 ? " check" : " checks"), lb ? (Math.round(lb * 10) / 10) + " lb honey" : ""].filter(Boolean).join(" · ") + "</p></div>" +
       '<button type="button" class="btn" data-apact="new">' + (ap.draft && apId(ap.draft.hive) === h.id ? "RESUME CHECK" : "+ NEW CHECK") + "</button></div>";
     if (last && last.next) html += '<div class="ap-next"><span class="ap-lab">NEXT TIME · FROM ' + apDay(last.day) + "</span><p>" + esc(last.next) + "</p></div>";
@@ -7783,7 +7882,7 @@
 
   /* level 3: a new check, one short step at a time */
   function apNewDraft(h) {
-    return { hive: h.id, cid: newCid(), day: ymd(new Date()), step: 0, who: "", queen: {}, pattern: "", mood: "", boxes: JSON.parse(JSON.stringify(h.data.boxes)), counted: {}, moves: [],
+    return { hive: h.id, cid: newCid(), day: ymd(new Date()), step: 0, who: "", queen: {}, pattern: "", mood: "", boxes: JSON.parse(JSON.stringify(h.data.boxes)), counted: {}, capd: {}, moves: [],
       honey: "", pollen: "", heft: "", feeder: "", method: "", mites: 0, beetles: 0, other: {}, did: {}, harvest: 0, issue: "", notes: "", next: "", remind: false };
   }
   function apDraftSave() { lsSet(LS_APDRAFT, ap.draft); }
@@ -7800,22 +7899,21 @@
   function apMitePct(D) { return D.method === "SUGAR ROLL" || D.method === "ALCOHOL WASH" ? Math.round(D.mites / 3 * 10) / 10 : null; }
   function apNewHtml() {
     var h = apHive(ap.hive), D = ap.draft, q = "", last = apChecks(h.id)[0];
+    D.capd = D.capd || {};
     if (D.step === 0) q = "<h3>WHAT DID YOU SEE?</h3>" + '<span class="ap-lab">PICK ALL THAT APPLY</span>' + apPick("queen", ["QUEEN", "EGGS", "LARVAE", "CAPPED BROOD", "QUEEN CELLS", "NONE OF THESE"], true) +
       '<span class="ap-lab">BROOD PATTERN</span>' + apPick("pattern", ["SOLID", "PATCHY", "SPOTTY"]) + '<span class="ap-lab">TEMPERAMENT</span>' + apPick("mood", ["CALM", "BUSY", "RUNNY", "DEFENSIVE"], false, "ok") +
       '<label class="ap-lab" for="apWho">WHO WAS THERE</label><input type="text" id="apWho" data-apt="who" maxlength="200" placeholder="Solo" value="' + esc(D.who) + '" autocomplete="off">';
     if (D.step === 1) {
       q = "<h3>HOW FAR HAVE THEY DRAWN?</h3>";
       for (var i = D.boxes.length - 1; i >= 0; i--) {   /* bottom first, the way you work down to it */
-        var b = D.boxes[i];
-        if (b.k === "deep") { q += apStepper("drawn", i, D.counted[i] ? b.drawn : null, apBoxName(D.boxes, i).toUpperCase(), D.counted[i] ? "of 10 frames" : "last " + (b.drawn == null ? "not counted" : b.drawn) + " · tap + or − to count", 10); }
+        var b = D.boxes[i], P = AP_PIECES[b.k], nm = apBoxName(D.boxes, i).toUpperCase();
+        if (!P.n) continue;
+        q += apStepper("drawn", i, D.counted[i] ? b.drawn : null, nm + (b.k === "super" ? " · FILLED" : ""), D.counted[i] ? "of " + apN(b) + " frames" : "last " + (b.drawn == null ? "not counted" : b.drawn + " of " + apN(b)) + " · tap + or − to count", apN(b));
+        if (P.cap) q += '<span class="ap-lab">' + nm + " · CAPPED" + (D.capd[i] ? "" : " · LAST " + (b.fill == null ? "NOT LOGGED" : Math.round(b.fill * 100) + "%")) + '</span><div class="btnrow ap-picks">' +
+          AP_CAPS.map(function (v) { return '<button type="button" class="chip sm" style="--c: var(--hero)" data-apfill="' + i + '" data-apv="' + v + '" aria-pressed="' + (!!D.capd[i] && Math.round((D.boxes[i].fill || 0) * 100) === v) + '">' + v + "%</button>"; }).join("") + "</div>";
       }
-      D.boxes.forEach(function (b, i) {
-        if (b.k !== "super") return;
-        q += '<span class="ap-lab">' + apBoxName(D.boxes, i).toUpperCase() + " · CAPPED" + (D.counted[i] ? "" : " · LAST " + (b.fill == null ? "NOT LOGGED" : Math.round(b.fill * 100) + "%")) + '</span><div class="btnrow ap-picks">' +
-          [0, 25, 50, 75, 90, 100].map(function (v) { return '<button type="button" class="chip sm" style="--c: var(--hero)" data-apfill="' + i + '" data-apv="' + v + '" aria-pressed="' + (!!D.counted[i] && Math.round((b.fill || 0) * 100) === v) + '">' + v + "%</button>"; }).join("") + "</div>";
-      });
-      q += '<span class="ap-lab">BOXES ON OR OFF</span><div class="btnrow"><button type="button" class="chip sm" data-apbx="deep">+ DEEP</button><button type="button" class="chip sm" data-apbx="super">+ SUPER</button>' +
-        (D.boxes.length > 1 ? '<button type="button" class="chip sm" data-apbx="off">TOP BOX OFF</button>' : "") + "</div>" + (D.moves.length ? '<small class="muted">' + esc(D.moves.join(", ")) + "</small>" : "") +
+      q += '<span class="ap-lab">BOXES ON OR OFF</span><div class="btnrow">' + AP_ADD.map(function (k) { return '<button type="button" class="chip sm" data-apbx="' + k + '"' + (apCount(D.boxes, k) >= AP_PIECES[k].max ? " disabled" : "") + ">+ " + (k === "excluder" ? "EXCLUDER" : AP_PIECES[k].nm.toUpperCase()) + "</button>"; }).join("") +
+        (D.boxes.length > 1 ? '<button type="button" class="chip sm" data-apbx="off">TOP PIECE OFF</button>' : "") + "</div>" + (D.moves.length ? '<small class="muted">' + esc(D.moves.join(", ")) + "</small>" : "") +
         '<small class="muted">The stack on the left follows what you enter. Add the second deep at 7 to 8 of 10 frames drawn.</small>';
     }
     if (D.step === 2) q = "<h3>STORES AND FEED</h3>" + [["honey", "HONEY", ["LOW", "OK", "HEAVY"]], ["pollen", "POLLEN", ["LOW", "OK", "HEAVY"]], ["heft", "HEFT", ["LIGHT", "OK", "HEAVY"]], ["feeder", "FEEDER", ["FULL", "LOW", "EMPTY", "REFILLED 1:1", "REFILLED 2:1", "NO FEEDER"]]]
@@ -7845,7 +7943,10 @@
     var h = apHive(ap.hive), D = ap.draft, keys = function (o) { return Object.keys(o).filter(function (k) { return o[k]; }); };
     var seen = keys(D.queen), other = keys(D.other), did = keys(D.did).filter(function (k) { return k !== "PULLED HONEY"; }).map(apOne);
     var frames = [];
-    for (var i = D.boxes.length - 1; i >= 0; i--) if (D.counted[i]) { var b = D.boxes[i]; frames.push(apBoxName(D.boxes, i) + (b.k === "deep" ? " " + b.drawn + "/10 drawn" : " " + Math.round(b.fill * 100) + "% capped")); }
+    D.capd = D.capd || {};
+    for (var i = D.boxes.length - 1; i >= 0; i--) { var ft = apPieceText(D.boxes, i, { d: D.counted[i], f: D.capd[i] }); if (ft) frames.push(ft); }
+    var lvl = { FULL: "FULL", "REFILLED 1:1": "FULL", "REFILLED 2:1": "FULL", LOW: "LOW", EMPTY: "EMPTY" }[D.feeder];
+    if (lvl) D.boxes.forEach(function (b) { if (b.k === "feeder") b.level = lvl; });
     var pct = apMitePct(D), stores = [D.honey && "honey " + D.honey.toLowerCase(), D.pollen && "pollen " + D.pollen.toLowerCase(), D.heft && "heft " + D.heft.toLowerCase()].filter(Boolean).join(", ");
     var pests = [D.method ? apOne(D.method) + ": " + D.mites + " mites" + (pct != null ? " (" + pct + "%)" : "") : "", D.beetles ? D.beetles + " beetles in traps" : "", other.length ? other.map(apOne).join(", ") : ""].filter(Boolean).join("; ");
     if (D.did["PULLED HONEY"]) did.push("Pulled honey" + (D.harvest ? ": " + D.harvest + " lb" : ""));
@@ -7897,23 +7998,25 @@
     return { forId: h.id, name: h.name, queen: h.queen || "", day: h.day || "", source: ab.source || "", foundation: ab.foundation || "", equipment: ab.equipment || "", place: ab.place || "", notes: h.notes || "",
       paint: pi, boxes: JSON.parse(JSON.stringify(h.data.boxes)) };
   }
+  /* A new hive's starting boxes, not counted yet. Later changes go through TRUE UP STACK. */
   function apFormBoxes(F, kind, d) {
-    var bs = F.boxes, n = bs.filter(function (b) { return b.k === kind; }).length;
-    if (d > 0 && n < (kind === "deep" ? 4 : 5)) { if (kind === "super") bs.unshift({ k: "super", fill: null }); else bs.splice(bs.filter(function (b) { return b.k === "super"; }).length, 0, { k: "deep", drawn: null }); }
-    if (d < 0 && n > (kind === "deep" ? 1 : 0)) bs.splice(bs.map(function (b) { return b.k; }).indexOf(kind), 1);
+    var bs = F.boxes, brood = apCount(bs, "deep") + apCount(bs, "medium");
+    if (d > 0 && apCount(bs, kind) < AP_PIECES[kind].max) { var at = apInsert(bs, kind); bs[at].drawn = null; if (AP_PIECES[kind].cap) bs[at].fill = null; }
+    if (d < 0 && apCount(bs, kind) && (kind === "super" || brood > 1)) bs.splice(bs.map(function (b) { return b.k; }).indexOf(kind), 1);
   }
   function apHiveEditHtml() {
     var F = ap.form, h = F.forId ? apHive(F.forId) : null, armed = h && ap.arm === "delh:" + h.id && Date.now() - ap.armAt < 4000;
-    var nD = F.boxes.filter(function (b) { return b.k === "deep"; }).length, nS = F.boxes.length - nD, pv = AP_PAINTS[F.paint] || ["", (h && h.data.paint) || "#2f4a8f", (h && h.data.paint2) || "#b4423c"];
+    var nD = apCount(F.boxes, "deep"), nM = apCount(F.boxes, "medium"), nS = apCount(F.boxes, "super"), pv = AP_PAINTS[F.paint] || ["", (h && h.data.paint) || "#2f4a8f", (h && h.data.paint2) || "#b4423c"];
     var html = apCrumbs(h ? [["APIARY", "yard"], [h.name.toUpperCase(), "hive"], ["EDIT"]] : [["APIARY", "yard"], ["NEW HIVE"]]);
     var fld = function (k, lab, ph, max) { return '<label class="ap-lab" for="apH-' + k + '">' + lab + '</label><input type="text" id="apH-' + k + '" data-aph="' + k + '" maxlength="' + (max || 200) + '" placeholder="' + esc(ph) + '" value="' + esc(F[k]) + '" autocomplete="off">'; };
-    html += '<div class="ap-hive"><div class="ap-stage">' + apStack({ id: "form", data: { paint: pv[1], paint2: pv[2], boxes: F.boxes } }, 1.6, false) + '<div class="ap-readout"><b>' + esc((F.name || "NEW HIVE").toUpperCase()) + "</b><span>" + nD + (nD === 1 ? " deep" : " deeps") + (nS ? ", " + nS + (nS === 1 ? " super" : " supers") : "") + "</span></div></div>";
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack({ id: "form", data: { paint: pv[1], paint2: pv[2], boxes: F.boxes } }, 1.6, false) + '<div class="ap-readout"><b>' + esc((F.name || "NEW HIVE").toUpperCase()) + "</b><span>" + [nD ? nD + (nD === 1 ? " deep" : " deeps") : "", nM ? nM + (nM === 1 ? " medium" : " mediums") : "", nS ? nS + (nS === 1 ? " super" : " supers") : ""].filter(Boolean).join(", ") + "</span></div></div>";
     html += '<article class="ap-card ap-form"><h2>' + (h ? "EDIT HIVE" : "NEW HIVE") + "</h2>" + fld("name", "NAME", "e.g. Thor", 60) + fld("queen", "QUEEN", "Her name, if she has one", 60) +
       '<label class="ap-lab" for="apH-day">STARTED</label><input type="date" id="apH-day" data-aph="day" value="' + esc(F.day) + '">' +
       fld("source", "SOURCE", "Package, nuc, split, swarm") + fld("foundation", "FOUNDATION", "Plastic, wax, foundationless") + fld("equipment", "EQUIPMENT", "Bottom board, feeder, covers") + fld("place", "PLACE", "Where it sits in the yard") +
       '<label class="ap-lab" for="apH-notes">NOTES</label><textarea id="apH-notes" data-aph="notes" rows="2" maxlength="2000">' + esc(F.notes) + "</textarea>" +
       '<span class="ap-lab">PAINT</span><div class="btnrow ap-paints" role="group" aria-label="Paint">' + AP_PAINTS.map(function (p, i) { return '<button type="button" class="ap-swatch" data-appaint="' + i + '" aria-pressed="' + (F.paint === i) + '" aria-label="' + p[0] + '"><i style="background:' + p[1] + '"></i><i style="background:' + p[2] + '"></i></button>'; }).join("") + "</div>" +
-      '<span class="ap-lab">BOXES</span>' + apStepper("fdeep", 0, nD, "DEEPS", "", 4) + apStepper("fsuper", 0, nS, "SUPERS", "", 5) +
+      '<span class="ap-lab">BOXES</span>' + (h ? '<small class="muted">Boxes, frame counts, the feeder and the excluder change with TRUE UP STACK on the hive page.</small>' :
+        apStepper("fdeep", 0, nD, "DEEPS", "", 4) + apStepper("fmedium", 0, nM, "MEDIUMS", "", 4) + apStepper("fsuper", 0, nS, "SUPERS", "", 5)) +
       '<div class="ap-navrow"><div class="btnrow">' + (h ? '<button type="button" class="btn sm ' + (armed ? "warn" : "ghost") + '" data-apdelhive="' + esc(h.id) + '">' + (armed ? "TAP AGAIN TO REMOVE" : "REMOVE HIVE") + "</button>" : "") + "</div>" +
       '<div class="btnrow"><button type="button" class="btn sm ghost" data-apgo="' + (h ? "hive" : "yard") + '">CANCEL</button><button type="button" class="btn sm" data-apact="savehive">' + (h ? "SAVE" : "ADD TO THE YARD") + "</button></div></div>" +
       (h ? '<small class="muted">REMOVE HIVE puts it and nothing else in Notion\'s trash; its checks stay in the database.</small>' : "") + "</article></div>";
@@ -7950,11 +8053,28 @@
     if (state.screen !== "apiary") return false;
     var D = ap.draft, F = ap.form;
     if (d.aphive) { ap.hive = d.aphive; ap.box = null; ap.fresh = null; apNav("hive", b.querySelector(".ap-stack")); return true; }
-    if (d.apgo) { if (d.apgo !== "check") ap.form = null; if (d.apgo === "yard") ap.fresh = null; ap.box = null; apNav(d.apgo, apStackEl()); return true; }
+    if (d.apgo) { if (d.apgo !== "check") ap.form = null; ap.tu = null; if (d.apgo === "yard") ap.fresh = null; ap.box = null; apNav(d.apgo, apStackEl()); return true; }
+    var T = ap.view === "stackedit" ? ap.tu : null;
+    if (d.apbox != null && T) { T.sel = T.sel === +d.apbox ? null : +d.apbox; ap.arm = null; render(true); return true; }
+    if (d.aptusel != null && T) { T.sel = T.sel === +d.aptusel ? null : +d.aptusel; ap.arm = null; render(true); return true; }
+    if (d.aptuadd && T) { if (apCount(T.boxes, d.aptuadd) < AP_PIECES[d.aptuadd].max) T.sel = apInsert(T.boxes, d.aptuadd); render(true); return true; }
+    if (T && T.sel != null && T.boxes[T.sel]) {
+      var tb = T.boxes[T.sel];
+      if (d.aptun) { tb.n = +d.aptun; if (tb.drawn != null) tb.drawn = Math.min(tb.drawn, tb.n); render(true); return true; }
+      if (d.aptucap != null) { tb.fill = tb.fill != null && Math.round(tb.fill * 100) === +d.aptucap ? null : +d.aptucap / 100; render(true); return true; }
+      if (d.aptulevel) { tb.level = tb.level === d.aptulevel ? null : d.aptulevel; render(true); return true; }
+      if (d.aptumove) { var to = T.sel + +d.aptumove; if (to >= 0 && to < T.boxes.length) { T.boxes.splice(to, 0, T.boxes.splice(T.sel, 1)[0]); T.sel = to; } render(true); return true; }
+      if (d.aptux != null) {
+        if (ap.arm === "tux:" + T.sel && Date.now() - ap.armAt < 4000) { if (T.boxes.length > 1) T.boxes.splice(T.sel, 1); T.sel = null; ap.arm = null; }
+        else { ap.arm = "tux:" + T.sel; ap.armAt = Date.now(); setTimeout(function () { if (state.screen === "apiary" && ap.view === "stackedit") render(true); }, 4100); }
+        render(true); return true;
+      }
+    }
+    if (d.aptulog && T) { T.log = !T.log; render(true); return true; }
     if (d.apbox != null) {
       var h = apHive(ap.hive); ap.box = ap.box === +d.apbox ? null : +d.apbox;
       document.querySelectorAll("#content .ap-stack [data-apbox]").forEach(function (x) { x.classList.toggle("sel", +x.dataset.apbox === ap.box); });
-      $("apReadout").innerHTML = ap.box == null ? apBoxHint() : apBoxRead(h, ap.box);
+      $("apReadout").innerHTML = ap.box == null ? apBoxHint(h) : apBoxRead(h, ap.box);
       return true;
     }
     if (d.apcheck) { ap.check = d.apcheck; apNav("check", apStackEl()); return true; }
@@ -7981,22 +8101,28 @@
     if (d.apremind && D) { D.remind = !D.remind; apDraftSave(); render(true); return true; }
     if (d.apgoto != null && D) { D.step = +d.apgoto; apDraftSave(); render(false); return true; }
     if (d.apbx && D) {
-      var bs = D.boxes, sup = bs.filter(function (x) { return x.k === "super"; }).length;
-      var shift = function (at) { var c2 = {}; Object.keys(D.counted).forEach(function (k) { c2[+k >= at ? +k + 1 : k] = 1; }); D.counted = c2; };
-      if (d.apbx === "super") { shift(0); bs.unshift({ k: "super", fill: 0 }); D.counted[0] = 1; D.moves.push("Added a super"); }
-      if (d.apbx === "deep") { shift(sup); bs.splice(sup, 0, { k: "deep", drawn: 0 }); D.counted[sup] = 1; D.moves.push("Added a deep"); }
-      if (d.apbx === "off" && bs.length > 1) { var off = bs.shift(); var c3 = {}; Object.keys(D.counted).forEach(function (k) { if (+k > 0) c3[+k - 1] = 1; }); D.counted = c3; D.moves.push("Took off the " + (off.k === "super" ? "top super" : "top deep")); }
+      var bs = D.boxes; D.capd = D.capd || {};
+      if (d.apbx === "off") { if (bs.length > 1) { var off = bs.shift(); D.counted = apShiftKeys(D.counted, 0, -1); D.capd = apShiftKeys(D.capd, 0, -1); D.moves.push("Took off the top " + AP_PIECES[off.k].nm.toLowerCase()); } }
+      else if (AP_PIECES[d.apbx] && apCount(bs, d.apbx) < AP_PIECES[d.apbx].max) {
+        var at = apSlot(bs, d.apbx);
+        D.counted = apShiftKeys(D.counted, at, 1); D.capd = apShiftKeys(D.capd, at, 1);
+        apInsert(bs, d.apbx);
+        if (AP_PIECES[d.apbx].n) D.counted[at] = 1;
+        if (AP_PIECES[d.apbx].cap) D.capd[at] = 1;
+        D.moves.push("Added a " + AP_PIECES[d.apbx].nm.toLowerCase());
+      }
       apDraftSave(); render(true); return true;
     }
-    if (d.apfill != null && D) { D.boxes[+d.apfill].fill = +d.apv / 100; D.counted[+d.apfill] = 1; apDraftSave(); render(true); return true; }
+    if (d.apfill != null && D) { D.capd = D.capd || {}; D.boxes[+d.apfill].fill = +d.apv / 100; D.capd[+d.apfill] = 1; apDraftSave(); render(true); return true; }
     if (d.apn) {
       var step = +d.apd;
-      if (d.apn === "fdeep" || d.apn === "fsuper") { if (F) { apFormBoxes(F, d.apn === "fdeep" ? "deep" : "super", step); render(true); } return true; }
+      if (d.apn === "fdeep" || d.apn === "fmedium" || d.apn === "fsuper") { if (F) { apFormBoxes(F, d.apn.slice(1), step); render(true); } return true; }
+      if (d.apn === "tudrawn") { if (ap.tu) { var tb = ap.tu.boxes[+d.api]; tb.drawn = Math.max(0, Math.min(apN(tb), (tb.drawn == null ? (step > 0 ? 0 : 1) : tb.drawn) + step)); render(true); } return true; }
       if (!D) return true;
       if (d.apn === "drawn") {
         var bx = D.boxes[+d.api];
-        if (!D.counted[+d.api]) { D.counted[+d.api] = 1; bx.drawn = bx.drawn == null ? (step > 0 ? 1 : 0) : Math.max(0, Math.min(10, bx.drawn + step)); }
-        else bx.drawn = Math.max(0, Math.min(10, (bx.drawn || 0) + step));
+        if (!D.counted[+d.api]) { D.counted[+d.api] = 1; bx.drawn = bx.drawn == null ? (step > 0 ? 1 : 0) : Math.max(0, Math.min(apN(bx), bx.drawn + step)); }
+        else bx.drawn = Math.max(0, Math.min(apN(bx), (bx.drawn || 0) + step));
       } else D[d.apn] = Math.max(0, Math.min(999, (+D[d.apn] || 0) + step));
       apDraftSave(); render(true); return true;
     }
@@ -8015,6 +8141,8 @@
     if (act === "back" && D) { D.step = Math.max(0, D.step - 1); apDraftSave(); render(false); $("content").scrollTop = 0; return true; }
     if (act === "cancel") { ap.draft = null; lsDel(LS_APDRAFT); apNav("hive", apStackEl()); return true; }
     if (act === "save" && D) { var st = apStackEl(); apSaveDraft(); toast("Check saved to " + apHive(ap.hive).name); apNav("hive", st); return true; }
+    if (act === "trueup") { apTrueUpStart(apHive(ap.hive)); ap.fresh = null; apNav("stackedit", apStackEl()); return true; }
+    if (act === "savetu" && ap.tu) { var st2 = apStackEl(); if (apSaveTrueUp()) { toast("Stack saved"); apNav("hive", st2); } return true; }
     if (act === "editcheck") { ap.form = null; apNav("checkedit", null); return true; }
     if (act === "savecheck" && F) { if (apSaveCheckEdit()) { toast("Check updated"); apNav("check", null); } return true; }
     if (act === "edithive") { ap.form = apHiveForm(apHive(ap.hive)); apNav("hiveedit", apStackEl()); return true; }
@@ -8033,6 +8161,7 @@
     if (d.apt && ap.draft) { ap.draft[d.apt] = t.value; apDraftSave(); return; }
     if (d.ape && ap.form) { ap.form[d.ape] = t.value; return; }
     if (d.aph && ap.form) ap.form[d.aph] = t.value;
+    if (d.aptuday && ap.tu) ap.tu.day = t.value;
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target && e.target.id === "apListIn") { e.preventDefault(); var b = document.querySelector('[data-apact="listadd"]'); if (b) b.click(); } });
   document.addEventListener("toggle", function (e) { if (e.target && e.target.id === "apYear") ap.yearOpen = e.target.open; if (e.target && e.target.id === "apAbout") ap.aboutOpen = e.target.open; }, true);
@@ -8054,7 +8183,7 @@
     if (!lsGet(LS_AIAPIARY) || !canApiary() || !ap.data) return "";
     var y = String(new Date().getFullYear()), out = [];
     apHives().forEach(function (h) {
-      var s = apYear(h.id, y), bx = h.data.boxes.map(function (b) { return b.k === "super" ? "super" + (b.fill != null ? " " + Math.round(b.fill * 100) + "% capped" : "") : "deep" + (b.drawn != null ? " " + b.drawn + "/10" : ""); }).join(", ");
+      var s = apYear(h.id, y), bx = h.data.boxes.map(function (b, i) { return apPieceText(h.data.boxes, i) || apBoxName(h.data.boxes, i); }).join(", ");
       out.push(h.name + (h.queen ? " (queen " + h.queen + ")" : "") + ": boxes top to bottom " + bx + "; honey " + y + " " + s.honey + " lb; mite checks " + y + " " + s.mites + " of " + AP_MITES_YEAR);
       apChecks(h.id).slice(0, 3).forEach(function (c) {
         out.push("- " + c.day + ": " + [c.queen && "queen/brood " + c.queen, c.frames && "frames " + c.frames, c.stores && "stores " + c.stores, c.feed && "feed " + c.feed, c.pests && "pests " + c.pests, c.mites != null && "mites " + c.mites + "%", c.honey && "honey " + c.honey + " lb", c.did && "did " + c.did, c.issue && "ISSUE " + c.issue, c.next && "next " + c.next].filter(Boolean).join("; "));

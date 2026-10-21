@@ -2,7 +2,8 @@
 // Data read from its first "{" so a note before it is harmless); a hive saved; a check saved
 // against its hive (title from the hive's name and the date, Hive relation set, boxes written to the
 // hive's Data); cid makes a retry harmless, id changes one in place; one yard only; checks and
-// hives to Notion's trash, never the yard; pages outside the Apiary and bad input refused.
+// hives to Notion's trash, never the yard; pages outside the Apiary and bad input refused; every stack piece
+// (deep, medium, super, feeder, queen excluder) with frame counts (1.28).
 // All names and notes are sample text.
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = { ACCESS_KEY: 'k'.repeat(64), NOTION_TOKEN: 'ntn_test' }; const cache = {};
@@ -134,6 +135,14 @@ assert.strictEqual(post({ action: 'apiarysave', item: { kind: 'check', cid: 'x-0
 assert.strictEqual(post({ action: 'apiarysave', item: { kind: 'check', cid: 'x-0012-abcd', hive: pages[ODS][0].id, day: '2026-10-19' } }).error, 'not_writable');
 assert.strictEqual(post({ action: 'apiarysave', item: { kind: 'hive', id: pages[ODS][0].id, name: 'x' } }).error, 'not_writable');
 assert.strictEqual(post({ action: 'apiarysave', item: { kind: 'hive', id: cp.id, name: 'x' } }).error, 'not_writable', 'a check is not a hive');
+
+// ---- 1.28: every piece a stack can hold, with frame counts; anything else refused
+const full = [{ k: 'feeder', level: 'LOW' }, { k: 'super', n: 9, drawn: 6, fill: 0.5 }, { k: 'excluder' }, { k: 'medium', n: 10, drawn: 4, fill: null }, { k: 'deep', n: 10, drawn: 9 }, { k: 'deep', drawn: null }];
+r = post({ action: 'apiarysave', item: { kind: 'hive', id: ha, name: 'Hive A', data: { order: 1, boxes: full, trued: '2026-10-21' } } });
+assert.ok(r.ok, JSON.stringify(r));
+assert.deepStrictEqual(r.item.data.boxes.map(b => b.k), ['feeder', 'super', 'excluder', 'medium', 'deep', 'deep']);
+[[{ k: 'escape' }], [{ k: 'super', n: 9, drawn: 10 }], [{ k: 'deep', n: 20 }], [{ k: 'deep', fill: 0.5 }], [{ k: 'feeder', level: 'HALF' }], [{ k: 'excluder', drawn: 1 }], Array(13).fill({ k: 'deep' })]
+  .forEach(bx => { const x = post({ action: 'apiarysave', item: { kind: 'hive', id: ha, name: 'Hive A', data: { boxes: bx } } }); assert.strictEqual(x.error, 'bad_request', JSON.stringify(bx)); });
 
 // ---- remove: a check to the trash; the yard and outside pages refused
 r = post({ action: 'apiaryremove', id: cp.id });

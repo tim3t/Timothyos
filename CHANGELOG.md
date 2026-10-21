@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.32.0 · 2026-10-21 (bridge 1.28)
+- **APIARY: TRUE UP STACK.** On a hive, under its stack: set the hive as it really stands when you changed something at the hive but didn't log it.
+  - **+ DEEP, + MEDIUM, + SUPER, + EXCLUDER, + FEEDER.** Each lands where it sits on a hive (feeder on top, then supers, the queen excluder, mediums, deeps). One feeder and one excluder at most.
+  - **Tap a piece** (on the stack or in the list) to set its frame count (8, 9 or 10; supers default to 9, deeps and mediums to 10), frames drawn (or filled, for a super), capped % for supers and mediums, the feeder's syrup (empty, low, full), move it **▲ UP / ▼ DOWN**, or **REMOVE** it (two taps).
+  - **LOG THIS TOO** also adds a short check on the date you did it ("Added a super (logged later)"), so the hive's history stays right. Off by default: then only the stack changes. The hive shows "Trued up" with the date.
+- **New pieces everywhere:** mediums, supers with their own frame count and frames filled, feeders and queen excluders are drawn on the yard and the hive. A new check counts each framed box against its own frame count, has + MEDIUM, + EXCLUDER and + FEEDER beside + DEEP and + SUPER, and its FEEDER answer sets the feeder's syrup on the stack.
+- **EDIT HIVE** keeps names and details; box changes for an existing hive now go through TRUE UP STACK. A new hive starts with deeps, mediums and supers.
+- **Bridge 1.28** accepts the new pieces (deploy it before using TRUE UP; 1.27 refuses a stack with mediums, feeders or excluders).
+
 ## Bridge 1.27 · 2026-10-21 (app unchanged at 2.31.1)
 - **ASK's tools now say exactly what they do**, so Claude picks and fills them right the first time. Claude only ever sees a tool's name and description, never the code, so each one was checked against what the bridge actually does.
 - **Fixed: a week asked for by a day other than Monday** quietly read the wrong seven days and missed the saved review. ASK now gets told the right Monday and asks again. A drafted review for a non-Monday is refused the same way.
