@@ -272,6 +272,22 @@ def tb_books(card):
             {"book": "crispin", "name": "Jessa Crispin", "title": "The Creative Tarot", "source": "The Cards, page 2", "url": "https://www.notion.so/tb-crispin-" + card,
              "sections": [{"h": "THE CARD", "p": ["Sample picture of " + nm + "."]}, {"h": "HER READING", "p": ["Sample creative reading of " + nm + "."]}]}]
 def tb_counts(): return {"dean": min(78, TB["made"]), "crispin": max(0, TB["made"] - 78)}
+
+# Apiary (bridge 1.26), sample hives and checks, all invented. ?action=apmode&on=1 turns the capability on.
+AP = {"on": False, "saves": [], "removes": [], "cids": {}, "n": 0, "fail": 0}
+def _d(n): return (_T0 - dt.timedelta(days=n)).isoformat()
+AHIVES = [
+    {"id": "ap-h1", "kind": "hive", "name": "Juniper", "day": "2026-03-21", "queen": "Ivy", "notes": "Sample hive note.", "created": "2026-03-21T12:00:00Z", "url": "https://www.notion.so/ap-h1",
+     "data": {"order": 1, "paint": "#2f4a8f", "paint2": "#b4423c", "boxes": [{"k": "super", "fill": None}, {"k": "deep", "drawn": None}, {"k": "deep", "drawn": 8}], "about": {"source": "Package", "foundation": "Sample foundation", "place": "Left"}}},
+    {"id": "ap-h2", "kind": "hive", "name": "Bramble", "day": "2026-03-21", "queen": "Fern", "notes": "", "created": "2026-03-21T12:00:01Z", "url": "https://www.notion.so/ap-h2",
+     "data": {"order": 2, "paint": "#9c2f2a", "paint2": "#c99a2e", "boxes": [{"k": "super", "fill": 0.5}, {"k": "deep", "drawn": 6}, {"k": "deep", "drawn": 9}]}},
+]
+ACHECKS = [
+    {"id": "ap-c1", "kind": "check", "hive": "ap-h1", "day": _d(30), "who": "Solo", "queen": "Eggs and larvae", "frames": "8/10 drawn", "stores": "", "feed": "Topped off", "mood": "Calm", "pests": "", "did": "Added the second deep", "issue": "Traps left on the lower box", "next": "Move the traps up", "notes": "", "mites": None, "honey": None, "data": {}, "created": "2026-09-01T12:00:00Z"},
+    {"id": "ap-c2", "kind": "check", "hive": "ap-h1", "day": _d(44), "who": "Solo", "queen": "Queen seen", "frames": "6/10 drawn", "stores": "", "feed": "", "mood": "Calm", "pests": "", "did": "Frame check only", "issue": "", "next": "", "notes": "", "mites": 1.3, "honey": None, "data": {}, "created": "2026-08-01T12:00:00Z"},
+    {"id": "ap-c3", "kind": "check", "hive": "ap-h2", "day": _d(20), "who": "Solo", "queen": "", "frames": "Super 90% capped", "stores": "", "feed": "", "mood": "", "pests": "", "did": "Pulled 6 super frames", "issue": "", "next": "Watch the super", "notes": "", "mites": None, "honey": 18, "data": {}, "created": "2026-09-10T12:00:00Z"},
+]
+AYARD = {"id": "ap-y", "kind": "yard", "name": "Sample Yard", "day": None, "notes": "Sample site note.", "created": "2026-03-21T12:00:00Z", "data": {"facing": "SE", "list": [{"t": "Buy two beetle traps", "done": False}, {"t": "Stage the second deeps", "done": True}]}}
 SEEN = {}
 POSTS = []
 CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "personal@example.com"}, {"area": "farm", "ok": True, "name": "Hilltop"}, {"area": "hobby", "ok": True, "name": "Growth"}]
@@ -293,8 +309,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
@@ -348,6 +364,9 @@ class H(BaseHTTPRequestHandler):
             TB["reads"].append([q.get("card"), q.get("fresh")])
             body = {"ok": True, "version": "1.25.0", "card": q.get("card"), "books": tb_books(q.get("card", ""))}
         elif q.get("action") == "tbstats": body = {"ok": True, "tb": TB}
+        elif q.get("action") == "apmode": AP["on"] = q.get("on", "1") == "1"; AP["fail"] = int(q.get("fail", "0")); body = {"ok": True}
+        elif q.get("action") == "apstats": body = {"ok": True, "saves": AP["saves"], "removes": AP["removes"], "hives": AHIVES, "checks": ACHECKS, "yard": AYARD}
+        elif q.get("action") == "apiary" and AP["on"]: body = {"ok": True, "version": "1.26.0", "yard": AYARD, "hives": AHIVES, "checks": sorted(ACHECKS, key=lambda c: c["day"], reverse=True), "url": "https://www.notion.so/apiary"}
         elif q.get("action") == "slowsave": SLOW[0] = int(q.get("ms", "0")); body = {"ok": True}
         elif q.get("action") == "busysave": BUSY[0] = int(q.get("n", "0")); body = {"ok": True}
         elif q.get("action") == "hfail": HFAIL[0] = int(q.get("n", "1")); body = {"ok": True}
@@ -399,6 +418,35 @@ class H(BaseHTTPRequestHandler):
             elif act == "tarotspread":
                 sp = b.get("spread") or {}; rec = {"id": "sp-" + str(len(TSPREADS) + 1), "kind": "spread", "title": sp.get("nm", "").upper(), "pos": sp.get("pos", [])}
                 TSPREADS.append(rec); body = {"ok": True, "spread": rec}
+            elif act == "apiarysave" and AP["on"]:
+                it2 = dict(b.get("item") or {}); AP["saves"].append(json.loads(json.dumps(it2))); kind = it2.get("kind")
+                lists = {"hive": AHIVES, "check": ACHECKS}
+                if AP["fail"]: AP["fail"] -= 1; body = {"ok": False, "error": "notion_error"}
+                elif it2.get("cid") in AP["cids"]: body = dict(AP["cids"][it2["cid"]], duplicate=True)
+                elif kind not in ("hive", "check", "yard") or (kind == "check" and not any(h["id"] == it2.get("hive") for h in AHIVES)): body = {"ok": False, "error": "not_writable"}
+                else:
+                    boxes = it2.pop("boxes", None); it2.pop("cid", None)
+                    if kind == "yard":
+                        AYARD.update(it2); AYARD["id"] = "ap-y"; rec = AYARD
+                    else:
+                        rid = it2.get("id")
+                        cur = next((x for x in lists[kind] if x["id"] == rid), None) if rid else None
+                        if rid and not cur: body = {"ok": False, "error": "not_writable"}; rec = None
+                        else:
+                            AP["n"] += 1
+                            rec = cur or {"id": "ap-n" + str(AP["n"]), "created": "2026-10-20T12:00:%02dZ" % AP["n"], "url": "https://www.notion.so/new"}
+                            rec.update(it2); rec["id"] = rec.get("id") if cur else rec["id"]
+                            if not cur: lists[kind].append(rec)
+                    if rec is not None:
+                        hv = None
+                        if kind == "check" and boxes:
+                            hv = next(h for h in AHIVES if h["id"] == rec["hive"]); hv["data"] = dict(hv["data"], boxes=boxes)
+                        body = {"ok": True, "version": "1.26.0", "item": rec, "hive": hv}
+                        if b["item"].get("cid"): AP["cids"][b["item"]["cid"]] = body
+            elif act == "apiaryremove" and AP["on"]:
+                rid = b.get("id"); AP["removes"].append(rid); n0 = len(AHIVES) + len(ACHECKS)
+                AHIVES[:] = [x for x in AHIVES if x["id"] != rid]; ACHECKS[:] = [x for x in ACHECKS if x["id"] != rid]
+                body = {"ok": True, "removed": rid} if len(AHIVES) + len(ACHECKS) < n0 else {"ok": False, "error": "not_writable"}
             elif act == "tarotremove":
                 rid = b.get("id"); before = len(TAROT) + len(TSPREADS)
                 TAROT[:] = [x for x in TAROT if x["id"] != rid]; TSPREADS[:] = [x for x in TSPREADS if x["id"] != rid]

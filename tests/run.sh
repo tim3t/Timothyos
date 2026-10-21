@@ -31,6 +31,7 @@ run bridge_log.test.js
 run bridge_habits.test.js
 run bridge_tarot.test.js
 run bridge_tarotbooks.test.js
+run bridge_apiary.test.js
 run bridge_logsearch.test.js
 run bridge_logask.test.js
 [ "${1:-}" = "bridge" ] && exit $fail
@@ -93,6 +94,7 @@ run app_e2e40.test.js       # TYPING SURVIVES SAVING: cursor and text kept while
 run app_e2e41.test.js       # LENGTHS + GOALS: track lengths read from MP3/M4A/FLAC/WAV headers, water goal history keeps past days
 run app_e2e42.test.js       # TRACK # for every tag layout: art before the number, ID3v2.2, unsynchronised, ID3v1.1, v2.4, retagged files, READ TAGS AGAIN
 run app_e2e43.test.js       # OPEN IN CLAUDE: question first, whole sections left out to fit the link, marker + note, full copy on the clipboard
+run app_e2e44.test.js       # APIARY: the yard, zoom to a hive and a check, a new check in five steps, edit and delete, add a hive, yard list, RETRY, Systems, phone width
 run app_e2e21.test.js     # Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake
 run app_e2e17.test.js     # Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 

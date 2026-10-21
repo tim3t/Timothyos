@@ -24,6 +24,7 @@
  *    in its page's Search Text field. The ASK button never sees the log; Log Ask
  *    (bridge 1.20) reads only entries Timothy picks in the open LOG, with the PIN,
  *    at most 62 entries and about 60K tokens per question.
+ *  - Apiary (bridge 1.26): reads and saves the yard, hives and hive checks in 🐝 Apiary.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
  *    Claude only reads; every change it suggests waits for your tap in the app.
  *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
@@ -75,17 +76,20 @@ var CONFIG = {
 
   // Your Notion Tarot Books: passages from two tarot books you own, one page per card per book.
   // Private to your Notion; the passages are never in this code.
-  NOTION_TAROT_BOOKS_DATABASE: '29cd26305cea4270a6c40f36cbe75511'
+  NOTION_TAROT_BOOKS_DATABASE: '29cd26305cea4270a6c40f36cbe75511',
+
+  // Your Notion Apiary: the yard, one page per hive, one page per hive check.
+  NOTION_APIARY_DATABASE: '548f88460e014b17a521dba092160da2'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.25.1';
+var VERSION = '1.26.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -121,7 +125,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -136,6 +140,7 @@ function read_(p) {
   if (p.action === 'library') return library_();
   if (p.action === 'tarot') return tarot_(p.from, p.to);
   if (p.action === 'tarotbooks') return tarotBooks_();
+  if (p.action === 'apiary') return apiary_();
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
 }
@@ -190,6 +195,8 @@ function doPost(e) {
     if (body.action === 'tarotremove') return json_(tarotRemove_(body.id));
     if (body.action === 'tarotbookimport') return json_(tarotBookImport_());
     if (body.action === 'tarotsuggest') return json_(tarotSuggest_(body));
+    if (body.action === 'apiarysave') return json_(apiarySave_(body.item));
+    if (body.action === 'apiaryremove') return json_(apiaryRemove_(body.id));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
@@ -241,6 +248,7 @@ function setup() {
   console.log('Notion library: ' + libraryStatus_());
   console.log('Notion tarot: ' + tarotStatus_());
   console.log('Notion tarot books: ' + tarotBooksStatus_());
+  console.log('Notion apiary: ' + apiaryStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
   console.log('Ask Claude: ' + (ai ? 'OK (questions ' + aiFast_() + ', THINK HARDER ' + AI.DEEP + '). This month $' + ai.usd.toFixed(2) + ', reminder at $' + ai.budget.toFixed(2) + (ai.cont ? ' (continued)' : '') + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
@@ -757,7 +765,7 @@ function saveReview_(r) {
 
 /** Only pages inside the Master Task List may be changed. */
 function ownTask_(id) {
-  if (!/^[0-9a-f-]{32,36}$/i.test(String(id || ''))) return null;
+  if (!/^[A-Za-z0-9-]{20,40}$/.test(String(id || ''))) return null;
   var pg = notion_('get', '/pages/' + id);
   var ds = tasksSource_(), parent = pg.parent || {};
   return parent.data_source_id === ds ? pg : null;
@@ -2101,6 +2109,156 @@ function tarotSuggest_(body) {
   if (res.stop_reason === 'refusal') text = '';
   if (!text) return { ok: false, error: 'ai_error', detail: 'no_text', spend: aiSpend_() };
   return { ok: true, version: VERSION, mode: mode, text: text, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
+}
+
+// ---- Apiary (bridge 1.26) ------------------------------------------------------
+// 🐝 Apiary: one Yard page (site notes, supply list), one page per hive, one page per hive check
+// (Hive relation to its hive). Text columns are plain and editable in Notion; Data holds what the app
+// draws (boxes, colors, frame counts). Data is read from its first "{", so a note before it is fine.
+
+var APIARY_KINDS = { yard: 'Yard', hive: 'Hive', check: 'Check' };
+var APIARY_TEXT = { who: 'Who', queen: 'Queen', frames: 'Frames', stores: 'Stores', feed: 'Feed', mood: 'Temperament', pests: 'Pests', did: 'Did', issue: 'Issue', next: 'Next', notes: 'Notes' };
+var APIARY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function apiarySource_() { return sourceFor_(CONFIG.NOTION_APIARY_DATABASE, 'NOTION_APIARY_SOURCE'); }
+function apiaryGen_() { return CacheService.getScriptCache().get('agen') || '0'; }
+function apiaryBump_() { CacheService.getScriptCache().put('agen', Utilities.getUuid().slice(0, 8), 21600); }
+function apiaryData_(p) {
+  var raw = plain_(p.Data && p.Data.rich_text), at = raw.indexOf('{');
+  if (at < 0) return {};
+  try { var d = JSON.parse(raw.slice(at)); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch (e) { return {}; }
+}
+function toApiary_(pg) {
+  var p = pg.properties || {}, kind = String(sel_(p.Kind) || '').toLowerCase();
+  var num = function (x) { return x && typeof x.number === 'number' ? x.number : null; };
+  var out = { id: pg.id, url: pg.url, kind: kind, name: plain_(p.Name && p.Name.title), day: day_(p.Date), data: apiaryData_(p), created: pg.created_time || '' };
+  Object.keys(APIARY_TEXT).forEach(function (k) { out[k] = plain_(p[APIARY_TEXT[k]] && p[APIARY_TEXT[k]].rich_text); });
+  if (kind === 'check') {
+    var rel = p.Hive && p.Hive.relation;
+    out.hive = rel && rel[0] ? rel[0].id : null;
+    out.mites = num(p['Mites (%)']); out.honey = num(p['Honey (lb)']);
+  }
+  return out;
+}
+/** Everything in the Apiary: the yard, hives (by Data.order) and checks (newest first). */
+function apiary_() {
+  var cache = CacheService.getScriptCache(), key = 'apiary:' + apiaryGen_(), hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var rows = queryAll_(apiarySource_(), null, 10, [{ property: 'Date', direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }]).map(toApiary_);
+  var hives = rows.filter(function (r) { return r.kind === 'hive'; });
+  hives.sort(function (a, b) { return (Number(a.data.order) || 99) - (Number(b.data.order) || 99) || (a.created < b.created ? -1 : 1); });
+  var out = { ok: true, version: VERSION, yard: rows.filter(function (r) { return r.kind === 'yard'; })[0] || null, hives: hives, checks: rows.filter(function (r) { return r.kind === 'check'; }),
+    url: 'https://www.notion.so/' + String(CONFIG.NOTION_APIARY_DATABASE).replace(/-/g, '') };
+  try { cache.put(key, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function apiaryOwn_(id, ds, kind) {
+  if (!/^[A-Za-z0-9-]{20,40}$/.test(String(id || ''))) return null;
+  var cur = notion_('get', '/pages/' + String(id));
+  if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== ds.replace(/-/g, '') || cur.in_trash || cur.archived) return null;
+  if (kind && sel_((cur.properties || {}).Kind) !== APIARY_KINDS[kind]) return null;
+  return cur;
+}
+function apiaryLong_(d) { return d ? d.slice(8).replace(/^0/, '') + ' ' + APIARY_MONTHS[Number(d.slice(5, 7)) - 1] + ' ' + d.slice(0, 4) : ''; }
+/** Data must be a small JSON object; a hive's boxes are checked here so the stack can always be drawn. */
+function apiaryCleanData_(d) {
+  if (d == null) return {};
+  if (typeof d !== 'object' || Array.isArray(d)) return null;
+  if (d.boxes != null && !apiaryBoxes_(d.boxes)) return null;
+  var s = JSON.stringify(d);
+  return s.length > 6000 ? null : d;
+}
+function apiaryBoxes_(b) {
+  if (!Array.isArray(b) || !b.length || b.length > 8) return false;
+  return b.every(function (x) {
+    if (!x || (x.k !== 'deep' && x.k !== 'super')) return false;
+    var v = x.k === 'deep' ? x.drawn : x.fill;
+    return v === null || v === undefined || (typeof v === 'number' && v >= 0 && v <= (x.k === 'deep' ? 10 : 1));
+  });
+}
+/**
+ * Save the yard, a hive or a check: new (cid) or changed (id); the whole record each time.
+ * A check may carry boxes: the hive's stack as it stood at that check, written to the hive too.
+ */
+function apiarySave_(it) {
+  it = it || {};
+  var kind = String(it.kind || ''), bad = !APIARY_KINDS[kind], props = {}, data = apiaryCleanData_(it.data);
+  if (bad || data === null) return { ok: false, error: 'bad_request' };
+  var name = String(it.name || '').trim(), day = it.day == null || it.day === '' ? null : String(it.day);
+  if (name.length > 60 || (day && !realDay_(day)) || (kind === 'check' && !day) || (kind === 'hive' && !name)) return { ok: false, error: 'bad_request' };
+  var tooLong = false;
+  Object.keys(APIARY_TEXT).forEach(function (k) {
+    if (it[k] == null) return;
+    var v = String(it[k]).trim();
+    if (v.length > 2000) tooLong = true;
+    props[APIARY_TEXT[k]] = { rich_text: v ? rt_(v) : [] };
+  });
+  var nums = { mites: ['Mites (%)', 100], honey: ['Honey (lb)', 1000] }, badNum = false;
+  if (kind === 'check') Object.keys(nums).forEach(function (k) {
+    var v = it[k];
+    if (v === null || v === undefined || v === '') { props[nums[k][0]] = { number: null }; return; }
+    v = Number(v);
+    if (!(v >= 0 && v <= nums[k][1])) badNum = true; else props[nums[k][0]] = { number: Math.round(v * 10) / 10 };
+  });
+  if (tooLong || badNum || (it.boxes != null && !apiaryBoxes_(it.boxes))) return { ok: false, error: 'bad_request' };
+  props.Kind = { select: { name: APIARY_KINDS[kind] } };
+  props.Date = { date: day ? { start: day } : null };
+  props.Data = { rich_text: rtLong_(JSON.stringify(data)) };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = apiarySource_(), cache = CacheService.getScriptCache(), pg, hive = null;
+    if (kind === 'check') {
+      hive = apiaryOwn_(it.hive, ds, 'hive');
+      if (!hive) return { ok: false, error: 'not_writable' };
+      props.Hive = { relation: [{ id: hive.id }] };
+      name = plain_(hive.properties.Name && hive.properties.Name.title) + ' · ' + apiaryLong_(day);
+    }
+    if (kind === 'yard' && !name) name = 'Apiary';
+    props.Name = { title: rt_(name) };
+    if (it.id) {
+      if (!apiaryOwn_(it.id, ds, kind)) return { ok: false, error: 'not_writable' };
+      pg = notion_('patch', '/pages/' + String(it.id), { properties: props });
+    } else {
+      if (!/^[A-Za-z0-9-]{8,64}$/.test(String(it.cid || ''))) return { ok: false, error: 'bad_request' };
+      var prior = cache.get('acid:' + it.cid);
+      if (prior) { var p0 = JSON.parse(prior); p0.duplicate = true; return p0; }
+      if (kind === 'yard') {   /* one yard: a second save without its id lands on the first */
+        var have = queryAll_(ds, { property: 'Kind', select: { equals: 'Yard' } }, 1)[0];
+        if (have) pg = notion_('patch', '/pages/' + have.id, { properties: props });
+      }
+      if (!pg) pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+    }
+    var hiveOut = null;
+    if (hive && it.boxes != null) {
+      var hd = apiaryData_(hive.properties || {});
+      hd.boxes = it.boxes;
+      hiveOut = toApiary_(notion_('patch', '/pages/' + hive.id, { properties: { Data: { rich_text: rtLong_(JSON.stringify(hd)) } } }));
+    }
+    apiaryBump_();
+    var out = { ok: true, version: VERSION, item: toApiary_(pg), hive: hiveOut };
+    if (!it.id) cache.put('acid:' + it.cid, JSON.stringify(out), 21600);
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** A check or a hive to Notion's trash (restorable there). The yard stays. */
+function apiaryRemove_(id) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = apiarySource_(), cur = apiaryOwn_(id, ds);
+    if (!cur || sel_((cur.properties || {}).Kind) === 'Yard') return { ok: false, error: 'not_writable' };
+    notion_('patch', '/pages/' + cur.id, { in_trash: true });
+    apiaryBump_();
+    return { ok: true, version: VERSION, removed: cur.id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function apiaryStatus_() {
+  try { var a = apiary_(); return 'OK (' + a.hives.length + (a.hives.length === 1 ? ' hive, ' : ' hives, ') + a.checks.length + (a.checks.length === 1 ? ' check)' : ' checks)'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to 🐝 Apiary (... > Connections)' : ''); }
 }
 
 // ---- Ask Claude ---------------------------------------------------------------

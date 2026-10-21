@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.31.0 · 2026-10-21 (bridge 1.26)
+- **New station: APIARY.** Your hive log, built from the zooming mockup:
+  - **The yard** shows each hive as its own box stack (supers, deeps, frames drawn), with its queen, last check and any open issue, plus hive-check weather, honey this year and mite checks.
+  - **Tap a hive** for its stack (tap a box for what it held), NEXT TIME, every check and ABOUT THIS HIVE.
+  - **+ NEW CHECK** in five short steps: queen and brood, frame counts per box (the stack follows as you count or add a box), stores and feed, mites (load worked out) and pests, then what you did, honey pulled, notes and next time. **REMIND ME IN 7 DAYS** adds a task. After saving, it offers the other hive next.
+  - **Edit or delete a check, add or edit a hive, keep a yard list.** Saves wait on the iPad when there's no signal.
+- **New Notion database 🐝 Apiary** (under 🐝 Beekeeping), with your hives and every check from the Hive Inspections log already in it. The original pages are unchanged.
+- **Ask:** Systems → APIARY → SHARE WITH ASK (off by default).
+- **Bridge 1.26:** reads and saves the Apiary (apiary, apiarysave, apiaryremove). Deploy it, then connect 🐝 Apiary to the integration (README, Apiary).
+
 ## 2.30.2 · 2026-10-21
 - **Fixed: OPEN IN CLAUDE cutting off your question.** The prompt was the snapshot followed by your question, cut at 6,000 characters for the claude.ai link, so a long snapshot (tarot sharing on, for example) lost the question and stopped mid-sentence. Now:
   - **Your question comes first,** before the snapshot.

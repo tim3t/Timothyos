@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.30.2";
+  var VERSION = "2.31.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -254,11 +254,11 @@
   /* Reads asked for at the same moment (returning to the app, REFRESH NOW) travel together as one
      request (bridge 1.13), so Google runs one execution instead of five. Fewer requests, fewer of
      Google's lost answers (HTTP 404). An older bridge doesn't know "batch": then each goes alone. */
-  var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger", "habits", "library", "tarot"];
+  var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger", "habits", "library", "tarot", "apiary"];
   /* Google answers a batch one read after another, so a long batch keeps everything waiting.
      What's on screen first (calendars, tasks, key dates, habits) travels in one batch; the rest
      (balance, reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
-  var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library", "tarot"];
+  var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library", "tarot", "apiary"];
   var batchQ = null, batchOk = true;
   function api(params, conn) {
     if (conn || !batchOk || BATCHABLE.indexOf(params.action) === -1) return tracked(withRetry(function () { return apiOnce(params, conn); }));
@@ -542,7 +542,7 @@
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); loadHabits(true); loadLibrary(true); loadTarot(true); }
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
@@ -567,9 +567,9 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
-    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     if (state.screen === "review") $("todayBtn").textContent = "THIS WEEK"; else $("todayBtn").textContent = "TODAY";
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
     $("capBtn").disabled = !linked;
@@ -617,6 +617,7 @@
     else if (state.screen === "library") { e.textContent = "LIBRARY · " + (lb.data ? books().length + (books().length === 1 ? " BOOK" : " BOOKS") : "NOTION"); t.textContent = "LIBRARY"; }
     else if (state.screen === "storage") { var sh = storageHead(); e.textContent = sh.e; t.textContent = sh.t; }
     else if (state.screen === "tarot") { var th = trHead(); e.textContent = th.e; t.textContent = th.t; }
+    else if (state.screen === "apiary") { var ah = apHead(); e.textContent = ah.e; t.textContent = ah.t; }
     else if (state.screen === "engineering") { var eo = upkeepOverdue(ymd(now)).length; e.textContent = eng.tab === "upkeep" ? "UPKEEP · " + (eo ? eo + " OVERDUE" : upkeepItems().length + (upkeepItems().length === 1 ? " ITEM" : " ITEMS")) : "CONTROLS · " + (haConf() ? haDevices().length + (haDevices().length === 1 ? " DEVICE" : " DEVICES") + (haDevices().filter(function (d) { return isOn(eng.states[d.id]); }).length ? " · " + haDevices().filter(function (d) { return isOn(eng.states[d.id]); }).length + " ON" : "") : "HOME ASSISTANT NOT SET"); t.textContent = "ENGINEERING"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
@@ -839,6 +840,7 @@
     html += aiSection();
     html += ledgerSection();
     html += tarotSection();
+    html += apiarySection();
     html += storageSection();
     html += haSection();
     html += logSection();
@@ -2926,6 +2928,8 @@
     if (fin) add(fin, "finances");
     var tar = tarotBrief();
     if (tar) add(tar, "tarot readings");
+    var api2 = apiaryBrief();
+    if (api2) add(api2, "apiary");
     return parts ? out : out.map(function (x) { return x.t; }).join("\n\n");
   }
 
@@ -3087,7 +3091,7 @@
      sections are left out, least needed first, the prompt starts with a marker, and a line says what was left out
      (2.30.2: it used to be cut mid-sentence, the question last and lost). */
   var CLAUDE_LINK_MAX = 6000;
-  var CLAUDE_DROP = ["tarot readings", "finances", "ignored event titles", "lists of life areas and types", "weather", "key dates", "open tasks", "the next 6 days"];
+  var CLAUDE_DROP = ["apiary", "tarot readings", "finances", "ignored event titles", "lists of life areas and types", "weather", "key dates", "open tasks", "the next 6 days"];
   function claudePrompt(q) {
     var head = (q ? "My question: " + q + "\n\n" : "") + "Here is a snapshot from my TimothyOS dashboard. Use it to help me.\n\n";
     var secs = briefing(true).map(function (x) { return { t: x.t.replace(/\[[0-9a-f-]{32,36}\] /g, ""), k: x.k }; });
@@ -4766,6 +4770,7 @@
     { id: "library", name: "LIBRARY", g: "RESOURCES", sub: "Reading, want to read, read" },
     { id: "storage", name: "STORAGE", g: "RESOURCES", sub: "NAS folders and podcasts" },
     { id: "engineering", name: "ENGINEERING", g: "RESOURCES", sub: "Home Assistant devices and upkeep" },
+    { id: "apiary", name: "APIARY", g: "RESOURCES", sub: "Hives, checks and honey" },
     { id: "meals", name: "MEALS", g: "STANDBY", sub: "Dinners planned and made. Later.", standby: true }
   ];
   var ST_GROUPS = [["TIME", "chrome-b"], ["REFLECT", "chrome-a"], ["RESOURCES", "chrome-d"], ["STANDBY", "line"]];
@@ -7480,6 +7485,584 @@
     })();
   }
 
+  /* ---------- Apiary (2.31, bridge 1.26): the yard, each hive, its checks ---------- */
+  /* Notion 🐝 Apiary holds one Yard page, a page per hive and a page per check (Hive relation). Three zoom
+     levels on one screen: the yard (each hive drawn as its box stack), a hive (its stack large, its checks,
+     ABOUT), then one check or a new one (five short steps). The stack is drawn from the hive's Data.boxes,
+     top to bottom: { k: "super", fill 0..1 } or { k: "deep", drawn 0..10 }; null means not counted yet.
+     Writes wait in tos.apiaryq.v1 until the bridge has them, so a check made at the hives without signal
+     goes when the iPad is back online. Ask sees the apiary only when SHARE WITH ASK is on (tos.aiapiary.v1).
+     Class names all start ap-. */
+  var LS_APIARY = "tos.apiary.v1", LS_APIARYQ = "tos.apiaryq.v1", LS_AIAPIARY = "tos.aiapiary.v1", LS_APDRAFT = "tos.apdraft.v1";
+  var AP_PAINTS = [["BLUE · RED", "#2f4a8f", "#b4423c"], ["RED · GOLD", "#9c2f2a", "#c99a2e"], ["GREEN · SAND", "#3b7d5a", "#d9c48a"], ["PURPLE · APRICOT", "#6a4c93", "#e8a27a"],
+    ["TEAL · CREAM", "#2a6f8f", "#efe8dc"], ["BROWN · MINT", "#8f5a2f", "#56c7b8"], ["WHITE", "#e9e4da", "#e9e4da"]];
+  var AP_STEPS = ["QUEEN", "FRAMES", "STORES", "PESTS", "WRAP UP"];
+  var AP_MITE_OK = 2, AP_MITE_TREAT = 3, AP_MITES_YEAR = 4, AP_REMIND_DAYS = 7;
+  var ap = { data: lsGet(LS_APIARY), q: lsGet(LS_APIARYQ) || {}, err: null, qErr: null, inflight: false, flushing: false,
+    view: "yard", hive: null, check: null, box: null, draft: lsGet(LS_APDRAFT), form: null, arm: null, armAt: 0, fresh: null, alias: {}, yearOpen: false };
+  function canApiary() { return state.caps.indexOf("apiary") > -1; }
+  function apErrText(err) {
+    var code = err && (err.code || err.message);
+    if (code === "notion_not_shared") return "Notion won't share the Apiary database with the bridge yet. In Notion open 🐝 Apiary → ••• → Connections → add TimothyOS bridge, then REFRESH.";
+    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.26 (steps in the README under Apiary).";
+    return describe(err);
+  }
+  function apId(id) { return ap.alias[id] || id; }
+  function apDay(d) { return p2(+d.slice(8)) + " " + MON[+d.slice(5, 7) - 1]; }
+  function apAgo(d) { var n = Math.round((sod(new Date()) - parseYmd(d)) / 864e5); return n <= 0 ? "today" : n === 1 ? "yesterday" : n + "d ago"; }
+  function apOne(s) { s = String(s || ""); return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); }
+
+  /* --- data --- */
+  function loadApiary(force) {
+    if (!state.conn || !canApiary() || ap.inflight) return;
+    if (!force && ap.data && Date.now() - ap.data.fetched < 120000) return;
+    if (!force && ap.err && Date.now() - ap.err.at < FRESH_MS) return;
+    ap.inflight = true;
+    api({ action: "apiary" }).then(function (j) {
+      ap.data = { fetched: Date.now(), yard: j.yard || null, hives: j.hives || [], checks: j.checks || [], url: j.url || "" };
+      ap.err = null; lsSet(LS_APIARY, ap.data);
+      flushApiary();
+    }).catch(function (err) { ap.err = { at: Date.now(), msg: apErrText(err) }; })
+      .then(function () { ap.inflight = false; if (state.screen === "apiary" || state.screen === "systems") render(true); });
+  }
+  function apQueue(key, body) { ap.q[key] = { body: body }; lsSet(LS_APIARYQ, ap.q); flushApiary(); }
+  /* One write at a time, oldest first, so a new hive reaches Notion before its first check. */
+  function flushApiary() {
+    if (ap.flushing || !state.conn || !canApiary()) return;
+    var keys = Object.keys(ap.q); if (!keys.length) return;
+    var k = keys[0], it = ap.q[k];
+    ap.flushing = true;
+    apiPost(it.body).then(function (j) {
+      if (ap.q[k] === it) delete ap.q[k];
+      apApplySaved(it, j);
+      lsSet(LS_APIARYQ, ap.q);
+      ap.flushing = false; ap.qErr = null;
+      if (Object.keys(ap.q).length) flushApiary(); else { if (ap.data) ap.data.fetched = 0; loadApiary(true); }
+    }).catch(function (err) {
+      ap.flushing = false;
+      if (err && (err.code === "busy" || err.name === "AbortError") && (it.tries = (it.tries || 0) + 1) <= 6) { setTimeout(flushApiary, 4000 * it.tries); return; }
+      if (err && (err.code === "not_writable" || err.code === "bad_request")) { delete ap.q[k]; lsSet(LS_APIARYQ, ap.q); }   /* Notion will never take this one: drop it rather than block the rest */
+      ap.qErr = { at: Date.now(), msg: apErrText(err) };
+      if (state.screen === "apiary") render(true);
+    });
+  }
+  function apApplySaved(it, j) {
+    if (!ap.data) return;
+    var b = it.body, item = b.item;
+    if (b.action === "apiaryremove") {
+      ap.data.hives = ap.data.hives.filter(function (h) { return h.id !== b.id; });
+      ap.data.checks = ap.data.checks.filter(function (c) { return c.id !== b.id; });
+    }
+    if (j.item) {
+      var tmp = item && item.cid ? "cid:" + item.cid : null, real = j.item.id;
+      if (tmp) {
+        ap.alias[tmp] = real;
+        /* later writes that still name the temporary id now point at the page */
+        Object.keys(ap.q).forEach(function (k2) {
+          var o = ap.q[k2].body.item;
+          if (!o) return;
+          if (o.hive === tmp) o.hive = real;
+          if (o.cid === item.cid && !o.id) { o.id = real; delete o.cid; }
+        });
+        if (ap.hive === tmp) ap.hive = real;
+        if (ap.check === tmp) ap.check = real;
+        if (ap.fresh === tmp) ap.fresh = real;
+      }
+      var list = j.item.kind === "hive" ? "hives" : j.item.kind === "check" ? "checks" : null;
+      if (list) { ap.data[list] = ap.data[list].filter(function (x) { return x.id !== real; }); ap.data[list].push(j.item); }
+      else if (j.item.kind === "yard") ap.data.yard = j.item;
+    }
+    if (j.hive) ap.data.hives = ap.data.hives.map(function (h) { return h.id === j.hive.id ? j.hive : h; });
+    lsSet(LS_APIARY, ap.data);
+  }
+  setInterval(function () { if (Object.keys(ap.q).length && !ap.flushing && navigator.onLine !== false) flushApiary(); }, 30000);
+
+  /* What's in Notion with what's waiting to go over it. */
+  function apPending(kind) {
+    var out = [];
+    Object.keys(ap.q).forEach(function (k) { var b = ap.q[k].body; if (b.action === "apiarysave" && b.item.kind === kind) out.push(b.item); });
+    return out;
+  }
+  function apGone() { var g = {}; Object.keys(ap.q).forEach(function (k) { var b = ap.q[k].body; if (b.action === "apiaryremove") g[b.id] = 1; }); return g; }
+  function apMerge(list, kind) {
+    var gone = apGone(), out = list.filter(function (x) { return !gone[x.id]; }).map(function (x) { return Object.assign({}, x); });
+    apPending(kind).forEach(function (it) {
+      var id = it.id || "cid:" + it.cid, i = out.map(function (x) { return x.id; }).indexOf(id), pend = Object.assign({}, it, { id: id, pending: true });
+      if (i > -1) out[i] = Object.assign(out[i], pend); else out.push(pend);
+    });
+    return out;
+  }
+  function apHives() {
+    var hs = apMerge((ap.data && ap.data.hives) || [], "hive");
+    /* a check waiting to go may carry the stack as it now stands */
+    apPending("check").forEach(function (c) { if (c.boxes) hs.forEach(function (h) { if (h.id === apId(c.hive) || h.id === c.hive) h.data = Object.assign({}, h.data, { boxes: c.boxes }); }); });
+    hs.forEach(function (h) { h.data = h.data || {}; if (!apBoxesOk(h.data.boxes)) h.data.boxes = [{ k: "deep", drawn: null }]; });
+    return hs.sort(function (a, b) { return (+a.data.order || 99) - (+b.data.order || 99) || String(a.created || "~").localeCompare(String(b.created || "~")); });
+  }
+  function apBoxesOk(b) { return Array.isArray(b) && b.length > 0 && b.every(function (x) { return x && (x.k === "deep" || x.k === "super"); }); }
+  function apHive(id) { id = apId(id); return apHives().filter(function (h) { return h.id === id; })[0] || null; }
+  function apChecks(hiveId) {
+    var hid = hiveId ? apId(hiveId) : null;
+    return apMerge((ap.data && ap.data.checks) || [], "check").filter(function (c) { return !hid || apId(c.hive) === hid; })
+      .sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : String(b.created || "~").localeCompare(String(a.created || "~")); });
+  }
+  function apYard() {
+    var y = ap.data && ap.data.yard ? Object.assign({}, ap.data.yard) : null, p = apPending("yard")[0];
+    if (p) y = Object.assign(y || {}, p, { id: (y && y.id) || "cid:" + p.cid, pending: true });
+    if (y) y.data = Object.assign({ list: [] }, y.data);
+    return y;
+  }
+  function apYear(hiveId, y) {
+    var honey = 0, mites = 0;
+    apChecks(hiveId).forEach(function (c) { if (c.day.slice(0, 4) !== y) return; if (c.honey) honey += +c.honey; if (c.mites != null) mites++; });
+    return { honey: Math.round(honey * 10) / 10, mites: mites };
+  }
+
+  /* --- the stack --- */
+  function apLight(hex) { var n = parseInt(String(hex || "#000").slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150; }
+  function apBoxName(boxes, i) {
+    if (boxes[i].k === "super") { var s = 0, ns = 0; boxes.forEach(function (b, j) { if (b.k === "super") { ns++; if (j > i) s++; } }); return ns > 1 ? (s === 0 ? "Bottom super" : s === ns - 1 ? "Top super" : "Super " + (s + 1)) : "Honey super"; }
+    var d = 0, nd = 0; boxes.forEach(function (b, j) { if (b.k === "deep") { nd++; if (j > i) d++; } });
+    return nd > 1 ? (d === 0 ? "Bottom deep" : d === nd - 1 ? "Top deep" : "Deep " + (d + 1)) : "Deep";
+  }
+  function apStack(h, u, pick) {
+    var boxes = h.data.boxes, html = '<div class="ap-stack" data-apstack="' + esc(h.id) + '" style="--u:' + u + 'px"' + (pick ? "" : ' aria-hidden="true"') + '><span class="lid"></span>', below = 0;
+    for (var i = boxes.length - 1; i >= 0; i--) if (boxes[i].k === "deep") below++;
+    boxes.forEach(function (b, i) {
+      var tag = pick ? "button" : "span", attr = pick ? ' type="button" data-apbox="' + i + '" aria-label="' + esc(apBoxName(boxes, i)) + '"' : "", sel = pick && ap.box === i ? " sel" : "";
+      if (b.k === "super") { html += "<" + tag + attr + ' class="box super' + (b.fill == null ? " unknown" : "") + sel + '"><i style="height:' + Math.round((b.fill || 0) * 100) + '%"></i></' + tag + ">"; return; }
+      below--;
+      var paint = below % 2 ? h.data.paint || "#2f4a8f" : h.data.paint2 || h.data.paint || "#b4423c", f = "";
+      for (var n = 0; n < 10; n++) f += '<span class="f' + (b.drawn != null && n < b.drawn ? " on" : "") + '"></span>';
+      html += "<" + tag + attr + ' class="box deep' + (b.drawn == null ? " unknown" : "") + sel + '" style="--paint:' + paint + ";--tick:" + (apLight(paint) ? "#0a0a0d" : "#efe8dc") + '">' + f + "</" + tag + ">";
+    });
+    return html + '<span class="bottom"></span><span class="legs"><span></span><span></span></span></div>';
+  }
+  function apBoxRead(h, i) {
+    var b = h.data.boxes[i], nm = apBoxName(h.data.boxes, i).toUpperCase();
+    if (!b) return apBoxHint();
+    if (b.k === "super") return "<b>" + nm + "</b><span>" + (b.fill == null ? "Not logged since it went on. The next check fills it in." : "About " + Math.round(b.fill * 100) + "% capped at the last check.") + "</span>";
+    return "<b>" + nm + "</b><span>" + (b.drawn == null ? "Not counted since it went on. The next check fills it in." : b.drawn + " of 10 frames drawn at the last count.") + "</span>";
+  }
+  function apBoxHint() { return "<b>THE STACK</b><span>Tap a box to see what was in it at the last check.</span>"; }
+
+  /* --- moving between levels: the stack you tapped flies to its place on the next level --- */
+  var AP_DEPTH = { yard: 0, hiveedit: 1, hive: 1, check: 2, new: 2, checkedit: 3 };
+  function apNav(view, from) {
+    var deeper = (AP_DEPTH[view] || 0) > (AP_DEPTH[ap.view] || 0), src = from && from.getBoundingClientRect ? from.getBoundingClientRect() : null, sid = from && from.dataset ? from.dataset.apstack : null;
+    ap.view = view; ap.arm = null;
+    if (state.screen !== "apiary") { go("apiary"); return; }
+    render(false);
+    $("content").scrollTop = 0;
+    var root = document.querySelector("#content .ap-view");
+    if (!root || calm()) return;
+    root.classList.add(deeper ? "zin" : "zout");
+    var dst = sid && document.querySelector('#content .ap-view .ap-stack[data-apstack="' + sid + '"]');
+    if (!src || !dst || !src.width) return;
+    var r = dst.getBoundingClientRect(), ghost = from.cloneNode(true);
+    ghost.classList.add("ap-ghost"); ghost.style.left = src.left + "px"; ghost.style.top = src.top + "px";
+    document.body.appendChild(ghost); dst.style.visibility = "hidden";
+    var done = function () { ghost.remove(); dst.style.visibility = ""; };
+    try {
+      ghost.animate([{ transform: "none" }, { transform: "translate(" + (r.left - src.left) + "px," + (r.top - src.top) + "px) scale(" + r.width / src.width + "," + r.height / src.height + ")" }], { duration: 420, easing: "cubic-bezier(.2,.7,.2,1)" }).onfinish = done;
+    } catch (x) { done(); }
+    setTimeout(done, 900);   /* in case the animation never reports back */
+  }
+  function apStackEl() { return document.querySelector("#content .ap-view .ap-stack"); }
+
+  /* --- the screen --- */
+  function apHead() {
+    var h = ap.hive && apHive(ap.hive);
+    if (ap.view === "yard" || !h) return { e: "APIARY · " + (ap.data ? apHives().length + (apHives().length === 1 ? " HIVE" : " HIVES") : "NOTION"), t: "APIARY" };
+    if (ap.view === "hiveedit") return { e: "APIARY · " + (h.pending && !h.name ? "NEW HIVE" : "EDIT HIVE"), t: (h.name || "NEW HIVE").toUpperCase() };
+    return { e: "APIARY · " + (ap.view === "new" ? "NEW CHECK" : ap.view === "check" || ap.view === "checkedit" ? "CHECK" : h.queen ? "QUEEN " + h.queen.toUpperCase() : "HIVE"), t: h.name.toUpperCase() };
+  }
+  function renderApiary() {
+    loadApiary(false);
+    if (!canApiary()) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "SETUP") + stubBox(state.conn ? "Needs bridge 1.26 and the 🐝 Apiary database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Apiary</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!ap.data) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "") + '<div class="empty">' + (ap.err ? esc(ap.err.msg) : "Loading your hives from Notion…") + "</div></div>"; return; }
+    if (ap.view === "hiveedit" && !ap.form) ap.view = ap.hive ? "hive" : "yard";
+    if (ap.view !== "yard" && ap.view !== "hiveedit" && !apHive(ap.hive)) ap.view = "yard";
+    if ((ap.view === "check" || ap.view === "checkedit") && !apChecks(ap.hive).filter(function (c) { return c.id === apId(ap.check); }).length) ap.view = "hive";
+    if (ap.view === "new" && (!ap.draft || apId(ap.draft.hive) !== apId(ap.hive))) ap.view = "hive";
+    var nq = Object.keys(ap.q).length;
+    var html = '<div class="ap">' + (ap.qErr && nq ? '<div class="err">' + nq + " change" + (nq === 1 ? "" : "s") + " not in Notion yet: " + esc(ap.qErr.msg) + ' <button type="button" class="chip sm" data-apretry="1">RETRY</button></div>' : ap.qErr ? '<div class="err">Not saved: ' + esc(ap.qErr.msg) + "</div>" : "");
+    html += '<div class="ap-view">' + ({ yard: apYardHtml, hive: apHiveHtml, check: apCheckHtml, new: apNewHtml, checkedit: apCheckEditHtml, hiveedit: apHiveEditHtml })[ap.view]() + "</div>";
+    $("content").innerHTML = html + "</div>";
+  }
+  function apCrumbs(parts) {
+    return '<nav class="ap-crumbs" aria-label="Where you are">' + parts.map(function (p, i) {
+      return (i ? '<span aria-hidden="true">›</span>' : "") + (p[1] ? '<button type="button" data-apgo="' + p[1] + '">' + esc(p[0]) + "</button>" : "<b>" + esc(p[0]) + "</b>");
+    }).join("") + "</nav>";
+  }
+
+  /* level 1: the yard */
+  function apYardHtml() {
+    var hs = apHives(), y = String(new Date().getFullYear()), hv = hiveCheck(new Date()), yard = apYard();
+    var honey = 0, mites = hs.length ? 99 : 0;
+    hs.forEach(function (h) { var s = apYear(h.id, y); honey += s.honey; mites = Math.min(mites, s.mites); });
+    var html = apCrumbs([["APIARY"]]);
+    html += '<section class="ap-yard" aria-label="The yard"><div class="ap-sky"><div class="ap-quiet">' +
+      (hv ? "<span>HIVE CHECK " + esc(hv.label) + ' <b class="' + (hv.go ? "go" : "hold") + '">' + (hv.go ? "GO" : "HOLD") + " · " + esc(hv.text.toUpperCase()) + "</b></span>" : "") +
+      "<span>HONEY " + y + " <b>" + (Math.round(honey * 10) / 10) + " LB</b></span>" +
+      (hs.length ? "<span>MITE CHECKS <b class=\"" + (mites >= AP_MITES_YEAR ? "go" : "bad") + "\">" + Math.min(mites, AP_MITES_YEAR) + " OF " + AP_MITES_YEAR + "</b></span>" : "") + "</div>" +
+      (yard && yard.data.facing ? '<span class="ap-facing">FACING ' + esc(String(yard.data.facing).toUpperCase()) + "</span>" : "") + '</div><div class="ap-pad">';
+    hs.forEach(function (h) {
+      var last = apChecks(h.id)[0];
+      html += '<button type="button" class="ap-hivebtn" data-aphive="' + esc(h.id) + '" aria-label="' + esc(h.name + (h.queen ? ", queen " + h.queen : "")) + '"><span class="ap-base">' + apStack(h, 1.15, false) + '</span><span class="ap-hname"><b>' + esc(h.name.toUpperCase()) + "</b>" +
+        (h.queen ? "<small>Queen " + esc(h.queen) + "</small>" : "") + "<small>" + (last ? "Checked " + apDay(last.day) + " · " + apAgo(last.day) : "No checks yet") + "</small>" +
+        (last && last.issue ? '<span class="ap-flag">● ' + esc(last.issue.length > 60 ? last.issue.slice(0, 58) + "…" : last.issue) + "</span>" : "") + (h.pending ? '<span class="ap-flag dim">NOT IN NOTION YET</span>' : "") + "</span></button>";
+    });
+    html += '<button type="button" class="ap-addslot" data-apact="addhive">+ ADD HIVE<small>a package, a nuc or a split</small></button></div><div class="ap-mat" aria-hidden="true"></div>' +
+      (yard && yard.notes ? '<span class="ap-site">' + esc(yard.notes) + "</span>" : "") + "</section>";
+    html += '<details class="ap-year" id="apYear"' + (ap.yearOpen ? " open" : "") + "><summary>THIS YEAR · HONEY, MITES, THE YARD LIST</summary><div class=\"ap-yeargrid\">";
+    var top = 1; hs.forEach(function (h) { top = Math.max(top, apYear(h.id, y).honey); });
+    html += '<div><h3 class="ap-h honey">HONEY ' + y + '</h3><div class="ap-bars">' + (hs.length ? hs.map(function (h) { var lb = apYear(h.id, y).honey; return "<span>" + esc(h.name) + '</span><span class="b"><i style="width:' + Math.max(lb ? 6 : 0, lb / top * 100) + '%"></i></span><span class="tnum">' + lb + " lb</span>"; }).join("") : '<span class="muted">No hives yet.</span>') + "</div></div>";
+    html += '<div><h3 class="ap-h mites">MITE CHECKS</h3><div class="ap-mrows">' + hs.map(function (h) {
+      var n = apYear(h.id, y).mites, dots = "";
+      for (var i = 0; i < AP_MITES_YEAR; i++) dots += '<i class="' + (i < n ? "on" : "") + '"></i>';
+      return "<span>" + esc(h.name) + '</span><span class="ap-dots" aria-label="' + Math.min(n, AP_MITES_YEAR) + " of " + AP_MITES_YEAR + '">' + dots + "</span>";
+    }).join("") + '</div><small class="muted">Four a year at least. A check with a mite count lights one.</small></div>';
+    var list = (yard && yard.data.list) || [];
+    html += '<div><h3 class="ap-h list">THE YARD LIST</h3><ul class="ap-list">' + list.map(function (it, i) {
+      return '<li><button type="button" class="ap-tick' + (it.done ? " done" : "") + '" data-aplist="' + i + '" aria-pressed="' + !!it.done + '">' + esc(it.t) + '</button><button type="button" class="ap-x" data-aplistx="' + i + '" aria-label="Remove ' + esc(it.t) + '">✕</button></li>';
+    }).join("") + '</ul><div class="ap-addrow"><input type="text" id="apListIn" maxlength="120" placeholder="Supplies, winter prep…" autocomplete="off"><button type="button" class="btn sm" data-apact="listadd">ADD</button></div></div>';
+    return html + "</div></details>";
+  }
+
+  /* level 2: a hive */
+  function apHiveHtml() {
+    var h = apHive(ap.hive), cs = apChecks(h.id), last = cs[0], y = String(new Date().getFullYear()), lb = 0;
+    cs.forEach(function (c) { if (c.honey) lb += +c.honey; });
+    var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase()]]);
+    if (ap.fresh) {
+      var other = apHives().filter(function (x) { return x.id !== h.id && !apChecks(x.id).some(function (c) { return c.day === ymd(new Date()); }); })[0];
+      html += '<div class="ap-saved"><span>✓ SAVED' + (cs.some(function (c) { return c.pending; }) ? " · GOES TO NOTION WHEN THE BRIDGE ANSWERS" : "") + "</span>" + (other ? '<button type="button" class="btn sm" data-apnextcheck="' + esc(other.id) + '">CHECK ' + esc(other.name.toUpperCase()) + " NEXT ›</button>" : "") + "</div>";
+    }
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack(h, 1.9, true) + '<div class="ap-readout" id="apReadout">' + (ap.box == null ? apBoxHint() : apBoxRead(h, ap.box)) + "</div></div>";
+    html += '<div class="ap-info"><div class="ap-hhead"><div><h2>' + esc(h.name.toUpperCase()) + "</h2><p>" + [h.queen ? "Queen " + esc(h.queen) : "", cs.length + (cs.length === 1 ? " check" : " checks"), lb ? (Math.round(lb * 10) / 10) + " lb honey" : ""].filter(Boolean).join(" · ") + "</p></div>" +
+      '<button type="button" class="btn" data-apact="new">' + (ap.draft && apId(ap.draft.hive) === h.id ? "RESUME CHECK" : "+ NEW CHECK") + "</button></div>";
+    if (last && last.next) html += '<div class="ap-next"><span class="ap-lab">NEXT TIME · FROM ' + apDay(last.day) + "</span><p>" + esc(last.next) + "</p></div>";
+    html += cs.length ? '<div class="ap-checks" role="list">' + cs.map(function (c) {
+      var pills = [];
+      if (c.honey) pills.push('<span class="pill honey">' + (Math.round(c.honey * 10) / 10) + " LB</span>");
+      if (c.issue) pills.push('<span class="pill warn">ISSUE</span>');
+      if (c.mites != null) pills.push('<span class="pill ' + (c.mites < AP_MITE_OK ? "ok" : c.mites <= AP_MITE_TREAT ? "warn" : "bad") + '">MITES ' + c.mites + "%</span>");
+      if (c.pending) pills.push('<span class="pill">NOT SAVED YET</span>');
+      return '<button type="button" role="listitem" class="ap-crow' + (ap.fresh && apId(ap.fresh) === apId(c.id) ? " fresh" : "") + '" data-apcheck="' + esc(c.id) + '"><span class="d">' + apDay(c.day) + '</span><span class="s">' + esc(c.did || c.frames || c.queen || "Check") + '</span><span class="p">' + pills.join("") + '<span class="go" aria-hidden="true">›</span></span></button>';
+    }).join("") + "</div>" : '<div class="empty">No checks yet. + NEW CHECK starts the first.</div>';
+    var ab = h.data.about || {};
+    var rows = [["STARTED", h.day ? dLabel(parseYmd(h.day)) + " " + h.day.slice(0, 4) : ""], ["QUEEN", h.queen], ["SOURCE", ab.source], ["FOUNDATION", ab.foundation], ["EQUIPMENT", ab.equipment], ["PLACE", ab.place], ["NOTES", h.notes]].filter(function (r) { return r[1]; });
+    html += '<details class="ap-about" id="apAbout"' + (ap.aboutOpen ? " open" : "") + '><summary>ABOUT THIS HIVE</summary><dl class="ap-kv">' + rows.map(function (r) { return "<dt>" + r[0] + "</dt><dd>" + esc(r[1]) + "</dd>"; }).join("") + "</dl>" +
+      '<div class="btnrow ap-pad2"><button type="button" class="btn sm ghost" data-apact="edithive">EDIT HIVE</button>' + (ap.data.url ? '<a class="btn sm ghost" href="' + esc(ap.data.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div></details></div></div>";
+    return html;
+  }
+
+  /* level 3: one check */
+  var AP_FACTS = [["queen", "QUEEN AND BROOD"], ["frames", "FRAMES"], ["stores", "STORES"], ["feed", "FEED"], ["mood", "TEMPERAMENT"], ["pests", "PESTS"]];
+  function apCheckHtml() {
+    var h = apHive(ap.hive), cs = apChecks(h.id), i = cs.map(function (c) { return apId(c.id); }).indexOf(apId(ap.check)), c = cs[i];
+    var f = function (lab, v, cls) { return v ? '<div class="ap-fact' + (cls ? " " + cls : "") + '"><span class="ap-lab">' + lab + "</span><p>" + esc(v) + "</p></div>" : ""; };
+    var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase(), "hive"], [apDay(c.day)]]);
+    var armed = ap.arm === "del:" + c.id && Date.now() - ap.armAt < 4000;
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack(h, 1.3, false) + '<div class="ap-readout"><b>' + esc(h.name.toUpperCase()) + "</b><span>" + (h.queen ? "Queen " + esc(h.queen) : "") + "</span></div></div>";
+    html += '<article class="ap-card"><div><span class="ap-lab">' + esc([c.who, apAgo(c.day)].filter(Boolean).join(" · ").toUpperCase()) + "</span><h2>" + esc(dLabel(parseYmd(c.day))) + " " + c.day.slice(0, 4) + "</h2></div>" +
+      '<div class="ap-facts">' + AP_FACTS.map(function (x) { return f(x[1], c[x[0]]); }).join("") +
+      (c.mites != null ? f("MITE LOAD", c.mites + "%" + (c.mites < AP_MITE_OK ? " · fine" : c.mites <= AP_MITE_TREAT ? " · watch" : " · treat")) : "") +
+      (c.honey ? f("HONEY", (Math.round(c.honey * 10) / 10) + " lb") : "") +
+      f("WHAT YOU DID", c.did, "wide") + f("ISSUE", c.issue, "wide issue") + f("NOTES", c.notes, "wide") + f("NEXT TIME", c.next, "wide") + "</div>" +
+      (c.pending ? '<small class="muted">Not in Notion yet. It goes when the bridge answers.</small>' : "") +
+      '<div class="ap-navrow"><div class="btnrow"><button type="button" class="chip sm" data-apstep="1"' + (i >= cs.length - 1 ? " disabled" : "") + '>‹ EARLIER</button><button type="button" class="chip sm" data-apstep="-1"' + (i <= 0 ? " disabled" : "") + ">LATER ›</button></div>" +
+      '<div class="btnrow"><button type="button" class="btn sm ghost" data-apact="editcheck">EDIT</button><button type="button" class="btn sm ' + (armed ? "warn" : "ghost") + '" data-apdel="' + esc(c.id) + '">' + (armed ? "TAP AGAIN TO DELETE" : "DELETE") + "</button></div></div></article></div>";
+    return html;
+  }
+
+  /* level 3: a new check, one short step at a time */
+  function apNewDraft(h) {
+    return { hive: h.id, cid: newCid(), day: ymd(new Date()), step: 0, who: "", queen: {}, pattern: "", mood: "", boxes: JSON.parse(JSON.stringify(h.data.boxes)), counted: {}, moves: [],
+      honey: "", pollen: "", heft: "", feeder: "", method: "", mites: 0, beetles: 0, other: {}, did: {}, harvest: 0, issue: "", notes: "", next: "", remind: false };
+  }
+  function apDraftSave() { lsSet(LS_APDRAFT, ap.draft); }
+  function apPick(key, opts, multi, color) {
+    var D = ap.draft;
+    return '<div class="btnrow ap-picks" role="group">' + opts.map(function (o) {
+      var on = multi ? !!D[key][o] : D[key] === o;
+      return '<button type="button" class="chip sm" style="--c: var(--' + (color || "chrome-b") + ')" data-apf="' + key + '" data-apv="' + esc(String(o)) + '"' + (multi ? ' data-apmulti="1"' : "") + ' aria-pressed="' + on + '">' + esc(typeof o === "number" ? o + "%" : o) + "</button>";
+    }).join("") + "</div>";
+  }
+  function apStepper(key, idx, val, lab, unit, max) {
+    return '<div class="ap-sline"><span class="ap-lab">' + lab + '</span><span class="ap-stepper"><button type="button" data-apn="' + key + '" data-api="' + idx + '" data-apd="-1" aria-label="Less">−</button><output class="tnum">' + (val == null ? "–" : val) + '</output><button type="button" data-apn="' + key + '" data-api="' + idx + '" data-apd="1" aria-label="More">+</button></span>' + (unit ? '<span class="muted">' + unit + "</span>" : "") + "</div>";
+  }
+  function apMitePct(D) { return D.method === "SUGAR ROLL" || D.method === "ALCOHOL WASH" ? Math.round(D.mites / 3 * 10) / 10 : null; }
+  function apNewHtml() {
+    var h = apHive(ap.hive), D = ap.draft, q = "", last = apChecks(h.id)[0];
+    if (D.step === 0) q = "<h3>WHAT DID YOU SEE?</h3>" + '<span class="ap-lab">PICK ALL THAT APPLY</span>' + apPick("queen", ["QUEEN", "EGGS", "LARVAE", "CAPPED BROOD", "QUEEN CELLS", "NONE OF THESE"], true) +
+      '<span class="ap-lab">BROOD PATTERN</span>' + apPick("pattern", ["SOLID", "PATCHY", "SPOTTY"]) + '<span class="ap-lab">TEMPERAMENT</span>' + apPick("mood", ["CALM", "BUSY", "RUNNY", "DEFENSIVE"], false, "ok") +
+      '<label class="ap-lab" for="apWho">WHO WAS THERE</label><input type="text" id="apWho" data-apt="who" maxlength="200" placeholder="Solo" value="' + esc(D.who) + '" autocomplete="off">';
+    if (D.step === 1) {
+      q = "<h3>HOW FAR HAVE THEY DRAWN?</h3>";
+      for (var i = D.boxes.length - 1; i >= 0; i--) {   /* bottom first, the way you work down to it */
+        var b = D.boxes[i];
+        if (b.k === "deep") { q += apStepper("drawn", i, D.counted[i] ? b.drawn : null, apBoxName(D.boxes, i).toUpperCase(), D.counted[i] ? "of 10 frames" : "last " + (b.drawn == null ? "not counted" : b.drawn) + " · tap + or − to count", 10); }
+      }
+      D.boxes.forEach(function (b, i) {
+        if (b.k !== "super") return;
+        q += '<span class="ap-lab">' + apBoxName(D.boxes, i).toUpperCase() + " · CAPPED" + (D.counted[i] ? "" : " · LAST " + (b.fill == null ? "NOT LOGGED" : Math.round(b.fill * 100) + "%")) + '</span><div class="btnrow ap-picks">' +
+          [0, 25, 50, 75, 90, 100].map(function (v) { return '<button type="button" class="chip sm" style="--c: var(--hero)" data-apfill="' + i + '" data-apv="' + v + '" aria-pressed="' + (!!D.counted[i] && Math.round((b.fill || 0) * 100) === v) + '">' + v + "%</button>"; }).join("") + "</div>";
+      });
+      q += '<span class="ap-lab">BOXES ON OR OFF</span><div class="btnrow"><button type="button" class="chip sm" data-apbx="deep">+ DEEP</button><button type="button" class="chip sm" data-apbx="super">+ SUPER</button>' +
+        (D.boxes.length > 1 ? '<button type="button" class="chip sm" data-apbx="off">TOP BOX OFF</button>' : "") + "</div>" + (D.moves.length ? '<small class="muted">' + esc(D.moves.join(", ")) + "</small>" : "") +
+        '<small class="muted">The stack on the left follows what you enter. Add the second deep at 7 to 8 of 10 frames drawn.</small>';
+    }
+    if (D.step === 2) q = "<h3>STORES AND FEED</h3>" + [["honey", "HONEY", ["LOW", "OK", "HEAVY"]], ["pollen", "POLLEN", ["LOW", "OK", "HEAVY"]], ["heft", "HEFT", ["LIGHT", "OK", "HEAVY"]], ["feeder", "FEEDER", ["FULL", "LOW", "EMPTY", "REFILLED 1:1", "REFILLED 2:1", "NO FEEDER"]]]
+      .map(function (r) { return '<div class="ap-sline"><span class="ap-lab">' + r[1] + "</span>" + apPick(r[0], r[2]) + "</div>"; }).join("");
+    if (D.step === 3) {
+      var pct = apMitePct(D);
+      q = "<h3>MITES AND PESTS</h3>" + '<span class="ap-lab">MITE CHECK</span>' + apPick("method", ["SUGAR ROLL", "ALCOHOL WASH", "STICKY BOARD"], false, "bad") +
+        (D.method ? apStepper("mites", 0, D.mites, "MITES COUNTED", D.method === "STICKY BOARD" ? "on the board" : "in ½ cup of bees (about 300)", 999) : "") +
+        (pct != null ? '<div class="ap-sline"><span class="ap-lab">LOAD</span><span class="ap-pct tnum ' + (pct < AP_MITE_OK ? "ok" : pct <= AP_MITE_TREAT ? "warn" : "bad") + '">' + pct + '%</span><span class="muted">under ' + AP_MITE_OK + "% fine · " + AP_MITE_OK + " to " + AP_MITE_TREAT + "% watch · over " + AP_MITE_TREAT + "% treat</span></div>" : "") +
+        apStepper("beetles", 0, D.beetles, "BEETLES IN TRAPS", "", 999) + '<span class="ap-lab">ANYTHING ELSE</span>' + apPick("other", ["WAX MOTH", "ANTS", "CHALKBROOD", "DEFORMED WINGS", "ROBBING"], true, "warn");
+    }
+    if (D.step === 4) q = "<h3>WHAT YOU DID, AND NEXT TIME</h3>" + apPick("did", ["FED", "PATTIES", "TRAPS REFRESHED", "TRAPS MOVED", "REDUCER", "MOUSE GUARD", "TREATED", "PULLED HONEY"], true, "chrome-c") +
+      (D.did["PULLED HONEY"] ? apStepper("harvest", 0, D.harvest, "HONEY", "lb filtered", 999) : "") +
+      '<label class="ap-lab" for="apIssue">ISSUE</label><input type="text" id="apIssue" data-apt="issue" maxlength="300" placeholder="Anything wrong, in a line" value="' + esc(D.issue) + '" autocomplete="off">' +
+      '<label class="ap-lab" for="apNotes">NOTES</label><textarea id="apNotes" data-apt="notes" rows="3" maxlength="2000" placeholder="What stood out, in your words…">' + esc(D.notes) + "</textarea>" +
+      '<label class="ap-lab" for="apNext">NEXT TIME</label><textarea id="apNext" data-apt="next" rows="2" maxlength="2000" placeholder="Shows on this hive until the next check…">' + esc(D.next) + "</textarea>" +
+      (canPlan() ? '<div class="btnrow"><button type="button" class="chip sm" data-apremind="1" aria-pressed="' + !!D.remind + '">REMIND ME IN ' + AP_REMIND_DAYS + " DAYS</button></div>" + (D.remind ? '<small class="muted">Adds "Hive check: ' + esc(h.name) + '" to the Master Task List for ' + esc(dLabel(addDays(new Date(), AP_REMIND_DAYS))) + ".</small>" : "") : "");
+    var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase(), "hive"], ["NEW CHECK"]]);
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack(Object.assign({}, h, { data: Object.assign({}, h.data, { boxes: D.boxes }) }), 1.3, false) + '<div class="ap-readout"><b>' + esc(dLabel(new Date())) + "</b><span>" + (last ? "Last check " + apDay(last.day) + " · " + apAgo(last.day) : "The first check for this hive") + "</span></div></div>";
+    html += '<article class="ap-card"><nav class="ap-steps" aria-label="Steps">' + AP_STEPS.map(function (s, i) { return '<button type="button" data-apgoto="' + i + '"' + (i === D.step ? ' aria-current="step"' : "") + (i < D.step ? ' class="done"' : "") + "><i></i>" + s + "</button>"; }).join("") + "</nav>" +
+      '<div class="ap-q">' + q + '</div><div class="ap-navrow"><button type="button" class="btn sm ghost" data-apact="' + (D.step ? "back" : "cancel") + '">' + (D.step ? "‹ BACK" : "CANCEL") + "</button>" +
+      (D.step < AP_STEPS.length - 1 ? '<button type="button" class="btn sm" data-apact="fwd">NEXT ›</button>' : '<button type="button" class="btn sm" data-apact="save">SAVE CHECK</button>') + "</div></article></div>";
+    return html;
+  }
+  /* The picks, written out as the plain sentences Notion shows. */
+  function apSaveDraft() {
+    var h = apHive(ap.hive), D = ap.draft, keys = function (o) { return Object.keys(o).filter(function (k) { return o[k]; }); };
+    var seen = keys(D.queen), other = keys(D.other), did = keys(D.did).filter(function (k) { return k !== "PULLED HONEY"; }).map(apOne);
+    var frames = [];
+    for (var i = D.boxes.length - 1; i >= 0; i--) if (D.counted[i]) { var b = D.boxes[i]; frames.push(apBoxName(D.boxes, i) + (b.k === "deep" ? " " + b.drawn + "/10 drawn" : " " + Math.round(b.fill * 100) + "% capped")); }
+    var pct = apMitePct(D), stores = [D.honey && "honey " + D.honey.toLowerCase(), D.pollen && "pollen " + D.pollen.toLowerCase(), D.heft && "heft " + D.heft.toLowerCase()].filter(Boolean).join(", ");
+    var pests = [D.method ? apOne(D.method) + ": " + D.mites + " mites" + (pct != null ? " (" + pct + "%)" : "") : "", D.beetles ? D.beetles + " beetles in traps" : "", other.length ? other.map(apOne).join(", ") : ""].filter(Boolean).join("; ");
+    if (D.did["PULLED HONEY"]) did.push("Pulled honey" + (D.harvest ? ": " + D.harvest + " lb" : ""));
+    var item = { kind: "check", cid: D.cid, hive: apId(D.hive), day: D.day, who: D.who.trim() || "Solo",
+      queen: seen.length ? apOne(seen.join(", ")) + (D.pattern ? "; " + D.pattern.toLowerCase() + " pattern" : "") : D.pattern ? apOne(D.pattern) + " pattern" : "",
+      frames: frames.join("; "), stores: apOne(stores), feed: D.feeder ? apOne(D.feeder) : "", mood: D.mood ? apOne(D.mood) : "", pests: pests,
+      did: D.moves.concat(did).join("; "), issue: D.issue.trim(), notes: D.notes.trim(), next: D.next.trim(), mites: pct, honey: D.harvest || null,
+      data: { v: 1, deeps: D.boxes.filter(function (b) { return b.k === "deep"; }).map(function (b) { return b.drawn; }).reverse(), picks: { queen: seen, pattern: D.pattern, mood: D.mood, honey: D.honey, pollen: D.pollen, heft: D.heft, feeder: D.feeder, method: D.method, mites: D.method ? D.mites : null, beetles: D.beetles, other: other, did: keys(D.did) } },
+      boxes: D.boxes };
+    apQueue("c:cid:" + D.cid, { action: "apiarysave", item: item });
+    if (D.remind && canPlan()) {
+      var areas = (state.tasks[ymd(new Date())] || {}).areas || [], area = areas.filter(function (a) { return /bee/i.test(a); })[0] || areas.filter(function (a) { return taskArea(a) === "farm"; })[0] || null;
+      apiPost({ action: "addtask", task: { cid: newCid(), title: "Hive check: " + h.name, area: area, priority: null, day: ymd(addDays(new Date(), AP_REMIND_DAYS)) } })
+        .then(function () { toast("Reminder added for " + dLabel(addDays(new Date(), AP_REMIND_DAYS))); })
+        .catch(function (err) { toast("Check saved. Reminder not added: " + describeTasks(err)); });
+    }
+    ap.fresh = "cid:" + D.cid; ap.draft = null; lsDel(LS_APDRAFT); ap.box = null;
+  }
+
+  /* editing a check: every field as plain text, the way Notion holds it */
+  var AP_EDIT = [["who", "WHO"], ["queen", "QUEEN AND BROOD"], ["frames", "FRAMES"], ["stores", "STORES"], ["feed", "FEED"], ["mood", "TEMPERAMENT"], ["pests", "PESTS"], ["did", "WHAT YOU DID"], ["issue", "ISSUE"], ["notes", "NOTES"], ["next", "NEXT TIME"]];
+  function apCheckEditHtml() {
+    var h = apHive(ap.hive), c = apChecks(h.id).filter(function (x) { return apId(x.id) === apId(ap.check); })[0], F = ap.form || (ap.form = Object.assign({ forId: c.id }, c));
+    var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase(), "hive"], [apDay(c.day), "check"], ["EDIT"]]);
+    html += '<article class="ap-card ap-form"><h2>EDIT CHECK</h2><label class="ap-lab" for="apE-day">DATE</label><input type="date" id="apE-day" data-ape="day" value="' + esc(F.day) + '">' +
+      AP_EDIT.map(function (r) { return '<label class="ap-lab" for="apE-' + r[0] + '">' + r[1] + '</label><textarea id="apE-' + r[0] + '" data-ape="' + r[0] + '" rows="1" maxlength="2000">' + esc(F[r[0]] || "") + "</textarea>"; }).join("") +
+      '<div class="ap-two"><div><label class="ap-lab" for="apE-mites">MITES (%)</label><input type="number" id="apE-mites" data-ape="mites" min="0" max="100" step="0.1" inputmode="decimal" value="' + (F.mites == null ? "" : F.mites) + '"></div>' +
+      '<div><label class="ap-lab" for="apE-honey">HONEY (LB)</label><input type="number" id="apE-honey" data-ape="honey" min="0" max="1000" step="0.1" inputmode="decimal" value="' + (F.honey == null ? "" : F.honey) + '"></div></div>' +
+      '<div class="ap-navrow"><button type="button" class="btn sm ghost" data-apgo="check">CANCEL</button><button type="button" class="btn sm" data-apact="savecheck">SAVE</button></div></article>';
+    return html;
+  }
+  function apSaveCheckEdit() {
+    var F = ap.form, num = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(F.day || "")) { toast("Pick a date first."); return false; }
+    var item = { kind: "check", hive: apId(F.hive), day: F.day, mites: num(F.mites), honey: num(F.honey), data: F.data || {} };
+    if (String(F.forId).indexOf("cid:") === 0) item.cid = F.forId.slice(4); else item.id = F.forId;
+    AP_EDIT.forEach(function (r) { item[r[0]] = String(F[r[0]] || "").trim(); });
+    var prior = ap.q["c:" + F.forId] && ap.q["c:" + F.forId].body.item;
+    if (prior && prior.boxes) item.boxes = prior.boxes;
+    apQueue("c:" + F.forId, { action: "apiarysave", item: item });
+    ap.form = null;
+    return true;
+  }
+
+  /* adding or editing a hive */
+  function apHiveForm(h) {
+    if (!h) return { forId: null, name: "", queen: "", day: ymd(new Date()), source: "", foundation: "", equipment: "", place: "", notes: "", paint: 0, deeps: 1, supers: 0, boxes: [{ k: "deep", drawn: null }] };
+    var ab = h.data.about || {}, pi = AP_PAINTS.map(function (p) { return p[1] + p[2]; }).indexOf((h.data.paint || "") + (h.data.paint2 || ""));
+    return { forId: h.id, name: h.name, queen: h.queen || "", day: h.day || "", source: ab.source || "", foundation: ab.foundation || "", equipment: ab.equipment || "", place: ab.place || "", notes: h.notes || "",
+      paint: pi, boxes: JSON.parse(JSON.stringify(h.data.boxes)) };
+  }
+  function apFormBoxes(F, kind, d) {
+    var bs = F.boxes, n = bs.filter(function (b) { return b.k === kind; }).length;
+    if (d > 0 && n < (kind === "deep" ? 4 : 5)) { if (kind === "super") bs.unshift({ k: "super", fill: null }); else bs.splice(bs.filter(function (b) { return b.k === "super"; }).length, 0, { k: "deep", drawn: null }); }
+    if (d < 0 && n > (kind === "deep" ? 1 : 0)) bs.splice(bs.map(function (b) { return b.k; }).indexOf(kind), 1);
+  }
+  function apHiveEditHtml() {
+    var F = ap.form, h = F.forId ? apHive(F.forId) : null, armed = h && ap.arm === "delh:" + h.id && Date.now() - ap.armAt < 4000;
+    var nD = F.boxes.filter(function (b) { return b.k === "deep"; }).length, nS = F.boxes.length - nD, pv = AP_PAINTS[F.paint] || ["", (h && h.data.paint) || "#2f4a8f", (h && h.data.paint2) || "#b4423c"];
+    var html = apCrumbs(h ? [["APIARY", "yard"], [h.name.toUpperCase(), "hive"], ["EDIT"]] : [["APIARY", "yard"], ["NEW HIVE"]]);
+    var fld = function (k, lab, ph, max) { return '<label class="ap-lab" for="apH-' + k + '">' + lab + '</label><input type="text" id="apH-' + k + '" data-aph="' + k + '" maxlength="' + (max || 200) + '" placeholder="' + esc(ph) + '" value="' + esc(F[k]) + '" autocomplete="off">'; };
+    html += '<div class="ap-hive"><div class="ap-stage">' + apStack({ id: "form", data: { paint: pv[1], paint2: pv[2], boxes: F.boxes } }, 1.6, false) + '<div class="ap-readout"><b>' + esc((F.name || "NEW HIVE").toUpperCase()) + "</b><span>" + nD + (nD === 1 ? " deep" : " deeps") + (nS ? ", " + nS + (nS === 1 ? " super" : " supers") : "") + "</span></div></div>";
+    html += '<article class="ap-card ap-form"><h2>' + (h ? "EDIT HIVE" : "NEW HIVE") + "</h2>" + fld("name", "NAME", "e.g. Thor", 60) + fld("queen", "QUEEN", "Her name, if she has one", 60) +
+      '<label class="ap-lab" for="apH-day">STARTED</label><input type="date" id="apH-day" data-aph="day" value="' + esc(F.day) + '">' +
+      fld("source", "SOURCE", "Package, nuc, split, swarm") + fld("foundation", "FOUNDATION", "Plastic, wax, foundationless") + fld("equipment", "EQUIPMENT", "Bottom board, feeder, covers") + fld("place", "PLACE", "Where it sits in the yard") +
+      '<label class="ap-lab" for="apH-notes">NOTES</label><textarea id="apH-notes" data-aph="notes" rows="2" maxlength="2000">' + esc(F.notes) + "</textarea>" +
+      '<span class="ap-lab">PAINT</span><div class="btnrow ap-paints" role="group" aria-label="Paint">' + AP_PAINTS.map(function (p, i) { return '<button type="button" class="ap-swatch" data-appaint="' + i + '" aria-pressed="' + (F.paint === i) + '" aria-label="' + p[0] + '"><i style="background:' + p[1] + '"></i><i style="background:' + p[2] + '"></i></button>'; }).join("") + "</div>" +
+      '<span class="ap-lab">BOXES</span>' + apStepper("fdeep", 0, nD, "DEEPS", "", 4) + apStepper("fsuper", 0, nS, "SUPERS", "", 5) +
+      '<div class="ap-navrow"><div class="btnrow">' + (h ? '<button type="button" class="btn sm ' + (armed ? "warn" : "ghost") + '" data-apdelhive="' + esc(h.id) + '">' + (armed ? "TAP AGAIN TO REMOVE" : "REMOVE HIVE") + "</button>" : "") + "</div>" +
+      '<div class="btnrow"><button type="button" class="btn sm ghost" data-apgo="' + (h ? "hive" : "yard") + '">CANCEL</button><button type="button" class="btn sm" data-apact="savehive">' + (h ? "SAVE" : "ADD TO THE YARD") + "</button></div></div>" +
+      (h ? '<small class="muted">REMOVE HIVE puts it and nothing else in Notion\'s trash; its checks stay in the database.</small>' : "") + "</article></div>";
+    return html;
+  }
+  function apSaveHive() {
+    var F = ap.form, h = F.forId ? apHive(F.forId) : null, name = F.name.trim();
+    if (!name) { toast("Give the hive a name first."); return null; }
+    var pv = AP_PAINTS[F.paint], data = Object.assign({}, h ? h.data : { v: 1, order: apHives().reduce(function (m, x) { return Math.max(m, +x.data.order || 0); }, 0) + 1 });
+    if (pv) { data.paint = pv[1]; data.paint2 = pv[2]; }
+    data.boxes = F.boxes;
+    data.about = Object.assign({}, data.about, { source: F.source.trim(), foundation: F.foundation.trim(), equipment: F.equipment.trim(), place: F.place.trim() });
+    var item = { kind: "hive", name: name, queen: F.queen.trim(), day: F.day || null, notes: F.notes.trim(), data: data }, key;
+    if (h && String(h.id).indexOf("cid:") !== 0) { item.id = h.id; key = "h:" + h.id; }
+    else { item.cid = h ? h.id.slice(4) : newCid(); key = "h:cid:" + item.cid; }
+    apQueue(key, { action: "apiarysave", item: item });
+    ap.form = null;
+    return item.id || "cid:" + item.cid;
+  }
+  function apSaveYard(mut) {
+    var y = apYard() || { name: "Apiary", notes: "", data: { list: [] } }, data = JSON.parse(JSON.stringify(y.data || { list: [] }));
+    mut(data);
+    var item = { kind: "yard", name: y.name || "Apiary", notes: y.notes || "", day: y.day || null, data: data };
+    if (y.id && String(y.id).indexOf("cid:") !== 0) item.id = y.id; else item.cid = y.id ? y.id.slice(4) : newCid();
+    apQueue("y", { action: "apiarysave", item: item });
+    render(true);
+  }
+
+  /* --- taps --- */
+  function apClick(b) {
+    var d = b.dataset;
+    if (d.aiapiary) { if (d.aiapiary === "1") lsSet(LS_AIAPIARY, true); else lsDel(LS_AIAPIARY); askReshare(); render(true); return true; }
+    if (d.apretry) { ap.qErr = null; flushApiary(); render(true); return true; }
+    if (state.screen !== "apiary") return false;
+    var D = ap.draft, F = ap.form;
+    if (d.aphive) { ap.hive = d.aphive; ap.box = null; ap.fresh = null; apNav("hive", b.querySelector(".ap-stack")); return true; }
+    if (d.apgo) { if (d.apgo !== "check") ap.form = null; if (d.apgo === "yard") ap.fresh = null; ap.box = null; apNav(d.apgo, apStackEl()); return true; }
+    if (d.apbox != null) {
+      var h = apHive(ap.hive); ap.box = ap.box === +d.apbox ? null : +d.apbox;
+      document.querySelectorAll("#content .ap-stack [data-apbox]").forEach(function (x) { x.classList.toggle("sel", +x.dataset.apbox === ap.box); });
+      $("apReadout").innerHTML = ap.box == null ? apBoxHint() : apBoxRead(h, ap.box);
+      return true;
+    }
+    if (d.apcheck) { ap.check = d.apcheck; apNav("check", apStackEl()); return true; }
+    if (d.apstep) { var cs = apChecks(ap.hive), i = cs.map(function (c) { return apId(c.id); }).indexOf(apId(ap.check)) + +d.apstep; if (cs[i]) { ap.check = cs[i].id; ap.arm = null; render(false); } return true; }
+    if (d.apnextcheck) { ap.hive = d.apnextcheck; ap.fresh = null; ap.draft = apNewDraft(apHive(ap.hive)); apDraftSave(); apNav("new", null); return true; }
+    if (d.apdel) {
+      if (ap.arm === "del:" + d.apdel && Date.now() - ap.armAt < 4000) {
+        if (d.apdel.indexOf("cid:") === 0) delete ap.q["c:" + d.apdel]; else { delete ap.q["c:" + d.apdel]; apQueue("x:" + d.apdel, { action: "apiaryremove", id: d.apdel }); }
+        lsSet(LS_APIARYQ, ap.q); toast("Check deleted. It's in Notion's trash if you need it back."); apNav("hive", apStackEl());
+      } else { ap.arm = "del:" + d.apdel; ap.armAt = Date.now(); render(true); setTimeout(function () { if (state.screen === "apiary") render(true); }, 4100); }
+      return true;
+    }
+    if (d.apdelhive) {
+      if (ap.arm === "delh:" + d.apdelhive && Date.now() - ap.armAt < 4000) {
+        var hid = d.apdelhive;
+        if (hid.indexOf("cid:") === 0) delete ap.q["h:" + hid]; else { delete ap.q["h:" + hid]; apQueue("x:" + hid, { action: "apiaryremove", id: hid }); }
+        lsSet(LS_APIARYQ, ap.q); ap.form = null; ap.hive = null; toast("Hive removed. Its checks stay in Notion."); apNav("yard", null);
+      } else { ap.arm = "delh:" + d.apdelhive; ap.armAt = Date.now(); render(true); setTimeout(function () { if (state.screen === "apiary") render(true); }, 4100); }
+      return true;
+    }
+    if (d.aplist != null) { apSaveYard(function (y) { var it = y.list[+d.aplist]; if (it) it.done = !it.done; }); return true; }
+    if (d.aplistx != null) { apSaveYard(function (y) { y.list.splice(+d.aplistx, 1); }); return true; }
+    if (d.appaint != null && F) { F.paint = +d.appaint; render(true); return true; }
+    if (d.apremind && D) { D.remind = !D.remind; apDraftSave(); render(true); return true; }
+    if (d.apgoto != null && D) { D.step = +d.apgoto; apDraftSave(); render(false); return true; }
+    if (d.apbx && D) {
+      var bs = D.boxes, sup = bs.filter(function (x) { return x.k === "super"; }).length;
+      var shift = function (at) { var c2 = {}; Object.keys(D.counted).forEach(function (k) { c2[+k >= at ? +k + 1 : k] = 1; }); D.counted = c2; };
+      if (d.apbx === "super") { shift(0); bs.unshift({ k: "super", fill: 0 }); D.counted[0] = 1; D.moves.push("Added a super"); }
+      if (d.apbx === "deep") { shift(sup); bs.splice(sup, 0, { k: "deep", drawn: 0 }); D.counted[sup] = 1; D.moves.push("Added a deep"); }
+      if (d.apbx === "off" && bs.length > 1) { var off = bs.shift(); var c3 = {}; Object.keys(D.counted).forEach(function (k) { if (+k > 0) c3[+k - 1] = 1; }); D.counted = c3; D.moves.push("Took off the " + (off.k === "super" ? "top super" : "top deep")); }
+      apDraftSave(); render(true); return true;
+    }
+    if (d.apfill != null && D) { D.boxes[+d.apfill].fill = +d.apv / 100; D.counted[+d.apfill] = 1; apDraftSave(); render(true); return true; }
+    if (d.apn) {
+      var step = +d.apd;
+      if (d.apn === "fdeep" || d.apn === "fsuper") { if (F) { apFormBoxes(F, d.apn === "fdeep" ? "deep" : "super", step); render(true); } return true; }
+      if (!D) return true;
+      if (d.apn === "drawn") {
+        var bx = D.boxes[+d.api];
+        if (!D.counted[+d.api]) { D.counted[+d.api] = 1; bx.drawn = bx.drawn == null ? (step > 0 ? 1 : 0) : Math.max(0, Math.min(10, bx.drawn + step)); }
+        else bx.drawn = Math.max(0, Math.min(10, (bx.drawn || 0) + step));
+      } else D[d.apn] = Math.max(0, Math.min(999, (+D[d.apn] || 0) + step));
+      apDraftSave(); render(true); return true;
+    }
+    if (d.apf && D) {
+      var v = d.apv;
+      if (d.apmulti) {
+        if (d.apf === "queen" && v === "NONE OF THESE") D.queen = D.queen[v] ? {} : { "NONE OF THESE": true };
+        else { D[d.apf][v] = !D[d.apf][v]; if (d.apf === "queen") delete D.queen["NONE OF THESE"]; }
+      } else D[d.apf] = D[d.apf] === v ? "" : v;   /* tap again to clear */
+      if (d.apf === "method" && !D.method) D.mites = 0;
+      apDraftSave(); render(true); return true;
+    }
+    var act = d.apact;
+    if (act === "new") { var hh = apHive(ap.hive); if (!ap.draft || apId(ap.draft.hive) !== apId(hh.id)) { ap.draft = apNewDraft(hh); apDraftSave(); } ap.fresh = null; apNav("new", apStackEl()); return true; }
+    if (act === "fwd" && D) { D.step = Math.min(AP_STEPS.length - 1, D.step + 1); apDraftSave(); render(false); $("content").scrollTop = 0; return true; }
+    if (act === "back" && D) { D.step = Math.max(0, D.step - 1); apDraftSave(); render(false); $("content").scrollTop = 0; return true; }
+    if (act === "cancel") { ap.draft = null; lsDel(LS_APDRAFT); apNav("hive", apStackEl()); return true; }
+    if (act === "save" && D) { var st = apStackEl(); apSaveDraft(); toast("Check saved to " + apHive(ap.hive).name); apNav("hive", st); return true; }
+    if (act === "editcheck") { ap.form = null; apNav("checkedit", null); return true; }
+    if (act === "savecheck" && F) { if (apSaveCheckEdit()) { toast("Check updated"); apNav("check", null); } return true; }
+    if (act === "edithive") { ap.form = apHiveForm(apHive(ap.hive)); apNav("hiveedit", apStackEl()); return true; }
+    if (act === "addhive") { ap.form = apHiveForm(null); ap.hive = null; apNav("hiveedit", null); return true; }
+    if (act === "savehive" && F) { var nid = apSaveHive(); if (nid) { ap.hive = nid; ap.box = null; toast(F.forId ? "Hive saved" : "Added to the yard"); apNav("hive", null); } return true; }
+    if (act === "listadd") {
+      var inp = $("apListIn"), t = inp ? inp.value.trim() : "";
+      if (!t) { if (inp) inp.focus(); return true; }
+      inp.value = ""; apSaveYard(function (y) { y.list.push({ t: t.slice(0, 120), done: false }); });
+      return true;
+    }
+    return false;
+  }
+  document.addEventListener("input", function (e) {
+    var t = e.target, d = t.dataset || {};
+    if (d.apt && ap.draft) { ap.draft[d.apt] = t.value; apDraftSave(); return; }
+    if (d.ape && ap.form) { ap.form[d.ape] = t.value; return; }
+    if (d.aph && ap.form) ap.form[d.aph] = t.value;
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target && e.target.id === "apListIn") { e.preventDefault(); var b = document.querySelector('[data-apact="listadd"]'); if (b) b.click(); } });
+  document.addEventListener("toggle", function (e) { if (e.target && e.target.id === "apYear") ap.yearOpen = e.target.open; if (e.target && e.target.id === "apAbout") ap.aboutOpen = e.target.open; }, true);
+
+  /* --- Systems and Ask --- */
+  function apiarySection() {
+    var on = !!lsGet(LS_AIAPIARY), waiting = Object.keys(ap.q).length;
+    var html = "<section>" + phead("APIARY", canApiary() ? (ap.err ? "PROBLEM" : "NOTION") : "SETUP");
+    if (!canApiary()) return html + stubBox("Needs bridge 1.26 and the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Apiary</b>.") + "</section>";
+    var nh = apHives().length, nc = apChecks().length;
+    html += '<div class="calrow"><span class="st" style="background:var(--farm)"></span><span><b>🐝 Apiary</b><small' + (ap.err ? ' class="errtxt">' + esc(ap.err.msg) : ">" + (ap.data ? nh + (nh === 1 ? " hive · " : " hives · ") + nc + (nc === 1 ? " check" : " checks") : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
+      '<span class="pill' + (ap.data && !ap.err ? " ok" : ap.err ? " bad" : "") + '">' + (ap.data && !ap.err ? "OK" : ap.err ? "ERROR" : "WAITING") + "</span></div>";
+    html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR HIVES</label><div class="btnrow">' +
+      '<button type="button" class="chip" data-aiapiary="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aiapiary="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
+      '<small class="muted">' + (on ? "Ask receives your hives (name, queen, boxes), each hive's last three checks, this year's honey and mite checks, and the open yard list with each question. They go to Anthropic with the question." : "Off: your hives and checks are never sent with Ask questions.") + "</small></section>";
+    return html;
+  }
+  function apiaryBrief() {
+    if (!lsGet(LS_AIAPIARY) || !canApiary() || !ap.data) return "";
+    var y = String(new Date().getFullYear()), out = [];
+    apHives().forEach(function (h) {
+      var s = apYear(h.id, y), bx = h.data.boxes.map(function (b) { return b.k === "super" ? "super" + (b.fill != null ? " " + Math.round(b.fill * 100) + "% capped" : "") : "deep" + (b.drawn != null ? " " + b.drawn + "/10" : ""); }).join(", ");
+      out.push(h.name + (h.queen ? " (queen " + h.queen + ")" : "") + ": boxes top to bottom " + bx + "; honey " + y + " " + s.honey + " lb; mite checks " + y + " " + s.mites + " of " + AP_MITES_YEAR);
+      apChecks(h.id).slice(0, 3).forEach(function (c) {
+        out.push("- " + c.day + ": " + [c.queen && "queen/brood " + c.queen, c.frames && "frames " + c.frames, c.stores && "stores " + c.stores, c.feed && "feed " + c.feed, c.pests && "pests " + c.pests, c.mites != null && "mites " + c.mites + "%", c.honey && "honey " + c.honey + " lb", c.did && "did " + c.did, c.issue && "ISSUE " + c.issue, c.next && "next " + c.next].filter(Boolean).join("; "));
+      });
+    });
+    var yard = apYard(), open = yard ? yard.data.list.filter(function (i) { return !i.done; }).map(function (i) { return i.t; }) : [];
+    if (open.length) out.push("Yard list (open): " + open.join(" | "));
+    if (!out.length) return "";
+    var txt = "APIARY (his hives, shared by Timothy's choice):\n" + out.join("\n");
+    return txt.length > 4000 ? txt.slice(0, 4000) + "…" : txt;
+  }
+
   /* ---------- Text boxes grow with their text (2.26.1) ---------- */
   /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
@@ -7526,7 +8109,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
@@ -7550,6 +8133,7 @@
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
+    if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */
     if (screen === "tarot" && state.screen === "tarot") { tr.view = "home"; tr.arm = null; }   /* tapping TAROT again goes back to its front page */   /* arriving: read the devices fresh */   /* tapping STORAGE again goes back to its front page */
     state.screen = screen;
     if (screen === "review") state.rvLog = !anchor;
@@ -7592,7 +8176,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if (habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if (habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

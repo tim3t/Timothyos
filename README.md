@@ -386,6 +386,25 @@ Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot
 
 The text came from the EPUB of Dean's book and a scan of Crispin's, so a few of Crispin's pages may carry small scanning slips (a joined word, a missing apostrophe). Fix them on the page in Notion.
 
+## Apiary (app 2.31, bridge 1.26)
+
+APIARY (under RESOURCES in ALL STATIONS) is your hive log. It opens on **the yard**: each hive drawn as its own box stack (honey supers on top, deeps below, the frames drawn lit up), with its queen, its last check and any open issue. Tap a hive to zoom in; tap a check to zoom in again.
+
+Everything lives in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard page, one page per hive and one page per check, each check linked to its hive. The text columns (Queen, Frames, Feed, Did, Next and so on) are plain and you can edit them in Notion; the **Data** column is what the app draws from (boxes, colors, counts), so leave that one to the app. Your original Beekeeping and Hive Inspections pages are untouched.
+
+1. **Connect the database:** in Notion open **🐝 Apiary → ••• → Connections → add TimothyOS bridge**.
+2. **Update the bridge to 1.26:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion apiary: OK (2 hives, 11 checks)`.
+3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**, and pin APIARY from **ALL STATIONS → EDIT PINS** if you want it in the bar.
+
+**Using it:**
+- **The yard:** the top line shows **HIVE CHECK GO / HOLD** (the Bridge's hive weather, when a location is set in Systems), honey this year and the year's mite checks (the lowest hive's count out of 4). **THIS YEAR** opens honey per hive, mite checks per hive and **the yard list** (supplies, winter prep: tap to tick, ✕ to remove, type and ADD).
+- **A hive:** its stack large (tap a box for what it held at the last check), **NEXT TIME** from the last check, every check newest first, and **ABOUT THIS HIVE** with **EDIT HIVE** (name, queen, start date, source, foundation, equipment, place, notes, paint, how many deeps and supers).
+- **+ NEW CHECK** walks five short steps: **QUEEN** (what you saw, brood pattern, temperament, who was there), **FRAMES** (count each deep with − and +; capped % per super; **+ DEEP**, **+ SUPER** or **TOP BOX OFF** when you change the stack), **STORES**, **PESTS** (sugar roll or alcohol wash works out the mite load: under 2% fine, 2 to 3% watch, over 3% treat), **WRAP UP** (what you did, honey pulled in lb, an issue, notes, next time, and **REMIND ME IN 7 DAYS**, which adds "Hive check: …" to the Master Task List). Tap a chip again to clear it. A half-finished check is kept on the iPad (**RESUME CHECK**). **SAVE CHECK** writes it to Notion as plain sentences, updates the hive's stack, and offers **CHECK … NEXT** for the other hive.
+- **A check:** everything recorded, **EARLIER / LATER**, **EDIT** (every field as text) and **DELETE** (two taps; it goes to Notion's trash).
+- **+ ADD HIVE** on the yard for a new package, nuc or split. **REMOVE HIVE** (two taps, in EDIT HIVE) moves the hive page to Notion's trash; its checks stay.
+- **No signal at the hives:** saves wait on the iPad and go when the bridge answers. A save Notion refuses shows in red with **RETRY**.
+- **Ask:** **Systems → APIARY → SHARE WITH ASK** sends your hives, each hive's last three checks, this year's honey and mite checks and the open yard list with each question. Off by default.
+
 ## Storage (app 2.16)
 
 STORAGE browses folders on the NAS and plays audio (podcasts) from them. A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
