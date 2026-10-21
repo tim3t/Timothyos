@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.31.1 · 2026-10-21
+- **Fixed: a meeting with "Lunch" in its name counted as a break.** A break now needs the event's whole title to be one of your BREAKS (capitals, extra spaces and a trailing full stop don't matter, and an "Out of office —" in front is still fine). "Lunch" and "Out of office — Lunch" stay breaks; a monthly team lunch meeting counts as Work again. A longer title can be added to the list if you want it treated as a break.
+
 ## 2.31.0 · 2026-10-21 (bridge 1.26)
 - **New station: APIARY.** Your hive log, built from the zooming mockup:
   - **The yard** shows each hive as its own box stack (supers, deeps, frames drawn), with its queen, last check and any open issue, plus hive-check weather, honey this year and mite checks.

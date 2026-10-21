@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.31.0";
+  var VERSION = "2.31.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -363,14 +363,18 @@
      The "Out of office —" prefix is dropped from its label. The list stays on this iPad. */
   var LS_BREAKS = "tos.breaks.v1";
   var breakList = lsGet(LS_BREAKS) || ["Lunch"];
-  function breakWord(title) { var t = norm1(title); return breakList.filter(function (w) { return norm1(w) && t.indexOf(norm1(w)) > -1; })[0] || ""; }
+  /* 2.31.1: the whole title must be the break word (case, spacing and end punctuation aside), after an
+     "Out of office —" / "OOO -" prefix; "Team Lunch" is a meeting, not a break. */
+  var OOO_PREFIX = /^\s*(out of office|ooo)\s*[-–—:·|]\s*/i;
+  function breakKey(t) { return norm1(String(t || "").replace(OOO_PREFIX, "")).replace(/\s+/g, " ").replace(/[\s.!:;,]+$/, ""); }
+  function breakWord(title) { var t = breakKey(title); return breakList.filter(function (w) { return breakKey(w) && t === breakKey(w); })[0] || ""; }
   /* Sets the event's area and label for the current list (kept reversible: srcArea, srcTitle). */
   function asBreak(ev) {
     if (ev.pending) return false;
     if (!ev.srcArea) { ev.srcArea = ev.area; ev.srcTitle = ev.title; }
     var w = !ev.allDay && breakWord(ev.srcTitle);
     ev.area = w ? "break" : ev.srcArea;
-    ev.title = w ? ev.srcTitle.replace(/^\s*(out of office|ooo)\s*[-–—:·|]\s*/i, "") || ev.srcTitle : ev.srcTitle;
+    ev.title = w ? ev.srcTitle.replace(OOO_PREFIX, "") || ev.srcTitle : ev.srcTitle;
     ev.breakWord = w || "";
     return !!w;
   }
@@ -834,7 +838,7 @@
     html += '<label class="ov-sub" for="brkIn">BREAKS</label>' +
       '<textarea id="brkIn" rows="2" placeholder="One word per line, e.g. Lunch">' + esc(breakList.join("\n")) + "</textarea>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="brksave">SAVE BREAKS</button></div>' +
-      '<small class="muted">A timed event whose title contains one of these is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings, BALANCE or Review hours. Saved on this iPad.</small>';
+      '<small class="muted">A timed event whose whole title is one of these (capitals aside, and also with Out of office in front) is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings, BALANCE or Review hours. Saved on this iPad.</small>';
     html += "</section>";
 
     html += aiSection();

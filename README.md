@@ -512,7 +512,7 @@ A non-admin Home Assistant user can still switch every device in that Home Assis
 
 ## Breaks (app 2.23)
 
-Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the words (Lunch to start; add Walk or anything else). Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
+Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the titles (Lunch to start; add Walk or anything else). Since 2.31.1 the event's **whole title** must be one of them (capitals and an "Out of office" in front aside), so "Lunch" and "Out of office — Lunch" are breaks but a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
 
 ## Daily use
 

@@ -1,4 +1,4 @@
-// BREAKS (2.23): lunch booked as "Out of office — Lunch" on the Work calendar. "Out of office" is on
+// BREAKS (2.23; whole-title match 2.31.1): lunch booked as "Out of office — Lunch" on the Work calendar. "Out of office" is on
 // IGNORED EVENTS, yet Lunch is shown (labelled Lunch, a hatched break block) on Today, Week and the
 // Bridge (NOW shows LUNCH), while plain "Out of office" stays hidden. A break never counts as Work
 // hours, meetings or BALANCE. The list is edited in Systems. Fixed clock: Wed 14 Oct 2026, 12:20.
@@ -51,6 +51,16 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.strictEqual(await p.inputValue('#brkIn'), 'Lunch');
   await p.fill('#brkIn', 'Lunch\nWalk'); await p.click('[data-act="brksave"]');
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.breaks.v1'))), ['Lunch', 'Walk']);
+  // 2.31.1: the whole title must match. "review" is part of "Roadmap review", so that stays a meeting;
+  // "standup" (any capitals) is the whole of "Standup", so that becomes a break
+  await p.fill('#brkIn', 'Lunch\nreview'); await p.click('[data-act="brksave"]');
+  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(400);
+  assert.strictEqual(await p.locator('.wkb.a-break').count(), 5, 'part of a title is not a break');
+  await p.click('#status'); await p.waitForSelector('#brkIn');
+  await p.fill('#brkIn', 'Lunch\nstandup.'); await p.click('[data-act="brksave"]');
+  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(400);
+  assert.strictEqual(await p.locator('.wkb.a-break').count(), 10, 'a whole title is, whatever its capitals and end stop');
+  await p.click('#status'); await p.waitForSelector('#brkIn');
   await p.fill('#brkIn', ''); await p.click('[data-act="brksave"]');
   await p.click('[data-screen="today"].nav'); await p.waitForTimeout(400);
   assert.strictEqual(await p.locator('.ev.a-break').count(), 0, 'emptied: lunch is ignored again');
