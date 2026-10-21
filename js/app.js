@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.30.1";
+  var VERSION = "2.30.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2880,50 +2880,53 @@
   }
 
   /* What the app knows right now, as plain text for Claude. Ignored events are already left out. */
-  function briefing() {
+  /* The snapshot as named sections (parts = true), or as one text. A section's name is what OPEN IN CLAUDE says it
+     left out when the link has to be shortened (2.30.2); unnamed sections are never left out. */
+  function briefing(parts) {
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange()), out = [];
+    var add = function (txt, name) { out.push({ t: txt, k: name || "" }); };
     var line = function (e) { return e.allDay ? "all day · " + AREAS[e.area].name + " · " + e.title : hm(e._s) + "-" + hm(e._e) + " · " + AREAS[e.area].name + " · " + e.title + (e.pending ? " (not saved yet)" : ""); };
-    out.push("NOW: " + DOWL[now.getDay()] + " " + today + " " + hm(now) + " (iPad local time). Week starts Monday.");
-    if (hasFarm() || hasGrowth()) out.push("CALENDARS: WORK (read-only), PERSONAL" + (hasFarm() ? ", " + AREAS.farm.name + " (farm and bees; calendar 'farm' for proposals)" : "") + (hasGrowth() ? ", GROWTH (personal growth and hobbies; calendar 'growth' for proposals)" : ""));
+    add("NOW: " + DOWL[now.getDay()] + " " + today + " " + hm(now) + " (iPad local time). Week starts Monday.");
+    if (hasFarm() || hasGrowth()) add("CALENDARS: WORK (read-only), PERSONAL" + (hasFarm() ? ", " + AREAS.farm.name + " (farm and bees; calendar 'farm' for proposals)" : "") + (hasGrowth() ? ", GROWTH (personal growth and hobbies; calendar 'growth' for proposals)" : ""));
     var items = conditions(now, today, list);
-    out.push("CONDITION: " + (items.some(function (i) { return i.lvl === "bad"; }) ? "RED" : items.length ? "YELLOW" : "GREEN") +
+    add("CONDITION: " + (items.some(function (i) { return i.lvl === "bad"; }) ? "RED" : items.length ? "YELLOW" : "GREEN") +
       (items.length ? " · " + items.map(function (i) { return i.txt + " (" + unesc(i.sub.replace(/<[^>]+>/g, "")) + ")"; }).join(" · ") : ""));
     var de = dayEvents(list, now);
-    out.push("TODAY:\n" + (de.allDay.concat(de.timed).map(function (e) { return "- " + line(e); }).join("\n") || "- nothing on the calendar"));
+    add("TODAY:\n" + (de.allDay.concat(de.timed).map(function (e) { return "- " + line(e); }).join("\n") || "- nothing on the calendar"));
     var days = [];
     for (var i = 1; i < 7; i++) {
       var d = addDays(sod(now), i), dd = dayEvents(list, d);
       days.push(DOW[d.getDay()] + " " + ymd(d) + ": " + (dd.allDay.concat(dd.timed).map(line).join("; ") || "nothing"));
     }
-    out.push("NEXT 6 DAYS:\n" + days.join("\n"));
-    if (!hasData(bridgeRange())) out.push("(Calendar data may be incomplete: last sync " + (state.sync.at ? stamp(state.sync.at) : "never") + ".)");
+    add("NEXT 6 DAYS:\n" + days.join("\n"), "the next 6 days");
+    if (!hasData(bridgeRange())) add("(Calendar data may be incomplete: last sync " + (state.sync.at ? stamp(state.sync.at) : "never") + ".)");
     var data = canPlan() ? state.tasks[today] : null;
     if (data) {
       var t = function (x) { return "- [" + x.id + "] " + x.title + " · " + [x.status, x.priority, x.area, x.due ? "due " + x.due : "", x.focus ? "picked " + x.focus : ""].filter(Boolean).join(" · "); };
-      out.push("PRIORITIES PICKED FOR TODAY:\n" + (data.focus.map(t).join("\n") || "- none picked yet"));
-      out.push("OPEN TASKS (most urgent first, up to 40 of " + data.open.length + "):\n" + (rankTasks(data.open).slice(0, 40).map(t).join("\n") || "- none"));
-    } else out.push("TASKS: not loaded. Use get_tasks.");
+      add("PRIORITIES PICKED FOR TODAY:\n" + (data.focus.map(t).join("\n") || "- none picked yet"));
+      add("OPEN TASKS (most urgent first, up to 40 of " + data.open.length + "):\n" + (rankTasks(data.open).slice(0, 40).map(t).join("\n") || "- none"), "open tasks");
+    } else add("TASKS: not loaded. Use get_tasks.");
     if (canDates() && state.dates) {
       var kd = occurrences(today, ymd(addDays(now, 60))).map(function (o) { return "- " + o.s + (o.e !== o.s ? " to " + o.e : "") + " · " + o.d.title + " · " + [o.d.type, o.d.area, o.d.yearly ? "yearly" : "", countdown(o, today)].filter(Boolean).join(" · "); });
-      out.push("KEY DATES (next 60 days):\n" + (kd.join("\n") || "- none"));
+      add("KEY DATES (next 60 days):\n" + (kd.join("\n") || "- none"), "key dates");
     }
     var j = wxData();
     if (j) {
       var c = j.current || {}, dl = j.daily, di = Math.max(0, dl.time.indexOf(today)), hv = hiveCheck(now), fr = frost(now);
-      out.push("WEATHER: " + Math.round(c.temperature_2m) + "°F " + wxText(c.weather_code).toLowerCase() + ", high " + Math.round(dl.temperature_2m_max[di]) + " low " + Math.round(dl.temperature_2m_min[di]) +
-        (hv ? "; hive check " + (hv.go ? "GO, " : "HOLD, ") + hv.text.toLowerCase() + " (" + hv.label.toLowerCase() + ")" : "") + (fr ? "; tonight's low " + Math.round(fr.low) + "°F" : ""));
+      add("WEATHER: " + Math.round(c.temperature_2m) + "°F " + wxText(c.weather_code).toLowerCase() + ", high " + Math.round(dl.temperature_2m_max[di]) + " low " + Math.round(dl.temperature_2m_min[di]) +
+        (hv ? "; hive check " + (hv.go ? "GO, " : "HOLD, ") + hv.text.toLowerCase() + " (" + hv.label.toLowerCase() + ")" : "") + (fr ? "; tonight's low " + Math.round(fr.low) + "°F" : ""), "weather");
     }
     var log = (lsGet(LS_LOG) || {})[today], b = bearingFor(today);
-    if (log) out.push("TODAY'S INTENT: " + log);
-    if (b) out.push("TODAY'S BEARING: " + b);
-    if (data) out.push("LIFE AREAS: " + data.areas.join(" | ") + "\nPRIORITY NAMES: " + data.priorities.join(" | "));
-    if (state.dates && state.dates.types) out.push("KEY DATE TYPES: " + state.dates.types.join(" | "));
-    if (ignoreList.length) out.push("IGNORED EVENT TITLES (booking blocks, left out everywhere): " + ignoreList.join(" | "));
+    if (log) add("TODAY'S INTENT: " + log);
+    if (b) add("TODAY'S BEARING: " + b);
+    if (data) add("LIFE AREAS: " + data.areas.join(" | ") + "\nPRIORITY NAMES: " + data.priorities.join(" | "), "lists of life areas and types");
+    if (state.dates && state.dates.types) add("KEY DATE TYPES: " + state.dates.types.join(" | "), "lists of life areas and types");
+    if (ignoreList.length) add("IGNORED EVENT TITLES (booking blocks, left out everywhere): " + ignoreList.join(" | "), "ignored event titles");
     var fin = ledgerBrief();
-    if (fin) out.push(fin);
+    if (fin) add(fin, "finances");
     var tar = tarotBrief();
-    if (tar) out.push(tar);
-    return out.join("\n\n");
+    if (tar) add(tar, "tarot readings");
+    return parts ? out : out.map(function (x) { return x.t; }).join("\n\n");
   }
 
   function unesc(s) { var t = document.createElement("textarea"); t.innerHTML = s; return t.value; }
@@ -3079,12 +3082,35 @@
       finish(true, "Placed in Review as a draft. Open REVIEW to check and save.");
     } else finish(false, "Unknown change.");
   }
+  /* OPEN IN CLAUDE: the question first, then the snapshot. The whole text goes to the clipboard. The link carries at
+     most CLAUDE_LINK_MAX characters (a longer address risks claude.ai opening empty), so when it doesn't fit, whole
+     sections are left out, least needed first, the prompt starts with a marker, and a line says what was left out
+     (2.30.2: it used to be cut mid-sentence, the question last and lost). */
+  var CLAUDE_LINK_MAX = 6000;
+  var CLAUDE_DROP = ["tarot readings", "finances", "ignored event titles", "lists of life areas and types", "weather", "key dates", "open tasks", "the next 6 days"];
+  function claudePrompt(q) {
+    var head = (q ? "My question: " + q + "\n\n" : "") + "Here is a snapshot from my TimothyOS dashboard. Use it to help me.\n\n";
+    var secs = briefing(true).map(function (x) { return { t: x.t.replace(/\[[0-9a-f-]{32,36}\] /g, ""), k: x.k }; });
+    var join = function (list) { return list.map(function (x) { return x.t; }).join("\n\n"); };
+    var full = head + join(secs);
+    if (full.length <= CLAUDE_LINK_MAX) return { full: full, link: full, left: [] };
+    var mark = "[SNAPSHOT SHORTENED · PASTE FROM CLIPBOARD FOR THE FULL VERSION]\n\n", left = [], keep = secs, link = full;
+    for (var i = 0; i < CLAUDE_DROP.length; i++) {
+      var k = CLAUDE_DROP[i];
+      if (!keep.some(function (x) { return x.k === k; })) continue;
+      keep = keep.filter(function (x) { return x.k !== k; }); left.push(k);
+      link = mark + head + join(keep) + "\n\n(Left out to fit: " + left.join(", ") + ".)";
+      if (link.length <= CLAUDE_LINK_MAX) break;
+    }
+    if (link.length > CLAUDE_LINK_MAX) link = link.slice(0, CLAUDE_LINK_MAX);   /* still too long (a very long question): cut, as before */
+    return { full: full, link: link, left: left };
+  }
   function openInClaude() {
     var q = $("askText").value.trim() || (askState && askState.msgs.length ? askState.msgs.filter(function (m) { return m.role === "user"; }).slice(-1)[0].text : "");
-    var text = "Here is a snapshot from my TimothyOS dashboard. Use it to help me.\n\n" + briefing().replace(/\[[0-9a-f-]{32,36}\] /g, "") + (q ? "\n\nMy question: " + q : "");
+    var pr = claudePrompt(q), text = pr.full;
     try { navigator.clipboard.writeText(text).catch(function () {}); } catch (e) { /* clipboard not allowed */ }
     var a = document.createElement("a");
-    a.href = "https://claude.ai/new?q=" + encodeURIComponent(text.slice(0, 6000));
+    a.href = "https://claude.ai/new?q=" + encodeURIComponent(pr.link);
     a.target = "_blank"; a.rel = "noopener";
     document.body.appendChild(a); a.click(); a.remove();
     toast("Snapshot copied. If Claude opens empty, paste it.");

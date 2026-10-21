@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.30.2 · 2026-10-21
+- **Fixed: OPEN IN CLAUDE cutting off your question.** The prompt was the snapshot followed by your question, cut at 6,000 characters for the claude.ai link, so a long snapshot (tarot sharing on, for example) lost the question and stopped mid-sentence. Now:
+  - **Your question comes first,** before the snapshot.
+  - **When the link can't hold everything, whole sections are left out,** least needed first (tarot readings, finances, ignored event titles, the lists of life areas and types, weather, key dates, open tasks, the next 6 days). A closing line names what was left out, and the prompt opens with **[SNAPSHOT SHORTENED · PASTE FROM CLIPBOARD FOR THE FULL VERSION]**.
+  - **The clipboard always holds the whole prompt,** question first, with no marker: select all in Claude and paste to send everything.
+- The in-app ASK is unchanged: it always sends the whole snapshot.
+
 ## 2.30.1 · 2026-10-20
 - **Fixed: TRACK # doing nothing in some folders.** Four causes, all fixed:
   - **Tags remembered from before you numbered the files** were never read again. The app now notes each file's date and size with its tags and reads them again when the file changes (after retagging).
