@@ -517,6 +517,16 @@ A non-admin Home Assistant user can still switch every device in that Home Assis
 
 Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the titles (Lunch to start; add Walk or anything else). Since 2.31.1 the event's **whole title** must be one of them (capitals and an "Out of office" in front aside), so "Lunch" and "Out of office — Lunch" are breaks but a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
 
+## Backup and restore (app 2.33)
+
+Everything the app keeps only on this iPad goes into one file you keep: the bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, podcast places and the other settings. Use it before reinstalling the app, moving to a new iPad, or anything else that would wipe the app's storage.
+
+- **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one.
+- **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
+- **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
+- **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, podcast places…) before anything changes. **RESTORE** writes those settings, reloads and syncs.
+- **Rehearse it** without touching the installed app: open the app's address in a **Private** tab in Safari, restore there, look around, close the tab. A private tab starts empty and forgets everything when closed. Anything you change in it is real, though (it's linked to the same bridge), so look rather than tap.
+
 ## Daily use
 
 | Do | How |
@@ -544,6 +554,7 @@ Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch"
 | Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
 | Leave out booking blocks (e.g. weekend out-of-office) | Tap the event → **IGNORE THIS TITLE**. Edit or undo in **SYSTEMS → CALENDARS → IGNORED EVENTS** |
 | Change or delete a key date | Tap it → **OPEN IN NOTION** |
+| Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** (see Backup and restore) |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
@@ -597,6 +608,7 @@ When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NE
 - In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
 - Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
 - **UNLINK** also deletes all cached calendar data from the iPad.
+- **Backups** (2.33) hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and never go to the ASK button. With SHARE LOG WITH ASK on, only entries you pick in the open LOG (62 at most per question, with the PIN) go to Claude, for that question. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
 - **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
 - **Tarot:** the bridge reads and writes only the 🔮 Tarot database: readings, card meanings and spreads. Removing one moves it to Notion's trash. Readings go to Ask only with SHARE WITH ASK on.

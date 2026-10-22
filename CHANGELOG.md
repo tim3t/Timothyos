@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.33.0 · 2026-10-22
+- **Backup and restore.** **SYSTEMS → BACKUP AND RESTORE** saves everything kept only on this iPad in one file: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings.
+  - **Locked with a passphrase you choose,** never stored. Without it the file can't be read.
+  - **Left out on purpose:** Notion and Google data (the next sync brings it back), the Captain's Log draft and other unsaved drafts. While a save is still on its way, MAKE BACKUP waits.
+  - **Restore** from the link screen of a fresh install (**OR RESTORE THIS IPAD**) or from Systems. You see what the file holds before anything changes; RESTORE brings it all back and links the app.
+
 ## Tests · 2026-10-22 (app and bridge unchanged)
 - **The test suite runs in about 5 minutes instead of 12.** Browser tests now run in lanes, three at a time. Tests that share a simulated bridge stay in one lane in their original order, so none of them sees another lane's saves or counters; the simulated NAS runs once per lane that needs it. The motion test, which times animations frame by frame, still runs alone. Every test and check is unchanged, and each result now shows its time.
 

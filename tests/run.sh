@@ -87,7 +87,7 @@ LANES=(
   "stations|-|app_e2e24.test.js app_e2e25.test.js"
   "review|-|app_e2e16.test.js"
   "ask|-|app_e2e17.test.js"
-  "review-log|-|app_e2e18.test.js"
+  "review-log|-|app_e2e18.test.js app_e2e45.test.js"
   "farm|-|app_e2e19.test.js"
   "ledger|-|app_e2e20.test.js"
 )
@@ -130,6 +130,7 @@ LANES=(
 #   app_e2e42      TRACK # for every tag layout, retagged files, READ TAGS AGAIN
 #   app_e2e43      OPEN IN CLAUDE: question first, sections left out to fit, marker + note, clipboard
 #   app_e2e44      APIARY: yard, hive, checks, new check, TRUE UP STACK, add a hive, yard list, RETRY, phone width
+#   app_e2e45      BACKUP AND RESTORE: pending saves wait, locked file, exactly the iPad-only settings, restore on a fresh install, allow-list
 
 lanes_dir=$(mktemp -d)
 run_lane() {  # run_lane <index>: the lane's tests in order; its report goes to a file, a marker file if any failed

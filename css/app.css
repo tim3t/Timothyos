@@ -2072,3 +2072,12 @@ body.nas-pad-min .content { padding-bottom: 72px; }
   .ap-sline > .ap-lab { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .ap-view.zin, .ap-view.zout, .ap-crow.fresh { animation: none; } .ap-hivebtn .ap-stack { transition: none; } }
+
+/* ---------- Backup and restore (2.33) ---------- */
+#sec-backup input[type="password"], .bk-connect input[type="password"] { width: 100%; max-width: 420px; }
+.bk-file { display: block; min-height: 48px; padding: 10px 0; color: var(--dim); font: var(--t-sub) var(--body); max-width: 100%; }
+.bk-plan { margin-top: 12px; padding: 14px 16px; border-radius: 0 18px 18px 0; border-left: 6px solid var(--chrome-b); background: var(--panel-2); }
+.bk-plan b { font-family: var(--display); letter-spacing: var(--ls-label); font-size: var(--t-label); color: var(--chrome-b); }
+.ok-note { color: var(--ok); margin-top: 10px; }
+.bk-connect { margin-top: 28px; }
+#sec-backup > small, .bk-connect small, #sec-backup .bk-plan small { display: block; margin-top: 8px; }
