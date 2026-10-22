@@ -1,6 +1,6 @@
 # TimothyOS: working notes for Claude
 
-Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
+Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
 Read `docs/DESIGN.md` (decisions D1 to D39, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
@@ -28,7 +28,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
   (Caddy + Tailscale on the NAS, read-only files; /ha proxies Home Assistant for ENGINEERING).
 ```
 
-Current versions: **app 2.33.0**, **bridge 1.28.0**.
+Current versions: **app 2.34.0**, **bridge 1.28.0**.
 
 ### Bridge actions
 
@@ -219,7 +219,11 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 
 ## Roadmap (standby modules)
 
-Done since the first roadmap: Home Assistant (ENGINEERING, 2.24). Set aside by Timothy (2026-10-21): renaming the app to Bridge, and a Scriptable home-screen widget; don't raise them again unless he does. Pinned for later, in no order:
+Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
+
+**Next, in Timothy's order (2026-10-22):** (1) **docs accuracy pass** (README security model still says Personal-only writes and no deletes; "Standby modules" is stale; README is ordered by bridge history: rebuild as Setup, Stations, Reference); (2) bridge version check (app knows the bridge each feature needs; NEEDS YOU card "Deploy bridge 1.x"); (3) Notion schema check (setup and Systems name a missing column). Also wanted: a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+
+Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
 - **ENGINEERING:** doors and scenes; AUTO thermostat with two setpoints.
 - **Arboretum** (plants), **MEALS** (standby tile), **Notes in Capture**.

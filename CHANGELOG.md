@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.34.0 · 2026-10-22
+- **The app is now called Bridge** on the home screen, in the app switcher and in Safari's tab. TimothyOS stays as the system name in the top bar. iPadOS only picks up the new name when the app is added to the home screen again: back up, remove the old icon, add it again from Safari, then restore (README, Renaming or reinstalling the app).
+
 ## 2.33.0 · 2026-10-22
 - **Backup and restore.** **SYSTEMS → BACKUP AND RESTORE** saves everything kept only on this iPad in one file: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings.
   - **Locked with a passphrase you choose,** never stored. Without it the file can't be read.

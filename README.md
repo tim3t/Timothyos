@@ -72,7 +72,7 @@ If the work calendar says **PROBLEM: not_found**, finish step 5 of Handshake 1, 
 
 1. In Safari, open **https://tim3t.github.io/Timothyos/**.
 2. **Share → Add to Home Screen → Add**.
-3. Open **TimothyOS from the home screen** (not from Safari. The home screen app keeps its own storage).
+3. Open **Bridge from the home screen** (not from Safari. The home screen app keeps its own storage). The app is named Bridge; TimothyOS is the system it runs (the name in its top bar).
 4. Paste the **Web app URL** and the **Access key** → **LINK**.
 
 The status block (bottom of the sidebar) turns green: **SYNCED**.
@@ -516,6 +516,15 @@ A non-admin Home Assistant user can still switch every device in that Home Assis
 ## Breaks (app 2.23)
 
 Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the titles (Lunch to start; add Walk or anything else). Since 2.31.1 the event's **whole title** must be one of them (capitals and an "Out of office" in front aside), so "Lunch" and "Out of office — Lunch" are breaks but a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
+
+## Renaming or reinstalling the app (2.34)
+
+The app is called **Bridge** (2.34); **TimothyOS** stays as the system name in its top bar. iPadOS reads an app's name only when it is added to the home screen, and removing the icon erases everything the app kept on this iPad, so a rename or reinstall goes through a backup:
+
+1. **SYSTEMS → BACKUP AND RESTORE**: make a fresh backup and save it to Files (see Backup and restore). Make sure no red line says changes are waiting.
+2. Touch and hold the old icon → **Delete Bookmark** (or **Remove App**) → confirm.
+3. In Safari open **https://tim3t.github.io/Timothyos/**, pull down once to reload, then **Share → Add to Home Screen**. The name reads **Bridge**; tap **Add**.
+4. Open Bridge from the home screen. On the link screen, **OR RESTORE THIS IPAD**: choose the file, type the passphrase, **OPEN BACKUP**, **RESTORE**.
 
 ## Backup and restore (app 2.33)
 

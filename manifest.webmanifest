@@ -1,7 +1,7 @@
 {
-  "name": "TimothyOS",
-  "short_name": "TimothyOS",
-  "description": "Timothy's life dashboard: calendars in one place.",
+  "name": "Bridge",
+  "short_name": "Bridge",
+  "description": "Bridge, the app of TimothyOS: Timothy's life dashboard.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
