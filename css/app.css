@@ -556,6 +556,30 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .st-pin { font-family: var(--display); font-size: 12px; letter-spacing: .16em; padding: 3px 10px; border-radius: 11px; border: 1.5px solid var(--line); color: var(--dim); }
 .st-pin.on { background: var(--c); border-color: var(--c); color: var(--ink); }
 
+/* ---------- COMPUTER (2.35): stations and actions by name ---------- */
+.btn.computer { background: transparent; color: var(--fg); border: 2px solid var(--chrome-c); }
+.btn.computer:disabled { background-image: none; }
+.cmdsheet { width: min(760px, 100%); display: flex; flex-direction: column; padding-bottom: 0; overflow: hidden; }
+.cmdsheet .sbody { padding: 14px 16px 0; gap: 8px; min-height: 0; display: flex; flex-direction: column; }
+.cmd-keys { opacity: .75; }
+#cmdText { font-size: 20px; min-height: 56px; background: var(--bg); border-radius: 28px; padding: 10px 20px; flex: none; }
+.cmdlist { overflow-y: auto; min-height: 0; max-height: min(60vh, 560px); padding: 2px 0 10px; overscroll-behavior: contain; }
+.cmd-sec { font-family: var(--display); font-size: 12px; letter-spacing: .22em; color: var(--dim); margin: 12px 8px 4px; }
+.cmd-row { width: 100%; border: 0; background: transparent; text-align: left; min-height: 56px; border-radius: 14px; padding: 6px 10px; display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.cmd-row[aria-selected="true"] { background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--line); }
+.cmd-row i { width: 8px; height: 36px; border-radius: 4px; background: var(--c); }
+.cmd-row .tx { min-width: 0; }
+.cmd-row b { display: block; font-weight: 500; font-size: 18px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-row.st b { font-family: var(--display); font-weight: 600; letter-spacing: .12em; }
+.cmd-row small { display: block; color: var(--dim); font-size: 14px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-row mark { background: none; color: var(--warn); }
+.cmd-row .k { font-family: var(--display); font-size: 12px; letter-spacing: .16em; color: var(--dim); white-space: nowrap; }
+.cmd-row:active { filter: brightness(1.15); }
+.cmd-hint { color: var(--dim); font-size: 15px; padding: 10px 10px 4px; }
+.cmd-foot { border-top: 2px solid var(--line); padding: 9px 18px 12px; display: flex; flex-wrap: wrap; gap: 4px 18px; font-family: var(--display); font-size: 12px; letter-spacing: .16em; color: var(--dim); }
+@media (max-width: 640px) { .cmd-row .k, .cmd-foot { display: none; } }
+@media (max-width: 520px) { .actions { gap: 6px; } .actions .btn { padding: 0 11px; letter-spacing: .08em; } }   /* four header buttons on one row at phone width */
+
 /* ---------- Habits ---------- */
 .hb { max-width: 1180px; display: flex; flex-direction: column; gap: 30px; }
 .hb-top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 28px; align-items: start; }

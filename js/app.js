@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.34.0";
+  var VERSION = "2.35.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -579,6 +579,7 @@
     $("capBtn").disabled = !linked;
     $("planBtn").disabled = !linked || !canPlan();
     $("planBtn").innerHTML = "PLAN DAY" + (linked && !canPlan() ? "<small>SETUP</small>" : "");
+    $("cmdBtn").disabled = !linked;
     $("askBtn").disabled = !linked || !canAsk();
     $("askBtn").innerHTML = "ASK" + (linked && !canAsk() ? "<small>SETUP</small>" : "");
     if (!linked && state.screen !== "systems") { e.textContent = "FIRST RUN"; t.textContent = "LINK CALENDARS"; }
@@ -3767,7 +3768,16 @@
     }).catch(function (err) {
       lg.digits = ""; lg.word = null;
       lg.msg = logErrText(err.code, err && err.left, err && err.until) || describe(err);
-    }).then(function () { lg.busy = false; if (state.screen === "log") { render(true); enterScreen(); } });
+    }).then(function () {
+      lg.busy = false;
+      if (state.screen !== "log") return;
+      render(true); enterScreen();
+      if (logOpen() && lg.after) {   /* COMPUTER asked for search or Log Ask: go there once unlocked */
+        var after = lg.after; lg.after = null;
+        if (after === "find") { var f = $("clFind"); if (f) { f.scrollIntoView({ block: "center" }); f.focus(); } }
+        else if (after === "ask") { var ab = document.querySelector('[data-lact="aiopen"]'); if (ab) ab.click(); }
+      }
+    });
   }
   function loadLogDay(d) {
     if (!lg.pin || d in lg.entries || lg.loading[d]) return;
@@ -4854,6 +4864,235 @@
     renderLaunch(); renderHeader();
   });
 
+  /* ---------- COMPUTER (2.35): find any station, or something to do inside one ---------- */
+  /* Opens from COMPUTER in the header, ⌘K (or Ctrl+K) on a keyboard, or a swipe down on the bar.
+     Empty, it lists what's waiting (the Bridge's Condition items), recent stations and unpinned ones
+     not opened lately; typing narrows stations, actions, books, hives, episodes and cards. Matching
+     runs on this iPad: nothing typed here goes to the bridge or Claude. A row only opens things; every
+     change still happens on the screen it opens, with that screen's own buttons. */
+  var LS_VISITS = "tos.visits.v1", CMD_QUIET_DAYS = 14, CMD_MAX = 12;
+  var visits = lsGet(LS_VISITS) || {};
+  if (!visits._since) { visits._since = Date.now(); lsSet(LS_VISITS, visits); }   /* "not opened lately" counts from the first run with COMPUTER */
+  function cmdSeen(id) { if (!visits || !id) return; visits[id] = Date.now(); lsSet(LS_VISITS, visits); }
+  var CMD_WORDS = {
+    bridge: "home overview condition dashboard", today: "day calendar schedule agenda priorities", week: "calendar schedule",
+    month: "calendar", loom: "infinity timeline calendar days", dates: "key dates birthdays anniversaries holidays countdown",
+    review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated walk debit card",
+    tarot: "cards reading deck", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
+    storage: "nas podcasts audio music files listen", engineering: "home assistant lights devices thermostat upkeep maintenance",
+    apiary: "bees hives beekeeping honey mites", systems: "settings setup health sync connection"
+  };
+  var CMD_G = { TIME: "chrome-b", REFLECT: "chrome-a", RESOURCES: "chrome-d", SYSTEMS: "chrome-c" };
+  var CMD_RANK = { STATION: 0, ACTION: 1, SETTING: 3 };
+  var cmd = { sel: 0, shown: [] };
+  function cmdStation(id) {
+    var s = id === "systems" ? { id: "systems", name: "SYSTEMS", g: "SYSTEMS", sub: "Settings, connections and health" } : station(id);
+    return s && { t: s.name, s: s.sub, g: s.g, k: "STATION", w: CMD_WORDS[id] || "", run: function () { go(id, id === "today" ? new Date() : null); } };
+  }
+  /* Systems, scrolled to a section by its heading. */
+  function sysJump(title) {
+    go("systems");
+    var sec = Array.prototype.filter.call(document.querySelectorAll("#content section"), function (s) { var h = s.querySelector(".phead h2"); return h && h.textContent.trim().indexOf(title) === 0; })[0];
+    if (sec) { sec.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" }); restartClass(sec, "flash"); }
+  }
+  function cmdClick(sel) { var b = document.querySelector(sel); if (b && !b.disabled) { b.click(); return true; } return false; }
+  function cmdHive(h, then) {
+    go("apiary");
+    if (!ap.data) return;
+    ap.hive = h.id; ap.box = null; ap.fresh = null; ap.form = null; ap.tu = null; ap.view = "hive";
+    render(false); $("content").scrollTop = 0;
+    if (then) cmdClick('[data-apact="' + then + '"]');
+  }
+  function cmdItems() {
+    var out = [], A = function (t, s, g, w, run, k) { out.push({ t: t, s: s, g: g, k: k || "ACTION", w: w || "", run: run }); };
+    STATIONS.forEach(function (s) { if (!s.standby) out.push(cmdStation(s.id)); });
+    out.push(cmdStation("systems"));
+    if (!state.conn) return out;
+    var today = sod(new Date());
+    if (canPlan()) {
+      A("Plan the day", "TODAY · PLAN DAY", "TIME", "priorities pick tasks", function () { openPlan(today); });
+      A("Plan tomorrow", "TODAY · PLAN DAY", "TIME", "priorities pick tasks", function () { openPlan(addDays(today, 1)); });
+    }
+    if (canCreate()) A("Capture an event", "CAPTURE · ON A CALENDAR", "TIME", "add new event calendar reminder", function () { openCapture(); });
+    if (canDates()) A("Add a key date", "CAPTURE · KEY DATE", "TIME", "new birthday anniversary deadline", function () { openCapture(null, null, "date"); });
+    if (canReviews()) {
+      A("Write this week's review", "REVIEW · " + weekLabel(defaultReviewWeek()), "REFLECT", "weekly reflection", function () { go("review", defaultReviewWeek()); });
+      A("Review trends and patterns", "REVIEW · ALL REVIEWS", "REFLECT", "weekly history", function () { go("review"); });
+    }
+    if (canLog()) {
+      if (canLogSearch()) A("Search the log", "LOG · SEARCH THE LOG", "REFLECT", "journal diary find", function () { go("log"); lg.after = "find"; });
+      if (canLogAsk()) A("Ask Claude about the log", "LOG · ASK CLAUDE", "REFLECT", "journal diary themes", function () { go("log"); lg.after = "ask"; });
+    }
+    if (canTarot()) {
+      A("Record this week's card", "TAROT · THIS WEEK'S CARD", "REFLECT", "cards weekly draw", function () { go("tarot"); if (!cmdClick('[data-trgo="weekly"]') && tr.data) toast("This week's card is already recorded"); });
+      A("New tarot reading", "TAROT · + NEW READING", "REFLECT", "cards spread draw", function () { trGo("new"); });
+      A("Build a spread", "TAROT · MY SPREADS", "REFLECT", "cards layout positions", function () { trGo("builder"); });
+      TR_DECK.forEach(function (id) { A(trName(id), "TAROT · EVERY TIME THIS CARD CAME UP", "REFLECT", "card history meaning", function () { go("tarot"); if (tr.data) trHistory(id); }, "CARD"); });
+    }
+    if (canAsk()) A("Ask the ship's computer", "ASK · CLAUDE", "TIME", "question claude ai", function () { openAsk(); });
+    if (canLedger()) A("Add to the Replicator Queue", "LEDGER · REPLICATOR QUEUE", "RESOURCES", "buy wish list want", function () { go("ledger"); var q = $("qName"); if (q) { q.scrollIntoView({ block: "center" }); q.focus(); } });
+    if (canLibrary()) {
+      A("Add a book", "LIBRARY · + ADD BOOK", "RESOURCES", "books new search", function () { go("library"); openAddBook(); });
+      books().forEach(function (b) {
+        var sh = SHELVES.filter(function (x) { return x[0] === b.status; })[0];
+        A(b.title, "LIBRARY · " + (sh ? sh[1] : "BOOK") + (b.author ? " · " + b.author : ""), "RESOURCES", "book", function () { go("library"); openBook(b.id); }, "BOOK");
+      });
+    }
+    if (canApiary() && ap.data) {
+      A("Add a hive", "APIARY · + ADD HIVE", "RESOURCES", "bees new package nuc split", function () { go("apiary"); ap.view = "yard"; ap.hive = null; render(false); cmdClick('[data-apact="addhive"]'); });
+      apHives().forEach(function (h) {
+        A(h.name, "APIARY · HIVE", "RESOURCES", "bees", function () { cmdHive(h); }, "HIVE");
+        A("New hive check · " + h.name, "APIARY · + NEW CHECK", "RESOURCES", "bees inspection inspect", function () { cmdHive(h, "new"); });
+        A("True up stack · " + h.name, "APIARY · TRUE UP STACK", "RESOURCES", "bees boxes supers deeps feeder", function () { cmdHive(h, "trueup"); });
+      });
+    }
+    if (nasConf()) Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30; }).sort(function (a, b) { return plays[b].at - plays[a].at; }).slice(0, 5).forEach(function (k) {
+      var r = plays[k];
+      A("Continue · " + dispName(k), "STORAGE · " + baseName(parentOf(k)) + (r.d ? " · " + mmss(r.d - r.p) + " left" : ""), "RESOURCES", "listen podcast episode resume", function () { go("storage"); storageClick({ dataset: { nasresume: k } }); }, "EPISODE");
+    });
+    A("Upkeep", "ENGINEERING · UPKEEP", "RESOURCES", "maintenance filter overdue", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); });
+    upkeepItems().forEach(function (u) { A(u.name, "ENGINEERING · UPKEEP" + (u.cat ? " · " + u.cat : ""), "RESOURCES", "maintenance", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); }, "UPKEEP"); });
+    var S = function (t, sec, w, run) { A(t, run ? sec : "SYSTEMS · " + sec, "SYSTEMS", w, run || function () { sysJump(sec); }, "SETTING"); };
+    S("Refresh now", "SYSTEMS · REFRESH NOW", "sync reload update", function () { go("systems"); refreshNow(); });
+    S("Make a backup", "BACKUP AND RESTORE", "restore save file");
+    S("Ignored events and breaks", "CALENDARS", "hide lunch out of office");
+    S("Location, bearings and start screen", "BRIDGE", "weather opens on");
+    S("Balance targets", "BALANCE TARGETS", "hours areas");
+    S("Standby timer", "STANDBY", "dim clock screen");
+    S("Standby now", "STANDBY", "dim clock sleep", function () { enterStandby(); });
+    S("Edit pins", "ALL STATIONS · EDIT PINS", "bar sidebar stations", function () { openLaunch(true); state.pinEdit = true; renderLaunch(); });
+    S("Ask spending", "ASK CLAUDE", "cost budget claude");
+    S("Recent requests", "RECENT REQUESTS", "network errors timeout");
+    if (nasConf()) S("Storage relay", "STORAGE", "nas token tailscale");
+    S("Home Assistant", "HOME ASSISTANT", "token devices");
+    return out;
+  }
+  function cmdNorm(s) { return String(s).toLowerCase().replace(/['’]/g, ""); }
+  function cmdSearch(q) {
+    var nq = cmdNorm(q).trim(), words = nq.split(/\s+/).filter(Boolean), lead = new RegExp("(^|[^a-z0-9])" + words[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    return cmdItems().map(function (it, i) {
+      var t = cmdNorm(it.t), hay = t + " " + cmdNorm(it.s) + " " + it.w;
+      if (!words.every(function (w) { return hay.indexOf(w) > -1; })) return null;
+      var sc = t.indexOf(nq) === 0 ? 0 : lead.test(t) ? 1 : words.every(function (w) { return t.indexOf(w) > -1; }) ? 2 : 3;
+      return { it: it, sc: sc * 10 + (CMD_RANK[it.k] == null ? 2 : CMD_RANK[it.k]), i: i };
+    }).filter(Boolean).sort(function (a, b) { return a.sc - b.sc || a.i - b.i; }).map(function (x) { return x.it; });
+  }
+  /* What runs when a Condition item is chosen here: the same as tapping it on the Bridge. */
+  function cmdCond(c, today) {
+    if (c.kd) return function () { var o = state.index["kd:" + c.kd]; if (o) openKeyDate(o); else go("dates"); };
+    if (c.day) return function () { go("today", parseYmd(c.day)); };
+    if (c.act === "plan") return function () { openPlan(parseYmd(today)); };
+    if (c.act === "review") return function () { go("review", defaultReviewWeek()); };
+    if (c.act === "engineering") return function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); };
+    if (c.act === "systems") return function () { state.fixFocus = c.fix || null; go("systems"); };
+    return null;
+  }
+  function cmdEmpty() {
+    var secs = [], now = new Date(), today = ymd(now);
+    if (state.conn) {
+      var wait = conditions(now, today, eventsFor(bridgeRange())).map(function (c) {
+        var run = cmdCond(c, today);
+        return run && { t: c.txt, s: c.sub, html: true, g: c.lvl === "bad" ? "bad" : "warn", k: c.go || "OPEN", run: run };
+      }).filter(Boolean).slice(0, 4);
+      if (wait.length) secs.push(["WAITING ON YOU", wait]);
+    }
+    var ids = STATIONS.map(function (s) { return s.id; }).concat(["systems"]);
+    var recent = ids.filter(function (id) { return visits[id] && id !== state.screen; }).sort(function (a, b) { return visits[b] - visits[a]; }).slice(0, 4);
+    if (recent.length) secs.push(["RECENT", recent.map(cmdStation)]);
+    var on = pins(), quiet = STATIONS.filter(function (s) { return !s.fixed && !s.standby && on.indexOf(s.id) < 0 && s.id !== state.screen && Date.now() - (visits[s.id] || visits._since) > CMD_QUIET_DAYS * 864e5; })
+      .sort(function (a, b) { return (visits[a.id] || 0) - (visits[b.id] || 0); }).slice(0, 3);
+    if (quiet.length) secs.push(["NOT OPENED LATELY", quiet.map(function (s) {
+      var it = cmdStation(s.id), d = Math.floor((Date.now() - (visits[s.id] || visits._since)) / 864e5);
+      it.s = visits[s.id] ? "Last opened " + d + " days ago" : "Not opened in " + d + " days";
+      return it;
+    })]);
+    if (!secs.length) secs.push(["STATIONS", ids.filter(function (id) { var s = station(id); return !s || !s.standby; }).map(cmdStation)]);
+    return secs;
+  }
+  function cmdRow(it, i, q) {
+    var t = esc(it.t);
+    if (q) {
+      var k = cmdNorm(it.t).indexOf(cmdNorm(q).trim().split(/\s+/)[0]);
+      if (k > -1 && cmdNorm(it.t).length === it.t.length) { var n = cmdNorm(q).trim().split(/\s+/)[0].length; t = esc(it.t.slice(0, k)) + "<mark>" + esc(it.t.slice(k, k + n)) + "</mark>" + esc(it.t.slice(k + n)); }
+    }
+    var c = it.g === "bad" || it.g === "warn" ? it.g : CMD_G[it.g] || "chrome-c";
+    return '<button type="button" class="cmd-row' + (it.k === "STATION" ? " st" : "") + '" role="option" id="cmd-o' + i + '" data-ci="' + i + '" aria-selected="' + (i === cmd.sel) + '" style="--c: var(--' + c + ')">' +
+      '<i aria-hidden="true"></i><span class="tx"><b>' + t + "</b><small>" + (it.html ? it.s : esc(it.s)) + '</small></span><span class="k">' + esc(it.k) + "</span></button>";
+  }
+  function renderComputer(keep) {
+    var q = $("cmdText").value, html = "", i = 0, was = keep && cmd.shown[cmd.sel], key = function (it) { return it.k + "|" + it.t + "|" + it.s; };
+    if (!q.trim()) {
+      cmd.shown = [];
+      cmdEmpty().forEach(function (sec) {
+        html += '<div class="cmd-sec">' + sec[0] + "</div>" + sec[1].map(function (it) { cmd.shown.push(it); return cmdRow(it, i++, ""); }).join("");
+      });
+      html += '<div class="cmd-hint">Type to find a station, or something to do: a book, a hive, a card, a setting.</div>';
+    } else {
+      var all = cmdSearch(q);
+      cmd.shown = all.slice(0, CMD_MAX);
+      html = cmd.shown.length ? cmd.shown.map(function (it, n) { return cmdRow(it, n, q); }).join("") + (all.length > CMD_MAX ? '<div class="cmd-hint">' + (all.length - CMD_MAX) + " more. Keep typing to narrow it.</div>" : "")
+        : '<div class="cmd-hint">Nothing here matches “' + esc(q.trim()) + '”. For questions about your days, try ASK.</div>';
+    }
+    if (was) cmd.shown.some(function (it, n) { if (key(it) === key(was)) { cmd.sel = n; return true; } return false; });   /* books or hives arriving don't move the choice */
+    if (cmd.sel >= cmd.shown.length) cmd.sel = 0;
+    $("cmdList").innerHTML = html;
+    cmdMark();
+  }
+  function cmdMark() {
+    var rows = $("cmdList").querySelectorAll(".cmd-row");
+    rows.forEach(function (r) { r.setAttribute("aria-selected", String(+r.dataset.ci === cmd.sel)); });
+    var cur = rows[cmd.sel];
+    if (cur) { $("cmdText").setAttribute("aria-activedescendant", cur.id); cur.scrollIntoView({ block: "nearest" }); }
+    else $("cmdText").removeAttribute("aria-activedescendant");
+  }
+  function openComputer() {
+    if (!state.conn || sb.on) return;
+    if (cmdShown()) { closeComputer(); return; }   /* ⌘K again closes it */
+    closeDetail(); closeCapture(); closePlan(); closeAsk();
+    cmd.sel = 0; $("cmdText").value = "";
+    loadLibrary(false); loadApiary(false);   /* books and hives are searchable by name; the list fills in as they arrive */
+    renderComputer();
+    showSheet("cmdScrim");
+    $("cmdText").focus();
+  }
+  /* Open and not on its way out: a sheet closing still shows for 200 ms, and ⌘K then means "open". */
+  function cmdShown() { var s = $("cmdScrim"); return !s.hidden && !s.classList.contains("closing"); }
+  function cmdFresh() { if (cmdShown()) renderComputer(true); }
+  function closeComputer() { if (cmdShown()) { $("cmdText").blur(); hideSheet("cmdScrim"); } }
+  function cmdRun(i) {
+    var it = cmd.shown[i];
+    if (!it) return;
+    closeComputer();
+    it.run();
+  }
+  $("cmdBtn").addEventListener("click", openComputer);
+  $("cmdText").addEventListener("input", function () { cmd.sel = 0; renderComputer(); $("cmdList").scrollTop = 0; });
+  $("cmdText").addEventListener("keydown", function (e) {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); var n = cmd.shown.length; if (n) { cmd.sel = (cmd.sel + (e.key === "ArrowDown" ? 1 : n - 1)) % n; cmdMark(); } }
+    else if (e.key === "Enter") { e.preventDefault(); cmdRun(cmd.sel); }
+  });
+  $("cmdList").addEventListener("click", function (e) { var b = e.target.closest(".cmd-row"); if (b) cmdRun(+b.dataset.ci); });
+  $("cmdScrim").addEventListener("click", function (e) { if (e.target === this) closeComputer(); });
+  document.addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === "k" || e.key === "K")) { e.preventDefault(); openComputer(); }
+  });
+  /* A swipe down on the bar (where it stands as a column): the same as COMPUTER. The tap that ends it opens nothing. */
+  (function () {
+    var side = document.querySelector(".side"), y0 = null, x0 = 0, t0 = 0, fired = false, swallow = 0;
+    side.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1 || getComputedStyle(side).flexDirection !== "column") { y0 = null; return; }
+      y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; t0 = Date.now(); fired = false;
+    }, { passive: true });
+    side.addEventListener("touchmove", function (e) {
+      if (y0 == null || fired) return;
+      var dy = e.touches[0].clientY - y0, dx = Math.abs(e.touches[0].clientX - x0);
+      if (dy > 70 && dx < 45 && Date.now() - t0 < 800) { fired = true; swallow = Date.now(); openComputer(); }
+    }, { passive: true });
+    side.addEventListener("touchend", function () { y0 = null; }, { passive: true });
+    side.addEventListener("click", function (e) { if (Date.now() - swallow < 600) { e.preventDefault(); e.stopPropagation(); } }, true);
+  })();
+  cmdSeen(state.screen);
+
   /* ---------- Habits ---------- */
   /* One page per day in the Habits database (bridge 1.14): Meditated, Evening Walk, Water in litres
      (half-bottle steps of a 1 L bottle) and the debit card (Did Not Swipe / Swiped). A tap changes the
@@ -5128,7 +5367,7 @@
     api({ action: "library" }).then(function (j) {
       lb.data = { fetched: Date.now(), books: j.books || [] }; lb.err = null; lsSet(LS_LIBRARY, lb.data);
     }).catch(function (err) { lb.err = { at: Date.now(), msg: libraryErrText(err) }; })
-      .then(function () { lb.inflight = false; if (state.screen === "library") render(true); });
+      .then(function () { lb.inflight = false; if (state.screen === "library") render(true); cmdFresh(); });
   }
   function books() { return (lb.data && lb.data.books) || []; }
   function bookById(id) { return books().filter(function (b) { return b.id === id; })[0]; }
@@ -7531,7 +7770,7 @@
       ap.err = null; lsSet(LS_APIARY, ap.data);
       flushApiary();
     }).catch(function (err) { ap.err = { at: Date.now(), msg: apErrText(err) }; })
-      .then(function () { ap.inflight = false; if (state.screen === "apiary" || state.screen === "systems") render(true); });
+      .then(function () { ap.inflight = false; if (state.screen === "apiary" || state.screen === "systems") render(true); cmdFresh(); });
   }
   function apQueue(key, body) { ap.q[key] = { body: body }; lsSet(LS_APIARYQ, ap.q); flushApiary(); }
   /* One write at a time, oldest first, so a new hive reaches Notion before its first check. */
@@ -8419,6 +8658,7 @@
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */
     if (screen === "tarot" && state.screen === "tarot") { tr.view = "home"; tr.arm = null; }   /* tapping TAROT again goes back to its front page */   /* arriving: read the devices fresh */   /* tapping STORAGE again goes back to its front page */
     state.screen = screen;
+    cmdSeen(screen);
     if (screen === "review") state.rvLog = !anchor;
     if (anchor) state.anchor = sod(anchor);
     render(false);
@@ -8610,7 +8850,7 @@
     }
     if (e.target === $("detailScrim") || e.target.id === "detailClose") closeDetail();
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (state.launch && $("detailScrim").hidden) openLaunch(false); closeDetail(); closeCapture(); closePlan(); closeAsk(); } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (state.launch && $("detailScrim").hidden) openLaunch(false); closeDetail(); closeCapture(); closePlan(); closeAsk(); closeComputer(); } });
 
   /* ---------- Update notice ---------- */
   var UPDATE_CHECK_MS = 10 * 60 * 1000, lastUpdateCheck = 0;

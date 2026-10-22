@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.34.0">
+<link rel="stylesheet" href="css/app.css?v=2.35.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.34</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
+    <div class="topbar"><span>TIMOTHYOS 2.35</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -35,6 +35,7 @@
       </div>
       <div class="actions" aria-label="Coming later">
         <button class="btn plan" type="button" id="planBtn" disabled>PLAN DAY</button>
+        <button class="btn computer" type="button" id="cmdBtn" disabled aria-keyshortcuts="Meta+K" aria-label="Computer: find a station or something to do">COMPUTER</button>
         <button class="btn ask" type="button" id="askBtn" disabled>ASK</button>
         <button class="btn capture" type="button" id="capBtn">CAPTURE</button>
       </div>
@@ -123,6 +124,17 @@
   </div>
 </div>
 
+<div class="scrim capscrim" id="cmdScrim" hidden>
+  <div class="sheet cmdsheet" role="dialog" aria-modal="true" aria-label="Computer" style="--c: var(--chrome-c)">
+    <div class="sbar"><span>COMPUTER</span><span class="cmd-keys">⌘K</span></div>
+    <div class="sbody">
+      <input type="text" id="cmdText" maxlength="80" placeholder="A station, or something to do" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" role="combobox" aria-expanded="true" aria-controls="cmdList" aria-autocomplete="list">
+      <div class="cmdlist" id="cmdList" role="listbox" aria-label="Results"></div>
+    </div>
+    <div class="cmd-foot"><span>↑ ↓ CHOOSE</span><span>RETURN OPENS</span><span>ESC CLOSES</span><span>OR SWIPE DOWN ON THE BAR</span></div>
+  </div>
+</div>
+
 <div class="scrim" id="detailScrim" hidden>
   <div class="sheet" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle"></div>
 </div>
@@ -136,6 +148,6 @@
   <span class="sb-hint">TAP ANYWHERE TO WAKE</span>
 </div>
 
-<script src="js/app.js?v=2.34.0"></script>
+<script src="js/app.js?v=2.35.0"></script>
 </body>
 </html>

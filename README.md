@@ -304,7 +304,7 @@ Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and
 
 # Part 2 · Stations
 
-**ALL STATIONS** (the block under the sidebar buttons) opens every station, grouped as below; **EDIT PINS** picks the seven in the sidebar. **BRIDGE** always keeps the corner.
+**ALL STATIONS** (the block under the sidebar buttons) opens every station, grouped as below; **EDIT PINS** picks the seven in the sidebar. **BRIDGE** always keeps the corner. **COMPUTER** finds any station, or something to do inside one, by name (see ALWAYS AVAILABLE).
 
 ## TIME
 
@@ -454,6 +454,15 @@ Your hive log, in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard pa
 
 ## ALWAYS AVAILABLE
 
+### COMPUTER
+
+Find any station, or something to do inside one, by typing a few letters. Open it with **COMPUTER** in the header, **⌘K** on a keyboard (iPadOS keeps ⌘Space for its own Spotlight), or a **swipe down on the sidebar**.
+
+- **Before you type:** **WAITING ON YOU** (the Bridge's Condition items, which open the same place a tap on the Bridge does), **RECENT** stations, and **NOT OPENED LATELY**: stations not in the sidebar that you haven't opened in 14 days.
+- **Type to narrow:** stations, and actions inside them (Plan the day, Add a book, Write this week's review, Search the log, Record this week's card, Add to the Replicator Queue, Make a backup…), plus your books, hives (New hive check · and True up stack · for each), the 78 tarot cards (every time a card came up), episodes part way, upkeep items and Systems settings. Other words work too: "bees" finds APIARY, "journal" finds LOG, "money" finds LEDGER.
+- **Choose:** tap a row, or **↑ ↓** and **Return**. **Esc** or a tap outside closes it. **Search the log** and **Ask Claude about the log** open LOG, which asks for your code first, then go straight there.
+- **It only opens things.** Every change still happens on the screen it opens, with that screen's own buttons. Searching happens on this iPad: nothing typed in COMPUTER goes to the Google bridge or Claude. When you last opened each station is kept on this iPad (not in backups).
+
 ### CAPTURE
 
 **CAPTURE** (top right), or tap an empty spot on the Day or Week timeline: an event on Personal (or the farm or Growth calendar, once linked), or a **KEY DATE**. Work is never offered. A capture made offline appears as a dashed block marked **QUEUED**, and the status block counts it; it saves automatically when you're back. Each one carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
@@ -491,7 +500,8 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 | Do | How |
 |---|---|
 | See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
-| Open a station that isn't in the sidebar | **ALL STATIONS**. **EDIT PINS** there picks the seven in the bar |
+| Open a station that isn't in the sidebar | **COMPUTER** (or **⌘K**, or swipe down on the sidebar) and type its name, or **ALL STATIONS**. **EDIT PINS** there picks the seven in the bar |
+| Find something to do (add a book, a hive check, a setting) | **COMPUTER**, type a word or two, **Return** |
 | Move between days, weeks, months | The arrows next to the title. **TODAY** jumps back |
 | See event details | Tap the event |
 | Add an event | **CAPTURE**, or tap an empty spot on the Day or Week timeline |
@@ -579,6 +589,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes. Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
 - **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
+- **COMPUTER** searches only on the iPad; what you type there never leaves it.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to the Google bridge or this repository.
 
 ## Updating the app

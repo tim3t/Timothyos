@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.35.0 · 2026-10-22
+- **COMPUTER: find any station, or something to do, by name.** Open it with **COMPUTER** in the header, **⌘K** on a keyboard, or a swipe down on the sidebar.
+  - **Before you type:** what's waiting on you (the Bridge's Condition items), recent stations, and stations outside the sidebar you haven't opened in 14 days.
+  - **Type to narrow:** stations and the actions inside them (Add a book, New hive check · a hive, True up stack, Write this week's review, Search the log, Record this week's card, Make a backup…), plus your books, hives, tarot cards, episodes part way, upkeep items and settings. ↑ ↓ and Return on a keyboard.
+  - **It only opens things;** every change still happens on the screen it opens. Searching happens on the iPad: nothing typed goes to the Google bridge or Claude.
+- At phone width the four header buttons now fit on one row.
+
 ## Docs · 2026-10-22 (app and bridge unchanged)
 - **README rebuilt** in three parts: **Setup** (the five handshakes, one way to update the Google bridge, Notion with all ten databases, every Script Property, the optional pieces), **Stations** (TIME, REFLECT, RESOURCES, ALWAYS AVAILABLE, as in ALL STATIONS) and **Reference** (daily use, Condition rules, backup and reinstalling, troubleshooting, security, updating). The bridge-by-bridge update steps are gone; the CHANGELOG says when a new bridge is needed.
 - **Corrected:** the security model (calendars add-only to Personal, farm and Growth; removals go to Notion's trash; YNAB read-only; what goes to Claude for each feature), the Condition rules (Weekly review due, overdue upkeep, overlaps across any two calendars), the Bridge panels (Habits, Tarot, Intent + Bearing), and new troubleshooting rows (WAITING, ERROR, an out-of-date bridge, any database not connected, the NAS).

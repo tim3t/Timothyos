@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D42; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D43; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
   (Caddy + Tailscale on the NAS, read-only files; /ha proxies Home Assistant for ENGINEERING).
 ```
 
-Current versions: **app 2.34.0**, **bridge 1.28.0**.
+Current versions: **app 2.35.0**, **bridge 1.28.0**.
 
 ### Bridge actions
 
@@ -176,6 +176,10 @@ Screen `loom` (nav button under LOG, app 2.6). A canvas (`#lmCv` in `#lmStage`) 
 Motion is gated so background syncs never animate: `enterScreen()` adds `enter` + `grow-in` to `#content` only from `go()` and `page()`; other effects are classes added after a user-triggered render (`turn`, `opening`, `justdone`, `changed`) or `easeHeight()` / `slideFrom()`. Sheets open and close through `showSheet()` / `hideSheet()` (200 ms slide before `hidden`). The pointerdown `flash` gives every button the LCARS light-up. `prefers-reduced-motion` turns all of it off (CSS rule plus `calm()`).
 
 Standby: `#standby` overlay over everything. `checkIdle()` every 15 s against `tos.standby.v1` (0, 5, 15 default, 30 minutes; skipped while typing). `STANDBY` in the top bar (`#idleBtn`) and Systems → STANDBY NOW enter it directly. The wake tap is handled on the overlay's click, so nothing underneath is pressed. Entering fades in over 1.6 s; waking (`.waking`, 900 ms ease-out, `SB_WAKE_MS`) redraws the screen underneath first, then hides the layer only on `transitionend` (fallback timer): never hide it on a shorter timer than the fade, which is what made 2.10.1 and earlier "pop" halfway. `app_e2e21` samples the wake fade frame by frame, manual and automatic. Night look 22:00 to 06:00 dims the text, never the black layer. Drift of a few pixels each minute for OLED. Screen Wake Lock is requested while standby is on (re-requested on return and on the next tap). Tests: `app_e2e21` (uses `clock.install` for the timeout).
+
+## COMPUTER (2.35)
+
+A command bar (Timothy's pick from three mockups, D43): `#cmdBtn` in the header, ⌘K / Ctrl+K (iPadOS keeps ⌘Space for Spotlight), or a swipe down on `.side` while it stands as a column (touch events; the click that ends the swipe is swallowed). `cmdItems()` builds the catalog each time: every station (`cmdStation`, with `CMD_WORDS` synonyms), actions gated by capability, and data rows (books, hives with New hive check / True up stack, the 78 cards via `trName`, unfinished `plays`, upkeep items, Systems settings via `sysJump(heading)`). `cmdSearch()` ranks title-prefix, then word-start, then title-contains, then anywhere (STATION before ACTION before data before SETTING). Empty state (`cmdEmpty`): WAITING ON YOU from `conditions()` mapped by `cmdCond` to what a Bridge tap does, RECENT and NOT OPENED LATELY (unpinned, 14 days) from `tos.visits.v1` (`cmdSeen` in `go()`; `_since` marks the first run so nothing is "quiet" on day one; not in backups). Rows only open things: an action is `go()` plus the station's own opener (`openAddBook`, `trGo`, `openPlan`, `cmdClick('[data-apact="trueup"]')`…), never a write. `lg.after` ("find" / "ask") runs once LOG unlocks. Opening loads Library and Apiary if stale (`cmdFresh` repaints). Matching is local only. Test: `app_e2e46` (tarot-apiary lane, :8105).
 
 ## Ask Claude
 
