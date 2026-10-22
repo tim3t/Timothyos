@@ -239,14 +239,16 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 
 ## Roadmap (standby modules)
 
-Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
+Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34), COMPUTER (2.35). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
 
-**Next, in Timothy's order (2026-10-22):** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) bridge version check (app knows the bridge each feature needs; NEEDS YOU card "Deploy bridge 1.x"); (3) Notion schema check (setup and Systems name a missing column). Also wanted: the **WAITING fix** (Systems fetches Ledger and Apiary itself after a restore, so their rows don't sit at WAITING) with the `index.html` description refresh (held back from the docs-only pass); a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+**Hardening, paused by Timothy on 2026-10-22 (he'll say when to resume), in his order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) bridge version check (app knows the bridge each feature needs; NEEDS YOU card "Deploy bridge 1.x"); (3) Notion schema check (setup and Systems name a missing column). Also wanted: the **WAITING fix** (Systems fetches Ledger and Apiary itself after a restore, so their rows don't sit at WAITING) with the `index.html` description refresh (held back from the docs-only pass); a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
 
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
 - **ENGINEERING:** doors and scenes; AUTO thermostat with two setpoints.
 - **Arboretum** (plants), **MEALS** (standby tile), **Notes in Capture**.
+- **Station discovery, shelved after COMPUTER (D43):** STATION BOARD (a Bridge panel of unpinned stations with a live line each, plus a count on ALL STATIONS) and ON DECK (one slot under the pins that shows the unpinned station with a reason to open now).
+- **From the 2026-10-21 brainstorm (proposals, none approved yet):** QUARTERMASTER (one stock list for bee, farm and household supplies; running low moves an item to the Replicator Queue); ASTROMETRICS (the year at a glance across every station, a year-end "Ship's Year"); the Ship's Computer on schedules (Apps Script timed triggers: a 6 am briefing on Standby, a Sunday draft review, a hive nudge after 10 days when the weather is GO); voice capture through Shortcuts; splitting `app.js` into per-station modules (no build step). My suggested order then: hardening, ARBORETUM, schedules.
 - **Habits:** keep each day's water goal in Notion (needs a schema change: ask first).
 - **Log italics** (Unicode italic): paused by Timothy.
 - Moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.
