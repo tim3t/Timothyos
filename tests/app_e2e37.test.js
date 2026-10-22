@@ -7,7 +7,7 @@
 // UPKEEP starts empty; items by time and by miles, overdue ones in the Bridge's CONDITION, MARK DONE, edit, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
 const { chromium } = require('playwright');
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:8110';
+const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(R + '/__stats').then(r => r.json());
 

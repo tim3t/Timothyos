@@ -5,7 +5,7 @@
 // screens while it plays, MARK PLAYED moving to the next one, filters, phone width. Names invented.
 const { chromium } = require('playwright');
 const assert = require('assert');
-const D = __dirname + '/out/', R = 'http://127.0.0.1:8110';
+const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'); return a ? { t: a.currentTime, paused: a.paused, src: a.src } : null; });
 

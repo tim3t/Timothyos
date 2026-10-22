@@ -7,7 +7,7 @@
 const { chromium } = require('playwright');
 const assert = require('assert');
 const { execFileSync } = require('child_process');
-const D = __dirname + '/out/', R = 'http://127.0.0.1:8110', K = 'k'.repeat(64);
+const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110'), K = 'k'.repeat(64);
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mmss = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 
@@ -16,12 +16,12 @@ const mmss = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(k => {
+  await p.evaluate(([k, r]) => {
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'habits', 'storage']));
-    localStorage.setItem('tos.nas.v1', JSON.stringify({ url: 'http://127.0.0.1:8110', token: 'relay-test-token' }));
+    localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.habitcfg.v1', JSON.stringify({ goal: 2.5 }));   // as saved before 2.30
-  }, K);
+  }, [K, R]);
   await p.reload(); await p.waitForTimeout(1500);
 
   // ---- STORAGE: lengths, not sizes

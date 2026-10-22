@@ -1,5 +1,8 @@
 # Changelog
 
+## Tests · 2026-10-22 (app and bridge unchanged)
+- **The test suite runs in about 5 minutes instead of 12.** Browser tests now run in lanes, three at a time. Tests that share a simulated bridge stay in one lane in their original order, so none of them sees another lane's saves or counters; the simulated NAS runs once per lane that needs it. The motion test, which times animations frame by frame, still runs alone. Every test and check is unchanged, and each result now shows its time.
+
 ## 2.32.0 · 2026-10-21 (bridge 1.28)
 - **APIARY: TRUE UP STACK.** On a hive, under its stack: set the hive as it really stands when you changed something at the hive but didn't log it.
   - **+ DEEP, + MEDIUM, + SUPER, + EXCLUDER, + FEEDER.** Each lands where it sits on a hive (feeder on top, then supers, the queen excluder, mediums, deeps). One feeder and one excluder at most.

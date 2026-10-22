@@ -1,4 +1,4 @@
-"""Simulated Storage relay (Caddy behind Tailscale on the NAS) on :8110.
+"""Simulated Storage relay (Caddy behind Tailscale on the NAS) on :8110 (or the port given as the first argument).
 Read-only, token by Bearer header or ?k=, CORS for the test origin, JSON folder listings
 (Accept: application/json, like Caddy's file_server browse), byte ranges for audio.
 Files are generated silence; names are invented.
@@ -225,4 +225,5 @@ class H(BaseHTTPRequestHandler):
             self.send_header("Accept-Ranges", "bytes"); self.send_header("Content-Type", ctype); self.send_header("Content-Length", str(len(chunk))); self.end_headers(); self.wfile.write(chunk); return
         self.send_response(404); self.cors(); self.send_header("Content-Length", "0"); self.end_headers()
 
-ThreadingHTTPServer(("127.0.0.1", 8110), H).serve_forever()
+import sys
+ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1]) if len(sys.argv) > 1 else 8110), H).serve_forever()   # run.sh starts one per lane (8110, 8111, 8112)
