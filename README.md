@@ -1,27 +1,41 @@
-# TimothyOS
+# Bridge · the app of TimothyOS
 
-A personal, LCARS-inspired life dashboard that runs full-screen on an iPad home screen.
+A personal, LCARS-inspired life dashboard that runs full-screen on an iPad home screen. It brings Timothy's calendars, Notion databases, finances, journal, habits, readings, hives, home and NAS into one place, with Claude on hand to answer questions and propose changes he confirms.
 
-**Calendar Core + Capture + Plan Day + Key Dates:** your work calendar and your personal Google Calendar, merged into Today, Week and Month views. **Capture** adds events to your Personal calendar in seconds, even offline. **Plan Day** picks up to three priorities from your Notion **Master Task List**, and you check them off on Today. **Key Dates** (deadlines, seasonal windows, birthdays) come from a Notion database, with countdowns on Today, a DATES screen, and markers on the calendar. Work stays read-only. Every other section is visible but on **STANDBY** until its stage is built.
+**Names used here**
+
+| Name | Means |
+|---|---|
+| **Bridge** | The app on the iPad home screen (since 2.34) |
+| **BRIDGE** | The app's overview screen, in the top-left corner |
+| **the Google bridge** | The Google Apps Script the app talks to (`apps-script/Code.gs`). Its version numbers (1.28…) are separate from the app's (2.34…) |
+| **TimothyOS** | The system as a whole: the name in the app's top bar, the repository, the Notion integration |
 
 ```
-iPad home screen app  (GitHub Pages, free, works offline)
-        │  HTTPS + your private access key
-        ▼
-Google Apps Script "bridge"  (runs as you, in your personal Google account)
-        ├─ Personal calendar (default calendar)
-        └─ Work calendar (shared to your personal account)
+Bridge, the iPad app  (GitHub Pages, free, works offline)
+  │  HTTPS + your private access key
+  ▼
+The Google bridge  (Apps Script, runs as you, in your personal Google account)
+  ├─ Google Calendar: Work (read-only, shared to you), Personal, farm and Growth (once linked), US holidays (read-only)
+  ├─ Notion: Master Task List, Key Dates, Weekly Reviews, Replicator Queue, Captain's Log,
+  │          Habits, Library, Tarot, Tarot Books, Apiary
+  ├─ YNAB (read-only)
+  └─ Claude (ASK, Log Ask, summaries, tarot suggestions)
+
+The app also talks, directly from the iPad:
+  ├─ Open-Meteo (weather) and Open Library (book search): free, no account
+  └─ the Storage relay on your NAS (inside Tailscale): read-only folders, and Home Assistant at /ha
 ```
 
-No servers to run. No monthly cost. Calendar data goes only between Google and your iPad.
+**Costs:** no servers to rent. GitHub Pages and Apps Script are free. Claude is paid from prepaid API credit with three spending limits (see ASK). The Storage relay runs on your own NAS.
 
 ---
 
-## Setup: five one-time handshakes
+# Part 1 · Setup
 
-Everything below works from Safari on the iPad. For the Google pages, tap **aA → Request Desktop Website** first.
+Everything below works from Safari on the iPad. For Google pages, tap **aA → Request Desktop Website** first. This part describes a fresh setup of the current version; what changed when is in `CHANGELOG.md`.
 
-### Handshake 1 · Share your work calendar with your personal account
+## Handshake 1 · Share your work calendar with your personal account
 
 > Check your employer's policy on calendar sharing before doing this.
 
@@ -29,15 +43,15 @@ Everything below works from Safari on the iPad. For the Google pages, tap **aA �
 2. Gear icon → **Settings** → under *Settings for my calendars*, tap your name.
 3. **Share with specific people or groups** → **Add people and groups**.
 4. Enter your **personal Gmail** address. Permission: **See all event details**. Send.
-   - If only **See only free/busy** is offered, choose it. TimothyOS shows those meetings as hatched **Busy** blocks.
+   - If only **See only free/busy** is offered, choose it. Those meetings show as hatched **Busy** blocks.
 5. In your **personal** Gmail, open the "shared a calendar with you" email and tap **Add this calendar**.
 
-### Handshake 2 · Create the calendar bridge
+## Handshake 2 · Create the Google bridge
 
 1. Signed in to your **personal** Google account, open **script.google.com** → **New project**.
 2. Rename it (top left) to `TimothyOS bridge`.
 3. Delete the starter code. Paste in everything from [`apps-script/Code.gs`](apps-script/Code.gs).
-4. Change this line to your work email address:
+4. Change this line to your work email address (only this first time; `setup` saves it, so later updates keep it):
    ```js
    WORK_CALENDAR_ID: 'you@your-employer.com'
    ```
@@ -45,55 +59,52 @@ Everything below works from Safari on the iPad. For the Google pages, tap **aA �
 6. In the function menu next to **Run**, choose **setup**, then tap **Run**.
 7. Google asks for permission:
    **Review permissions** → pick your personal account → *Google hasn't verified this app* → **Advanced** → **Go to TimothyOS bridge (unsafe)** → **Allow**.
-   The warning appears for every personal script. This one only reads your calendars.
-8. The **Execution log** lists every calendar your account can see, then shows:
-   - `TimothyOS work calendar: OK (...)` and `TimothyOS personal calendar: OK (...)`
+   The warning appears for every personal script.
+8. The **Execution log** lists every calendar your account can see, then a status line for each part (calendars, Notion databases, YNAB, Ask) and:
    - `ACCESS KEY (paste into the iPad app): ...`
 
    Copy the access key. It is also stored under **Project Settings (gear) → Script Properties → ACCESS_KEY**, which is easier to copy on an iPad.
 
-If the work calendar says **PROBLEM: not_found**, finish step 5 of Handshake 1, or copy the exact ID from the calendar list in the log.
+If the work calendar says **PROBLEM: not_found**, finish step 5 of Handshake 1, or copy the exact ID from the calendar list in the log. Parts not set up yet say **OFF** or **NOT READY** with the step to take; the sections below cover each.
 
-### Handshake 3 · Deploy the bridge as a web app
+## Handshake 3 · Deploy the Google bridge as a web app
 
 1. **Deploy → New deployment**. Gear icon → **Web app**.
-2. Description: `v1.0`. **Execute as: Me**. **Who has access: Anyone**.
+2. **Execute as: Me**. **Who has access: Anyone**.
 3. **Deploy**. Copy the **Web app URL**. It ends in `/exec`.
 
 "Anyone" lets the iPad app reach the script without a Google sign-in. Without your access key the script returns nothing.
 
-### Handshake 4 · Turn on GitHub Pages
+## Handshake 4 · Turn on GitHub Pages
 
 1. On github.com, open this repository → **Settings → Pages**.
 2. **Source: Deploy from a branch**. Branch **main**, folder **/ (root)**. **Save**.
 3. After a minute or two the app is live at **https://tim3t.github.io/Timothyos/**.
 
-### Handshake 5 · Install on the iPad
+## Handshake 5 · Install on the iPad
 
 1. In Safari, open **https://tim3t.github.io/Timothyos/**.
-2. **Share → Add to Home Screen → Add**.
-3. Open **Bridge from the home screen** (not from Safari. The home screen app keeps its own storage). The app is named Bridge; TimothyOS is the system it runs (the name in its top bar).
-4. Paste the **Web app URL** and the **Access key** → **LINK**.
+2. **Share → Add to Home Screen**. The name reads **Bridge**. **Add**.
+3. Open **Bridge from the home screen** (not from Safari: the home-screen app keeps its own storage).
+4. Paste the **Web app URL** and the **Access key** → **LINK**. (Reinstalling? Use **OR RESTORE THIS IPAD** with a backup file instead; see Backup, restore and reinstalling.)
 
 The status block (bottom of the sidebar) turns green: **SYNCED**.
 
----
+## Updating the Google bridge
 
-## Bridge 1.1 update (turns on Capture)
+New features sometimes need a newer Google bridge; the CHANGELOG says so when they do. The steps are always the same, and your access key and Script Properties never change:
 
-Capture needs bridge version 1.1. Do this once, from Safari (Request Desktop Website):
+1. In Safari (Request Desktop Website), open **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
+2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code. Save.
+3. Choose **setup** in the function menu, tap **Run**. If Google asks for a new permission, approve it. The last line reads `Bridge version 1.x.y`.
+4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
+5. In the app: **SYSTEMS → REFRESH NOW**.
 
-1. Open the raw code: **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
-2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code.
-3. In the pasted code, put your work email back on the `WORK_CALENDAR_ID` line. This is the last time: from now on, `setup` saves it, so later updates keep it.
-4. Save (disk icon). Choose **setup** in the function menu, tap **Run**. If Google asks for permission again, approve it (the bridge can now add events to your calendar).
-5. Check the log: both calendars **OK**, and `Bridge version 1.1.0. Can write to: personal.` Your access key does **not** change.
-6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
-7. In TimothyOS: **SYSTEMS → REFRESH NOW**. The top bar changes to **CAPTURE ON**.
+Code changes have no effect until step 4.
 
-## Notion link (turns on Plan Day and Priorities)
+## Connect Notion
 
-Plan Day reads your **🎯 Master Task List** and writes only three things to it: the **Focus Date** field (the day you picked a task), **Status ✅ Done** when you check one off, and new tasks you add from Plan Day.
+The Google bridge reaches Notion through one integration, which sees only the databases you connect to it, never the rest of your Life Hub.
 
 **1. Create the integration** (Safari, Request Desktop Website)
 1. Open **notion.so/profile/integrations** → **New integration**.
@@ -101,321 +112,114 @@ Plan Day reads your **🎯 Master Task List** and writes only three things to it
 3. Capabilities: **Read content**, **Update content**, **Insert content**. User information: **No user information**. Save.
 4. Copy the **Internal Integration Secret** (starts with `ntn_`). Treat it like a password: never paste it into chat, notes, or `Code.gs`.
 
-**2. Give it access to the Master Task List only**
-- Open **🎯 Master Task List** as a full page → **•••** (top right) → **Connections** → add **TimothyOS bridge** → Confirm.
-- Connect it to the **database only**, not to **Timothy's Life Hub**. Connecting the hub would let the bridge see every page under it.
+**2. Put the key in the Google bridge:** **Project Settings (gear) → Script Properties → Add script property**: `NOTION_TOKEN`, value the secret. Save, then run **setup**.
 
-**3. Put the key in the bridge**
-- **script.google.com → TimothyOS bridge → Project Settings (gear) → Script Properties → Add script property**
-- Property `NOTION_TOKEN`, value: the secret. **Save script properties.**
+**3. Connect each database:** open it as a full page → **•••** (top right) → **Connections** → add **TimothyOS bridge** → Confirm. Connect databases only, never the **Timothy's Life Hub** page (that would let the bridge see every page under it).
 
-**4. Update the bridge code to 1.2**
-1. Copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs** and replace all the code in the editor.
-2. Skipped the 1.1 update? Put your work email on the `WORK_CALENDAR_ID` line this one time.
-3. Save, choose **setup**, **Run**. Approve the new permission (the bridge now talks to Notion).
-4. The log should show `Notion: OK (🎯 Master Task List, N open tasks)`.
-5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
+| Database | Powers | The bridge may |
+|---|---|---|
+| 🎯 Master Task List | PLAN DAY, Priorities, Balance, Review, Ask | Read; add tasks; set Focus Date and Status |
+| 🗓️ Key Dates | DATES, Key Dates panel, markers, Capture | Read; add |
+| 🧭 Weekly Reviews | REVIEW | Read; add and update a week's page |
+| 🛸 Replicator Queue | LEDGER | Read; add; reorder; mark bought |
+| 📓 Captain's Log | LOG | Read and write entries, behind your authorization code |
+| 🔁 Habits | HABITS, Bridge strip, Review | Read; write a day's page |
+| 📚 Library | LIBRARY | Read; add; change; move to Notion's trash |
+| 🔮 Tarot | TAROT | Read; add; change; move to Notion's trash |
+| 📖 Tarot Books | TAROT → BOOKS | Read; make pages from the import file |
+| 🐝 Apiary | APIARY | Read; add; change; move checks and hives to Notion's trash |
 
-**5. In TimothyOS:** **SYSTEMS → REFRESH NOW**. **PLAN DAY** lights up and the Priorities panel fills in.
+After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
-## Key Dates (bridge 1.3)
+**Fields the app expects** (rename one in Notion and that part stops working until the code knows):
+- **Key Dates:** Name, Date (one day, or a start and end for windows), Life Area, Type, Repeats Yearly, Notes.
+- **Weekly Reviews:** one page per week with the reflection, the week's numbers (including Hours Hobbies, used for GROWTH) and your intent lines.
+- **Captain's Log:** Name, Date, Source, and **Search Text** (added by setup for LOG search). The entry is the page body.
+- **Habits:** one page per day: Meditated, Evening Walk, Water (L), Debit Card.
+- **Library:** Title, Author, Status, Started, Finished, Rating, Notes, Cover, Open Library, Published.
+- **Tarot:** Title, Date, Kind, Weekly, Spread, Cards, Interpretation, Card, Data.
+- **Apiary:** Name, Kind (Yard, Hive, Check), Date, Hive, the text columns (Queen, Frames, Feed, Did, Next…), Mites (%), Honey (lb), Data. Edit the text columns freely; leave **Data** to the app.
 
-Key dates live in **🗓️ Key Dates**, a Notion database inside Timothy's Life Hub. Fields: Name, Date (one day, or a start and end for windows), Life Area, Type, Repeats Yearly, Notes.
+## Script Properties
 
-1. **Connect the integration to Key Dates:** open **🗓️ Key Dates** as a full page → **•••** → **Connections** → add **TimothyOS bridge**. (It still has no access to the Life Hub page or anything else.)
-2. **Update the bridge code to 1.3:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion key dates: OK (🗓️ Key Dates, N dates)`.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
-4. In TimothyOS: **SYSTEMS → REFRESH NOW**. The **DATES** screen and the **Key Dates** panel fill in, and **KEY DATE** appears in Capture.
+All settings and keys live in **Project Settings (gear) → Script Properties**, never in the code (the repository is public). Names only here; the values are yours.
 
-## The Bridge (app 1.7)
-
-The app opens on the **Bridge**: one screen above the calendars, one full-width column, top to bottom. Tap **BRIDGE** in the top-left corner (or first in the menu row on a phone) to come back to it.
-
-| Panel | Shows |
+| Property | What it does |
 |---|---|
-| **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it |
-| **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
-| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
-| **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
-| **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
-| **Key Dates** | The next three, with countdowns |
-| **Balance** | Work: calendar hours over 7 days against a ceiling. Other areas: a dot for each day they got attention (a task done or calendar time), hours against a minimum where they have a calendar, QUIET after 5 days. Targets in Systems → BALANCE TARGETS |
-| **Captain's Log** | One line of intent for today, and your **bearing** for the day |
+| `ACCESS_KEY` | Made by setup; pasted into the app once. Run **rotateKey** if it ever leaks, then link the app again |
+| `WORK_CALENDAR_ID` | Saved by setup from the code's first-time line |
+| `NOTION_TOKEN` | The Notion integration secret |
+| `FARM_CALENDAR_ID`, `GROWTH_CALENDAR_ID` | Link the farm and Growth calendars (see Optional pieces) |
+| `HOLIDAY_CALENDAR_ID` | Only if the holidays calendar found on its own is the wrong one |
+| `LOG_PIN` | The Captain's Log authorization code: a code word and four digits, like `OMEGA-0000` (words: ALPHA, BETA, GAMMA, DELTA, THETA, OMEGA; `omega 0000` or `Ω0000` work too, and six digits also work) |
+| `ANTHROPIC_API_KEY` | Turns on ASK and every Claude feature |
+| `AI_BUDGET_USD`, `AI_CAP_USD` | ASK's monthly reminder (default 8) and the ceiling shown beside it (default 10; match the Console's spend limit) |
+| `AI_FAST_MODEL` | `claude-haiku-5-5` or `claude-haiku-4-5` moves everyday questions from Sonnet to Haiku, to spend less |
+| `YNAB_TOKEN` | Turns on LEDGER (read-only) |
+| `YNAB_PLAN_ID`, `LEDGER_FUND_CATEGORY` | Only if the plan or the fund category (default Discretionary) isn't the right one |
 
-**Condition rules**
+The bridge also keeps its own working values there (spend counters, the log's lock state, remembered database ids). Leave those alone.
 
-| Level | When |
-|---|---|
-| 🔴 RED | A High-priority task is overdue · Work and Personal events overlap later today · Sync has failed for over 6 hours |
-| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load |
-| 🟢 GREEN | None of the above |
+## Optional pieces
 
-**Details:** each panel shows its essentials. Tap **+** beside a panel title for the rest (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open.
+### Farm and Growth calendars
 
-**One-time settings** (all in **SYSTEMS → BRIDGE**, saved on this iPad only):
-- **Location** for weather: tap **USE THIS IPAD'S LOCATION**, or type latitude and longitude. It's rounded to about 1 km.
-- **Bearings:** your guiding words, one per line. The Bridge shows one each day; tap it to see the next.
-- **Opens on:** Bridge or Today.
+Two extra Google calendars in the same personal account: **farm** (farm and bee work, amber, labelled with the calendar's own name) and **Growth** (personal growth and hobbies, coral, labelled GROWTH). Once linked, each sits beside Work and Personal everywhere (Today, Week, Month, Horizon, Balance, Review hours), and **CAPTURE** and **ASK** can add to it. Work stays read-only. Tasks in Notion's farm and beekeeping Life Areas count toward the farm; Personal Growth toward GROWTH.
 
-## Bridge 1.4 update (turns on Balance)
+1. **Create the calendar:** **calendar.google.com** → **Other calendars +** → **Create new calendar** → a name (**Growth** for the second), your time zone, **Create calendar**.
+2. **Copy its ID:** **Settings** → the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
+3. **Add it:** Script Property `FARM_CALENDAR_ID` or `GROWTH_CALENDAR_ID`, value the ID. Run **setup**: the log shows `TimothyOS farm calendar: OK (…)` or `TimothyOS hobby calendar: OK (Growth)`, and `Can write to:` lists it.
+4. **SYSTEMS → REFRESH NOW** in the app.
 
-1. Copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code in the script editor, save, run **setup**. The log should end with `Bridge version 1.4.0`.
-2. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
-3. In TimothyOS: **SYSTEMS → REFRESH NOW**. The **Balance** panel fills in.
+To unlink one, delete its property and run setup. The calendar itself is never deleted. Growth hours are saved to the Weekly Reviews database's **Hours Hobbies** field.
 
-Balance counts tasks marked ✅ Done in the Master Task List. Notion doesn't record the day a task was finished, so the date of its last edit stands in. Only the Life Area and that date leave Notion, never titles.
+### Holidays
 
-## Weekly Review (bridge 1.5)
+Google's US Holidays calendar shows beside your Key Dates as **HOLIDAY**, read-only: on the Bridge's Key Dates panel (at most one of its three slots), the DATES screen (with a **HOLIDAYS** filter) and the ◆ markers on Today, Week and Month. Dates come straight from Google, so holidays that move each year are always right. The Google bridge finds the holidays calendar you're subscribed to on its own (use Script Property `HOLIDAY_CALENDAR_ID` to pick another); setup logs `TimothyOS holidays: OK (Holidays in United States)`. Holidays are never written anywhere and never count toward calendar hours, meetings or BALANCE.
 
-Reviews live in **🧭 Weekly Reviews**, a Notion database inside Timothy's Life Hub: one page per week with your reflection, the week's numbers and your Captain's Log lines.
+### Ask Claude
 
-1. **Connect the integration:** open **🧭 Weekly Reviews** as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
-2. **Update the bridge to 1.5:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion weekly reviews: OK (🧭 Weekly Reviews, 0 reviews)` and end with `Bridge version 1.5.0`.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.**
-4. In TimothyOS: **SYSTEMS → REFRESH NOW**, then open **REVIEW**.
+ASK uses your Claude API account (prepaid, separate from a Claude Pro plan).
 
-**How it works**
-- **Due** from Sunday 14:00 to Tuesday night. The Bridge shows **Weekly review due** until you save it.
-- **The screen, top to bottom:** Time (hours per calendar, change from the week before, busiest day, open hours) · Output (tasks finished per Life Area) · Priorities kept · Intent log (your Captain's Log lines) · Next week (heavy days, key dates, tasks due) · Reflection, four questions: What went well? · What drained me? · What's my next focus? · Where did I hold my bearing?
-- **Writing is kept on the iPad as you type.** **SAVE TO NOTION** writes it; saving again updates the same page.
-- **◀ ▶** browse earlier weeks and their saved reviews. **CLAUDE SUMMARY** waits for Ask Claude.
-
-## Review log (bridge 1.7)
-
-**REVIEW** now opens on a log of your reviews. Tap a week to open it; **◀ ALL REVIEWS** beside the arrows comes back. The Bridge's **Weekly review due** still goes straight to that week.
-
-**Update the bridge to 1.7:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup** (the log ends with `Bridge version 1.7.0`), then **Deploy → Manage deployments → pencil → Version: New version → Deploy**, and in TimothyOS **SYSTEMS → REFRESH NOW**. No new keys or Notion changes.
-
-- **Up next:** the week that's due and this week.
-- **Trends, last 12 weeks:** reviews saved, week streak, priorities kept on average, Work and Personal hours on average, and hours per week. **+** shows priorities kept, tasks finished, and where the work went by Life Area. Tap a bar or point for its values. Numbers come from saved reviews, so unsaved weeks show as gaps.
-- **PATTERNS:** Claude (Sonnet 5.5) reads your saved reflections and names what keeps coming up. About 8¢, only when you tap it; the answer stays on this iPad until you ask again.
-- **All reviews,** by month: each week's numbers and next focus, with SAVED, DUE, IN PROGRESS or NOT SAVED. A missed week can still be written.
-
-## Ask Claude (bridge 1.6)
-
-**ASK** opens the ship's computer: questions about your days, tasks and dates, answered by Claude through your API account (prepaid, separate from Claude Pro).
-
-**One-time setup**
 1. **Console safeguards** at platform.claude.com: prepaid credit, **auto-reload off**, and **Settings → Billing → Spend limits** set to your monthly ceiling.
-2. **Update the bridge to 1.6:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-3. **Add the key:** Project Settings (gear) → **Script Properties** → **Add script property**: name `ANTHROPIC_API_KEY`, value your API key. Never paste it anywhere else.
-4. Optional: `AI_BUDGET_USD` sets the reminder (default **8**) and `AI_CAP_USD` the ceiling shown beside it (default **10**; match it to the Console spend limit).
-5. Run **setup**. The log should show `Ask Claude: OK.` with this month's spend, the two models, and the current `Bridge version`.
-6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**. **ASK** lights up.
+2. **Add the key:** Script Property `ANTHROPIC_API_KEY`, value your API key. Never paste it anywhere else.
+3. Optional: `AI_BUDGET_USD`, `AI_CAP_USD`, `AI_FAST_MODEL` (see Script Properties).
+4. Run **setup**: `Ask Claude: OK.` with this month's spend and the models in use. **SYSTEMS → REFRESH NOW**; **ASK** lights up.
 
-**How it works**
-- Each question goes with a snapshot of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your log line and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the bridge.
-- **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm or Growth calendar, once linked), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
-- **How Claude chooses (bridge 1.27):** "remind me to…" with no time becomes a task; something at a time becomes a calendar event (a reminder is a short event your devices alert you to); a deadline, a window or anything yearly becomes a key date. Weeks always start on Monday. Life Areas, priorities and key date types must match your Notion names exactly; Claude is told the right names if it gets one wrong, before the card reaches you.
-- **Bridge 1.27** (tool fixes): replace the code, save, run **setup** (the log ends `Bridge version 1.27.0`), then **Deploy → Manage deployments → pencil → New version → Deploy**.
-- **Models:** Sonnet 5.5 at low effort for questions (about 1 to 2¢). **THINK HARDER** uses Opus 5.5 (about three times that). **WRITE SUMMARY** on Review uses Sonnet 5.5. To spend less, Script Property `AI_FAST_MODEL` = `claude-haiku-5-5` (or `claude-haiku-4-5`) moves questions back to Haiku. **compareModels** in the script editor runs Sonnet, Opus and Haiku side by side on your own data (about 10¢).
-- **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far against the $10 ceiling, with the last eight questions (model, tokens, cost; never the text). At the **$8 reminder** Ask pauses; **CONTINUE THIS MONTH** carries on until the Claude Console's spend limit stops it. The count is worked out from each answer's tokens at list prices, so it can drift from the Console a little; **MATCH THE CONSOLE** sets it to the Console's figure.
-- **OPEN IN CLAUDE** opens the Claude app (your Pro plan) for longer conversations, with your question first and the snapshot after it. The whole prompt is also copied. If the link can't hold it all, whole sections are left out (tarot readings first) and the prompt starts with **[SNAPSHOT SHORTENED · PASTE FROM CLIPBOARD FOR THE FULL VERSION]**: select all in Claude and paste to send everything, or send it as is (it says what was left out). If Claude opens empty, paste.
-- The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
+**compareModels** in the script editor runs Sonnet, Opus and Haiku side by side on your own data (about 10¢), if you want to compare.
 
-## Farm calendar (bridge 1.8)
-
-A third Google calendar for farm and bee work. Once linked, it sits beside Work and Personal everywhere (Today, Week, Month, the Bridge, Review hours) in amber, labeled with the calendar's own name. **CAPTURE** and **ASK** can add to it. Work stays read-only.
-
-1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it, time zone **Eastern Time** (yours), **Create calendar**.
-2. **Copy its ID:** **Settings** → under *Settings for my calendars* pick the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
-3. **Update the bridge to 1.8:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-4. **Add the ID:** Project Settings (gear) → **Script Properties** → **Add script property**: name `FARM_CALENDAR_ID`, value the Calendar ID. (It lives there, not in the code, so code updates keep it.)
-5. Run **setup**. The log should show `TimothyOS farm calendar: OK (<your calendar's name>)` and end with `Bridge version 1.8.0. Can write to: personal, farm`.
-6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
-
-To unlink, delete `FARM_CALENDAR_ID` and run setup. The calendar itself is never deleted.
-
-## Growth calendar (bridge 1.22)
-
-A fourth Google calendar for personal growth and hobbies, shown as **GROWTH** in coral. Tasks in Notion's Personal Growth Life Area already count toward GROWTH; once the calendar is linked, its time does too (Today, Week, Month, Horizon, BALANCE hours against its minimum, Review hours). **CAPTURE** and **ASK** can add to it. Work stays read-only.
-
-1. **Create the calendar** in the same personal Google account that runs the bridge: on a computer (or Safari on the iPad with *Request Desktop Website*) open **calendar.google.com** → **Other calendars +** → **Create new calendar** → name it **Growth**, time zone yours, **Create calendar**.
-2. **Copy its ID:** **Settings** → under *Settings for my calendars* pick **Growth** → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
-3. **Update the bridge to 1.22:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-4. **Add the ID:** Project Settings (gear) → **Script Properties** → **Add script property**: name `GROWTH_CALENDAR_ID`, value the Calendar ID.
-5. Run **setup**. The log should show `TimothyOS hobby calendar: OK (Growth)` and end with `Bridge version 1.22.0. Can write to: personal, farm, hobby`.
-6. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
-
-To unlink, delete `GROWTH_CALENDAR_ID` and run setup. The calendar itself is never deleted. Review hours are saved to the Weekly Reviews database's existing **Hours Hobbies** field.
-
-## Holidays (bridge 1.23)
-
-Google's US Holidays calendar shows beside your Key Dates as **HOLIDAY** (lavender), read-only: on the Bridge's KEY DATES panel (at most one of its three slots), the DATES screen (with a **HOLIDAYS** filter) and the ◆ markers on Today, Week and Month. Dates come straight from Google, so holidays that move each year are always right. Nothing is written to Notion or any calendar, and holidays never count toward calendar hours, meetings or BALANCE.
-
-1. **Update the bridge to 1.23:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `TimothyOS holidays: OK (Holidays in United States)`.
-2. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
-
-The bridge finds the holidays calendar you're subscribed to in Google Calendar on its own. To use a different one, add Script Property `HOLIDAY_CALENDAR_ID` with its ID. To hide one you don't care about (Daylight Saving, say), tap it, then **HIDE THIS HOLIDAY**; it joins **Systems → IGNORED EVENTS**, where you can bring it back.
-
-## Ledger (bridge 1.9)
-
-**LEDGER** shows your finances from YNAB at a glance: checking, age of money, savings and loans, average spend by category, and the **Replicator Queue**, your list of things to buy once the **Discretionary** category can cover them. YNAB stays where you budget: the bridge only reads it and can never change it.
+### Ledger (YNAB)
 
 1. **In YNAB:** create a category named **Discretionary** (any group). Its available balance funds the Replicator Queue, top item first.
-2. **YNAB token:** app.ynab.com → **Account Settings** → **Developer Settings** → **New Token**. Copy it. Treat it like your YNAB password: it only goes into Script Properties.
-3. **In Notion:** open **🛸 Replicator Queue** (in your Life Hub) as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
-4. **Update the bridge to 1.9:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-5. **Add the token:** Project Settings (gear) → **Script Properties** → **Add script property**: name `YNAB_TOKEN`, value the token. Optional: `YNAB_PLAN_ID` (if the plan you open most isn't the one to show) and `LEDGER_FUND_CATEGORY` (a different fund category name).
-6. Run **setup**. The log should show `Ledger (YNAB): OK. 1 checking, … Fund category "Discretionary": found`, `Notion replicator queue: OK (0 waiting)` and end with `Bridge version 1.9.0`.
-7. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW** and open **LEDGER**.
+2. **Token:** app.ynab.com → **Account Settings** → **Developer Settings** → **New Token**. Script Property `YNAB_TOKEN`. Treat it like your YNAB password.
+3. Connect **🛸 Replicator Queue** to the integration (Connect Notion).
+4. Run **setup**: `Ledger (YNAB): OK. … Fund category "Discretionary": found` and `Notion replicator queue: OK`. If it says `ynab_not_found`, the log lists your plans as `name -> id`; add `YNAB_PLAN_ID`.
 
-**How it works**
-- **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
-- **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages. **+** shows the smaller categories. Card payments, hidden and internal categories are left out.
-- **Replicator Queue:** **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
-- **Freshness:** YNAB figures refresh every 10 minutes at most; past months are kept for 6 hours. That stays far below YNAB's 200 requests an hour.
-- **Ask Claude:** your finances are never sent with questions unless you choose **SYSTEMS → LEDGER → SHARE WITH ASK**.
+### Captain's Log: authorization code and search
 
-## Captain's Log (bridge 1.10)
+1. Connect **📓 Captain's Log** to the integration.
+2. Script Property `LOG_PIN`, value a code word and four digits (see Script Properties). Change it there any time; no deployment and nothing on the iPad needs updating.
+3. Run **setup**: `Captain's Log: OK (… days written). Authorization code set (OMEGA and four digits)` (your word, never the digits). `LOG_PIN NOT VALID` means the value isn't one of the six words and four digits. Setup also adds the **Search Text** field to the database (its only change to it) and logs `Captain's Log search: OK`, with how many older entries still need indexing.
+4. Older entries become searchable while LOG is open, newest first (a bar under the search box shows progress, roughly one to two entries a second). To do it all at once, run **buildLogSearch** in the script editor (about five minutes a run; run again if some are left). In Notion you can hide the Search Text column; it's a plain copy kept for searching.
 
-**LOG** is a plain journal: a calendar of days and a blank page. Each day is one page in the **📓 Captain's Log** database in Notion, with the entry as the page body, so it reads naturally there too. No reminders, no streaks, no counts.
+**Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In **LOG**, after your code, tap **IMPORT A DIARY EXPORT** (at the bottom), paste, **CHECK**. It shows the days found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends three days at a time and shows how many are in Notion so far; keep the app open until it says done. If it stops, paste again and it sends only what's left.
 
-1. **In Notion:** open **📓 Captain's Log** (in your Life Hub) as a full page → **•••** → **Connections** → add **TimothyOS bridge**.
-2. **Update the bridge to 1.10:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-3. **Choose your authorization code:** Project Settings (gear) → **Script Properties** → **Add script property**: name `LOG_PIN`, value a **code word and four digits**, for example `OMEGA-0000`. The words are ALPHA, BETA, GAMMA, DELTA, THETA and OMEGA (bridge 1.17; `omega 0000` or `Ω0000` work too). Six digits also still work. Change it there any time; nothing on the iPad needs updating.
-4. Run **setup**. The log should show `Captain's Log: OK (… days written). Authorization code set (OMEGA and four digits)` (your word, never the digits). `LOG_PIN NOT VALID` means the value isn't one of the six words and four digits.
-5. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, **SYSTEMS → REFRESH NOW**, and open **LOG**.
+### Tarot books
 
-**Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In TimothyOS open **LOG**, enter the PIN, tap **IMPORT A DIARY EXPORT** (at the bottom), paste, **CHECK**. It shows how many days it found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends three days at a time and shows how many are in Notion so far. A request that fails is retried on its own. Keep TimothyOS open until it says done; if it stops (the app went to the background), paste again and it sends only what's left.
+Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot*, one Notion page per card per book (156 pages) in **📖 Tarot Books**, a private database in your Life Hub beside 🔮 Tarot. The book text lives only in your Notion: never in the app's code, this repository or the iPad's storage.
 
-**How it works**
-- **Opening LOG always asks for your authorization:** tap your code word, then the four digits (or type its first letter and the digits on a keyboard). Your word shows only as a filled slot. The bridge checks it; five wrong tries lock the log for 15 minutes, and each lockout straight after another lasts twice as long (up to a day). The panel says until when.
-- **Changing the code:** update `LOG_PIN` in Script Properties. No new deployment is needed; the iPad picks up the panel style (code word or six digits) on its next sync.
-- **It locks** when you leave LOG, tap **LOCK**, the app goes to the background, standby starts, or after 10 minutes without a touch.
-- **Jump to a month:** tap the month name above the calendar, pick a year, then a month.
-- **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. The bar beside the day's name fills when a save lands. Until Notion has it, your writing is kept on this iPad; once saved it is removed from the iPad.
-- **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something the LOG can't show (a photo, a table) opens read-only; edit it in Notion.
-- **Lists:** type **- ** at the start of a line for a bullet; Return carries it on, Return on an empty bullet ends the list. **• LIST** turns lines into bullets and back. In Notion they're real list items (bridge 1.19). REVIEW's questions work the same way.
-- **+ BEARINGS** adds your bearings (SYSTEMS) as a closing block to fill in. Today's intent from the Bridge shows above today's page.
-- **The ASK button never sees the log.** It isn't in the snapshot and ASK has no way to read it. Claude reads entries only through **ASK CLAUDE** inside the open LOG (below), when you turn it on.
+1. Connect **📖 Tarot Books** to the integration. Setup logs `Notion tarot books: OK (Liz Dean 0 of 78, Jessa Crispin 0 of 78; tap IMPORT BOOKS in Systems)`.
+2. **SYSTEMS → TAROT → IMPORT BOOKS** makes the pages from the import file already in the database: about three minutes in a few steps; keep the app open. When both show **78 of 78**, you can delete the **📦 Import file** page. Running it again only fills gaps; it never overwrites a page.
 
-### Ask Claude about the log (app 2.15, bridge 1.20)
+The text came from the EPUB of Dean's book and a scan of Crispin's, so a few of Crispin's pages may carry small scanning slips (a joined word, a missing apostrophe). Fix them on the page in Notion; the app uses your version (the bridge remembers a card's passages for six hours).
 
-**Off until you turn it on:** SYSTEMS → CAPTAIN'S LOG → **SHARE LOG WITH ASK**. Then, in the open LOG:
+### Storage relay (NAS)
 
-1. **Narrow first.** Tap **ASK CLAUDE** for the month on the calendar (or **WITH THE MONTH BEFORE**), or run a search and tap **ASK ABOUT THESE**.
-2. **Ask.** Pick **KEY MOMENTS**, **THEMES**, **LIFTED · DRAINED**, **ONE PHRASE** or **WHAT CHANGED**, or type your own question. **THINK HARDER** uses Opus.
-3. **PREVIEW** shows how many entries, which dates, about how many tokens and what it will cost. Nothing is sent until **SEND**. Above about 25K tokens it says so.
-4. **Read.** Dates in the answer open that entry (ASK THE LOG brings you back). **FOLLOW UP** asks more about the same entries, usually for under 1¢.
-5. **SAVE TO NOTION** keeps an answer as an undated "Claude insight" page in the Captain's Log database; **SHOW SAVED** lists them.
+A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
 
-**Limits:** 62 entries, about 60K tokens and two months per question, checked by the bridge, so a whole year never goes at once (ask month by month instead). Each request needs your authorization code. Claude gets only the chosen entries, has no tools, and can't change anything. Answers aren't kept on the iPad and are forgotten when the log locks. Spending counts toward the $8 reminder and shows as LOG in RECENT QUESTIONS (never the text).
-
-**Weekly summary:** with sharing on, REVIEW's **WRITE SUMMARY** asks for your authorization code and then includes that week's entries. **WITHOUT THE LOG** writes it the old way.
-
-**Update the bridge to 1.20** for this: paste the latest Code.gs, run **setup**, then **Deploy → New version**.
-
-### Captain's Log search (app 2.11, bridge 1.16)
-
-**SEARCH THE LOG** sits under the calendar. Type a word or phrase, tap **FIND**: every entry that uses it, newest first, with the words around it. **EXACT WORD** (on to start) matches the whole word only; capitals never matter. Tap a result to read it; **NEWER** and **OLDER** step through the rest, **RESULTS** goes back.
-
-**One-time setup**
-1. **Update the bridge to 1.16:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-2. Run **setup**. It adds a **Search Text** field to the Captain's Log database (the only change to it) and logs `Captain's Log search: OK (added the "Search Text" field). N older entries to index`.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then **SYSTEMS → REFRESH NOW** in TimothyOS.
-4. **Open LOG.** Older entries are made searchable while it's open, newest first; a bar under the search box shows how far along it is (roughly one to two entries a second). If it locks before it's done, it carries on next time. To do it all at once instead, select **buildLogSearch** in the script editor and Run (about five minutes a run; run again if it says some are left).
-5. Optional: in Notion, hide the **Search Text** column in the Captain's Log views; it's a plain copy of each entry, kept for searching.
-
-**How it works:** Notion can't search inside page text, so each entry's text is also kept, on one line, in its page's Search Text field. TimothyOS writes it whenever you save or import. A search is one request to the bridge, which asks Notion for the pages holding your words, then checks the exact-word rule itself. If you edit an entry directly in Notion, its Search Text keeps the old wording until you next save that day in LOG.
-
-## Time Loom (app 2.6)
-
-**LOOM** shows your calendars and key dates on an infinity loop. The focused day sits at the crossing, largest, with its events named beside it.
-
-- **Swipe left** to move forward in time: your finger pulls the coming days down the top of the right loop into the crossing. **Swipe right** to go back; the days just past carry on round the lower-left loop. A swipe coasts and settles on a day.
-- The **arrows** beside the title step one day; **TODAY** glides home. With a keyboard: arrow keys, Page Up/Down (a week), T (today).
-- **Beads** are events, in their calendar's color, read top to bottom in time order (the day's last sits on the loop); **diamonds** are key dates. Tap one of the focused day's beads (or a row in the list on the right) for details. Tap any other day to glide to it.
-- On the right: the focused day's events and key dates, and the next four key dates with a countdown.
-- Hidden calendars and ignored titles stay out, as on every screen.
-
-## Habits + Library (app 2.7, bridge 1.14)
-
-Two new databases in your Life Hub: **🔁 Habits** (one page per day) and **📚 Library** (one page per book). They already exist; the bridge needs to be let in and updated.
-
-1. **In Notion:** open **🔁 Habits** as a full page → **•••** → **Connections** → add **TimothyOS bridge**. Do the same for **📚 Library**.
-2. **Update the bridge to 1.14:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save.
-3. Run **setup**. The log should show `Notion habits: OK` and `Notion library: OK`, and end with `Bridge version 1.14.0`.
-4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **UPDATE READY** if shown, and **SYSTEMS → REFRESH NOW**.
-
-**Habits**
-- **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EVENING WALK**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
-- It saves to Notion a moment after your last tap. Without a connection it waits on the iPad and goes when you're back.
-- **Water goal:** the chips under the tiles (2 to 4 L, 3 L to start). Streaks and the grid count a day as won at the goal or more. A new goal counts from the day you choose it; earlier days keep the goal they had, so raising it never turns past days into misses (app 2.30). The note under the chips lists recent changes. The history is kept on this iPad.
-- Earlier days: the arrows beside the title, or tap a square in **LAST 12 WEEKS**.
-- **REVIEW** shows the week's habits day by day; **ALL REVIEWS** shows them week by week.
-
-**Library**
-- **+ ADD BOOK:** type a title or author; pick **WANT**, **READING NOW** or **ALREADY READ**. Not listed? Add it by hand from the same sheet.
-- **FINISHED** on a book you're reading files it under **READ** with today's date; tap it to rate it.
-- Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
-- Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
-
-## Tarot (app 2.26, bridge 1.24)
-
-TAROT (under REFLECT in ALL STATIONS) records the cards you draw from your own deck: this week's card and any reading through the week, in any spread. Everything is saved to the **🔮 Tarot** database in Notion (beside Habits and Library), one page per reading, with the cards written out so they read well in Notion too.
-
-1. **Connect the database:** in Notion open **🔮 Tarot → ••• → Connections → add TimothyOS bridge**.
-2. **Update the bridge to 1.24:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion tarot: OK (0 readings in 90 days)`.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**.
-
-**Using it:**
-- **This week's card:** **RECORD THIS WEEK'S CARD** (or the Bridge's TAROT panel), tap the position, pick the card, mark it **REVERSED** if it came out that way. Weeks run Monday to Sunday. It shows on the Bridge and in that week's Review.
-- **A reading:** **+ NEW READING**, pick a spread (one card up to the Celtic Cross, **FREE** for any number, or one of yours), an optional question, then tap each position and pick the card you drew. **DRAW HERE** shuffles on the iPad for days without your deck.
-- **Your reading:** a note per position and **WHAT IT SAYS** for the whole; saved a moment after you stop typing.
-- **A card's history:** tap any card for every reading it came up in, and **MY MEANING**, your own words for it, shown wherever it turns up.
-- **MY SPREADS:** place positions on a grid, name them, mark one as crossing.
-- **Patterns:** suits, reversals and repeat cards over 90 days; your weekly cards over 8 weeks.
-- **Ask:** **Systems → TAROT → SHARE WITH ASK** sends this week's card, the last 14 days of readings and your meanings for those cards with each question. Off by default; switching it off applies to the very next question.
-
-Deleting a reading or spread puts it in Notion's trash, where it can be restored.
-
-### Your tarot books (app 2.29, bridge 1.25)
-
-Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot*, one Notion page per card per book (156 pages) in **📖 Tarot Books**, a private database in your Life Hub beside 🔮 Tarot. You can read and edit any page there; the app uses your version. The book text lives only in your Notion: never in the app's code, this repository or the iPad's storage.
-
-1. **Connect the database:** in Notion open **📖 Tarot Books → ••• → Connections → add TimothyOS bridge**.
-2. **Update the bridge to 1.25** (1.25.1 or later) (same steps as above: replace the code, save, run **setup**, then **Deploy → Manage deployments → pencil → New version → Deploy**). The log shows `Notion tarot books: OK (Liz Dean 0 of 78, Jessa Crispin 0 of 78; tap IMPORT BOOKS in Systems)`.
-3. **SYSTEMS → REFRESH NOW**, then under **TAROT** tap **IMPORT BOOKS**. It makes the pages from the import file already in the database, about three minutes in a few steps; keep the app open. When the row shows **78 of 78** for both, you can delete the **📦 Import file** page. Running it again only fills gaps; it never overwrites a page.
-
-**Using it:**
-- **BOOKS** under any card in a reading opens both books for that card, with a tab for each. For a reversed card Dean's reversed meaning comes first. **CLOSE BOOKS** folds it away. **OPEN IN NOTION** goes to that page. Your last choice of book stays chosen.
-- **SUGGEST A MEANING HERE** (inside the open drawer) asks Claude what the card could mean in that position, using only your two books, your MY MEANING for the card, your question and your notes. About 1¢. The answer sits in a dashed box marked **NOT SAVED** until you tap **ADD TO MY NOTE** (it goes after what you've written and saves like typing) or **DISMISS**.
-- **SUGGEST A READING FROM MY BOOKS** under **WHAT IT SAYS** does the same for the whole spread (about 1¢ plus half a cent a card); **ADD TO WHAT IT SAYS** puts it there.
-- A card's history (**EVERY TIME THIS CARD CAME UP**) has **FROM YOUR BOOKS** too, for reading without suggestions.
-- Suggestions count toward Ask's monthly total (they show as TAROT SUGGESTION in Systems). Nothing goes to Claude until you tap SUGGEST; SHARE WITH ASK is separate and still governs Ask.
-- The bridge remembers each card's passages for six hours, so an edit you make in Notion shows up within that time.
-
-The text came from the EPUB of Dean's book and a scan of Crispin's, so a few of Crispin's pages may carry small scanning slips (a joined word, a missing apostrophe). Fix them on the page in Notion.
-
-## Apiary (app 2.31, bridge 1.26)
-
-APIARY (under RESOURCES in ALL STATIONS) is your hive log. It opens on **the yard**: each hive drawn as its own box stack (honey supers on top, deeps below, the frames drawn lit up), with its queen, its last check and any open issue. Tap a hive to zoom in; tap a check to zoom in again.
-
-Everything lives in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard page, one page per hive and one page per check, each check linked to its hive. The text columns (Queen, Frames, Feed, Did, Next and so on) are plain and you can edit them in Notion; the **Data** column is what the app draws from (boxes, colors, counts), so leave that one to the app. Your original Beekeeping and Hive Inspections pages are untouched.
-
-1. **Connect the database:** in Notion open **🐝 Apiary → ••• → Connections → add TimothyOS bridge**.
-2. **Update the bridge to 1.26:** copy **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**, replace all the code, save, run **setup**. The log should show `Notion apiary: OK (2 hives, 11 checks)`.
-3. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** Then in TimothyOS: **SYSTEMS → REFRESH NOW**, and pin APIARY from **ALL STATIONS → EDIT PINS** if you want it in the bar.
-
-**Using it:**
-- **The yard:** the top line shows **HIVE CHECK GO / HOLD** (the Bridge's hive weather, when a location is set in Systems), honey this year and the year's mite checks (the lowest hive's count out of 4). **THIS YEAR** opens honey per hive, mite checks per hive and **the yard list** (supplies, winter prep: tap to tick, ✕ to remove, type and ADD).
-- **A hive:** its stack large (tap a box for what it held at the last check), **NEXT TIME** from the last check, every check newest first, and **ABOUT THIS HIVE** with **EDIT HIVE** (name, queen, start date, source, foundation, equipment, place, notes, paint).
-- **TRUE UP STACK** (app 2.32, bridge 1.28), under a hive's stack, for something you did at the hive but didn't log. **+ DEEP, + MEDIUM, + SUPER, + EXCLUDER, + FEEDER** put a piece where it normally sits. Tap a piece (on the stack or in the list) for its frame count (8, 9 or 10; supers start at 9, deeps and mediums at 10), frames drawn or filled, capped % (supers and mediums), the feeder's syrup, **▲ UP / ▼ DOWN** and **REMOVE** (two taps). **LOG THIS TOO** also adds a short check on the date you pick, worded like "Added a super (logged later)". **SAVE STACK**.
-- **+ NEW CHECK** walks five short steps: **QUEEN** (what you saw, brood pattern, temperament, who was there), **FRAMES** (count each deep, medium and super with − and +, out of its own frame count; capped % per super and medium; **+ DEEP**, **+ MEDIUM**, **+ SUPER**, **+ EXCLUDER**, **+ FEEDER** or **TOP PIECE OFF** when you change the stack), **STORES**, **PESTS** (sugar roll or alcohol wash works out the mite load: under 2% fine, 2 to 3% watch, over 3% treat), **WRAP UP** (what you did, honey pulled in lb, an issue, notes, next time, and **REMIND ME IN 7 DAYS**, which adds "Hive check: …" to the Master Task List). Tap a chip again to clear it. A half-finished check is kept on the iPad (**RESUME CHECK**). **SAVE CHECK** writes it to Notion as plain sentences, updates the hive's stack, and offers **CHECK … NEXT** for the other hive.
-- **A check:** everything recorded, **EARLIER / LATER**, **EDIT** (every field as text) and **DELETE** (two taps; it goes to Notion's trash).
-- **+ ADD HIVE** on the yard for a new package, nuc or split. **REMOVE HIVE** (two taps, in EDIT HIVE) moves the hive page to Notion's trash; its checks stay.
-- **No signal at the hives:** saves wait on the iPad and go when the bridge answers. A save Notion refuses shows in red with **RETRY**.
-- **Ask:** **Systems → APIARY → SHARE WITH ASK** sends your hives, each hive's last three checks, this year's honey and mite checks and the open yard list with each question. Off by default.
-
-## Storage (app 2.16)
-
-STORAGE browses folders on the NAS and plays audio (podcasts) from them. A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
-
-**One-time setup on the NAS (UGOS Docker):**
 1. **Tailscale admin** (console.tailscale.com): turn on **MagicDNS** and **HTTPS Certificates** (DNS tab), then **Settings → Keys → Generate auth key**.
 2. **Make a relay token:** a strong password from the iPad's Passwords app ("TimothyOS relay").
-3. **UGOS → Docker → Project → Create**, name `timothyos`, storage path `docker/timothyos`, and paste the compose below with the three placeholders filled in. UGOS ignores compose `configs:`, which is why the settings travel in environment variables.
+3. **UGOS → Docker → Project → Create**, name `timothyos`, storage path `docker/timothyos`, and paste the compose below with the placeholders filled in. UGOS ignores compose `configs:`, which is why the settings travel in environment variables.
 4. **Tailscale admin → Machines → timothyos-nas → Disable key expiry**, then delete the auth key from wherever you noted it.
 5. **Check:** in Safari, `https://timothyos-nas.YOUR-TAILNET.ts.net/?k=YOUR-TOKEN` shows a folder list with no certificate warning. Without `?k=` it's a blank page (refused), as it should be.
 
@@ -483,164 +287,327 @@ services:
     restart: unless-stopped
 ```
 
-`HA_URL` and the `/ha` part are for **Engineering** (below); until Home Assistant's address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token.
+`HA_URL` and the `/ha` part are for Home Assistant (below); until its address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token. To share another folder, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
 
-To share another folder later, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
+**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
 
-**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **Systems → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, tap **SAVE AND TEST**.
+### Home Assistant
 
-**Using it:** folders on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. The place in each file, speed and "play the next one" are saved **on this iPad only**. While something plays, a small pill on every other screen pauses it or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too. **Artwork:** put a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder to give it art. MP3 titles, show names and artwork are read from the files' own tags as they play. **TRACK #** (folders with MP3s) reads the tags of the whole folder and orders it by disc and track; each folder remembers its own sort. **HIDE FOLDER** keeps a folder off Storage on this iPad; Systems → STORAGE lists hidden folders with UNHIDE.
-
-**TRACK # (app 2.30.1):** in a folder of MP3s, sorts by disc and track number from the files' tags. The line under the sort chips says how many files have a number; files without one go last. Retagged files are read again by themselves; **READ TAGS AGAIN** re-reads the whole folder if anything looks wrong.
-
-**Lengths (app 2.30):** each track shows its length instead of its file size. When a folder opens, TimothyOS reads a small piece of each MP3, M4A/M4B, FLAC or WAV (a few kilobytes, not the whole file) to find it, and remembers it on this iPad. Other formats (OGG, Opus, AAC) show their length once you've played them. Documents still show their size.
-
-## Engineering (app 2.24)
-
-ENGINEERING has two tabs. **CONTROLS** shows only the Home Assistant devices you add (switches and lights toggle, sensors show their reading, refreshed every 30 seconds while open). **UPKEEP** tracks recurring maintenance by time (days to years) or by a reading (miles, hours), saved on this iPad; overdue items also show in the Bridge's CONDITION. Both start empty.
-
-Home Assistant is reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
+Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
 
 1. **A Home Assistant user for TimothyOS** (whoever administers Home Assistant): **Settings → People → Add person**, allow login, *not* an administrator. Note Home Assistant's local address (like `http://192.168.x.x:8123`).
-2. **A token:** log in to Home Assistant as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it once; it is shown only once.
-3. **The relay:** UGOS → Docker → **Project** `timothyos` → edit the compose so it matches the one under Storage (the `HA_URL` line with Home Assistant's address, and the new `CADDYFILE`), then redeploy.
-4. **On the iPad:** **Systems → HOME ASSISTANT → USE THE STORAGE RELAY**, paste the token, **SAVE AND TEST**.
-5. **ENGINEERING → + ADD DEVICE**, search, **NEXT**, pick how it looks and which group, **ADD TO ENGINEERING**.
+2. **A token:** log in as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it; it's shown only once.
+3. **The relay:** make sure the compose has the `HA_URL` line with Home Assistant's address (as above), then redeploy.
+4. **On the iPad:** **SYSTEMS → HOME ASSISTANT → USE THE STORAGE RELAY**, paste the token, **SAVE AND TEST**.
 
-**Layout (2.28):** LIGHTS AND SWITCHES (with your rooms as chips: ALL, a room, OTHER), CLIMATE (thermostats: target with + and −, modes) and SENSORS. **ROOMS** renames, reorders and deletes rooms; they live on this iPad only.
+---
 
-**Using CONTROLS:** each device has a card style (TOGGLE, DIMMER, COLOR, COMPACT, READING) and a room, both set on this iPad from its **⋯** button. Lights open a panel with the controls they actually have: colour wheel and quick colors, white warm-to-cool, brightness, effects. **CARDS / LIST** switches the whole screen; **ALL OFF** turns off what the chosen room shows. Rooms are separate from the areas set up in Home Assistant.
+# Part 2 · Stations
 
-A non-admin Home Assistant user can still switch every device in that Home Assistant. The list on ENGINEERING is what's shown, not a lock; the protection is Tailscale plus the two tokens. **FORGET** in Systems removes the address and token from the iPad; deleting the token in Home Assistant cuts it off everywhere.
+**ALL STATIONS** (the block under the sidebar buttons) opens every station, grouped as below; **EDIT PINS** picks the seven in the sidebar. **BRIDGE** always keeps the corner.
 
-## Breaks (app 2.23)
+## TIME
 
-Lunch held as an **Out of Office** on the Work calendar, titled with "— Lunch", shows up as a break even if "Out of office" is on **IGNORED EVENTS**. **Systems → CALENDARS → BREAKS** holds the titles (Lunch to start; add Walk or anything else). Since 2.31.1 the event's **whole title** must be one of them (capitals and an "Out of office" in front aside), so "Lunch" and "Out of office — Lunch" are breaks but a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
+### BRIDGE (the overview)
 
-## Renaming or reinstalling the app (2.34)
+The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). One full-width column, top to bottom:
 
-The app is called **Bridge** (2.34); **TimothyOS** stays as the system name in its top bar. iPadOS reads an app's name only when it is added to the home screen, and removing the icon erases everything the app kept on this iPad, so a rename or reinstall goes through a backup:
+| Panel | Shows |
+|---|---|
+| **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it (rules in Part 3) |
+| **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
+| **Habits** | Today's habits, tap to record (once Habits is connected) |
+| **Tarot** | This week's card, or **RECORD** (once Tarot is connected) |
+| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
+| **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
+| **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
+| **Key Dates** | The next three, with countdowns |
+| **Balance** | Work: calendar hours over 7 days against a ceiling. Other areas: a dot for each day they got attention (a task done or calendar time), hours against a minimum where they have a calendar, QUIET after 5 days. Targets in **SYSTEMS → BALANCE TARGETS** |
+| **Intent + Bearing** | One line of intent for today, and your **bearing** for the day |
 
-1. **SYSTEMS → BACKUP AND RESTORE**: make a fresh backup and save it to Files (see Backup and restore). Make sure no red line says changes are waiting.
-2. Touch and hold the old icon → **Delete Bookmark** (or **Remove App**) → confirm.
-3. In Safari open **https://tim3t.github.io/Timothyos/**, pull down once to reload, then **Share → Add to Home Screen**. The name reads **Bridge**; tap **Add**.
-4. Open Bridge from the home screen. On the link screen, **OR RESTORE THIS IPAD**: choose the file, type the passphrase, **OPEN BACKUP**, **RESTORE**.
+Tap **+** beside a panel title for its details (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open. Balance counts tasks marked ✅ Done; Notion doesn't record the day a task was finished, so the date of its last edit stands in, and only the Life Area and that date leave Notion, never titles.
 
-## Backup and restore (app 2.33)
+**Settings** (in **SYSTEMS → BRIDGE**, kept on this iPad): **Location** for weather (**USE THIS IPAD'S LOCATION**, or latitude and longitude; rounded to about 1 km) · **Bearings**, your guiding words, one per line; the Bridge shows one each day, tap it for the next · **Opens on**: Bridge or Today.
 
-Everything the app keeps only on this iPad goes into one file you keep: the bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, podcast places and the other settings. Use it before reinstalling the app, moving to a new iPad, or anything else that would wipe the app's storage.
+### TODAY, WEEK, MONTH
 
-- **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one.
-- **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
-- **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
-- **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, podcast places…) before anything changes. **RESTORE** writes those settings, reloads and syncs.
-- **Rehearse it** without touching the installed app: open the app's address in a **Private** tab in Safari, restore there, look around, close the tab. A private tab starts empty and forgets everything when closed. Anything you change in it is real, though (it's linked to the same bridge), so look rather than tap.
+Your calendars in day, week and month views. The arrows beside the title move through time; **TODAY** jumps back. Tap a day in Week or Month to open it, an event for its details, an empty spot on Today or Week to capture there. The calendar chips on Today hide or show a calendar on every view. Finished events are dimmed with a ✓. **PLAN DAY** picks up to three priorities from the Master Task List (or adds a new task); tap a priority on Today to mark it ✅ Done in Notion, again to reopen. To plan tomorrow, go to tomorrow on Today and tap **PLAN** in Priorities.
+
+### LOOM
+
+Your calendars and key dates on an infinity loop. The focused day sits at the crossing, largest, with its events named beside it.
+
+- **Swipe left** to move forward in time: your finger pulls the coming days down the top of the right loop into the crossing. **Swipe right** to go back; the days just past carry on round the lower-left loop. A swipe coasts and settles on a day.
+- The **arrows** step one day; **TODAY** glides home. With a keyboard: arrow keys, Page Up/Down (a week), T (today).
+- **Beads** are events in their calendar's color, read top to bottom in time order (the day's last sits on the loop); **diamonds** are key dates. Tap one of the focused day's beads (or a row in the list on the right) for details. Tap any other day to glide to it.
+- On the right: the focused day's events and key dates, and the next four key dates with a countdown. Hidden calendars and ignored titles stay out, as on every screen.
+
+### DATES
+
+Key dates for the next 12 months, filtered by area (and **HOLIDAYS**). **+ ADD** or **CAPTURE → KEY DATE** adds one: **UNTIL** for a window, **YEARLY** for birthdays and seasons. Tap one for details, **OPEN IN NOTION** to change or delete it. A holiday you don't care about: tap it, **HIDE THIS HOLIDAY** (it joins IGNORED EVENTS, where you can bring it back).
+
+## REFLECT
+
+### REVIEW
+
+**REVIEW** opens on a log of your reviews; tap a week to open it, **◀ ALL REVIEWS** comes back. **Due** from Sunday 14:00 to Tuesday night; the Bridge shows **Weekly review due** until you save it, and goes straight to that week.
+
+- **A week, top to bottom:** Time (hours per calendar, change from the week before, busiest day, open hours) · Output (tasks finished per Life Area) · Priorities kept · Habits · Tarot · Intent log · Next week (heavy days, key dates, tasks due) · Reflection, four questions: What went well? · What drained me? · What's my next focus? · Where did I hold my bearing?
+- **Writing is kept on the iPad as you type.** **SAVE TO NOTION** writes it; saving again updates the same page. **◀ ▶** browse earlier weeks.
+- **WRITE SUMMARY** asks Claude (Sonnet) for a short summary of the week from its numbers and your reflection, into **CLAUDE SUMMARY**. With SHARE LOG WITH ASK on, it asks for your authorization code and includes that week's Log entries; **WITHOUT THE LOG** writes it from the rest.
+- **The log page:** up next (the week that's due, this week); trends over the last 12 weeks (reviews saved, week streak, priorities kept on average, Work and Personal hours, hours per week; **+** for priorities kept, tasks finished and where the work went by Life Area; tap a bar or point for its values; numbers come from saved reviews, so unsaved weeks are gaps); **PATTERNS**, where Claude (Sonnet) reads your saved reflections and names what keeps coming up (about 8¢, only when you tap it; the answer stays on this iPad until you ask again); and all reviews by month, each week's numbers and next focus, with SAVED, DUE, IN PROGRESS or NOT SAVED. A missed week can still be written.
+
+### LOG (Captain's Log)
+
+A plain journal: a calendar of days and a blank page. Each day is one page in **📓 Captain's Log** in Notion, with the entry as its body, so it reads naturally there too. No reminders, no streaks, no counts.
+
+- **Opening LOG always asks for your authorization code:** tap your code word, then the four digits (or type its first letter and the digits on a keyboard). Your word shows only as a filled slot. The Google bridge checks it; five wrong tries lock the log for 15 minutes, and each lockout straight after another lasts twice as long (up to a day). The panel says until when.
+- **It locks** when you leave LOG, tap **LOCK**, the app goes to the background, standby starts, or after 10 minutes without a touch.
+- **Jump to a month:** tap the month name above the calendar, pick a year, then a month.
+- **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. The bar beside the day's name fills when a save lands. Until Notion has it, your writing is kept on this iPad; once saved it's removed from the iPad.
+- **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something LOG can't show (a photo, a table) opens read-only; edit it in Notion.
+- **Lists:** type **- ** at the start of a line for a bullet; Return carries it on, Return on an empty bullet ends the list. **• LIST** turns lines into bullets and back. They're real list items in Notion. REVIEW's questions work the same way.
+- **+ BEARINGS** adds your bearings as a closing block to fill in. Today's intent from the Bridge shows above today's page.
+- **SEARCH THE LOG** (under the calendar): type a word or phrase, tap **FIND**: every entry that uses it, newest first, with the words around it. **EXACT WORD** (on to start) matches the whole word only; capitals never matter. Tap a result to read it; **NEWER** and **OLDER** step through the rest, **RESULTS** goes back. An entry edited directly in Notion keeps its old searchable wording until you next save that day in LOG.
+- **The ASK button never sees the log.** It isn't in the snapshot and ASK has no way to read it.
+
+**Ask Claude about the log** (off until **SYSTEMS → CAPTAIN'S LOG → SHARE LOG WITH ASK**), in the open LOG:
+
+1. **Narrow first.** **ASK CLAUDE** for the month on the calendar (or **WITH THE MONTH BEFORE**), or run a search and tap **ASK ABOUT THESE**.
+2. **Ask.** **KEY MOMENTS**, **THEMES**, **LIFTED · DRAINED**, **ONE PHRASE**, **WHAT CHANGED**, or your own question. **THINK HARDER** uses Opus.
+3. **PREVIEW** shows how many entries, which dates, about how many tokens and the cost. Nothing is sent until **SEND**. Above about 25K tokens it says so.
+4. **Read.** Dates in the answer open that entry (**ASK THE LOG** brings you back). **FOLLOW UP** asks more about the same entries, usually for under 1¢.
+5. **SAVE TO NOTION** keeps an answer as an undated "Claude insight" page in the Captain's Log database; **SHOW SAVED** lists them.
+
+Limits, checked by the Google bridge: 62 entries, about 60K tokens and two months per question, so a whole year never goes at once (ask month by month instead). Each request needs your authorization code. Claude gets only the chosen entries, has no tools and can't change anything. Answers aren't kept on the iPad and are forgotten when the log locks. Spending counts toward ASK's monthly reminder and shows as LOG in Systems (never the text).
+
+### HABITS
+
+- **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EVENING WALK**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
+- It saves to Notion a moment after your last tap. Without a connection it waits on the iPad and goes when you're back.
+- **Water goal:** the chips under the tiles (2 to 4 L). Streaks and the grid count a day as won at the goal or more. A new goal counts from the day you choose it; earlier days keep the goal they had, so raising it never turns past days into misses. The note under the chips lists recent changes; the history is kept on this iPad.
+- Earlier days: the arrows beside the title, or tap a square in **LAST 12 WEEKS**. **REVIEW** shows the week's habits day by day; **ALL REVIEWS** week by week.
+
+### TAROT
+
+Records the cards you draw from your own deck: this week's card and any reading through the week, in any spread. Saved to **🔮 Tarot** in Notion, one page per reading, with the cards written out so they read well there too.
+
+- **This week's card:** **RECORD THIS WEEK'S CARD** (or the Bridge's TAROT panel), tap the position, pick the card, mark it **REVERSED** if it came out that way. Weeks run Monday to Sunday. It shows on the Bridge and in that week's Review.
+- **A reading:** **+ NEW READING**, pick a spread (one card up to the Celtic Cross, **FREE** for any number, or one of yours), an optional question, then tap each position and pick the card you drew. **DRAW HERE** shuffles on the iPad for days without your deck.
+- **Your reading:** a note per position and **WHAT IT SAYS** for the whole; saved a moment after you stop typing, and when you leave the app.
+- **A card's history:** tap any card for every reading it came up in, and **MY MEANING**, your own words for it, shown wherever it turns up.
+- **MY SPREADS:** place positions on a grid, name them, mark one as crossing.
+- **Patterns:** suits, reversals and repeat cards over 90 days; your weekly cards over 8 weeks.
+- **From your books:** **BOOKS** under any card opens both books for that card, with a tab for each (for a reversed card Dean's reversed meaning comes first; **OPEN IN NOTION** goes to that page; your last choice of book stays chosen; **CLOSE BOOKS** folds it away). Inside it, **SUGGEST A MEANING HERE** asks Claude what the card could mean in that position, using only your two books, your MY MEANING, your question and your notes (about 1¢). For readings of two or more cards, **SUGGEST A READING FROM MY BOOKS** under WHAT IT SAYS does the same for the whole spread (about 1¢ plus half a cent a card). An answer waits in a dashed box marked **NOT SAVED** until **ADD TO MY NOTE** / **ADD TO WHAT IT SAYS** (it goes after what you've written and saves like typing) or **DISMISS**. A card's history (**EVERY TIME THIS CARD CAME UP**) has **FROM YOUR BOOKS** too, without suggestions. Suggestions count toward ASK's monthly total (TAROT SUGGESTION in Systems); nothing goes to Claude until you tap SUGGEST.
+- Deleting a reading or spread puts it in Notion's trash, where it can be restored.
+
+## RESOURCES
+
+### LEDGER
+
+Your finances from YNAB at a glance. YNAB stays where you budget: the Google bridge only reads it and can never change it.
+
+- **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
+- **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages; **+** shows the smaller ones. Card payments, hidden and internal categories are left out.
+- **Replicator Queue:** things to buy once **Discretionary** can cover them. **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
+- **Freshness:** opening LEDGER asks YNAB itself when the iPad's copy is over a minute old; **pull down** or **REFRESH** for the latest (**AS OF** shows when). Otherwise the bridge asks YNAB at most every 10 minutes and keeps past months for 6 hours, far below YNAB's limit of 200 requests an hour.
+
+### LIBRARY
+
+- **+ ADD BOOK:** type a title or author; pick **WANT**, **READING NOW** or **ALREADY READ**. Not listed? Add it by hand from the same sheet.
+- **FINISHED** on a book you're reading files it under **READ** with today's date; tap it to rate it.
+- Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
+- Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
+
+### STORAGE
+
+Folders on the NAS, through the relay, with an audio player for podcasts.
+
+- **Folders** on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way.
+- **The player:** the place in each file, speed and "play the next one" are kept **on this iPad** (and in your backups). While something plays, a small pill on every other screen pauses or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too.
+- **Artwork:** a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder gives it art. MP3 titles, show names and artwork come from the files' own tags as they play.
+- **Lengths:** each track shows its length, read from a few kilobytes of each MP3, M4A/M4B, FLAC or WAV when a folder opens and remembered on this iPad. Other formats (OGG, Opus, AAC) show their length once played. Documents show their size.
+- **TRACK #** (folders with MP3s) orders by disc and track number from the files' tags. The line under the sort chips says how many files have a number; files without one go last. Retagged files are read again by themselves; **READ TAGS AGAIN** re-reads the whole folder. Each folder remembers its own sort.
+- **HIDE FOLDER** keeps a folder off Storage on this iPad; **SYSTEMS → STORAGE** lists hidden folders with UNHIDE.
+
+### ENGINEERING
+
+Two tabs. **CONTROLS** shows only the Home Assistant devices you add; **UPKEEP** tracks recurring maintenance. Both start empty, and everything you set up here is kept on this iPad (and in your backups).
+
+- **Adding a device:** **+ ADD DEVICE**, search, **NEXT**, pick how it looks and which room, **ADD TO ENGINEERING**.
+- **Layout:** LIGHTS AND SWITCHES (your rooms as chips: ALL, a room, OTHER), CLIMATE (thermostats: target with + and −, modes) and SENSORS. **ROOMS** renames, reorders and deletes rooms; they're separate from the areas set up in Home Assistant.
+- **Each device** has a card style (TOGGLE, DIMMER, COLOR, COMPACT, READING) and a room, set from its **⋯** button. Lights open a panel with the controls they actually have: color wheel and quick colors, white warm-to-cool, brightness, effects. **CARDS / LIST** switches the whole screen; **ALL OFF** turns off what the chosen room shows. Switches and lights toggle, sensors show their reading, refreshed every 30 seconds while open.
+- **UPKEEP:** items due by time (days to years) or by a reading (miles, hours). Overdue items also show in the Bridge's Condition.
+- A non-admin Home Assistant user can still switch every device in that Home Assistant. The list on ENGINEERING is what's shown, not a lock; the protection is Tailscale plus the two tokens. **FORGET** in Systems removes the address and token from the iPad; deleting the token in Home Assistant cuts it off everywhere.
+
+### APIARY
+
+Your hive log, in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard page, one page per hive and one per check, each check linked to its hive. It opens on **the yard**, each hive drawn as its own box stack (honey supers on top, deeps below, the frames drawn lit up); tap a hive to zoom in, tap a check to zoom in again.
+
+- **The yard:** the top line shows **HIVE CHECK GO / HOLD** (the Bridge's hive weather, when a location is set), honey this year and the year's mite checks (the lowest hive's count out of 4). **THIS YEAR** opens honey per hive, mite checks per hive and **the yard list** (supplies, winter prep: tap to tick, ✕ to remove, type and ADD).
+- **A hive:** its stack large (tap a box for what it held at the last check), **NEXT TIME** from the last check, every check newest first, and **ABOUT THIS HIVE** with **EDIT HIVE** (name, queen, start date, source, foundation, equipment, place, notes, paint).
+- **TRUE UP STACK**, under a hive's stack, for something you did at the hive but didn't log. **+ DEEP, + MEDIUM, + SUPER, + EXCLUDER, + FEEDER** put a piece where it normally sits (one feeder and one excluder at most). Tap a piece (on the stack or in the list) for its frame count (8, 9 or 10; supers start at 9, deeps and mediums at 10), frames drawn or filled, capped % (supers and mediums), the feeder's syrup, **▲ UP / ▼ DOWN** and **REMOVE** (two taps). **LOG THIS TOO** also adds a short check on the date you pick ("Added a super (logged later)"). **SAVE STACK**.
+- **+ NEW CHECK** walks five short steps: **QUEEN** (what you saw, brood pattern, temperament, who was there), **FRAMES** (count each deep, medium and super out of its own frame count; capped % per super and medium; **+ DEEP**, **+ MEDIUM**, **+ SUPER**, **+ EXCLUDER**, **+ FEEDER** or **TOP PIECE OFF** when you change the stack), **STORES** (the FEEDER answer also sets the feeder's syrup on the stack), **PESTS** (sugar roll or alcohol wash works out the mite load: under 2% fine, 2 to 3% watch, over 3% treat), **WRAP UP** (what you did, honey pulled in lb, an issue, notes, next time, and **REMIND ME IN 7 DAYS**, which adds "Hive check: …" to the Master Task List). Tap a chip again to clear it. A half-finished check is kept on the iPad (**RESUME CHECK**). **SAVE CHECK** writes it to Notion as plain sentences, updates the stack, and offers **CHECK … NEXT** for the other hive.
+- **A check:** everything recorded, **EARLIER / LATER**, **EDIT** (every field as text) and **DELETE** (two taps; it goes to Notion's trash).
+- **+ ADD HIVE** on the yard for a new package, nuc or split. **REMOVE HIVE** (two taps, in EDIT HIVE) moves the hive page to Notion's trash; its checks stay.
+- **No signal at the hives:** saves wait on the iPad and go when the Google bridge answers. A save Notion refuses shows in red with **RETRY**.
+
+## ALWAYS AVAILABLE
+
+### CAPTURE
+
+**CAPTURE** (top right), or tap an empty spot on the Day or Week timeline: an event on Personal (or the farm or Growth calendar, once linked), or a **KEY DATE**. Work is never offered. A capture made offline appears as a dashed block marked **QUEUED**, and the status block counts it; it saves automatically when you're back. Each one carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
+
+### ASK
+
+The ship's computer: questions about your days, tasks and dates, answered by Claude.
+
+- **Each question goes with a snapshot** of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your intent and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the Google bridge. Finances, tarot readings and the apiary go along only with **SHARE WITH ASK** on in their Systems sections (off by default; switching one off applies to the very next question). The Captain's Log never does.
+- **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm or Growth calendar), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
+- **How Claude chooses:** "remind me to…" with no time becomes a task; something at a time becomes a calendar event (a reminder is a short event your devices alert you to); a deadline, a window or anything yearly becomes a key date. Weeks start on Monday. Life Areas, priorities and key date types must match your Notion names exactly; Claude is told the right names if it gets one wrong, before the card reaches you.
+- **Models:** Sonnet 5.5 at low effort for questions (about 1 to 2¢); **THINK HARDER** uses Opus 5.5 (about three times that).
+- **Spending:** each answer shows its cost; the sheet and **SYSTEMS → ASK CLAUDE** show the month so far against your ceiling, with the last eight questions (model, tokens, cost; never the text). At the **$8 reminder** ASK pauses; **CONTINUE THIS MONTH** carries on until the Console's spend limit stops it. The count is worked out from each answer's tokens at list prices, so it can drift from the Console a little; **MATCH THE CONSOLE** sets it to the Console's figure.
+- **OPEN IN CLAUDE** opens the Claude app (your Pro plan) for longer conversations, with your question first and the snapshot after it; the whole prompt is also copied. If the link can't hold it all, whole sections are left out (least needed first) and the prompt starts with **[SNAPSHOT SHORTENED · PASTE FROM CLIPBOARD FOR THE FULL VERSION]**: select all in Claude and paste to send everything, or send it as is (it says what was left out). If Claude opens empty, paste.
+- The conversation stays on this iPad for 6 hours or until **NEW CHAT**. Questions and the snapshot are sent to Anthropic to answer them; no web search is ever used.
+
+### STANDBY
+
+Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen.
+
+### SYSTEMS
+
+Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there. It holds the connection and **REFRESH NOW**, **NEEDS YOU** cards for anything broken (with the steps for that exact problem), **BACKUP AND RESTORE**, recent requests, calendars (with **IGNORED EVENTS** and **BREAKS**), each database's status with its **SHARE WITH ASK** switch where there is one, Storage, Home Assistant, Balance targets, Standby and the version you're on.
+
+**Ignored events:** booking blocks (a weekend out-of-office, say) can be left out of every view and total: tap the event → **IGNORE THIS TITLE**, or edit the list under CALENDARS. Kept on this iPad; your calendars aren't changed.
+
+**Breaks:** **SYSTEMS → CALENDARS → BREAKS** holds titles (Lunch to start; add Walk or anything else). A timed event whose **whole title** is one of them (capitals and an "Out of office" in front aside) shows as a break even if its title is ignored: "Lunch" and "Out of office — Lunch" are breaks, a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
+
+---
+
+# Part 3 · Reference
 
 ## Daily use
 
 | Do | How |
 |---|---|
 | See everything at a glance | **BRIDGE** (top-left corner). Tap any item to jump to it |
-| Standby (screensaver) | Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen |
-| Open **SYSTEMS** (settings, sync health, links) | Tap the **SYNCED** status in the bottom-left corner. It lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there |
+| Open a station that isn't in the sidebar | **ALL STATIONS**. **EDIT PINS** there picks the seven in the bar |
 | Move between days, weeks, months | The arrows next to the title. **TODAY** jumps back |
-| Open a day from Week or Month | Tap the day |
 | See event details | Tap the event |
 | Add an event | **CAPTURE**, or tap an empty spot on the Day or Week timeline |
-| Hide or show a calendar | Tap **Work** or **Personal** on Today |
+| Add a key date | **CAPTURE → KEY DATE**, or **+ ADD** on the Key Dates panel or DATES |
+| Change or delete a key date | Tap it → **OPEN IN NOTION** |
+| Hide or show a calendar | Tap its chip on Today |
 | Plan your day | **PLAN DAY**. Pick up to 3 open tasks, or add a new one, then **SET PRIORITIES** |
-| Plan tomorrow | Go to tomorrow on Today (right arrow), then **PLAN** in the Priorities panel |
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
-| Open a screen that isn't in the bar | **ALL STATIONS** (the block under the buttons). **EDIT PINS** there picks the seven in the bar |
 | Record habits | **HABITS**, or the strip on the Bridge |
-| Add or finish a book | **LIBRARY** |
-| Find every entry that mentions something | **LOG** → **SEARCH THE LOG** |
+| Log a hive check | **APIARY** → the hive → **+ NEW CHECK** |
+| Find every Log entry that mentions something | **LOG** → **SEARCH THE LOG** |
 | Update the balances | **LEDGER** → pull down from the top, or **REFRESH** |
-| Scroll through time | **LOOM**. Swipe left for the future, right for the past; tap a bead for details |
-| See what's coming | **Key Dates** panel on Today (next 30 days), or the **DATES** screen (next 12 months, filter by area) |
-| Add a key date | **▶ CAPTURE → KEY DATE**, or **+ ADD** on the panel or DATES screen. Add **UNTIL** for a window, **YEARLY** for birthdays and seasons |
 | Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |
 | Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
-| Leave out booking blocks (e.g. weekend out-of-office) | Tap the event → **IGNORE THIS TITLE**. Edit or undo in **SYSTEMS → CALENDARS → IGNORED EVENTS** |
-| Change or delete a key date | Tap it → **OPEN IN NOTION** |
-| Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** (see Backup and restore) |
+| Leave out booking blocks | Tap the event → **IGNORE THIS TITLE** |
+| Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
 The app syncs when opened, when you return to it, and every 5 minutes while open. With no connection it shows the last synced data and the status turns amber (**OFFLINE**).
 
-**Capture offline:** a capture made with no connection appears as a dashed block marked **QUEUED**, and the status block counts it. It saves automatically when you're back online. Each capture carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
+## Condition rules
 
-## Updating
+| Level | When |
+|---|---|
+| 🔴 RED | A High-priority task is overdue · Events on two different calendars overlap later today · Sync has failed for over 6 hours |
+| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Weekly review due · An upkeep item is overdue · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load |
+| 🟢 GREEN | None of the above |
 
-- **App:** new versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on.
-- **Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push. It updates the version in all five places, which is what makes iPads fetch the new files and show the banner.
-- **Bridge:** paste the new `Code.gs`, save, then **Deploy → Manage deployments → pencil → Version: New version → Deploy**. The URL stays the same. UI changes never need this.
+Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
+
+## Backup, restore and reinstalling
+
+Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, podcast places and the other settings.
+
+- **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one. Make a fresh one after any big setup change.
+- **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
+- **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
+- **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, podcast places…) before anything changes. **RESTORE** writes those settings, reloads and syncs. Stations show **WAITING** in Systems until each is opened once.
+- **Rehearse it** without touching the installed app: open the app's address in a **Private** tab in Safari, restore there, look around, close the tab. A private tab starts empty and forgets everything when closed. Anything you change in it is real (it's linked to the same Google bridge), so look rather than tap.
+
+**Reinstalling (or renaming) the app:** iPadOS reads an app's name only when it's added to the home screen, and removing the icon erases everything the app kept on this iPad, so:
+
+1. Make a fresh backup and save it to Files. Make sure no red line says changes are waiting.
+2. Touch and hold the icon → **Delete Bookmark** (or **Remove App**) → confirm.
+3. In Safari open **https://tim3t.github.io/Timothyos/**, pull down once to reload, then **Share → Add to Home Screen** → **Add**.
+4. Open the app from the home screen. On the link screen, **OR RESTORE THIS IPAD**: choose the file, type the passphrase, **OPEN BACKUP**, **RESTORE**.
 
 ## Troubleshooting
-
-When the Bridge's Condition item says **SYSTEMS**, tap it: Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
 
 | Symptom | Fix |
 |---|---|
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
-| "Couldn't reach the script" | URL must end in `/exec`; deployment access must be **Anyone** |
+| "Couldn't reach the script" | The URL must end in `/exec`; the deployment's access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
-| Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add Script Property `YNAB_PLAN_ID` with the right id, run setup again, deploy a new version |
-| LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB → replace `YNAB_TOKEN` → run setup |
-| Replicator Queue says not connected | Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge |
-| The iPad still locks while TimothyOS is open | SYSTEMS → STANDBY shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
+| Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
+| A feature says the bridge is out of date, or "The bridge refused it" | Update the Google bridge to the version the CHANGELOG names |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
-| Changes to `Code.gs` have no effect | Deploy a **new version** (see Updating) |
-| Capture says "bridge needs the 1.1 update" | Follow **Bridge 1.1 update** above |
-| A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
-| PLAN DAY says SETUP | Follow **Notion link** above |
-| "isn't connected to the TimothyOS integration" | Master Task List → ••• → Connections → add TimothyOS bridge |
+| A station says SETUP | It needs a database connected, a key in Script Properties, or a newer Google bridge: see its part of Setup |
+| "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
-| Key Dates says it isn't connected | 🗓️ Key Dates → ••• → Connections → add TimothyOS bridge |
-| ASK says SETUP | Follow **Ask Claude (bridge 1.6)** above |
-| "Ask paused at this month's reminder" | Tap **CONTINUE THIS MONTH** to carry on to the Console limit, or wait for the 1st |
+| A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
+| A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
+| A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
+| Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add `YNAB_PLAN_ID`, run setup, deploy a new version |
+| LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB, replace `YNAB_TOKEN`, run setup |
+| "Ask paused at this month's reminder" | **CONTINUE THIS MONTH** carries on to the Console limit, or wait for the 1st |
 | "Claude Console credit is used up" | Add credit at platform.claude.com (keep auto-reload off) |
-| Review says it needs bridge 1.5 | Follow **Weekly Review (bridge 1.5)** above |
-| "Weekly Reviews isn't connected" | 🧭 Weekly Reviews → ••• → Connections → add TimothyOS bridge |
-| Balance says it needs bridge 1.4 | Follow **Bridge 1.4 update** above |
+| Setup says `LOG_PIN NOT VALID` | The value isn't one of the six code words and four digits (or six digits) |
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
+| Storage or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
+| The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
 
 ## Security model
 
-- The repository is public and holds **no secrets**.
-- The **access key** lives in two places only: the script's properties and the iPad app's storage.
-- The bridge can **only add** events, and **only to Personal**. Work is not in its writable list. It never edits or deletes events.
-- In Notion it can only read and change pages **inside the Master Task List**, and only the Focus Date and Status fields (plus adding new tasks). In **Key Dates** it can read and add, nothing else. In **Weekly Reviews** it reads, adds and updates review pages. It never deletes anything. The Notion key lives only in Script Properties.
-- Leaked key? Run **rotateKey** in the script editor, then re-link the iPad in **SYSTEMS → UNLINK**.
-- **UNLINK** also deletes all cached calendar data from the iPad.
-- **Backups** (2.33) hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
-- **Captain's Log:** log reads carry the PIN in the request address (over HTTPS, like the access key) because Google's redirects can drop a POST body; it is never stored on the iPad or logged by the app. Every log request needs the 6-digit PIN (Script Property `LOG_PIN`), checked by the bridge, with a 15-minute lock after five misses. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, and never go to the ASK button. With SHARE LOG WITH ASK on, only entries you pick in the open LOG (62 at most per question, with the PIN) go to Claude, for that question. Editing an entry is the one place the bridge removes anything: paragraphs you delete from your own entry.
-- **Ask Claude:** the API key lives only in Script Properties. Claude reads through the bridge and proposes changes; only your CONFIRM makes them, through the same actions as the app's own buttons. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's own $8 reminder (CONTINUE carries on to the Console limit).
-- **Tarot:** the bridge reads and writes only the 🔮 Tarot database: readings, card meanings and spreads. Removing one moves it to Notion's trash. Readings go to Ask only with SHARE WITH ASK on.
-- **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are typed into Systems and kept only on the iPad. ENGINEERING shows only the devices you add, but a Home Assistant token can switch any device, so treat it like a key.
-- **Weather** comes from Open-Meteo (free, no account, no key). Requests carry only your rounded coordinates, straight from the iPad. Location, bearings and the Bridge's intent line are stored on the iPad and never go to the bridge or this repository.
+- **The repository is public and holds no secrets.** Keys live in Script Properties (`ACCESS_KEY`, `NOTION_TOKEN`, `ANTHROPIC_API_KEY`, `YNAB_TOKEN`, `LOG_PIN`) and, for the access key and the NAS and Home Assistant tokens, in the app's storage on this iPad.
+- **The access key** is checked on every request. Leaked? Run **rotateKey** in the script editor, then **SYSTEMS → UNLINK** and link again. **UNLINK** also deletes the cached calendar data from the iPad.
+- **Calendars:** the Google bridge reads Work, Personal, farm, Growth and the holidays calendar. It can **only add** events, and only to Personal, farm and Growth. Work is never writable, and it never edits or deletes an event.
+- **Notion:** the integration sees only the databases you connected (the table under Connect Notion), with only the actions listed there. The bridge checks that every page it changes belongs to the right database. **Removing** a book, a tarot reading or spread, an apiary check or a hive **moves it to Notion's trash** (restorable there). The only real deletion is in LOG: paragraphs you remove from your own entry.
+- **YNAB** is read-only: the bridge only ever reads it.
+- **Captain's Log:** every log request carries your authorization code (in the request address over HTTPS, like the access key, because Google's redirects can drop a POST body), checked by the bridge, with a 15-minute lock after five misses that doubles with each lockout in a row. The code is never stored on the iPad or logged by the app. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, are never in a backup, and never go to the ASK button.
+- **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes. Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
+- **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
+- **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
+- **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to the Google bridge or this repository.
+
+## Updating the app
+
+New versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
+
+**Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push; it sets the version everywhere, which is what makes iPads fetch the new files and show the banner. `tests/run.sh` must print `ALL PASSED` first (CLAUDE.md has the checklist).
 
 ## Project layout
 
 ```
-index.html            app page
-css/app.css           styles (design tokens at the top)
-js/app.js             app logic
-sw.js                 offline cache
-version.json          current version (the app checks it for updates)
-tools/bump_version.py sets the version everywhere before a release
-tests/run.sh          runs all tests (simulated bridges + headless browser)
-CLAUDE.md             working notes for Claude: architecture, rules, release checklist
-manifest.webmanifest  home screen install settings
-icons/, fonts/        app icon, self-hosted fonts (SIL Open Font License)
-apps-script/Code.gs   the Google Apps Script bridge
-docs/DESIGN.md        full design and roadmap
+index.html               app page
+css/app.css              styles (design tokens at the top)
+js/app.js                app logic (one file, no build step)
+sw.js                    offline cache
+manifest.webmanifest     home screen install settings (the name Bridge)
+version.json             current version (the app checks it for updates)
+icons/, fonts/           app icon, self-hosted fonts (SIL Open Font License)
+apps-script/Code.gs      the Google bridge
+tools/bump_version.py    sets the version everywhere before a release
+tools/nas-check.html     standalone test page for the Storage relay
+tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,
+                         then the real app in a headless browser against simulated bridges and a simulated NAS
+                         (about 5 minutes, in lanes)
+CHANGELOG.md             what changed in each version
+CLAUDE.md                working notes for Claude: architecture, rules, release checklist, roadmap
+docs/DESIGN.md           decisions log and the original design
 ```
 
-## Standby modules (later stages)
+## Roadmap
 
-Notes in Capture · Ask Claude · Weekly Review. See `docs/DESIGN.md`.
+The next steps and the ideas parked for later are kept in **CLAUDE.md → Roadmap**.

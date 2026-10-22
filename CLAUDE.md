@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D39, roadmap) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D42; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -34,14 +34,16 @@ Current versions: **app 2.34.0**, **bridge 1.28.0**.
 
 | Method | action | Does | Notes |
 |---|---|---|---|
-| GET | `ping` | version, capabilities, calendar + Notion status | |
-| GET | `events` `from` `to` (epoch ms, ≤ 62 days) | Work + Personal events | declined personal events hidden; untitled = `Busy` |
+| GET | `ping` | version, capabilities, calendar + Notion status, Ask spend | |
+| GET | `batch` `calls` (JSON list, ≤ 8) | runs each read in `BATCH_READS` through `read_()`, `results[]` | each result has its own ok/error |
+| GET | `events` `from` `to` (epoch ms, ≤ 62 days) | events from every linked calendar (Work, Personal, farm, Growth) | declined personal events hidden; untitled = `Busy` |
+| GET | `holidays` `from` `to` | US holidays in range | read-only; never counted in hours |
 | GET | `tasks` `day` (yyyy-mm-dd) | `focus` (Focus Date = day) + `open` tasks + Life Area options | |
 | GET | `dates` | all key dates + Life Area and Type options | app computes yearly repeats and countdowns |
 | GET | `week` `week` (Monday yyyy-mm-dd) `from` `to` (local midnights, ISO) | tasks finished (last edit in range), tasks picked (Focus Date in week), saved review | `reviewsError` set if Weekly Reviews isn't connected; the rest still returns |
 | GET | `aispend` | this month's Ask spend `{month, usd, calls, budget, cap, cont}` and `log` (last 25 calls: time, mode, model, tokens, usd; never text) | |
 | GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
-| POST | `create` `item{cid,area,title,allDay,start,end}` | new event on `personal`, or `farm` once linked | `WRITABLE` allow-list; Work can never be written |
+| POST | `create` `item{cid,area,title,allDay,start,end}` | new event on `personal`, or `farm` / `hobby` (Growth) once linked | `WRITABLE` allow-list; Work can never be written |
 | POST | `focus` `id` `day\|null` | sets Focus Date | page must belong to the Master Task List |
 | POST | `status` `id` `status` | sets Status (allow-listed values) | same ownership check |
 | POST | `addtask` `task{cid,title,area,priority,day}` | new To Do task | |
@@ -61,16 +63,30 @@ Current versions: **app 2.34.0**, **bridge 1.28.0**.
 | POST | `ask` `{cid, mode: fast\|deep\|summary\|patterns, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
 | POST | `aicontinue` | carry on past the reminder for the rest of this month (`AI_CONTINUE`) | |
 | POST | `aispendset` `{usd}` | set this month's total to the Console's figure; logged as `matched` | |
+| POST | `logask` `pin` `{scope, mode, messages, preview}` | Log Ask: `preview` returns entries, dates, tokens, cost; otherwise Claude's answer | needs capability `logask`; ≤ 62 entries, ≈ 60K tokens, two months; no tools |
+| POST | `logasksave` / `loginsights` / `loginsight` `pin` | save a Log Ask answer as an undated "Claude insight" page; list them; read one | |
+| GET | `habits` `from` `to` | one row per day (Meditated, Evening Walk, Water, Debit Card) | |
+| POST | `habitset` `day{date,…}` | create or update that day's page | only fields sent are written |
+| GET | `library` | every book | |
+| POST | `booksave` `book` / `bookremove` `id` | add or change a book; remove moves it to Notion's trash | only Library pages |
+| GET | `tarot` `from` `to` | readings, spreads and MY MEANING pages | |
+| POST | `tarotsave` `reading` / `tarotspread` `spread` / `tarotmeaning` `card` `text` / `tarotremove` `id` | save a reading, a spread or a card's meaning; remove moves it to Notion's trash | only Tarot pages |
+| GET | `tarotbooks` | import progress per book (`n of 78`) | |
+| GET | `tarotbook` `card` [`fresh`] | both books' passages for one card | cached 6 h; never stored on the iPad |
+| POST | `tarotbookimport` | makes card pages from the 📦 Import file, a step at a time | fills gaps only; never overwrites |
+| POST | `tarotsuggest` `{mode: card\|reading, at, cards[{id, rev, pos, note, mine}], q, sname, sum}` | Claude suggests a meaning from the two books only | needs `tarotsuggest`; counts toward Ask spend |
+| GET | `apiary` | yard, hives, checks (with `Data` JSON) | |
+| POST | `apiarysave` `item` / `apiaryremove` `id` | add or change a yard, hive or check (`apiaryBoxes_` validates stacks); remove moves it to Notion's trash | only Apiary pages |
 
 Key refusals are distinct: `no_key` (request arrived without its details; a POST can become an empty GET on a Google redirect), `key_unreadable` (settings store answered empty), `unauthorized` (wrong key). The app's `transient()` retries the first two. Log reads go as GET via `logRead()` (falls back to POST on `unknown_action`). The written-days list is cached 6 h under `logdates` and updated in place by `logDatesAdd_()`; setup clears it.
 
 Batched reads: `api()` holds batchable reads for 40 ms and sends them as GET `batch` (`calls` = JSON list, ≤ 8) when more than one is waiting; the bridge's `batch_()` runs each through `read_()` and returns `results[]`, each with its own ok/error. Falls back to single requests on `unknown_action`. `netPending` counts requests in flight (REFRESH NOW's spinner); `markRetried()` flags netlog entries for attempts `withRetry()` tried again.
 
-Capabilities drive the UI: `read`, `create`, `tasks`, `dates`, `done`, `reviews`, `reviewlog` and `queue` (once `NOTION_TOKEN` is set), `log` (with `NOTION_TOKEN`), `logpin` (once `LOG_PIN` is set), `ledger` (once `YNAB_TOKEN` is set), `ask` (once `ANTHROPIC_API_KEY` is set). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holidays`; with `NOTION_TOKEN`: `tasks`, `dates`, `done`, `reviews`, `reviewlog`, `queue`, `log`, `habits`, `library`, `tarot`, `tarotbooks`, `apiary`; `logpin` once `LOG_PIN` is set and `logcode` when it is a code word (has a `-`); `logsearch` once `LOG_SEARCH_READY`; `ask` with `ANTHROPIC_API_KEY`; `logask` and `tarotsuggest` with both the Claude and Notion keys; `ledger` with `YNAB_TOKEN`. Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
-- **Secrets never go in code, chat, or commits.** The access key and `NOTION_TOKEN` live only in the bridge's Script Properties (and the key in the iPad app). The repo is public.
+- **Secrets never go in code, chat, commits or notes:** `ACCESS_KEY`, `NOTION_TOKEN`, `ANTHROPIC_API_KEY`, `YNAB_TOKEN`, `LOG_PIN`. They live only in the bridge's Script Properties (and the access key in the iPad app). The NAS relay token, the Home Assistant token and the Tailscale auth key live only on the iPad (and in backups) or the NAS; the tailnet name and real NAS paths stay out of the repo. The repo is public.
 - **Tarot books are copyrighted.** Passages from Timothy's two tarot books (Dean, Crispin) live only in his private 📖 Tarot Books database. Never put book text in this repo, tests, mocks, commits, published pages or artifacts; use placeholder text. The app keeps passages in memory only (never localStorage).
 - **Privacy:** the Life Hub holds private pages. Never open or read them without Timothy's explicit permission, and never put real personal data (task or date titles, Life Area names, people) in this public repo, including tests. The Notion integration is connected only to Master Task List, Key Dates, Weekly Reviews, Replicator Queue, Captain's Log, Habits, Library, 🔮 Tarot, 📖 Tarot Books and 🐝 Apiary (Timothy connects each one himself); keep it that way. When reading the workspace to plan, read structure (schemas), not content.
 - **Work calendar is read-only forever.** Don't add write paths for it.
@@ -211,7 +227,7 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral, lab
 
 ## Testing
 
-`tests/run.sh` runs the bridge against simulated Google and Notion services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v24` and the relay `mock_relay.py`, in America/Chicago time with a fixed clock (deliberately not Timothy's Eastern time, so time-zone bugs show up). The app itself always uses the iPad's own time zone. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
+`tests/run.sh` runs the bridge against simulated Google, Notion, YNAB and Claude services (Node `vm`), then drives the real app in headless Chromium (Playwright) against simulated bridges `mock_v10` to `mock_v24` and the relay `mock_relay.py`, in America/Chicago time (deliberately not Timothy's Eastern time, so time-zone bugs show up). Most browser tests fix the clock (`page.clock.setFixedTime`, mostly 6 Oct 2026); about a dozen newer ones (e2e27, 32 to 35, 38 to 45) and some bridge tests run on the real date, so give any new date-dependent test a fixed clock, or it can pass one day and fail the next. The app itself always uses the iPad's own time zone. Screenshots go to `tests/out/`. Real Google/Notion can't be tested here (no keys, by design); Timothy's first real run is the live check, so give him a concrete thing to verify.
 
 **Lanes (2026-10-22):** the browser tests run in `LANES` (in `run.sh`), up to `JOBS` (default 3) side by side, longest first; about 5 minutes instead of 12. The simulated bridges keep state between tests (saves, counters, switched modes), so every test that touches a given mock port runs in the same lane, in the original order; lanes share nothing but the static page server. The relay is the one mock several lanes need, so each such lane gets its own (`mock_relay.py <port>`, `RELAY_PORT` 8110 / 8111 / 8112; tests read `process.env.RELAY_PORT`, default 8110). `app_e2e21` samples the standby fade frame by frame and runs alone after the lanes. A new browser test goes into the lane of the mock it uses (or a new lane if its mock is unused); never let two lanes use one mock port. `JOBS=1` runs lanes one at a time (also automatic on bash before 4.3). Each result line shows its seconds. Never end the lane wait with a bare `wait`: the servers are children too and never exit (it hung once).
 
@@ -221,7 +237,7 @@ Limit: the runner fails on crashes, page errors and timeouts, but most tests pri
 
 Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
 
-**Next, in Timothy's order (2026-10-22):** (1) **docs accuracy pass** (README security model still says Personal-only writes and no deletes; "Standby modules" is stale; README is ordered by bridge history: rebuild as Setup, Stations, Reference); (2) bridge version check (app knows the bridge each feature needs; NEEDS YOU card "Deploy bridge 1.x"); (3) Notion schema check (setup and Systems name a missing column). Also wanted: a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+**Next, in Timothy's order (2026-10-22):** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) bridge version check (app knows the bridge each feature needs; NEEDS YOU card "Deploy bridge 1.x"); (3) Notion schema check (setup and Systems name a missing column). Also wanted: the **WAITING fix** (Systems fetches Ledger and Apiary itself after a restore, so their rows don't sit at WAITING) with the `index.html` description refresh (held back from the docs-only pass); a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
 
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).

@@ -1,5 +1,10 @@
 # Changelog
 
+## Docs · 2026-10-22 (app and bridge unchanged)
+- **README rebuilt** in three parts: **Setup** (the five handshakes, one way to update the Google bridge, Notion with all ten databases, every Script Property, the optional pieces), **Stations** (TIME, REFLECT, RESOURCES, ALWAYS AVAILABLE, as in ALL STATIONS) and **Reference** (daily use, Condition rules, backup and reinstalling, troubleshooting, security, updating). The bridge-by-bridge update steps are gone; the CHANGELOG says when a new bridge is needed.
+- **Corrected:** the security model (calendars add-only to Personal, farm and Growth; removals go to Notion's trash; YNAB read-only; what goes to Claude for each feature), the Condition rules (Weekly review due, overdue upkeep, overlaps across any two calendars), the Bridge panels (Habits, Tarot, Intent + Bearing), and new troubleshooting rows (WAITING, ERROR, an out-of-date bridge, any database not connected, the NAS).
+- **CLAUDE.md:** every bridge action and capability listed, all secrets named, the test clock described as it really is. **DESIGN.md:** current status, decisions in order with D40 (backup), D41 (the name Bridge) and D42 (test lanes), and a note that sections 1 to 13 are the original plan.
+
 ## 2.34.0 · 2026-10-22
 - **The app is now called Bridge** on the home screen, in the app switcher and in Safari's tab. TimothyOS stays as the system name in the top bar. iPadOS only picks up the new name when the app is added to the home screen again: back up, remove the old icon, add it again from Safari, then restore (README, Renaming or reinstalling the app).
 
