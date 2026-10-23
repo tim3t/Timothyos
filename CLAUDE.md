@@ -95,6 +95,7 @@ Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holiday
 - **Farm calendar** (bridge 1.8): area `farm`, ID only in Script Property `FARM_CALENDAR_ID` (never in code: its name is personal). `sources_()` leaves it out until set. The app's `setAreas()` moves `farm` from STANDBY_AREAS to LIVE when the bridge lists it, labels it with the calendar's name, and adds it to Capture's `WRITABLE`. Tests: `mock_v18.py` + `app_e2e19`.
 - **Don't change Notion schemas or create databases** without asking first.
 - UI copy and docs: **no em dashes**. **No emoji in the interface** (they clash with LCARS): show Notion labels through `bare()`, keep the raw value for writes. Flat marks (◆ ▲ ▼ ✕ ✓) are fine; ☀ ▶ ◀ ❄ are not (iPadOS draws them as emoji). `app_e2e13` checks this. Uppercase display labels use the Antonio font; keep the LCARS frame (elbow, chrome colors, area colors as tokens in `css/app.css`).
+- **Mockups:** when Timothy asks for a mockup, publish it straight away as a private Artifact link he can open in Safari (his standing instruction, 2026-10-23; no need to ask first). Invented data only, as in tests.
 - Big touch targets (≥ 48 px), works offline, fits iPad landscape (1180×820 and 1133×744) and phone width (400 px, no horizontal scroll).
 
 ## The Bridge (overview screen)
