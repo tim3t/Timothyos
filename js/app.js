@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.37.0";
+  var VERSION = "2.37.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2521,8 +2521,21 @@
      playback starts when they land. If OpenAI can't, Moira reads it on the next tap. Off in Systems. */
   var LS_VOICEOFF = "tos.voiceoff.v1", LS_VOICESPEND = "tos.voicespend.v1";
   var VA_SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=";
-  var va = { at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
+  var va = { log: [], at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
   function canVoice() { return state.caps.indexOf("voice") > -1 && !lsGet(LS_VOICEOFF); }
+  /* Voice log (2.37.1): each step of asking for and playing Nova, shown in Systems, so a silent failure on the iPad can be read. */
+  function vaLog(m) {
+    var d = new Date();
+    va.log.push(hm(d) + ":" + p2(d.getSeconds()) + " " + m);
+    if (va.log.length > 14) va.log.shift();
+    if (state.screen === "systems") render(true);
+  }
+  function vaSig(b64) {   /* MP3s start with an ID3 tag or a frame sync (FF Ex / FF Fx) */
+    var h = "", bin = ""; try { bin = atob(String(b64 || "").slice(0, 8)); } catch (e) { return "unreadable"; }
+    for (var i = 0; i < Math.min(3, bin.length); i++) h += ("0" + bin.charCodeAt(i).toString(16)).slice(-2) + " ";
+    return bin.slice(0, 3) === "ID3" || (bin.charCodeAt(0) === 255 && (bin.charCodeAt(1) & 224) === 224) ? "MP3" : "not MP3 (" + h.trim() + ")";
+  }
+  function vaErrText(err) { return [err && err.code, err && (err.detail || err.message)].filter(Boolean).join(": ") || "unknown"; }
   function vaTexts(b) { return briefSegs(b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/\s·\s/g, ", "); }); }
   function vaDb() {
     return new Promise(function (res, rej) {
@@ -2558,15 +2571,19 @@
     if (va.busy === k && va.p) return va.p;
     va.busy = k; va.err = "";
     va.p = vaGet().then(function (rec) {
-      if (rec && rec.at === k && rec.clips && rec.clips.length) { vaUse(k, rec.clips); return true; }
-      return apiPost({ action: "speak", texts: vaTexts(b) }, 120000).then(function (j) {
+      if (rec && rec.at === k && rec.clips && rec.clips.length) { vaUse(k, rec.clips); vaLog("Briefing audio from this iPad: " + rec.clips.length + " clips"); return true; }
+      var texts = vaTexts(b), t0 = Date.now();
+      vaLog("Asking the bridge for the briefing in Nova: " + texts.length + " clips");
+      return apiPost({ action: "speak", texts: texts }, 120000).then(function (j) {
+        var cl = j.clips || [], kb = Math.round(cl.reduce(function (n, c) { return n + c.length * 0.75; }, 0) / 1024);
+        vaLog("Bridge answered in " + Math.round((Date.now() - t0) / 100) / 10 + " s: " + cl.length + " clips, " + kb + " KB, " + (cl.length ? vaSig(cl[0]) : "no audio"));
         if (j.spend) lsSet(LS_VOICESPEND, j.spend);
         if (!br.b || vaKey(br.b) !== k) return false;   /* a newer briefing came in meanwhile */
         var blobs = (j.clips || []).map(b64Blob);
         vaUse(k, blobs); vaPut({ at: k, clips: blobs });
         return true;
       });
-    }).catch(function (err) { va.err = describeVoice(err); return false; }).then(function (ok) {
+    }).catch(function (err) { va.err = describeVoice(err); vaLog("Briefing audio failed: " + vaErrText(err)); return false; }).then(function (ok) {
       if (va.busy === k) { va.busy = ""; va.p = null; }
       return ok;
     });
@@ -2575,8 +2592,9 @@
   function vaEl() {
     if (va.el) return va.el;
     va.el = new Audio();
+    vaLog("This iPad can play MP3: " + (va.el.canPlayType("audio/mpeg") || "no"));
     va.el.addEventListener("ended", function () { if (va.el.src.indexOf("blob:") === 0) vaNext(); });
-    va.el.addEventListener("error", function () { if (br.speaking && va.el.src.indexOf("blob:") === 0) { briefQuiet(); toast("The AI voice couldn't play. Tap READ IT TO ME again for Moira."); va.err = "it couldn't play"; render(true); } });
+    va.el.addEventListener("error", function () { if (va.el.src.indexOf("blob:") === 0) vaLog("Player error: MediaError " + (va.el.error ? va.el.error.code + " " + (va.el.error.message || "") : "?")); if (br.speaking && va.el.src.indexOf("blob:") === 0) { briefQuiet(); toast("The AI voice couldn't play. Tap READ IT TO ME again for Moira."); va.err = "it couldn't play"; render(true); } });
     return va.el;
   }
   function vaPlay(i) {
@@ -2584,7 +2602,8 @@
     va.i = i; br.say = i;
     el.src = va.urls[i];
     var pr = el.play();
-    if (pr && pr.catch) pr.catch(function () { if (br.speaking && va.i === i) { briefQuiet(); va.err = "the iPad didn't let it play"; toast("The AI voice couldn't start. Tap READ IT TO ME again for Moira."); render(true); } });
+    if (pr && pr.then) pr.then(function () { if (i === 0) vaLog("Playing the briefing in Nova"); });
+    if (pr && pr.catch) pr.catch(function (e) { vaLog("Player refused clip " + (i + 1) + ": " + (e && e.name) + " " + (e && e.message || "")); if (br.speaking && va.i === i) { briefQuiet(); va.err = "the iPad didn't let it play"; toast("The AI voice couldn't start. Tap READ IT TO ME again for Moira."); render(true); } });
     if (state.screen === "bridge") render(true);
   }
   function vaNext() {
@@ -2609,14 +2628,20 @@
   }
   /* TEST AI VOICE in Systems: one line, not kept. */
   function vaTest() {
-    var el = vaEl();
-    el.src = VA_SILENT; var pr = el.play(); if (pr && pr.catch) pr.catch(function () { /* see vaSay */ });
+    var el = vaEl(), t0 = Date.now();
+    el.src = VA_SILENT; var pr = el.play();
+    if (pr && pr.then) pr.then(function () { vaLog("Player unlocked by the tap"); }, function (e) { vaLog("Unlock refused: " + (e && e.name) + " " + (e && e.message || "")); });
+    vaLog("TEST AI VOICE: asking the bridge for one line");
     toast("Asking OpenAI for a test line…");
     apiPost({ action: "speak", texts: ["Good morning, Captain. This is Nova, reading your briefing."] }, 60000).then(function (j) {
       if (j.spend) lsSet(LS_VOICESPEND, j.spend);
-      el.src = URL.createObjectURL(b64Blob(j.clips[0])); el.play();
-      if (state.screen === "systems") render(true);
-    }).catch(function (err) { toast("Test failed: " + describeVoice(err)); });
+      var c = (j.clips || [])[0];
+      vaLog("Bridge answered in " + Math.round((Date.now() - t0) / 100) / 10 + " s: " + (c ? Math.round(c.length * 0.75 / 1024) + " KB, " + vaSig(c) : "no audio"));
+      if (!c) return;
+      el.src = URL.createObjectURL(b64Blob(c));
+      var p2r = el.play();
+      if (p2r && p2r.then) p2r.then(function () { vaLog("Playing the test line"); }, function (e) { vaLog("Player refused the test line: " + (e && e.name) + " " + (e && e.message || "")); toast("The iPad didn't play it: " + (e && e.name)); });
+    }).catch(function (err) { vaLog("Test failed: " + vaErrText(err)); toast("Test failed: " + describeVoice(err)); });
   }
   function vaLine() {
     if (state.caps.indexOf("voice") < 0) return '<div class="br-voice"><small class="muted">AI voice: off. Add OPENAI_API_KEY to the Google bridge\'s Script Properties and update it to 1.30 to read the briefing in Nova.</small></div>';
@@ -2624,7 +2649,8 @@
     return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), prepared when the briefing compiles, under 1¢ a day." +
       (sp && sp.month === mo ? " About " + money(sp.usd) + " this month (estimated; the OpenAI dashboard has the exact figure)." : "")) +
       '</small> <button type="button" class="chip sm" data-brief="' + (off ? "von" : "voff") + '">' + (off ? "TURN ON" : "TURN OFF") + "</button>" +
-      (off ? "" : ' <button type="button" class="chip sm" data-brief="aitest">TEST AI VOICE</button>') + "</div>";
+      (off ? "" : ' <button type="button" class="chip sm" data-brief="aitest">TEST AI VOICE</button>') + "</div>" +
+      (va.log.length ? '<div class="br-diag" aria-label="Voice log"><b>VOICE LOG · THIS SESSION</b>' + va.log.map(esc).join("<br>") + "</div>" : "");
   }
   function briefClick(b) {
     if (b.dataset.vtest) {

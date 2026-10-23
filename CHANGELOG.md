@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.37.1 · 2026-10-23
+- **Voice log** under **SYSTEMS → ASK CLAUDE → MORNING BRIEFING**: each step of asking for and playing Nova (the bridge's answer, its time and size, whether the iPad can and did play it, any refusal), so a silent failure can be read. For the case where Nova was never heard.
+
 ## 2.37.0 · 2026-10-23 (bridge 1.30)
 - **The Morning Briefing in Nova,** OpenAI's AI voice, styled as a calm, measured starship computer with a slight South African accent. The audio is made when the briefing compiles and kept on the iPad, so READ IT TO ME starts at once (each paragraph still lights up) and replays are free. Under 1¢ a briefing.
   - Tapped before it's ready: **PREPARING VOICE…**, then it plays.

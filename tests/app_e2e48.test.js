@@ -104,6 +104,11 @@ const reset = () => Promise.all([brief('cap=0&fail=0&shape=0'), voice('cap=0&fai
   await p.click('[data-brief="aitest"]');
   await until(async () => (await calls()).length === n3 + 1 && (await plays(p)).slice(n4).some(s => s.startsWith('blob:')));
   assert.deepStrictEqual((await calls())[n3], ['Good morning, Captain. This is Nova, reading your briefing.']);
+  // the voice log shows each step, so a silent failure on the iPad can be read
+  await p.waitForTimeout(300);
+  const log = await txt(p, '.br-diag');
+  assert.ok(log.startsWith('VOICE LOG · THIS SESSION') && log.includes('This iPad can play MP3') && /Bridge answered in [\d.]+ s: 1 KB, MP3/.test(log) && log.includes('Playing the test line'), log);
+  assert.ok(log.includes('Briefing audio failed: voice_no_credit'), 'the earlier refusal is in the log');
   await p.click('[data-brief="voff"]'); await p.waitForSelector('[data-brief="von"]');
   assert.ok((await txt(p, '#content')).includes('AI voice: off; Moira reads it.'));
   await bridge(p);

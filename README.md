@@ -588,7 +588,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
-| READ IT TO ME uses Moira, not Nova | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why (no `OPENAI_API_KEY` or bridge older than 1.30, AI voice turned off, OpenAI refused the key or is out of credit). **TEST AI VOICE** checks it. A new briefing (REFRESH) tries Nova again |
+| READ IT TO ME uses Moira, not Nova | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why (no `OPENAI_API_KEY` or bridge older than 1.30, AI voice turned off, OpenAI refused the key or is out of credit). **TEST AI VOICE** checks it, and the **VOICE LOG** below it shows each step. A new briefing (REFRESH) tries Nova again |
 | No Morning Briefing on the Bridge | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why: it needs Google bridge 1.29, or it's turned off. Before 06:00 there's only yesterday's |
 | The briefing says **NOT COMPILED** | The reason is underneath. **COMPILE NOW** tries again; it also tries on its own a few minutes later |
 | A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
