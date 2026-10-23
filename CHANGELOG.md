@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.37.0 · 2026-10-23 (bridge 1.30)
+- **The Morning Briefing in Nova,** OpenAI's AI voice, styled as a calm, measured starship computer with a slight South African accent. The audio is made when the briefing compiles and kept on the iPad, so READ IT TO ME starts at once (each paragraph still lights up) and replays are free. Under 1¢ a briefing.
+  - Tapped before it's ready: **PREPARING VOICE…**, then it plays.
+  - Without the key, turned off, or if OpenAI can't: **Moira**, the best of the iPad's own voices, reads it.
+  - **SYSTEMS → ASK CLAUDE → MORNING BRIEFING:** the AI voice on or off, this month's estimated cost, **TEST AI VOICE**; the iPad voice with **TEST VOICE**.
+- **Bridge 1.30** (update the Google bridge): `OPENAI_API_KEY` in Script Properties turns on a `speak` action (OpenAI gpt-4o-mini-tts, Nova, at most 30 requests a day); setup checks the key.
+
 ## 2.36.3 · 2026-10-23
 - **Audition the voices:** your iPad keeps Isha (Premium) from web apps, so **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** now lists every English voice it does offer Bridge as a button that plays a test line (Apple's novelty voices last). Nothing is saved; the one you choose becomes the briefing's voice.
 

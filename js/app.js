@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.36.3";
+  var VERSION = "2.37.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2308,7 +2308,7 @@
   var LS_BRIEF = "tos.brief.v1", LS_BRIEFOFF = "tos.briefoff.v1";
   var BRIEF_SKIP = ["tarot readings", "apiary"];   /* snapshot parts the briefing leaves out (habits were never in it) */
   var BRIEF_ASK = "Write this morning's briefing. Keep it short: about 80 words in all, one or two sentences a paragraph, only what matters today. No YESTERDAY, APIARY or TAROT paragraphs.";
-  var BRIEF_VOICE = /\bisha\b/i;   /* Timothy's choice (2.36.1): Isha (Premium), downloaded on the iPad; the iPad's default voice when it isn't there */
+  var BRIEF_VOICE = /\bmoira\b/i;   /* the iPad voice (2.37): Moira, Timothy's pick of those iPadOS offers web apps (it keeps downloaded Premium voices, Isha included, from them). Reads when the AI voice can't */
   var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
   var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
   function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
@@ -2362,8 +2362,9 @@
       var b = briefParse(j.reply);
       if (!b) throw { code: "brief_shape" };
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
-      b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
+      b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
       br.b = b; briefSave();
+      if (canVoice()) vaLoad(b);   /* Nova's audio, ready before READ IT TO ME */
     }).catch(function (err) {
       if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
       var msg = err && err.code === "brief_shape" ? "Claude's answer didn't come back in the briefing's shape." : describeAi(err);
@@ -2430,12 +2431,13 @@
     if (!b) return "";
     if (briefFolded(b, now)) return '<button type="button" class="br-fold" data-brief="open" aria-label="Open the morning briefing"><b>' + (today ? "" : "YESTERDAY'S ") + "MORNING BRIEFING · " + hm(new Date(b.at)) +
       "</b><span>" + esc(b.headline || b.paras[0].text) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
+    if (today && canVoice() && !vaReady(b) && !va.busy && !va.err) vaLoad(b);   /* Nova's audio from this iPad, or the bridge if it's missing */
     if (today && !b.typed && !sb.on && !document.hidden) { b.typed = true; briefSave(); br.typeT0 = calm() ? 0 : performance.now(); }   /* prints once, the first time it's seen */
     var segs = briefSegs(b), n = br.typeT0 ? Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * briefLen(segs)) : today && !b.typed ? 0 : null;
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
       '<button type="button" class="ov-more" data-brief="fold" aria-expanded="true" aria-label="Fold the briefing to one line"></button>') +
       '<div class="br-paper" id="brPaper">' + briefHtml(segs, n) + "</div>" +
-      '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
+      '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (va.prep ? "PREPARING VOICE…" : br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
       '<button type="button" class="btn sm ghost" data-brief="again">REFRESH</button>' +
       (today && b.fold == null && minsOf(now) < BRIEF_FOLD ? '<span class="muted">Folds to one line at 10:30, or tap −.</span>' : "") + "</div></section>";
   }
@@ -2457,6 +2459,7 @@
   /* READ IT TO ME: every paragraph queued at once, inside the tap, so iPadOS lets it speak; each lights up as it starts. */
   function briefSay() {
     if (br.speaking) { briefQuiet(); render(true); return; }
+    if (canVoice() && !va.err) { vaSay(); return; }
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast("This iPad has no voice to read with."); return; }
     br.typeT0 = 0;
     var texts = briefSegs(br.b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/°F/g, " degrees").replace(/\s·\s/g, ", ").replace(/¢/g, " cents"); });
@@ -2472,7 +2475,7 @@
     });
     render(true);
   }
-  /* Isha, the Premium one when both are there. Safari fills its voice list a moment after load, so it's asked early and again here. */
+  /* The iPad voice (BRIEF_VOICE), a Premium or Enhanced one first when there are two. Safari fills its voice list a moment after load, so it's asked early and again here. */
   function briefVoice() {
     var vs = [];
     try { vs = speechSynthesis.getVoices() || []; } catch (e) { return null; }
@@ -2489,8 +2492,8 @@
     var seen = {}, en = vs.filter(function (x) { var k = x.voiceURI || x.name + x.lang; if (!/^en[-_]/i.test(x.lang || "") || seen[k]) return false; seen[k] = 1; return true; });
     var odd = function (x) { return /speech\.synthesis|eloquence/i.test(x.voiceURI || "") ? 1 : 0; };
     en.sort(function (a, b) { return odd(a) - odd(b) || String(a.lang).localeCompare(String(b.lang)) || String(a.name).localeCompare(String(b.name)); });
-    return '<div class="br-voice"><small class="muted">' + (v ? "Voice: " + esc(v.name) + " · " + esc(v.lang) + "."
-      : "Voice: Isha isn't among the " + vs.length + " voices this iPad offers Bridge, so the iPad's default reads it." + (en.length ? " Tap a voice to hear it, then tell Claude the one you like:" : "")) +
+    return '<div class="br-voice"><small class="muted">' + (v ? "iPad voice: " + esc(v.name) + " · " + esc(v.lang) + "."
+      : "iPad voice: Moira isn't among the " + vs.length + " voices this iPad offers Bridge, so the iPad's default reads it." + (en.length ? " Tap a voice to hear it, then tell Claude the one you like:" : "")) +
       '</small> <button type="button" class="chip sm" data-brief="test">TEST VOICE</button></div>' +
       (!v && en.length ? '<div class="br-voices">' + en.map(function (x) {
         return '<button type="button" class="chip sm" data-vtest="' + esc(x.voiceURI || x.name) + '">' + esc(x.name) + " <small>" + esc(x.lang) + "</small></button>";
@@ -2504,7 +2507,125 @@
       speechSynthesis.speak(u);
     } catch (e) { toast("This iPad has no voice to read with."); }
   }
-  function briefQuiet() { if (!br.speaking) return; br.speaking = false; br.say = -1; try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ } }
+  function briefQuiet() {
+    if (!br.speaking) return;
+    br.speaking = false; br.say = -1; va.prep = false;
+    if (va.el) va.el.pause();
+    try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ }
+  }
+
+  /* ---------- AI voice (2.37, bridge 1.30): the briefing read by OpenAI's Nova ---------- */
+  /* When a briefing compiles, the bridge asks OpenAI for one MP3 per paragraph (Nova, Timothy's style line); they're
+     kept on this iPad (IndexedDB, today's only), so READ IT TO ME starts at once and costs nothing to replay. Tapped
+     before they've arrived, a silent clip unlocks the player inside the tap (iPadOS only lets a tap start sound) and
+     playback starts when they land. If OpenAI can't, Moira reads it on the next tap. Off in Systems. */
+  var LS_VOICEOFF = "tos.voiceoff.v1", LS_VOICESPEND = "tos.voicespend.v1";
+  var VA_SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=";
+  var va = { at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
+  function canVoice() { return state.caps.indexOf("voice") > -1 && !lsGet(LS_VOICEOFF); }
+  function vaTexts(b) { return briefSegs(b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/\s·\s/g, ", "); }); }
+  function vaDb() {
+    return new Promise(function (res, rej) {
+      if (!window.indexedDB) { rej(new Error("no IndexedDB")); return; }
+      var r = indexedDB.open("tos-voice", 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore("clips"); };
+      r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+    });
+  }
+  function vaGet() {
+    return vaDb().then(function (db) { return new Promise(function (res) { var q = db.transaction("clips").objectStore("clips").get("brief"); q.onsuccess = function () { res(q.result || null); }; q.onerror = function () { res(null); }; }); })
+      .catch(function () { return null; });
+  }
+  function vaPut(rec) {
+    return vaDb().then(function (db) { return new Promise(function (res) { var t = db.transaction("clips", "readwrite"); t.objectStore("clips").put(rec, "brief"); t.oncomplete = res; t.onerror = res; }); })
+      .catch(function () { /* kept in memory only */ });
+  }
+  function vaKey(b) { return b ? b.id || String(b.at) : ""; }   /* which briefing the audio belongs to */
+  function vaFree() { (va.urls || []).forEach(function (u) { URL.revokeObjectURL(u); }); va.urls = null; va.at = ""; }
+  function vaUse(k, blobs) { vaFree(); va.at = k; va.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); }
+  function vaReady(b) { return !!(b && va.urls && va.at === vaKey(b)); }
+  function b64Blob(s) { var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: "audio/mpeg" }); }
+  function describeVoice(err) {
+    var c = err && err.code;
+    return c === "voice_unauthorized" ? "OpenAI didn't accept the key (OPENAI_API_KEY in the bridge's Script Properties)" : c === "voice_no_credit" ? "the OpenAI credit is used up" :
+      c === "voice_busy" ? "OpenAI is busy right now" : c === "voice_daily_cap" ? "today's 30 voice requests are used" : c === "voice_not_configured" ? "the bridge has no OPENAI_API_KEY" : describe(err);
+  }
+  /* This briefing's audio: from this iPad if it's here, else from the bridge. Resolves true when ready. */
+  function vaLoad(b) {
+    if (!b || !canVoice()) return Promise.resolve(false);
+    if (vaReady(b)) return Promise.resolve(true);
+    var k = vaKey(b);
+    if (va.busy === k && va.p) return va.p;
+    va.busy = k; va.err = "";
+    va.p = vaGet().then(function (rec) {
+      if (rec && rec.at === k && rec.clips && rec.clips.length) { vaUse(k, rec.clips); return true; }
+      return apiPost({ action: "speak", texts: vaTexts(b) }, 120000).then(function (j) {
+        if (j.spend) lsSet(LS_VOICESPEND, j.spend);
+        if (!br.b || vaKey(br.b) !== k) return false;   /* a newer briefing came in meanwhile */
+        var blobs = (j.clips || []).map(b64Blob);
+        vaUse(k, blobs); vaPut({ at: k, clips: blobs });
+        return true;
+      });
+    }).catch(function (err) { va.err = describeVoice(err); return false; }).then(function (ok) {
+      if (va.busy === k) { va.busy = ""; va.p = null; }
+      return ok;
+    });
+    return va.p;
+  }
+  function vaEl() {
+    if (va.el) return va.el;
+    va.el = new Audio();
+    va.el.addEventListener("ended", function () { if (va.el.src.indexOf("blob:") === 0) vaNext(); });
+    va.el.addEventListener("error", function () { if (br.speaking && va.el.src.indexOf("blob:") === 0) { briefQuiet(); toast("The AI voice couldn't play. Tap READ IT TO ME again for Moira."); va.err = "it couldn't play"; render(true); } });
+    return va.el;
+  }
+  function vaPlay(i) {
+    var el = vaEl();
+    va.i = i; br.say = i;
+    el.src = va.urls[i];
+    var pr = el.play();
+    if (pr && pr.catch) pr.catch(function () { if (br.speaking && va.i === i) { briefQuiet(); va.err = "the iPad didn't let it play"; toast("The AI voice couldn't start. Tap READ IT TO ME again for Moira."); render(true); } });
+    if (state.screen === "bridge") render(true);
+  }
+  function vaNext() {
+    if (!br.speaking) return;
+    if (va.urls && va.i + 1 < va.urls.length) vaPlay(va.i + 1);
+    else { br.speaking = false; br.say = -1; va.i = -1; if (state.screen === "bridge") render(true); }
+  }
+  function vaSay() {
+    br.typeT0 = 0;
+    var el = vaEl(), b = br.b;
+    try { speechSynthesis.cancel(); } catch (e) { /* no iPad voice was speaking */ }
+    br.speaking = true;
+    if (vaReady(b)) { vaPlay(0); return; }
+    el.src = VA_SILENT; var pr = el.play(); if (pr && pr.catch) pr.catch(function () { /* unlocked or not, the real clip tries */ });
+    va.prep = true; br.say = -1; render(true);
+    vaLoad(b).then(function (ok) {
+      va.prep = false;
+      if (!br.speaking || br.b !== b) return;
+      if (ok) vaPlay(0);
+      else { br.speaking = false; toast("The AI voice isn't available (" + va.err + "). Tap READ IT TO ME again for Moira."); render(true); }
+    });
+  }
+  /* TEST AI VOICE in Systems: one line, not kept. */
+  function vaTest() {
+    var el = vaEl();
+    el.src = VA_SILENT; var pr = el.play(); if (pr && pr.catch) pr.catch(function () { /* see vaSay */ });
+    toast("Asking OpenAI for a test line…");
+    apiPost({ action: "speak", texts: ["Good morning, Captain. This is Nova, reading your briefing."] }, 60000).then(function (j) {
+      if (j.spend) lsSet(LS_VOICESPEND, j.spend);
+      el.src = URL.createObjectURL(b64Blob(j.clips[0])); el.play();
+      if (state.screen === "systems") render(true);
+    }).catch(function (err) { toast("Test failed: " + describeVoice(err)); });
+  }
+  function vaLine() {
+    if (state.caps.indexOf("voice") < 0) return '<div class="br-voice"><small class="muted">AI voice: off. Add OPENAI_API_KEY to the Google bridge\'s Script Properties and update it to 1.30 to read the briefing in Nova.</small></div>';
+    var off = !!lsGet(LS_VOICEOFF), sp = lsGet(LS_VOICESPEND), mo = ymd(new Date()).slice(0, 7);
+    return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), prepared when the briefing compiles, under 1¢ a day." +
+      (sp && sp.month === mo ? " About " + money(sp.usd) + " this month (estimated; the OpenAI dashboard has the exact figure)." : "")) +
+      '</small> <button type="button" class="chip sm" data-brief="' + (off ? "von" : "voff") + '">' + (off ? "TURN ON" : "TURN OFF") + "</button>" +
+      (off ? "" : ' <button type="button" class="chip sm" data-brief="aitest">TEST AI VOICE</button>') + "</div>";
+  }
   function briefClick(b) {
     if (b.dataset.vtest) {
       var vs = []; try { vs = speechSynthesis.getVoices() || []; } catch (e) { /* none */ }
@@ -2516,6 +2637,8 @@
     if (d === "off" || d === "on") { if (d === "off") { lsSet(LS_BRIEFOFF, true); briefQuiet(); } else lsDel(LS_BRIEFOFF); render(true); return true; }
     if (d === "say") { if (br.b) briefSay(); return true; }
     if (d === "test") { briefTestSay(briefVoice()); return true; }
+    if (d === "aitest") { vaTest(); return true; }
+    if (d === "voff" || d === "von") { if (d === "voff") { lsSet(LS_VOICEOFF, true); briefQuiet(); } else { lsDel(LS_VOICEOFF); va.err = ""; } render(true); return true; }
     if (d === "again" || d === "now") { if (!br.busy) briefCompile(true); return true; }
     if (!br.b) return true;
     if (d === "fold") { briefQuiet(); br.typeT0 = 0; br.showOld = false; if (briefToday()) { br.b.fold = true; briefSave(); } render(true); return true; }
@@ -3371,7 +3494,7 @@
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
       "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs bridge 1.29: update the Google bridge (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
-        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + briefVoiceLine()) + "</dd>" +
+        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine()) + "</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
       '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
       '<small class="muted">The count here is worked out from each answer\'s tokens at list prices. Enter the Console\'s figure to line the two up; new questions add on from there.</small></dd></dl>';

@@ -156,6 +156,7 @@ All settings and keys live in **Project Settings (gear) → Script Properties**,
 | `AI_BUDGET_USD`, `AI_CAP_USD` | ASK's monthly reminder (default 8) and the ceiling shown beside it (default 10; match the Console's spend limit) |
 | `AI_FAST_MODEL` | `claude-haiku-5-5` or `claude-haiku-4-5` moves everyday questions from Sonnet to Haiku, to spend less |
 | `YNAB_TOKEN` | Turns on LEDGER (read-only) |
+| `OPENAI_API_KEY` | Reads the Morning Briefing in the AI voice Nova (OpenAI) |
 | `YNAB_PLAN_ID`, `LEDGER_FUND_CATEGORY` | Only if the plan or the fund category (default Discretionary) isn't the right one |
 
 The bridge also keeps its own working values there (spend counters, the log's lock state, remembered database ids). Leave those alone.
@@ -291,6 +292,17 @@ services:
 
 **On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
 
+### AI voice for the Morning Briefing (OpenAI)
+
+READ IT TO ME in **Nova**, OpenAI's voice, styled "Calm, measured starship computer. Even pacing, clear diction, warm but precise, with a slight South African accent." Without it, the iPad's Moira reads (iPadOS keeps downloaded Premium voices from web apps).
+
+1. **OpenAI account** at platform.openai.com: a small prepaid credit (about $5 is plenty), **auto-recharge off**, a low monthly budget on the project.
+2. **A key:** a project (TimothyOS) and a secret API key in it. Script Property `OPENAI_API_KEY`. Never paste it anywhere else.
+3. **Update the Google bridge** to 1.30 and run **setup**: `AI voice (OpenAI): OK (nova, gpt-4o-mini-tts)` (it speaks one short test line, a fraction of a cent).
+4. **SYSTEMS → REFRESH NOW.** **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** shows **AI voice: Nova** with **TEST AI VOICE**.
+
+Each briefing's audio is made when it compiles (a few seconds, in the background) and kept on this iPad, so READ IT TO ME starts at once and replays cost nothing. About 1.5¢ a minute of speech: under 1¢ a briefing. The bridge allows 30 voice requests a day.
+
 ### Home Assistant
 
 Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
@@ -332,7 +344,7 @@ Tap **+** beside a panel title for its details (hours booked and open, wind and 
 - **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).
 - **What:** short (about 80 words): the condition and why, today (meetings, the first and last, the longest open stretch, whether priorities are picked), outside (weather, hive check, frost), the week ahead, then one **RECOMMENDED** first action. Finances only with their **SHARE WITH ASK** switch on. Never the Captain's Log, habits, tarot or the apiary.
 - **How it looks:** it prints itself once like a teleprinter, in Courier New (tap the text to finish it at once). The header says when it was compiled, the model (Sonnet) and the cost (about 1 to 2¢).
-- **READ IT TO ME** reads it in the iPad's **Isha (Premium)** voice (download it under Settings → Accessibility → Spoken Content → Voices → English; without it, the iPad's default voice. iPadOS may not offer downloaded voices to web apps: **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** shows the voice in use and **TEST VOICE**; when Isha isn't offered, every English voice it does offer, to tap and hear), lighting up each paragraph as it goes; tap again to stop. It never plays on its own.
+- **READ IT TO ME** reads it in **Nova**, the AI voice (see Optional pieces), with each paragraph lighting up as it goes; tap again to stop. It never plays on its own. Tapped before the audio is ready, it says **PREPARING VOICE…** and starts when it lands. Without the AI voice, or when OpenAI can't, the iPad's **Moira** reads it (iPadOS keeps downloaded Premium voices from web apps; **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** shows both voices, with a test for each).
 - **Folding:** **−** folds it to one line (a short headline, without the condition, which sits right below) and the Condition banner moves back up. It also folds itself at 10:30 unless you opened it after that. Tap the line, or **+**, to read it again. Before 06:00 the line shows yesterday's.
 - **REFRESH** writes a new one, for example after PLAN DAY. If it couldn't be written (no connection, Claude busy, the monthly reminder), it says why and offers **COMPILE NOW**.
 - **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** turns it off and on. It counts toward ASK's monthly total, listed as BRIEFING.
@@ -576,6 +588,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
+| READ IT TO ME uses Moira, not Nova | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why (no `OPENAI_API_KEY` or bridge older than 1.30, AI voice turned off, OpenAI refused the key or is out of credit). **TEST AI VOICE** checks it. A new briefing (REFRESH) tries Nova again |
 | No Morning Briefing on the Bridge | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why: it needs Google bridge 1.29, or it's turned off. Before 06:00 there's only yesterday's |
 | The briefing says **NOT COMPILED** | The reason is underneath. **COMPILE NOW** tries again; it also tries on its own a few minutes later |
 | A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
@@ -593,7 +606,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 
 ## Security model
 
-- **The repository is public and holds no secrets.** Keys live in Script Properties (`ACCESS_KEY`, `NOTION_TOKEN`, `ANTHROPIC_API_KEY`, `YNAB_TOKEN`, `LOG_PIN`) and, for the access key and the NAS and Home Assistant tokens, in the app's storage on this iPad.
+- **The repository is public and holds no secrets.** Keys live in Script Properties (`ACCESS_KEY`, `NOTION_TOKEN`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `YNAB_TOKEN`, `LOG_PIN`) and, for the access key and the NAS and Home Assistant tokens, in the app's storage on this iPad.
 - **The access key** is checked on every request. Leaked? Run **rotateKey** in the script editor, then **SYSTEMS → UNLINK** and link again. **UNLINK** also deletes the cached calendar data from the iPad.
 - **Calendars:** the Google bridge reads Work, Personal, farm, Growth and the holidays calendar. It can **only add** events, and only to Personal, farm and Growth. Work is never writable, and it never edits or deletes an event.
 - **Notion:** the integration sees only the databases you connected (the table under Connect Notion), with only the actions listed there. The bridge checks that every page it changes belongs to the right database. **Removing** a book, a tarot reading or spread, an apiary check or a hive **moves it to Notion's trash** (restorable there). The only real deletion is in LOG: paragraphs you remove from your own entry.
@@ -602,6 +615,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes; for the **MORNING BRIEFING**, the same snapshot ASK sends minus tarot and the apiary, once a day (Claude gets no tools for it, so it can only describe). Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
 - **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
+- **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to the Google bridge or this repository.
 

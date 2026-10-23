@@ -83,13 +83,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.29.0';
+var VERSION = '1.30.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -197,6 +197,7 @@ function doPost(e) {
     if (body.action === 'tarotsuggest') return json_(tarotSuggest_(body));
     if (body.action === 'apiarysave') return json_(apiarySave_(body.item));
     if (body.action === 'apiaryremove') return json_(apiaryRemove_(body.id));
+    if (body.action === 'speak') return json_(speak_(body));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
     return json_({ ok: false, error: 'unknown_action' });
@@ -250,6 +251,12 @@ function setup() {
   console.log('Notion tarot books: ' + tarotBooksStatus_());
   console.log('Notion apiary: ' + apiaryStatus_());
   var ai = aiKey_() ? aiSpend_() : null;
+  if (voiceKey_()) {
+    try {
+      var vt = speak_({ texts: ['Bridge voice check.'] }, true);
+      console.log('AI voice (OpenAI): ' + (vt.ok ? 'OK (' + VOICE.NAME + ', ' + VOICE.MODEL + '). About $' + vt.spend.usd.toFixed(2) + ' this month, estimated' : 'PROBLEM: ' + vt.error + (vt.detail ? ' (' + vt.detail + ')' : '')));
+    } catch (e) { console.log('AI voice (OpenAI): PROBLEM: ' + e.message); }
+  } else console.log('AI voice (OpenAI): OFF. Add OPENAI_API_KEY in Script Properties to read the briefing in Nova');
   console.log('Ask Claude: ' + (ai ? 'OK (questions ' + aiFast_() + ', THINK HARDER ' + AI.DEEP + '). This month $' + ai.usd.toFixed(2) + ', reminder at $' + ai.budget.toFixed(2) + (ai.cont ? ' (continued)' : '') + ' (' + ai.calls + ' calls)' : 'OFF. Add ANTHROPIC_API_KEY in Script Properties to turn it on'));
   console.log('Bridge version ' + VERSION + '. Can write to: ' + Object.keys(WRITABLE).filter(function (k) { return WRITABLE[k](); }).join(', ') + (n.ok ? ', Notion tasks' : '') + '.');
   console.log('ACCESS KEY (paste into the iPad app): ' + key);
@@ -2391,6 +2398,65 @@ function claude_(payload, betas) {
     throw e;
   }
   return body;
+}
+
+/* ---------- AI voice (1.30): the Morning Briefing read by OpenAI's gpt-4o-mini-tts ----------
+   Timothy's choice (2026-10-23): voice Nova with his own style line. The key lives only in Script Property
+   OPENAI_API_KEY. The app sends the briefing's paragraphs (never the Captain's Log); each becomes one MP3, all
+   asked for at once, returned as base64. The speech endpoint reports no usage, so the month's cost is an estimate
+   from the characters spoken (about 1.5 cents a minute, about 15 characters a second). */
+var VOICE = {
+  MODEL: 'gpt-4o-mini-tts',
+  NAME: 'nova',
+  STYLE: 'Calm, measured starship computer. Even pacing, clear diction, warm but precise, with a slight South African accent.',
+  MAX_CLIPS: 12,
+  MAX_CHARS: 4000,      // a whole briefing is under 1,000
+  PER_DAY: 30,          // requests a day, so nothing can run away with the credit
+  USD_PER_CHAR: 0.015 / 900
+};
+function voiceKey_() { return PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY'); }
+/** This month's estimate { month, usd, calls, chars } and today's request count. */
+function voiceSpend_() {
+  var s = {};
+  try { s = JSON.parse(PropertiesService.getScriptProperties().getProperty('VOICE_SPEND') || '{}'); } catch (e) { s = {}; }
+  var tz = Session.getScriptTimeZone(), month = Utilities.formatDate(new Date(), tz, 'yyyy-MM'), day = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  if (s.month !== month) s = { month: month, usd: 0, calls: 0, chars: 0 };
+  if (s.day !== day) { s.day = day; s.today = 0; }
+  return s;
+}
+function voiceErr_(code, text) {
+  var body = {}; try { body = JSON.parse(text || '{}'); } catch (x) { body = {}; }
+  var err = body.error || {}, msg = String(err.message || 'HTTP ' + code).slice(0, 200);
+  var e = code === 401 || code === 403 ? 'voice_unauthorized' : err.code === 'insufficient_quota' || /quota|billing/i.test(msg) ? 'voice_no_credit' :
+    code === 429 || code >= 500 ? 'voice_busy' : 'voice_error';
+  return { ok: false, error: e, detail: msg };
+}
+function speak_(body, check) {
+  var key = voiceKey_();
+  if (!key) return { ok: false, error: 'voice_not_configured' };
+  var texts = (Array.isArray(body.texts) ? body.texts : []).filter(function (t) { return typeof t === 'string' && t.trim(); }).map(function (t) { return t.trim(); });
+  var chars = texts.join('').length;
+  if (!texts.length || texts.length > VOICE.MAX_CLIPS || chars > VOICE.MAX_CHARS) return { ok: false, error: 'bad_request' };
+  var sp = voiceSpend_();
+  if (sp.today >= VOICE.PER_DAY) return { ok: false, error: 'voice_daily_cap' };
+  var reqs = texts.map(function (t) {
+    return { url: 'https://api.openai.com/v1/audio/speech', method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + key }, payload: JSON.stringify({ model: VOICE.MODEL, voice: VOICE.NAME, input: t, instructions: VOICE.STYLE, response_format: 'mp3' }) };
+  });
+  var res = typeof UrlFetchApp.fetchAll === 'function' && reqs.length > 1 ? UrlFetchApp.fetchAll(reqs) : reqs.map(function (r) { return UrlFetchApp.fetch(r.url, r); });
+  var clips = [];
+  for (var i = 0; i < res.length; i++) {
+    var code = res[i].getResponseCode();
+    if (code >= 300) return voiceErr_(code, res[i].getContentText());
+    clips.push(Utilities.base64Encode(res[i].getContent()));
+  }
+  var est = chars * VOICE.USD_PER_CHAR;
+  sp.usd = (sp.usd || 0) + est; sp.calls = (sp.calls || 0) + 1; sp.chars = (sp.chars || 0) + chars; sp.today = (sp.today || 0) + 1;
+  PropertiesService.getScriptProperties().setProperty('VOICE_SPEND', JSON.stringify(sp));
+  var out = { ok: true, version: VERSION, voice: VOICE.NAME, model: VOICE.MODEL, est: Math.round(est * 100000) / 100000,
+    spend: { month: sp.month, usd: Math.round(sp.usd * 10000) / 10000, calls: sp.calls } };
+  if (!check) out.clips = clips;
+  return out;
 }
 
 // Claude sees only each tool's name, description and input_schema, never the code below them, so every

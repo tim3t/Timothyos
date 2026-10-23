@@ -225,6 +225,9 @@ def qrows():
 RLISTS = []; ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8}
 # Morning Briefing (bridge 1.29): the capability can be withheld (an older bridge), a call can fail or come back in the wrong shape
 BRIEF = {"cap": 0, "fail": 0, "shape": 0, "n": 0, "ctx": "", "ignore": None}
+# AI voice (bridge 1.30): capability off by default; each speak call is kept; it can fail or be slow
+VOICE = {"cap": 0, "fail": "", "slow": 0, "calls": []}
+SILENT_MP3 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
 BRIEF_REPLY = {"headline": "Condition yellow · 4 meetings from 09:00 · hive check GO 11:00 to 15:00",
   "paras": [{"label": "", "text": "Good morning, Captain. Friday 23 October. Condition yellow: one high-priority task is overdue."},
             {"label": "TODAY", "text": "Four meetings, the first at 09:00 and the last ending at 16:30. Your longest open stretch is 13:00 to 15:00."},
@@ -317,13 +320,20 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
                 if k in q: BRIEF[k] = int(q[k])
             if "reset" in q: BRIEF["n"] = 0; BRIEF["ctx"] = ""
             body = {"ok": True}
+        elif q.get("action") == "voicemode":
+            if "cap" in q: VOICE["cap"] = int(q["cap"])
+            if "fail" in q: VOICE["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "slow" in q: VOICE["slow"] = int(q["slow"])
+            if "reset" in q: VOICE["calls"] = []
+            body = {"ok": True}
+        elif q.get("action") == "voicestats": body = {"ok": True, "calls": VOICE["calls"]}
         elif q.get("action") == "briefstats": body = {"ok": True, "n": BRIEF["n"], "ctx": BRIEF["ctx"], "ignore": BRIEF["ignore"], "ask": BRIEF.get("ask", "")}
         elif q.get("action") == "pincode":
             global PIN
@@ -472,6 +482,11 @@ class H(BaseHTTPRequestHandler):
                 if not tk: body = {"ok": False, "error": "not_writable"}
                 elif b.get("status") not in ["⬜ To Do", "🔄 In Progress", "✅ Done", "🚫 Blocked"]: body = {"ok": False, "error": "bad_request"}
                 else: tk["status"] = b["status"]; body = {"ok": True, "task": tk}
+            elif act == "speak":
+                VOICE["calls"].append(b.get("texts"))
+                if VOICE["slow"]: import time; time.sleep(VOICE["slow"] / 1000)
+                if VOICE["fail"]: body = {"ok": False, "error": VOICE["fail"]}
+                else: body = {"ok": True, "voice": "nova", "model": "gpt-4o-mini-tts", "clips": [SILENT_MP3 for _ in b.get("texts", [])], "est": 0.004, "spend": {"month": "2026-10", "usd": 0.0123, "calls": len(VOICE["calls"])}}
             elif act == "ask":
                 msgs = b.get("messages", []); last = msgs[-1]["text"] if msgs else ""; mode = b.get("mode")
                 ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:20000], "ignore": b.get("ignore")})

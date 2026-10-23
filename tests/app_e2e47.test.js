@@ -2,7 +2,7 @@
 // 06:00; the first time Bridge is in front after 06:00 it compiles once (ASK's snapshot without tarot or the apiary
 // even when they're shared, no habits, a short ask, mode "brief", the ignore list) and prints like a teleprinter (a tap finishes it); − folds it to one line without the
 // condition and the Condition banner moves up; it stays folded, opens already printed, folds itself at 10:30 unless
-// opened; READ IT TO ME queues every paragraph in Isha's voice (2.36.1) and lights each as it starts; REFRESH writes a new one; a failed
+// opened; READ IT TO ME queues every paragraph in the iPad voice Moira (2.37; Nova is e2e48) and lights each as it starts; REFRESH writes a new one; a failed
 // compile offers COMPILE NOW, a malformed answer keeps the old one; yesterday's shows folded before 06:00; compiled
 // while away, Standby shows BRIEFING READY and the wake lands on it; Systems turns it off and on and names the
 // bridge it needs; COMPUTER finds it; phone width fits; no emoji.
@@ -24,7 +24,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
     window.__said = []; window.__cancels = 0;
     function U(t) { this.text = t; }
     Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: U, configurable: true, writable: true });
-    const voices = [{ name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Isha', lang: 'en-IN', voiceURI: 'com.apple.voice.compact.en-IN.Isha' }, { name: 'Isha (Premium)', lang: 'en-IN', voiceURI: 'com.apple.voice.premium.en-IN.Isha' }];
+    const voices = [{ name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Moira', lang: 'en-IE', voiceURI: 'com.apple.voice.compact.en-IE.Moira' }, { name: 'Moira (Enhanced)', lang: 'en-IE', voiceURI: 'com.apple.voice.enhanced.en-IE.Moira' }];
     Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() { window.__cancels++; }, getVoices() { return voices; }, addEventListener() {} }, configurable: true });
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
@@ -96,7 +96,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   assert.strictEqual(said.length, 5, said.join(' | '));
   assert.ok(said[2].includes('41 degrees') && !said[2].includes('°'), said[2]);
   const v = await p.evaluate(() => window.__said.map(u => (u.voice && u.voice.name) + '|' + u.lang));
-  assert.ok(v.every(x => x === 'Isha (Premium)|en-IN'), 'Isha (Premium) reads it: ' + v.join(', '));
+  assert.ok(v.every(x => x === 'Moira (Enhanced)|en-IE'), 'Moira reads it, the Enhanced one first: ' + v.join(', '));
   assert.strictEqual(await txt(p, '[data-brief="say"]'), 'STOP READING');
   await p.evaluate(() => window.__said[2].onstart());
   await p.waitForTimeout(100);
@@ -162,15 +162,15 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   // ---- Systems: off and on; an older bridge is named
   await p.click('#status'); await p.waitForSelector('[data-brief="off"]');
   assert.ok((await txt(p, '#content')).includes('MORNING BRIEFING On: written the first time Bridge is in front after 06:00'));
-  assert.ok((await txt(p, '#content')).includes('Voice: Isha (Premium) · en-IN.'), 'Systems names the voice in use');
+  assert.ok((await txt(p, '#content')).includes('iPad voice: Moira (Enhanced) · en-IE.'), 'Systems names the iPad voice');
   const before = await p.evaluate(() => window.__said.length);
   await p.click('[data-brief="test"]');
-  assert.strictEqual(await p.evaluate(n => window.__said.length - n + '|' + window.__said[window.__said.length - 1].voice.name, before), '1|Isha (Premium)', 'TEST VOICE speaks in Isha');
-  // an iPad that keeps Isha from web apps (as Timothy's does): every English voice to audition, novelty voices last
+  assert.strictEqual(await p.evaluate(n => window.__said.length - n + '|' + window.__said[window.__said.length - 1].voice.name, before), '1|Moira (Enhanced)', 'TEST VOICE speaks in Moira');
+  // an iPad without Moira: every English voice to audition, novelty voices last
   await p.evaluate(() => { const vs = [{ name: 'Zarvox', lang: 'en-US', voiceURI: 'com.apple.speech.synthesis.voice.Zarvox' }, { name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Daniel', lang: 'en-GB', voiceURI: 'com.apple.voice.compact.en-GB.Daniel' }, { name: 'Thomas', lang: 'fr-FR', voiceURI: 'com.apple.voice.compact.fr-FR.Thomas' }]; speechSynthesis.getVoices = () => vs; });
   await p.click('#status'); await p.waitForSelector('[data-vtest]');
   assert.strictEqual((await p.$$eval('[data-vtest]', bs => bs.map(b => b.firstChild.textContent.trim()))).join(','), 'Daniel,Samantha,Zarvox', 'English only, novelty last');
-  assert.ok((await txt(p, '.br-voice')).includes("Isha isn't among the 4 voices"));
+  assert.ok((await txt(p, '#content')).includes("Moira isn't among the 4 voices"));
   await p.click('[data-vtest="com.apple.voice.compact.en-GB.Daniel"]');
   assert.strictEqual(await p.evaluate(() => window.__said[window.__said.length - 1].voice.name), 'Daniel', 'a tap plays that voice');
   await p.click('[data-brief="off"]'); await p.waitForSelector('[data-brief="on"]');
