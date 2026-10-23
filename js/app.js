@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.37.1";
+  var VERSION = "2.37.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -287,7 +287,7 @@
       q.forEach(function (x) { x.rej(err); });
     });
   }
-  function apiPost(body, timeoutMs) { return tracked(withRetry(function () { return apiPostOnce(body, timeoutMs); })); }
+  function apiPost(body, timeoutMs, own) { return tracked(withRetry(function () { return apiPostOnce(body, timeoutMs, own); })); }
   function apiOnce(params, conn, label, timeoutMs) {
     conn = conn || state.conn;
     var u = new URL(conn.url);
@@ -303,9 +303,10 @@
     });
   }
   /* Writes go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
-  function apiPostOnce(body, timeoutMs) {
+  /* own: a long request (the AI voice, about two minutes) that runs outside the two shared slots, so syncing isn't held up behind it. */
+  function apiPostOnce(body, timeoutMs, own) {
     var conn = state.conn;
-    return slot(function () {
+    return (own ? function (fn) { return fn(); } : slot)(function () {
       var ctrl = typeof AbortController === "function" ? new AbortController() : null;
       var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 60000) : null;
       return logged(body.action, Date.now(), fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
@@ -2431,7 +2432,7 @@
     if (!b) return "";
     if (briefFolded(b, now)) return '<button type="button" class="br-fold" data-brief="open" aria-label="Open the morning briefing"><b>' + (today ? "" : "YESTERDAY'S ") + "MORNING BRIEFING · " + hm(new Date(b.at)) +
       "</b><span>" + esc(b.headline || b.paras[0].text) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
-    if (today && canVoice() && !vaReady(b) && !va.busy && !va.err) vaLoad(b);   /* Nova's audio from this iPad, or the bridge if it's missing */
+    if (today && canVoice() && !vaReady(b) && !va.busy && vaRetryOk()) vaLoad(b);   /* Nova's audio from this iPad, or the bridge if it's missing */
     if (today && !b.typed && !sb.on && !document.hidden) { b.typed = true; briefSave(); br.typeT0 = calm() ? 0 : performance.now(); }   /* prints once, the first time it's seen */
     var segs = briefSegs(b), n = br.typeT0 ? Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * briefLen(segs)) : today && !b.typed ? 0 : null;
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
@@ -2459,7 +2460,7 @@
   /* READ IT TO ME: every paragraph queued at once, inside the tap, so iPadOS lets it speak; each lights up as it starts. */
   function briefSay() {
     if (br.speaking) { briefQuiet(); render(true); return; }
-    if (canVoice() && !va.err) { vaSay(); return; }
+    if (canVoice() && vaRetryOk()) { vaSay(); return; }
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast("This iPad has no voice to read with."); return; }
     br.typeT0 = 0;
     var texts = briefSegs(br.b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/°F/g, " degrees").replace(/\s·\s/g, ", ").replace(/¢/g, " cents"); });
@@ -2521,7 +2522,8 @@
      playback starts when they land. If OpenAI can't, Moira reads it on the next tap. Off in Systems. */
   var LS_VOICEOFF = "tos.voiceoff.v1", LS_VOICESPEND = "tos.voicespend.v1";
   var VA_SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=";
-  var va = { log: [], at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
+  var VA_TIMEOUT_MS = 300000, VA_RETRY_MS = 10 * 60000;   /* OpenAI took 130 s for a whole briefing (2026-10-23); Apps Script stops at 6 min */
+  var va = { log: [], errAt: 0, at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
   function canVoice() { return state.caps.indexOf("voice") > -1 && !lsGet(LS_VOICEOFF); }
   /* Voice log (2.37.1): each step of asking for and playing Nova, shown in Systems, so a silent failure on the iPad can be read. */
   function vaLog(m) {
@@ -2553,6 +2555,7 @@
     return vaDb().then(function (db) { return new Promise(function (res) { var t = db.transaction("clips", "readwrite"); t.objectStore("clips").put(rec, "brief"); t.oncomplete = res; t.onerror = res; }); })
       .catch(function () { /* kept in memory only */ });
   }
+  function vaRetryOk() { return !va.err || Date.now() - va.errAt > VA_RETRY_MS; }   /* after a failure, Moira reads; Nova is tried again 10 minutes on */
   function vaKey(b) { return b ? b.id || String(b.at) : ""; }   /* which briefing the audio belongs to */
   function vaFree() { (va.urls || []).forEach(function (u) { URL.revokeObjectURL(u); }); va.urls = null; va.at = ""; }
   function vaUse(k, blobs) { vaFree(); va.at = k; va.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); }
@@ -2574,7 +2577,7 @@
       if (rec && rec.at === k && rec.clips && rec.clips.length) { vaUse(k, rec.clips); vaLog("Briefing audio from this iPad: " + rec.clips.length + " clips"); return true; }
       var texts = vaTexts(b), t0 = Date.now();
       vaLog("Asking the bridge for the briefing in Nova: " + texts.length + " clips");
-      return apiPost({ action: "speak", texts: texts }, 120000).then(function (j) {
+      return apiPost({ action: "speak", texts: texts }, VA_TIMEOUT_MS, true).then(function (j) {
         var cl = j.clips || [], kb = Math.round(cl.reduce(function (n, c) { return n + c.length * 0.75; }, 0) / 1024);
         vaLog("Bridge answered in " + Math.round((Date.now() - t0) / 100) / 10 + " s: " + cl.length + " clips, " + kb + " KB, " + (cl.length ? vaSig(cl[0]) : "no audio"));
         if (j.spend) lsSet(LS_VOICESPEND, j.spend);
@@ -2583,7 +2586,11 @@
         vaUse(k, blobs); vaPut({ at: k, clips: blobs });
         return true;
       });
-    }).catch(function (err) { va.err = describeVoice(err); vaLog("Briefing audio failed: " + vaErrText(err)); return false; }).then(function (ok) {
+    }).catch(function (err) {
+      va.err = err && err.name === "AbortError" ? "it took over " + VA_TIMEOUT_MS / 60000 + " minutes" : describeVoice(err); va.errAt = Date.now();
+      vaLog("Briefing audio failed: " + (err && err.name === "AbortError" ? "no answer in " + VA_TIMEOUT_MS / 60000 + " minutes" : vaErrText(err)));
+      return false;
+    }).then(function (ok) {
       if (va.busy === k) { va.busy = ""; va.p = null; }
       return ok;
     });

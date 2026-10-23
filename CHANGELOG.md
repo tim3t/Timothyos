@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.37.2 · 2026-10-23
+- **Nova's audio for the 06:00 briefing now arrives.** OpenAI takes about two minutes for a whole briefing; the app used to stop waiting at two minutes (then Moira read it). It now waits up to five, on its own line so syncing isn't held up behind it, and if the voice still fails it tries again ten minutes later.
+
 ## 2.37.1 · 2026-10-23
 - **Voice log** under **SYSTEMS → ASK CLAUDE → MORNING BRIEFING**: each step of asking for and playing Nova (the bridge's answer, its time and size, whether the iPad can and did play it, any refusal), so a silent failure can be read. For the case where Nova was never heard.
 

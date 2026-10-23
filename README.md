@@ -301,7 +301,7 @@ READ IT TO ME in **Nova**, OpenAI's voice, styled "Calm, measured starship compu
 3. **Update the Google bridge** to 1.30 and run **setup**: `AI voice (OpenAI): OK (nova, gpt-4o-mini-tts)` (it speaks one short test line, a fraction of a cent).
 4. **SYSTEMS → REFRESH NOW.** **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** shows **AI voice: Nova** with **TEST AI VOICE**.
 
-Each briefing's audio is made when it compiles (a few seconds, in the background) and kept on this iPad, so READ IT TO ME starts at once and replays cost nothing. About 1.5¢ a minute of speech: under 1¢ a briefing. The bridge allows 30 voice requests a day.
+Each briefing's audio is made when it compiles (in the background; OpenAI takes about two minutes for a whole briefing, so on a 06:00 Standby compile it's ready long before you are) and kept on this iPad, so READ IT TO ME starts at once and replays cost nothing. About 1.5¢ a minute of speech: under 1¢ a briefing. The bridge allows 30 voice requests a day.
 
 ### Home Assistant
 
