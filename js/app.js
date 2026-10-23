@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.36.2";
+  var VERSION = "2.36.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2484,23 +2484,38 @@
   function briefVoiceLine() {
     var vs = [], v = briefVoice();
     try { vs = speechSynthesis.getVoices() || []; } catch (e) { /* no voices */ }
-    var en = vs.filter(function (x) { return /^en[-_]/i.test(x.lang || ""); }).map(function (x) { return x.name + " (" + x.lang + ")"; })
-      .filter(function (x, i, a) { return a.indexOf(x) === i; });
+    /* Isha missing: every English voice this iPad offers Bridge, as buttons that play the test line (an audition, nothing is kept).
+       Timothy picks one by name and it becomes BRIEF_VOICE. Apple's novelty voices (Zarvox, Bubbles…) sort last. */
+    var seen = {}, en = vs.filter(function (x) { var k = x.voiceURI || x.name + x.lang; if (!/^en[-_]/i.test(x.lang || "") || seen[k]) return false; seen[k] = 1; return true; });
+    var odd = function (x) { return /speech\.synthesis|eloquence/i.test(x.voiceURI || "") ? 1 : 0; };
+    en.sort(function (a, b) { return odd(a) - odd(b) || String(a.lang).localeCompare(String(b.lang)) || String(a.name).localeCompare(String(b.name)); });
     return '<div class="br-voice"><small class="muted">' + (v ? "Voice: " + esc(v.name) + " · " + esc(v.lang) + "."
-      : "Voice: Isha isn't among the " + vs.length + " voices this iPad offers Bridge, so the iPad's default reads it." + (en.length ? " English voices offered: " + esc(en.slice(0, 20).join(", ")) + (en.length > 20 ? ", …" : "") + "." : "")) +
-      '</small> <button type="button" class="chip sm" data-brief="test">TEST VOICE</button></div>';
+      : "Voice: Isha isn't among the " + vs.length + " voices this iPad offers Bridge, so the iPad's default reads it." + (en.length ? " Tap a voice to hear it, then tell Claude the one you like:" : "")) +
+      '</small> <button type="button" class="chip sm" data-brief="test">TEST VOICE</button></div>' +
+      (!v && en.length ? '<div class="br-voices">' + en.map(function (x) {
+        return '<button type="button" class="chip sm" data-vtest="' + esc(x.voiceURI || x.name) + '">' + esc(x.name) + " <small>" + esc(x.lang) + "</small></button>";
+      }).join("") + "</div>" : "");
+  }
+  function briefTestSay(voice) {
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance("Good morning, Captain. This is the voice that reads your briefing.");
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      speechSynthesis.speak(u);
+    } catch (e) { toast("This iPad has no voice to read with."); }
   }
   function briefQuiet() { if (!br.speaking) return; br.speaking = false; br.say = -1; try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ } }
   function briefClick(b) {
+    if (b.dataset.vtest) {
+      var vs = []; try { vs = speechSynthesis.getVoices() || []; } catch (e) { /* none */ }
+      briefTestSay(vs.filter(function (x) { return (x.voiceURI || x.name) === b.dataset.vtest; })[0] || null);
+      return true;
+    }
     var d = b.dataset.brief;
     if (!d) return false;
     if (d === "off" || d === "on") { if (d === "off") { lsSet(LS_BRIEFOFF, true); briefQuiet(); } else lsDel(LS_BRIEFOFF); render(true); return true; }
     if (d === "say") { if (br.b) briefSay(); return true; }
-    if (d === "test") {
-      try { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance("Good morning, Captain. This is the voice that reads your briefing."), v = briefVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.speak(u); }
-      catch (e) { toast("This iPad has no voice to read with."); }
-      return true;
-    }
+    if (d === "test") { briefTestSay(briefVoice()); return true; }
     if (d === "again" || d === "now") { if (!br.busy) briefCompile(true); return true; }
     if (!br.b) return true;
     if (d === "fold") { briefQuiet(); br.typeT0 = 0; br.showOld = false; if (briefToday()) { br.b.fold = true; briefSave(); } render(true); return true; }

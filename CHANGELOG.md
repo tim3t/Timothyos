@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.36.3 · 2026-10-23
+- **Audition the voices:** your iPad keeps Isha (Premium) from web apps, so **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** now lists every English voice it does offer Bridge as a button that plays a test line (Apple's novelty voices last). Nothing is saved; the one you choose becomes the briefing's voice.
+
 ## 2.36.2 · 2026-10-23
 - **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** now says which voice reads the briefing, and if Isha isn't offered to Bridge, which English voices are. **TEST VOICE** plays a line in it. (iPadOS may keep downloaded voices, Premium ones included, from web apps.)
 

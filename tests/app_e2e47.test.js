@@ -166,6 +166,13 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   const before = await p.evaluate(() => window.__said.length);
   await p.click('[data-brief="test"]');
   assert.strictEqual(await p.evaluate(n => window.__said.length - n + '|' + window.__said[window.__said.length - 1].voice.name, before), '1|Isha (Premium)', 'TEST VOICE speaks in Isha');
+  // an iPad that keeps Isha from web apps (as Timothy's does): every English voice to audition, novelty voices last
+  await p.evaluate(() => { const vs = [{ name: 'Zarvox', lang: 'en-US', voiceURI: 'com.apple.speech.synthesis.voice.Zarvox' }, { name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Daniel', lang: 'en-GB', voiceURI: 'com.apple.voice.compact.en-GB.Daniel' }, { name: 'Thomas', lang: 'fr-FR', voiceURI: 'com.apple.voice.compact.fr-FR.Thomas' }]; speechSynthesis.getVoices = () => vs; });
+  await p.click('#status'); await p.waitForSelector('[data-vtest]');
+  assert.strictEqual((await p.$$eval('[data-vtest]', bs => bs.map(b => b.firstChild.textContent.trim()))).join(','), 'Daniel,Samantha,Zarvox', 'English only, novelty last');
+  assert.ok((await txt(p, '.br-voice')).includes("Isha isn't among the 4 voices"));
+  await p.click('[data-vtest="com.apple.voice.compact.en-GB.Daniel"]');
+  assert.strictEqual(await p.evaluate(() => window.__said[window.__said.length - 1].voice.name), 'Daniel', 'a tap plays that voice');
   await p.click('[data-brief="off"]'); await p.waitForSelector('[data-brief="on"]');
   await bridge(p);
   assert.strictEqual(await p.locator('.br, .br-fold').count(), 0, 'off: no panel');
