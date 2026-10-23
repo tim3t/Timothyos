@@ -1,12 +1,12 @@
 /* TimothyOS service worker: keeps the app shell available offline.
    Bump VERSION on every release so the iPad picks up new files. */
-var VERSION = "2.39.0";
+var VERSION = "2.40.0";
 var SHELL = "tos-shell-" + VERSION;
 var SHELL_FILES = [
   "./",
   "index.html",
-  "css/app.css?v=2.39.0",
-  "js/app.js?v=2.39.0",
+  "css/app.css?v=2.40.0",
+  "js/app.js?v=2.40.0",
   "manifest.webmanifest",
   "icons/icon-192.png",
   "icons/icon-512.png",

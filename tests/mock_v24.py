@@ -234,6 +234,12 @@ VOICE = {"cap": 0, "fail": "", "slow": 0, "calls": []}
 # Notion schema check (bridge 1.31): every database fine unless e2e50 breaks one (schemamode)
 SCHEMA_DBS = [["tasks", "Master Task List"], ["dates", "Key Dates"], ["reviews", "Weekly Reviews"], ["queue", "Replicator Queue"], ["log", "Captain's Log"], ["habits", "Habits"], ["library", "Library"], ["tarot", "Tarot"], ["tarotbooks", "Tarot Books"], ["apiary", "Apiary"]]
 SCHEMA = {"bad": 0, "calls": 0}
+# ASTROMETRICS (bridge 1.32): ?action=astromode&cap=1 turns on the year read and the Ship's Year; invented tasks done and queue buys
+ASTRO = {"cap": 0, "fail": 0, "n": 0, "ctx": "", "years": [], "ask": ""}
+YDONE = [{"area": a, "at": "2026-%02d-%02dT15:00:00Z" % (m, d)} for (a, m, d) in [("🎯 Work & Calling", 1, 6), ("🌿 SkyGarden Farm", 3, 3), ("🌿 SkyGarden Farm", 3, 4), ("🐝 Beekeeping", 5, 12), ("🐝 Beekeeping", 5, 13), ("🐝 Beekeeping", 5, 14),
+         ("🏡 Home & Property", 7, 1), ("🎯 Work & Calling", 8, 18), ("🎯 Work & Calling", 8, 19), ("🎯 Work & Calling", 8, 20), ("🎯 Work & Calling", 8, 21), ("🌱 Personal Growth", 9, 9), ("🏥 Health", 10, 2)]]
+YBOUGHT = [{"day": "2026-04-11", "cost": 40}, {"day": "2026-09-20", "cost": 25}]
+YEAR_REPLY = {"paras": [{"label": "", "text": "Captain, the year so far."}, {"label": "THE YEAR", "text": "Thirteen tasks closed and the calendars full."}, {"label": "KEPT", "text": "Four weekly reviews saved."}], "action": "Keep the weekly review going into November."}
 SILENT_MP3 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
 BRIEF_REPLY = {"headline": "Condition yellow · 4 meetings from 09:00 · hive check GO 11:00 to 15:00",
   "paras": [{"label": "", "text": "Good morning, Captain. Friday 23 October. Condition yellow: one high-priority task is overdue."},
@@ -327,8 +333,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"], "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -342,6 +348,17 @@ class H(BaseHTTPRequestHandler):
                 dbs[0]["missing"] = [{"name": "Focus Date", "type": "date"}]
                 dbs[6]["wrong"] = [{"name": "Rating", "want": "number", "got": "rich_text"}]
             body = {"ok": True, "version": VER["v"], "at": "2026-10-23T18:00:00Z", "dbs": dbs}
+        elif q.get("action") == "astromode":
+            for k in ("cap", "fail"):
+                if k in q: ASTRO[k] = int(q[k])
+            if "reset" in q: ASTRO.update(n=0, ctx="", years=[], ask="")
+            body = {"ok": True}
+        elif q.get("action") == "astrostats": body = {"ok": True, "n": ASTRO["n"], "ctx": ASTRO["ctx"], "years": ASTRO["years"], "ask": ASTRO["ask"]}
+        elif q.get("action") == "year" and ASTRO["cap"]:
+            f, t = q.get("from", ""), q.get("to", ""); ASTRO["years"].append([f, t])
+            fd = dt.datetime.fromisoformat(f.replace("Z", "+00:00")); td = dt.datetime.fromisoformat(t.replace("Z", "+00:00"))
+            inr = lambda s: fd <= dt.datetime.fromisoformat(s.replace("Z", "+00:00")) < td
+            body = {"ok": True, "version": VER["v"], "from": f, "to": t, "done": [d for d in YDONE if inr(d["at"])], "bought": [b for b in YBOUGHT if f[:10] <= b["day"] < t[:10]]}
         elif q.get("action") == "schemamode":
             if "bad" in q: SCHEMA["bad"] = int(q["bad"])
             body = {"ok": True, "calls": SCHEMA["calls"]}
@@ -510,13 +527,18 @@ class H(BaseHTTPRequestHandler):
                 ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:20000], "ignore": b.get("ignore")})
                 model = "claude-haiku-4-5" if mode == "fast" else "claude-sonnet-5-5"; cost = 0.012 if mode == "fast" else 0.035
                 props = []
-                if mode == "brief" and BRIEF["fail"] > 0: BRIEF["fail"] -= 1; BRIEF["n"] += 1; body = {"ok": False, "error": "ai_unavailable", "detail": "overloaded"}
+                if mode == "year" and ASTRO["fail"] > 0: ASTRO["fail"] -= 1; body = {"ok": False, "error": "ai_unavailable", "detail": "overloaded"}
+                elif mode == "brief" and BRIEF["fail"] > 0: BRIEF["fail"] -= 1; BRIEF["n"] += 1; body = {"ok": False, "error": "ai_unavailable", "detail": "overloaded"}
                 elif "BUDGET" in last: body = {"ok": False, "error": "ai_budget", "spend": dict(SPEND, usd=8.0)}
                 else:
                     if mode == "brief":
                         import time; time.sleep(1.2)   # long enough to see COMPILING
                         BRIEF["n"] += 1; BRIEF["ctx"] = b.get("context", ""); BRIEF["ignore"] = b.get("ignore"); BRIEF["ask"] = last
                         reply = "Not JSON at all." if BRIEF["shape"] else "```json\n" + json.dumps(BRIEF_REPLY) + "\n```"
+                    elif mode == "year":
+                        import time; time.sleep(0.8)   # long enough to see COMPILING
+                        ASTRO["n"] += 1; ASTRO["ctx"] = b.get("context", ""); ASTRO["ask"] = last
+                        reply = json.dumps(YEAR_REPLY)
                     elif mode == "patterns": reply = "- Evening calls drain you in weeks 39 and 35.\n- Weeks with fewer picks finish more of them.\n- Try one call-free evening next week."
                     elif mode == "summary": reply = "A steady week, Captain. The deck shipped and the hives were checked; bulbs slipped again."
                     elif "hive" in last.lower():

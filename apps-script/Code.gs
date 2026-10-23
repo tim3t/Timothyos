@@ -83,13 +83,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.31.0';
+var VERSION = '1.32.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -125,7 +125,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -141,6 +141,7 @@ function read_(p) {
   if (p.action === 'tarot') return tarot_(p.from, p.to);
   if (p.action === 'tarotbooks') return tarotBooks_();
   if (p.action === 'apiary') return apiary_();
+  if (p.action === 'year') return year_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
@@ -727,6 +728,33 @@ function done_(days) {
   });
   var out = { ok: true, version: VERSION, days: days, done: done };
   try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
+  return out;
+}
+
+/**
+ * ASTROMETRICS (app 2.40): a year's finished tasks (Life Area and last edit only, no titles; the last edit stands
+ * in for the day it was finished, as in done_) and Replicator Queue items bought (day and cost only). from and to
+ * are local midnights (ISO), at most 400 days apart. Read-only; each part reports its own error.
+ */
+function year_(from, to) {
+  if (!ISO.test(from) || !ISO.test(to) || !(Date.parse(to) > Date.parse(from)) || Date.parse(to) - Date.parse(from) > 400 * 86400000) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), key = 'year:' + (cache.get('tgen') || '0') + ':' + from + ':' + to, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var out = { ok: true, version: VERSION, from: from, to: to, done: [], bought: [] };
+  try {
+    out.done = queryAll_(tasksSource_(), { and: [
+      { property: 'Status', select: { equals: '✅ Done' } },
+      { timestamp: 'last_edited_time', last_edited_time: { on_or_after: from } },
+      { timestamp: 'last_edited_time', last_edited_time: { before: to } }
+    ] }, 20).map(function (pg) { return { area: sel_((pg.properties || {})['Life Area']), at: pg.last_edited_time || null }; });
+  } catch (e) { if (!e.notion) throw e; out.doneError = e.notion; }
+  try {
+    out.bought = queryAll_(queueSource_(), { and: [
+      { property: 'Bought', date: { on_or_after: from.slice(0, 10) } },
+      { property: 'Bought', date: { before: to.slice(0, 10) } }
+    ] }, 5).map(toQueue_).map(function (q) { return { day: q.bought, cost: q.cost }; });
+  } catch (e2) { if (!e2.notion) throw e2; out.boughtError = e2.notion; }
+  try { cache.put(key, JSON.stringify(out), 300); } catch (x) { /* too large to cache */ }
   return out;
 }
 
@@ -2378,6 +2406,18 @@ var BRIEF_RULES = [
   "action: one recommended first action, one sentence, starting with a verb. headline: under 90 characters, the 3 or 4 facts that matter most today joined by ' · ', without the condition level (the Condition panel sits just below it)."
 ].join('\n');
 
+/* The Ship's Year (app 2.40): the year in ASTROMETRICS told from counts only (never the Captain's Log), on 31 December
+   or whenever asked. Sonnet, no tools, answered as JSON in the briefing's shape so the app prints it the same way. */
+var YEAR_RULES = [
+  "Task: write the Ship's Year, the ship's computer's account of the captain's year, from the counts in the snapshot. Use only the snapshot; don't use tools.",
+  "This task replaces the style line above: answer with one JSON object and nothing else, shaped {\"paras\": [{\"label\": \"...\", \"text\": \"...\"}], \"action\": \"...\"}.",
+  "paras, in this order, leaving out any the snapshot has nothing for: label \"\" opening with 'Captain,' and saying whether this is the whole year or the year so far;",
+  "THE YEAR (the two or three numbers that sum it up); TIME (calendar hours by area and how they moved through the months); DONE (tasks finished and the strongest stretch);",
+  "KEPT (weekly reviews and habits); SHELF AND DECK (books, and tarot only if the snapshot has it); THE YARD (only if the snapshot has the apiary); QUEUE (only if the snapshot has it).",
+  "Each text: 1 to 3 short sentences, about 200 words in all, plain words, numbers only from the snapshot, no lists, no emoji, no em dashes, no markdown. Never mention the snapshot itself.",
+  "action: one recommendation for the year ahead (or the rest of this one), one sentence, starting with a verb."
+].join('\n');
+
 var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
@@ -2625,7 +2665,7 @@ function ask_(body, test) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(String(body.cid || ''))) return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache(), seen = cache.get('ask:' + body.cid);
   if (seen) return JSON.parse(seen);
-  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' || body.mode === 'brief' ? body.mode : 'fast';
+  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' || body.mode === 'brief' || body.mode === 'year' ? body.mode : 'fast';
   var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-20).filter(function (m) {
     return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
   }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
@@ -2638,11 +2678,12 @@ function ask_(body, test) {
   var model = test && test.model ? test.model : mode === 'fast' ? aiFast_() : mode === 'deep' ? AI.DEEP : AI.SUMMARY;   // the briefing is Sonnet, like summaries
   var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." :
       mode === 'brief' ? '\n' + BRIEF_RULES :
+      mode === 'year' ? '\n' + YEAR_RULES :
       mode === 'patterns' ? "\nTask: read the saved weekly reviews in the snapshot and name the patterns across them: what keeps draining him, what reliably goes well, focus areas that keep coming back or slipping, how he holds his bearing, and any trend in the numbers. 4 to 6 lines starting with '- ', each one concrete and tied to specific weeks. End with one suggestion. Don't use tools." : '') },
     { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
   // Current models think by default and thinking counts toward max_tokens, so each cap leaves room for it.
-  var payload = { model: model, max_tokens: mode === 'fast' || mode === 'brief' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
-  var effort = (test && test.effort) || (mode === 'fast' || mode === 'brief' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
+  var payload = { model: model, max_tokens: mode === 'fast' || mode === 'brief' || mode === 'year' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
+  var effort = (test && test.effort) || (mode === 'fast' || mode === 'brief' || mode === 'year' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
   if (model !== 'claude-haiku-4-5') payload.output_config = { effort: effort };   // Haiku 4.5 rejects effort
   if (mode === 'fast' || mode === 'deep') payload.tools = AI_TOOLS;
   var betas = [];

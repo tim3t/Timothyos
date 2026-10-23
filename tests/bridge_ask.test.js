@@ -134,6 +134,13 @@ assert.ok(sent[0].system[0].text.includes("this morning's briefing") && sent[0].
 assert.ok(!sent[0].system[0].text.includes('weekly summary'), 'not the summary task');
 assert.ok(rb.reply.startsWith('{"headline"')); assert.strictEqual(get({ action: 'aispend', key }).log[0].mode, 'brief');
 assert.ok(get({ action: 'ping', key }).capabilities.includes('brief'), 'capability brief with the Claude key');
+// year mode (1.32, the Ship's Year): Sonnet, low effort, no tools, its own task asking for JSON, logged as 'year'
+sent = []; script = [{ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: '{"paras":[{"label":"","text":"Captain, the year so far."}],"action":"Keep reviewing."}' }] }];
+const ry = ask({ mode: 'year', cid: 'ask-year-0001' });
+assert.strictEqual(sent[0].model, 'claude-sonnet-5-5'); assert.deepStrictEqual(sent[0].output_config, { effort: 'low' }); assert.ok(!sent[0].tools, 'no tools'); assert.strictEqual(sent[0].max_tokens, 6000);
+assert.ok(sent[0].system[0].text.includes("Ship's Year") && sent[0].system[0].text.includes('one JSON object') && !sent[0].system[0].text.includes("this morning's briefing"), 'the year task');
+assert.ok(ry.reply.startsWith('{"paras"')); assert.strictEqual(get({ action: 'aispend', key }).log[0].mode, 'year');
+assert.ok(get({ action: 'ping', key }).capabilities.includes('shipsyear'), 'capability shipsyear with the Claude key');
 delete props.AI_FAST_MODEL;
 
 // invalid proposal comes back to the model as an error, not a proposal

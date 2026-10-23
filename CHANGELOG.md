@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.40.0 · 2026-10-23 (bridge 1.32)
+- **ASTROMETRICS,** a new station (ALL STATIONS → REFLECT, or COMPUTER: "year"): the year at a glance.
+  - **SENSOR SWEEP:** tasks done, hours planned, books finished, Log days, honey (or tarot readings) and reviews. Tap one for its sector.
+  - **STAR CHART:** every station's year as a row of weeks, brighter for busier. Each row is shaded against its own busiest week (✦), hatched before its first record that year, with key dates above and a TODAY line. Tap a week for its numbers.
+  - **SECTOR:** the row you tap, by month (the calendars split by area), with its key facts. Tap a month for its numbers.
+  - **The Captain's Log** stays locked: **UNLOCK LOG** asks for the PIN, then shows how many days you wrote (never the words). Forgotten when the app is put away; never stored, never sent to Claude.
+  - **◀ ▶** step a year; **THIS YEAR** comes back. **RESCAN** reads it all again (otherwise every six hours).
+- **The Ship's Year:** at the first open after 06:00 on 31 December, Sonnet writes about 200 words on the year from the counts, printed like the Morning Briefing; **READ IT TO ME** reads it in Nova (Moira without the AI voice). **COMPILE** gives the year so far on any day (a few cents). Never the Log; tarot, the apiary and the queue's spend only when shared with ASK. Kept on the iPad and in backups.
+- **UPKEEP** now keeps each day an item is marked done (for ASTROMETRICS; earlier ones only have their last date).
+- **Bridge 1.32** (update the Google bridge): a read-only `year` action (tasks marked Done in a year by Life Area and day, no titles; Replicator Queue items bought, day and cost) and the Ship's Year writing mode. Without it, ASTROMETRICS leaves out TASKS and QUEUE and says so.
+
 ## 2.39.0 · 2026-10-23 (bridge 1.31)
 - **Notion column check.** The bridge compares each connected database's columns with the ones Bridge uses (name and type). When one is renamed, deleted or changed type, the Bridge's Condition shows **A Notion column changed** (YELLOW) naming it, and **SYSTEMS → NEEDS YOU** has the steps (rename it back or change its type, or tell Claude if it was on purpose) and **CHECK AGAIN**. **SYSTEMS → NOTION** has a **Columns** row and **CHECK NOTION COLUMNS**. Checked at most every six hours; extra columns are fine; a database that isn't connected is reported as such, not as missing columns.
 - **Bridge 1.31** (update the Google bridge): a read-only `schema` action, cached six hours; setup's log adds **Notion columns: OK** or names the problem.

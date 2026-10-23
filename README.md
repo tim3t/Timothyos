@@ -423,6 +423,18 @@ Records the cards you draw from your own deck: this week's card and any reading 
 - **From your books:** **BOOKS** under any card opens both books for that card, with a tab for each (for a reversed card Dean's reversed meaning comes first; **OPEN IN NOTION** goes to that page; your last choice of book stays chosen; **CLOSE BOOKS** folds it away). Inside it, **SUGGEST A MEANING HERE** asks Claude what the card could mean in that position, using only your two books, your MY MEANING, your question and your notes (about 1¢). For readings of two or more cards, **SUGGEST A READING FROM MY BOOKS** under WHAT IT SAYS does the same for the whole spread (about 1¢ plus half a cent a card). An answer waits in a dashed box marked **NOT SAVED** until **ADD TO MY NOTE** / **ADD TO WHAT IT SAYS** (it goes after what you've written and saves like typing) or **DISMISS**. A card's history (**EVERY TIME THIS CARD CAME UP**) has **FROM YOUR BOOKS** too, without suggestions. Suggestions count toward ASK's monthly total (TAROT SUGGESTION in Systems); nothing goes to Claude until you tap SUGGEST.
 - Deleting a reading or spread puts it in Notion's trash, where it can be restored.
 
+### ASTROMETRICS
+
+The year at a glance, across every station. Not pinned by default: **ALL STATIONS → ASTROMETRICS**, or **COMPUTER** and type "year".
+
+- **SENSOR SWEEP:** the headline numbers for the year so far: tasks done, hours planned, books finished, Log days, honey (or tarot readings), weekly reviews. Tap one to open its sector.
+- **STAR CHART:** one row per station, one cell per week (Monday to Sunday). Brighter means busier, and each row is shaded against its own busiest week (marked ✦), so hours and books never compete. Hatching means no record yet that year (the station is new, or nothing was logged); dots are weeks still ahead; the gold line is today; ✦ above the rows are key dates. Tap a cell for that week's numbers, a row name for its sector.
+- **SECTOR:** the row by month (CALENDAR stacks Work, Farm, Personal and Growth), tap a month for its numbers, and a few facts (the busiest week, the highest-rated book, the most drawn card, the honey…).
+- **Where the numbers come from:** what Bridge already reads. Calendar hours are counted as REVIEW counts them (ignored titles and breaks left out). Tasks count on the day they were last edited after being marked Done (Notion keeps no finished date). UPKEEP counts from 2.40 on. Read every six hours; **RESCAN** reads it all again.
+- **Captain's Log:** locked until you tap **UNLOCK LOG** and enter the PIN; then it shows how many days you wrote each week, never the words. Forgotten when the app is put away; never stored or sent to Claude.
+- **◀ ▶** step a year at a time; **THIS YEAR** comes back.
+- **SHIP'S YEAR:** at the first open after 06:00 on 31 December, Sonnet writes about 200 words on your year from the counts, printed like the Morning Briefing. **READ IT TO ME** reads it in Nova (or Moira). **COMPILE** gives a year-so-far version any day (a few cents, counted in ASK's monthly total as SHIP'S YEAR). It never sees the Log; tarot, the apiary and the Replicator Queue's spend go in only when SHARE WITH ASK is on for them. Kept on this iPad and in backups. Needs bridge 1.32 and Ask Claude.
+
 ## RESOURCES
 
 ### LEDGER
@@ -582,6 +594,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
 | **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
+| ASTROMETRICS says **TASKS and QUEUE need bridge 1.32**, or SHIP'S YEAR says it needs 1.32 | Update the Google bridge (Updating the Google bridge), then **RESCAN** |
 | **Google bridge out of date** in Condition, or "The bridge refused it" | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
