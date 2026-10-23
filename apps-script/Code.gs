@@ -83,13 +83,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.30.0';
+var VERSION = '1.31.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -141,6 +141,7 @@ function read_(p) {
   if (p.action === 'tarot') return tarot_(p.from, p.to);
   if (p.action === 'tarotbooks') return tarotBooks_();
   if (p.action === 'apiary') return apiary_();
+  if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
 }
@@ -250,6 +251,12 @@ function setup() {
   console.log('Notion tarot: ' + tarotStatus_());
   console.log('Notion tarot books: ' + tarotBooksStatus_());
   console.log('Notion apiary: ' + apiaryStatus_());
+  if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
+    try {
+      var sc = schema_(true), bad = sc.dbs.filter(function (d) { return d.missing.length || d.wrong.length; }), conn = sc.dbs.filter(function (d) { return !d.error; });
+      console.log('Notion columns: ' + (bad.length ? 'PROBLEM: ' + bad.map(schemaLine_).join(' | ') : 'OK (' + conn.length + ' connected ' + (conn.length === 1 ? 'database has' : 'databases have') + ' every column the bridge uses)'));
+    } catch (e) { console.log('Notion columns: could not check (' + e.message + ')'); }
+  }
   var ai = aiKey_() ? aiSpend_() : null;
   if (voiceKey_()) {
     try {
@@ -619,6 +626,54 @@ function queryAll_(ds, filter, maxPages, sorts) {
     cursor = r.next_cursor;
   }
   return out;
+}
+
+/* ---------- Notion schema check (1.31) ----------
+   Every column the bridge reads or writes, by database, with its Notion type. A renamed column or a changed type used
+   to make saves fail vaguely; schema_ reads each connected database's columns (read-only, never changes Notion) and
+   names what's missing or of the wrong type. Keep this list in step with the code when a column is added. */
+function schemaSpec_() {
+  var t = function (names, type) { return names.map(function (n) { return [n, type]; }); };
+  var vals = function (o) { return Object.keys(o).map(function (k) { return o[k]; }); };
+  return [
+    { key: 'tasks', name: 'Master Task List', src: tasksSource_, need: [['Task', 'title'], ['Status', 'select'], ['Priority', 'select'], ['Life Area', 'select'], ['Due Date', 'date'], ['Focus Date', 'date']] },
+    { key: 'dates', name: 'Key Dates', src: datesSource_, need: [['Name', 'title'], ['Date', 'date'], ['Life Area', 'select'], ['Type', 'select'], ['Repeats Yearly', 'checkbox'], ['Notes', 'rich_text']] },
+    { key: 'reviews', name: 'Weekly Reviews', src: reviewsSource_, need: [['Week', 'title'], ['Week Start', 'date']].concat(t(vals(REVIEW_TEXT), 'rich_text'), t(vals(REVIEW_NUM), 'number')) },
+    { key: 'queue', name: 'Replicator Queue', src: queueSource_, need: [['Name', 'title'], ['Cost', 'number'], ['Priority', 'number'], ['Note', 'rich_text'], ['Link', 'url'], ['Bought', 'date']] },
+    { key: 'log', name: "Captain's Log", src: logSource_, need: [['Name', 'title'], ['Date', 'date'], ['Source', 'select']].concat(logSearchReady_() ? [[LOG_SEARCH_PROP, 'rich_text']] : []) },
+    { key: 'habits', name: 'Habits', src: habitsSource_, need: [['Name', 'title'], ['Date', 'date'], ['Meditated', 'checkbox'], ['Evening Walk', 'checkbox'], ['Water (L)', 'number'], ['Debit Card', 'select']] },
+    { key: 'library', name: 'Library', src: librarySource_, need: [['Title', 'title'], ['Author', 'rich_text'], ['Status', 'select'], ['Started', 'date'], ['Finished', 'date'], ['Rating', 'number'], ['Notes', 'rich_text'], ['Cover', 'url'], ['Open Library', 'url'], ['Published', 'number']] },
+    { key: 'tarot', name: 'Tarot', src: tarotSource_, need: [['Title', 'title'], ['Date', 'date'], ['Kind', 'select'], ['Weekly', 'checkbox'], ['Spread', 'rich_text'], ['Cards', 'rich_text'], ['Interpretation', 'rich_text'], ['Card', 'rich_text'], ['Data', 'rich_text']] },
+    { key: 'tarotbooks', name: 'Tarot Books', src: tarotBooksSource_, need: [['Title', 'title'], ['Card', 'rich_text'], ['Book', 'select'], ['Source', 'rich_text'], ['Order', 'number']] },
+    { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) }
+  ];
+}
+var SCHEMA_TYPE = { title: 'title', rich_text: 'text', select: 'select', date: 'date', number: 'number', checkbox: 'checkbox', url: 'URL', relation: 'relation' };
+function schemaLine_(d) {
+  return d.name + ': ' + d.missing.map(function (m) { return '"' + m.name + '" (' + (SCHEMA_TYPE[m.type] || m.type) + ') not found'; })
+    .concat(d.wrong.map(function (w) { return '"' + w.name + '" is ' + (SCHEMA_TYPE[w.got] || w.got) + ', needs ' + (SCHEMA_TYPE[w.want] || w.want); })).join(', ');
+}
+/** Each database: { key, name, missing[{name, type}], wrong[{name, want, got}] } or { key, name, error } when not connected. Cached 6 h. */
+function schema_(fresh) {
+  var cache = CacheService.getScriptCache();
+  if (!fresh) { var hit = cache.get('schema'); if (hit) return JSON.parse(hit); }
+  if (!PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) return { ok: false, error: 'notion_not_configured' };
+  var spec = schemaSpec_(), out = [];
+  spec.forEach(function (d) {
+    var row = { key: d.key, name: d.name, missing: [], wrong: [] };
+    try {
+      var props = notion_('get', '/data_sources/' + d.src()).properties || {};
+      d.need.forEach(function (n) {
+        var have = props[n[0]];
+        if (!have) row.missing.push({ name: n[0], type: n[1] });
+        else if (have.type !== n[1]) row.wrong.push({ name: n[0], want: n[1], got: have.type });
+      });
+    } catch (e) { row.error = e.notion || 'notion_error'; }
+    out.push(row);
+  });
+  var res = { ok: true, version: VERSION, at: new Date().toISOString(), dbs: out };
+  cache.put('schema', JSON.stringify(res), 21600);
+  return res;
 }
 
 /** A select field's choices, read from the database so new options appear automatically. */

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.39.0 · 2026-10-23 (bridge 1.31)
+- **Notion column check.** The bridge compares each connected database's columns with the ones Bridge uses (name and type). When one is renamed, deleted or changed type, the Bridge's Condition shows **A Notion column changed** (YELLOW) naming it, and **SYSTEMS → NEEDS YOU** has the steps (rename it back or change its type, or tell Claude if it was on purpose) and **CHECK AGAIN**. **SYSTEMS → NOTION** has a **Columns** row and **CHECK NOTION COLUMNS**. Checked at most every six hours; extra columns are fine; a database that isn't connected is reported as such, not as missing columns.
+- **Bridge 1.31** (update the Google bridge): a read-only `schema` action, cached six hours; setup's log adds **Notion columns: OK** or names the problem.
+
 ## 2.38.0 · 2026-10-23
 - **Bridge version check.** When the Google bridge deployed is older than this app needs (a new feature, or the Deploy → New version step missed), the Bridge's Condition shows **Google bridge out of date** (YELLOW) with what's missing, and **SYSTEMS → NEEDS YOU** has the five steps, a link to the code and **CHECK AGAIN**. **SYSTEMS → APP** shows the bridge's version as **UP TO DATE** or **UPDATE TO**. Errors an old bridge causes now say so. A newer bridge never warns.
 - **STORAGE:** after CONTINUE LISTENING, the rest of the folder now appears under UP NEXT as soon as it's loaded (it could stay empty until something else redrew the screen).

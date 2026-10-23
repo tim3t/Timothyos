@@ -11,7 +11,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
 
 (async () => {
-  await setv('1.28.0');
+  await setv('1.29.0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
@@ -23,7 +23,7 @@ const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
   const item = p.locator('.ov-alert', { hasText: 'Google bridge out of date' });
   await item.waitFor({ timeout: 5000 });
   const it = (await item.innerText()).replace(/\s+/g, ' ');
-  assert.ok(it.includes('Deployed 1.28.0, this app needs ' + WANT + '.') && it.includes('Missing: the AI voice (Nova), the Morning Briefing.') && it.includes('SYSTEMS'), it);
+  assert.ok(it.includes('Deployed 1.29.0, this app needs ' + WANT + '.') && it.includes('Missing: ') && !it.includes('the Morning Briefing') && it.includes('SYSTEMS'), 'what 1.29 lacks, never what it has: ' + it);
   assert.ok(await item.evaluate(el => el.classList.contains('warn')), 'YELLOW, not RED');
   await p.screenshot({ path: D + 'bridge-behind.png' });
 
@@ -32,7 +32,7 @@ const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
   const card = await txt(p, '#fix-bridge');
   assert.ok(card.includes('Google bridge out of date') && card.includes('Bridge version ' + WANT) && card.includes('Deploy → Manage deployments → pencil → Version: New version → Deploy.') && card.includes('CHECK AGAIN'), card);
   assert.strictEqual(await p.getAttribute('#fix-bridge a', 'href'), 'https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs');
-  assert.ok((await txt(p, '#sec-app')).includes('BRIDGE VERSION 1.28.0 UPDATE TO ' + WANT), await txt(p, '#sec-app'));
+  assert.ok((await txt(p, '#sec-app')).includes('BRIDGE VERSION 1.29.0 UPDATE TO ' + WANT), await txt(p, '#sec-app'));
   await p.screenshot({ path: D + 'bridge-behind-fix.png' });
 
   // ---- deployed: CHECK AGAIN finds it and the card turns green

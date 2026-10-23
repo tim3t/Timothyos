@@ -131,7 +131,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
-**Fields the app expects** (rename one in Notion and that part stops working until the code knows):
+**Fields the app expects** (rename one in Notion and that part stops working until the code knows; Bridge checks these every six hours and shows **A Notion column changed** in Condition, with steps in **SYSTEMS → NEEDS YOU**):
 - **Key Dates:** Name, Date (one day, or a start and end for windows), Life Area, Type, Repeats Yearly, Notes.
 - **Weekly Reviews:** one page per week with the reflection, the week's numbers (including Hours Hobbies, used for GROWTH) and your intent lines.
 - **Captain's Log:** Name, Date, Source, and **Search Text** (added by setup for LOG search). The entry is the page body.
@@ -551,7 +551,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Level | When |
 |---|---|
 | 🔴 RED | A High-priority task is overdue · Events on two different calendars overlap later today · Sync has failed for over 6 hours |
-| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Weekly review due · An upkeep item is overdue · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load · The Google bridge is older than this app needs |
+| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Weekly review due · An upkeep item is overdue · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load · The Google bridge is older than this app needs · A Notion column Bridge uses was renamed, deleted or changed type |
 | 🟢 GREEN | None of the above |
 
 Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
@@ -581,6 +581,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "Couldn't reach the script" | The URL must end in `/exec`; the deployment's access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
+| **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
 | **Google bridge out of date** in Condition, or "The bridge refused it" | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |

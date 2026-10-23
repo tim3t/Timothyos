@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.38.0";
+  var VERSION = "2.39.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -553,6 +553,7 @@
       flushHabits();
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
       briefMaybe();
+      loadSchema(false);
     }).catch(function (err) {
       var offline = navigator.onLine === false;
       state.syncFails = (state.syncFails || 0) + 1;
@@ -888,8 +889,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.30.0";
-  var BRIDGE_FEATURES = [["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.31.0";
+  var BRIDGE_FEATURES = [["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -907,6 +908,37 @@
       return new Promise(function (res) { var n = 0, t = setInterval(function () { if (++n > 120 || (state.sync.status !== "syncing" && state.sync.status !== "retrying")) { clearInterval(t); res(); } }, 250); });
     }, "Google bridge " + BRIDGE_WANT + " found. Up to date");
   }
+  /* ---------- Notion schema check (2.39, bridge 1.31) ---------- */
+  /* The bridge reads every connected database's columns (read-only) against the ones it uses. A renamed column or a
+     changed type is a YELLOW Condition item and a NEEDS YOU card naming each one; SYSTEMS → NOTION lists them too.
+     Checked at most every six hours (the bridge caches it), and at once by CHECK AGAIN. */
+  var LS_SCHEMA = "tos.schema.v1", SCHEMA_MS = 6 * 3600000;
+  var SCHEMA_TYPE = { title: "title", rich_text: "text", select: "select", date: "date", number: "number", checkbox: "checkbox", url: "URL", relation: "relation" };
+  var sch = { d: lsGet(LS_SCHEMA), inflight: false, err: null };
+  function canSchema() { return state.caps.indexOf("schema") > -1; }
+  function loadSchema(force) {
+    if (!state.conn || !canSchema() || sch.inflight) return Promise.resolve();
+    if (!force && sch.d && Date.now() - sch.d.fetched < SCHEMA_MS) return Promise.resolve();
+    sch.inflight = true;
+    return api({ action: "schema", fresh: force ? 1 : 0 }).then(function (j) {
+      sch.d = { fetched: Date.now(), at: j.at, dbs: j.dbs || [] }; sch.err = null; lsSet(LS_SCHEMA, sch.d);
+    }).catch(function (err) { sch.err = describe(err); }).then(function () {
+      sch.inflight = false;
+      if (state.screen === "systems" || state.screen === "bridge") render(true);
+    });
+  }
+  function schemaProblems() { return canSchema() && sch.d ? sch.d.dbs.filter(function (d) { return !d.error && ((d.missing || []).length || (d.wrong || []).length); }) : []; }
+  function schemaLines(d) {
+    var t = function (x) { return SCHEMA_TYPE[x] || x; };
+    return (d.missing || []).map(function (m) { return "\u201c" + m.name + "\u201d (" + t(m.type) + ") not found"; })
+      .concat((d.wrong || []).map(function (w) { return "\u201c" + w.name + "\u201d is " + t(w.got) + ", needs " + t(w.want); }));
+  }
+  function schemaText(list, max) {
+    var out = [];
+    list.forEach(function (d) { schemaLines(d).forEach(function (l) { out.push(d.name + ": " + l); }); });
+    return max && out.length > max ? out.slice(0, max).concat(["and " + (out.length - max) + " more"]) : out;
+  }
+  function fixSchema() { fixRun("schema", function () { return loadSchema(true); }, "Notion columns checked: they all match"); }
   function fixTickets() {
     var now = new Date();
     return conditions(now, ymd(now), eventsFor(bridgeRange())).filter(function (i) { return i.fix; }).map(function (i) {
@@ -918,6 +950,13 @@
           "In <b>script.google.com → TimothyOS bridge</b>: select all the old code, delete it, paste, save.",
           "Choose <b>setup</b>, tap <b>Run</b>, approve anything Google asks. The log ends with <b>Bridge version " + BRIDGE_WANT + "</b>.",
           "<b>Deploy → Manage deployments → pencil → Version: New version → Deploy.</b> The step that's easy to miss: without it the old version keeps answering.",
+          "Come back and tap <b>CHECK AGAIN</b>."];
+      }
+      else if (i.fix === "schema") {
+        t.why = schemaText(schemaProblems()).map(esc).join("<br>"); t.btn = ["fixschema", "CHECK AGAIN"]; t.sec = ["sec-notion", "NOTION"];
+        t.steps = ["In Notion, open the database named above (the bridge reads its columns, it never changes them).",
+          "Rename each column back to exactly the name shown (capitals, spaces and brackets count), or set its type back: the column's menu → <b>Edit property</b> → <b>Type</b>.",
+          "Renamed it on purpose? Tell Claude the new name, so the bridge can follow it.",
           "Come back and tap <b>CHECK AGAIN</b>."];
       }
       else if (i.fix === "sync") { t.why = esc(state.sync.error || "The bridge hasn't answered."); t.btn = ["fixsync", "REFRESH NOW"]; t.steps = fixSteps(state.sync.code, "REFRESH NOW"); t.sec = ["sec-conn", "CONNECTION"]; }
@@ -1707,6 +1746,13 @@
     }
     if (canHolidays()) html += '<div class="calrow a-holiday"><span class="st"></span><span><b>Holidays</b><small>' + (state.hols ? (state.hols.calendar ? esc(state.hols.calendar) + " · " + holidayDates().length + " shown in the next 13 months · read-only" : "No holidays calendar found. Subscribe to one in Google Calendar, or set HOLIDAY_CALENDAR_ID.") : "Not loaded yet") +
       '</small></span><span class="pill' + (state.hols && state.hols.calendar ? " ok\">OK" : "\">" + (state.hols ? "NOT FOUND" : "…")) + "</span></div>";
+    if (canPlan()) {
+      var sp = schemaProblems(), conn = sch.d ? sch.d.dbs.filter(function (d) { return !d.error; }).length : 0;
+      html += '<div class="calrow a-personal"><span class="st"></span><span><b>Columns</b><small' + (sp.length ? ' class="errtxt">' + schemaText(sp).map(esc).join("<br>") :
+        ">" + (!canSchema() ? "The column check needs bridge 1.31." : sch.err && !sch.d ? esc(sch.err) : sch.d ? "Every connected database (" + conn + ") has the columns the bridge uses · checked " + esc(stamp(sch.d.fetched)) : "Checking…")) +
+        '</small></span><span class="pill' + (sp.length ? ' warn">CHANGED' : canSchema() && sch.d ? ' ok">OK' : '">…') + "</span></div>" +
+        (canSchema() ? '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn sm ghost" data-act="schemacheck">CHECK NOTION COLUMNS</button></div>' : "");
+    }
     return html + "</section>";
   }
 
@@ -1982,6 +2028,11 @@
     var st = state.sync;
     if (state.conn && (st.status === "error" || st.status === "offline") && (!st.at || Date.now() - st.at > STALE_SYNC_MS)) {
       items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", fix: "sync", go: "SYSTEMS" });
+    }
+    var sp = schemaProblems();
+    if (sp.length) {
+      var sl = schemaText(sp, 2), n = schemaText(sp).length;
+      items.push({ lvl: "warn", ic: "▲", txt: n === 1 ? "A Notion column changed" : n + " Notion columns changed", sub: esc(sl.join(" · ")), act: "systems", fix: "schema", go: "SYSTEMS" });
     }
     if (bridgeBehind()) {
       var miss = bridgeMissing();
@@ -9142,6 +9193,8 @@
     else if (b.dataset.act === "fixtasks") fixTasks();
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
+    else if (b.dataset.act === "fixschema") fixSchema();
+    else if (b.dataset.act === "schemacheck") loadSchema(true).then(function () { var n = schemaText(schemaProblems()).length; toast(sch.err ? "Couldn't check: " + sch.err : n ? n + (n === 1 ? " Notion column changed: NEEDS YOU has the steps" : " Notion columns changed: NEEDS YOU has the steps") : "Notion columns checked: they all match"); });
     else if (b.dataset.act === "fixqueue") fixQueue();
     else if (b.dataset.act === "fixdone") go("bridge");
     else if (b.dataset.jump) fixJump(b.dataset.jump);
