@@ -223,6 +223,14 @@ def qrows():
     b = sorted([q for q in QUEUE if q["bought"]], key=lambda q: q["bought"], reverse=True)[:10]
     return {"items": w, "bought": b}
 RLISTS = []; ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8}
+# Morning Briefing (bridge 1.29): the capability can be withheld (an older bridge), a call can fail or come back in the wrong shape
+BRIEF = {"cap": 0, "fail": 0, "shape": 0, "n": 0, "ctx": "", "ignore": None}
+BRIEF_REPLY = {"headline": "Condition yellow · 4 meetings from 09:00 · hive check GO 11:00 to 15:00",
+  "paras": [{"label": "", "text": "Good morning, Captain. Friday 23 October. Condition yellow: one high-priority task is overdue."},
+            {"label": "TODAY", "text": "Four meetings, the first at 09:00 and the last ending at 16:30. Your longest open stretch is 13:00 to 15:00."},
+            {"label": "OUTSIDE.", "text": "41°F rising to 58°F, dry. Hive check is GO from 11:00 to 15:00."},
+            {"label": "AHEAD", "text": "Tuesday is heavy, 7.5 hours booked."}],
+  "action": "Pick today's priorities before 10:00."}
 WEEKDONE = {"2026-10-05": [
   {"id": "w1", "title": "Send Q4 deck draft", "area": "🎯 Work & Calling", "status": "✅ Done", "at": "2026-10-07T18:00:00Z"},
   {"id": "w2", "title": "Inspect Hive 1", "area": "🐝 Beekeeping", "status": "✅ Done", "at": "2026-10-09T18:00:00Z"},
@@ -309,8 +317,14 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "briefmode":
+            for k in ("cap", "fail", "shape"):
+                if k in q: BRIEF[k] = int(q[k])
+            if "reset" in q: BRIEF["n"] = 0; BRIEF["ctx"] = ""
+            body = {"ok": True}
+        elif q.get("action") == "briefstats": body = {"ok": True, "n": BRIEF["n"], "ctx": BRIEF["ctx"], "ignore": BRIEF["ignore"]}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
@@ -463,9 +477,14 @@ class H(BaseHTTPRequestHandler):
                 ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:20000], "ignore": b.get("ignore")})
                 model = "claude-haiku-4-5" if mode == "fast" else "claude-sonnet-5-5"; cost = 0.012 if mode == "fast" else 0.035
                 props = []
-                if "BUDGET" in last: body = {"ok": False, "error": "ai_budget", "spend": dict(SPEND, usd=8.0)}
+                if mode == "brief" and BRIEF["fail"] > 0: BRIEF["fail"] -= 1; BRIEF["n"] += 1; body = {"ok": False, "error": "ai_unavailable", "detail": "overloaded"}
+                elif "BUDGET" in last: body = {"ok": False, "error": "ai_budget", "spend": dict(SPEND, usd=8.0)}
                 else:
-                    if mode == "patterns": reply = "- Evening calls drain you in weeks 39 and 35.\n- Weeks with fewer picks finish more of them.\n- Try one call-free evening next week."
+                    if mode == "brief":
+                        import time; time.sleep(1.2)   # long enough to see COMPILING
+                        BRIEF["n"] += 1; BRIEF["ctx"] = b.get("context", ""); BRIEF["ignore"] = b.get("ignore")
+                        reply = "Not JSON at all." if BRIEF["shape"] else "```json\n" + json.dumps(BRIEF_REPLY) + "\n```"
+                    elif mode == "patterns": reply = "- Evening calls drain you in weeks 39 and 35.\n- Weeks with fewer picks finish more of them.\n- Try one call-free evening next week."
                     elif mode == "summary": reply = "A steady week, Captain. The deck shipped and the hives were checked; bulbs slipped again."
                     elif "hive" in last.lower():
                         reply = "Proposed a farm calendar block."; props.append({"kind": "add_event", "input": {"title": "Feed the hives", "calendar": "farm", "date": "2026-10-10", "start_time": "09:00", "minutes": 60}})

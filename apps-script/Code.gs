@@ -83,13 +83,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.28.0';
+var VERSION = '1.29.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -2303,6 +2303,19 @@ function aiPrice_(model) {
   return null;
 }
 
+/* The Morning Briefing (app 2.36): written the first time Bridge is in front after 06:00, from the same snapshot ASK
+   uses (plus yesterday's habits). Sonnet, no tools, answered as JSON the app prints like a teleprinter. */
+var BRIEF_RULES = [
+  "Task: write this morning's briefing, as the ship's computer reporting to the captain at the start of the watch. Use only the snapshot; don't use tools.",
+  "This task replaces the style line above: answer with one JSON object and nothing else, shaped {\"headline\": \"...\", \"paras\": [{\"label\": \"...\", \"text\": \"...\"}], \"action\": \"...\"}.",
+  "paras, in this order, leaving out any with nothing worth saying: label \"\" opening with 'Good morning, Captain.', the weekday and date, then the condition level and why in one sentence;",
+  "TODAY (how many meetings, the first and the last, the longest open stretch between 07:00 and 21:00, whether priorities are picked; BREAK entries are breaks, not meetings; HOLIDAY is not an event);",
+  "OUTSIDE (temperature now and the high, wind or rain if notable, the hive check window, frost tonight); AHEAD (heavy days and key dates in the next 7 days);",
+  "YESTERDAY (habits, if the snapshot has them); and only when the snapshot includes them: APIARY, TAROT (this week's card), LEDGER (the fund and the queue).",
+  "Each text: 1 to 3 short sentences, plain words, 24-hour times, degrees as °F, no lists, no emoji, no em dashes, no markdown. Never mention the snapshot itself.",
+  "action: one recommended first action, one sentence, starting with a verb. headline: under 90 characters, the 3 or 4 facts that matter most today joined by ' · ', without the condition level (the Condition panel sits just below it)."
+].join('\n');
+
 var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
@@ -2491,7 +2504,7 @@ function ask_(body, test) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(String(body.cid || ''))) return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache(), seen = cache.get('ask:' + body.cid);
   if (seen) return JSON.parse(seen);
-  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' ? body.mode : 'fast';
+  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' || body.mode === 'brief' ? body.mode : 'fast';
   var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-20).filter(function (m) {
     return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
   }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
@@ -2501,13 +2514,14 @@ function ask_(body, test) {
   var spend = aiSpend_();
   if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
 
-  var model = test && test.model ? test.model : mode === 'fast' ? aiFast_() : mode === 'deep' ? AI.DEEP : AI.SUMMARY;
+  var model = test && test.model ? test.model : mode === 'fast' ? aiFast_() : mode === 'deep' ? AI.DEEP : AI.SUMMARY;   // the briefing is Sonnet, like summaries
   var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." :
+      mode === 'brief' ? '\n' + BRIEF_RULES :
       mode === 'patterns' ? "\nTask: read the saved weekly reviews in the snapshot and name the patterns across them: what keeps draining him, what reliably goes well, focus areas that keep coming back or slipping, how he holds his bearing, and any trend in the numbers. 4 to 6 lines starting with '- ', each one concrete and tied to specific weeks. End with one suggestion. Don't use tools." : '') },
     { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
   // Current models think by default and thinking counts toward max_tokens, so each cap leaves room for it.
-  var payload = { model: model, max_tokens: mode === 'fast' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
-  var effort = (test && test.effort) || (mode === 'fast' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
+  var payload = { model: model, max_tokens: mode === 'fast' || mode === 'brief' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
+  var effort = (test && test.effort) || (mode === 'fast' || mode === 'brief' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
   if (model !== 'claude-haiku-4-5') payload.output_config = { effort: effort };   // Haiku 4.5 rejects effort
   if (mode === 'fast' || mode === 'deep') payload.tools = AI_TOOLS;
   var betas = [];

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.36.0 · 2026-10-23 (bridge 1.29)
+- **Morning Briefing on the Bridge.** The first time Bridge is in front after 06:00 (at 06:00 itself if it stood by overnight), the ship's computer writes this morning's report: the condition and why, today, outside, the week ahead, yesterday's habits, and one recommended first action. Sonnet, about 1 to 2¢ a day.
+  - It prints itself once like a teleprinter, in Courier New; a tap finishes it.
+  - **READ IT TO ME** reads it aloud in the iPad's own voice, lighting up each paragraph.
+  - **−** folds it to one line (a headline without the condition) so the Condition banner comes back up; it also folds itself at 10:30. **+** opens it again.
+  - **REFRESH** writes a new one; **COMPILE NOW** if it couldn't be written. Standby shows **BRIEFING READY** when one is waiting.
+  - Off and on under **SYSTEMS → ASK CLAUDE**. Never the Captain's Log; the apiary, tarot and finances only with their SHARE WITH ASK switch.
+- **COMPUTER:** "Morning briefing" opens it.
+- **Bridge 1.29** (update the Google bridge): a "brief" mode for ASK (Sonnet, no tools, logged as BRIEFING). Until then the briefing stays off and Systems says so.
+
 ## 2.35.0 · 2026-10-22
 - **COMPUTER: find any station, or something to do, by name.** Open it with **COMPUTER** in the header, **⌘K** on a keyboard, or a swipe down on the sidebar.
   - **Before you type:** what's waiting on you (the Bridge's Condition items), recent stations, and stations outside the sidebar you haven't opened in 14 days.

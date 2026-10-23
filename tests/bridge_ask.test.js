@@ -123,6 +123,19 @@ sent = []; script = [{ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usag
 const rp = ask({ mode: 'patterns' });
 assert.strictEqual(sent[0].model, 'claude-sonnet-5-5'); assert.ok(!sent[0].tools); assert.ok(sent[0].system[0].text.includes('patterns across them')); assert.ok(rp.reply.startsWith('- Evening'));
 
+// brief mode (1.29, the Morning Briefing): Sonnet even when everyday questions step down to Haiku, low effort, no tools,
+// its own task asking for JSON, logged as 'brief'; the capability is listed with the key
+props.AI_FAST_MODEL = 'claude-haiku-5-5';
+sent = []; script = [{ model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: '{"headline":"Four meetings","paras":[{"label":"","text":"Good morning, Captain."}],"action":"Pick priorities."}' }] }];
+const rb = ask({ mode: 'brief', cid: 'ask-brief-0001' });
+assert.strictEqual(sent[0].model, 'claude-sonnet-5-5', 'the briefing stays on Sonnet'); assert.deepStrictEqual(sent[0].output_config, { effort: 'low' }); assert.ok(!sent[0].tools, 'no tools');
+assert.strictEqual(sent[0].max_tokens, 6000);
+assert.ok(sent[0].system[0].text.includes("this morning's briefing") && sent[0].system[0].text.includes('one JSON object') && sent[0].system[0].text.includes('without the condition level'), 'briefing task');
+assert.ok(!sent[0].system[0].text.includes('weekly summary'), 'not the summary task');
+assert.ok(rb.reply.startsWith('{"headline"')); assert.strictEqual(get({ action: 'aispend', key }).log[0].mode, 'brief');
+assert.ok(get({ action: 'ping', key }).capabilities.includes('brief'), 'capability brief with the Claude key');
+delete props.AI_FAST_MODEL;
+
 // invalid proposal comes back to the model as an error, not a proposal
 script = [
   { model: 'claude-haiku-4-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tx', name: 'propose_set_status', input: { task_id: 'nope', task_title: 'x', status: '✅ Done' } }] },

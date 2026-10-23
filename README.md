@@ -314,6 +314,7 @@ The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). One full-
 
 | Panel | Shows |
 |---|---|
+| **Morning Briefing** | This morning's report in plain words, above Condition (see below) |
 | **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it (rules in Part 3) |
 | **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
 | **Habits** | Today's habits, tap to record (once Habits is connected) |
@@ -326,6 +327,15 @@ The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). One full-
 | **Intent + Bearing** | One line of intent for today, and your **bearing** for the day |
 
 Tap **+** beside a panel title for its details (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open. Balance counts tasks marked ✅ Done; Notion doesn't record the day a task was finished, so the date of its last edit stands in, and only the Life Area and that date leave Notion, never titles.
+
+**Morning Briefing** (needs Google bridge 1.29 and ASK set up)
+- **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).
+- **What:** the condition and why, today (meetings, the first and last, the longest open stretch, whether priorities are picked), outside (weather, hive check, frost), the week ahead, yesterday's habits, then one **RECOMMENDED** first action. The apiary, tarot and finances only with their **SHARE WITH ASK** switch on. Never the Captain's Log.
+- **How it looks:** it prints itself once like a teleprinter, in Courier New (tap the text to finish it at once). The header says when it was compiled, the model (Sonnet) and the cost (about 1 to 2¢).
+- **READ IT TO ME** reads it in the iPad's own voice, lighting up each paragraph as it goes; tap again to stop. It never plays on its own.
+- **Folding:** **−** folds it to one line (a short headline, without the condition, which sits right below) and the Condition banner moves back up. It also folds itself at 10:30 unless you opened it after that. Tap the line, or **+**, to read it again. Before 06:00 the line shows yesterday's.
+- **REFRESH** writes a new one, for example after PLAN DAY. If it couldn't be written (no connection, Claude busy, the monthly reminder), it says why and offers **COMPILE NOW**.
+- **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** turns it off and on. It counts toward ASK's monthly total, listed as BRIEFING.
 
 **Settings** (in **SYSTEMS → BRIDGE**, kept on this iPad): **Location** for weather (**USE THIS IPAD'S LOCATION**, or latitude and longitude; rounded to about 1 km) · **Bearings**, your guiding words, one per line; the Bridge shows one each day, tap it for the next · **Opens on**: Bridge or Today.
 
@@ -515,6 +525,7 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 | Find every Log entry that mentions something | **LOG** → **SEARCH THE LOG** |
 | Update the balances | **LEDGER** → pull down from the top, or **REFRESH** |
 | Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |
+| Hear this morning's briefing | **BRIDGE** → **READ IT TO ME** (or **COMPUTER** → Morning briefing) |
 | Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
 | Leave out booking blocks | Tap the event → **IGNORE THIS TITLE** |
 | Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** |
@@ -565,6 +576,8 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
+| No Morning Briefing on the Bridge | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why: it needs Google bridge 1.29, or it's turned off. Before 06:00 there's only yesterday's |
+| The briefing says **NOT COMPILED** | The reason is underneath. **COMPILE NOW** tries again; it also tries on its own a few minutes later |
 | A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
 | A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
 | Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add `YNAB_PLAN_ID`, run setup, deploy a new version |
@@ -586,7 +599,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Notion:** the integration sees only the databases you connected (the table under Connect Notion), with only the actions listed there. The bridge checks that every page it changes belongs to the right database. **Removing** a book, a tarot reading or spread, an apiary check or a hive **moves it to Notion's trash** (restorable there). The only real deletion is in LOG: paragraphs you remove from your own entry.
 - **YNAB** is read-only: the bridge only ever reads it.
 - **Captain's Log:** every log request carries your authorization code (in the request address over HTTPS, like the access key, because Google's redirects can drop a POST body), checked by the bridge, with a 15-minute lock after five misses that doubles with each lockout in a row. The code is never stored on the iPad or logged by the app. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, are never in a backup, and never go to the ASK button.
-- **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes. Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
+- **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes; for the **MORNING BRIEFING**, the same snapshot ASK sends plus yesterday's habits, once a day (Claude gets no tools for it, so it can only describe). Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
 - **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.

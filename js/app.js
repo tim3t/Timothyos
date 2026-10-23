@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.35.0";
+  var VERSION = "2.36.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -550,6 +550,7 @@
       flushQueue(false);
       flushHabits();
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
+      briefMaybe();
     }).catch(function (err) {
       var offline = navigator.onLine === false;
       state.syncFails = (state.syncFails || 0) + 1;
@@ -2276,7 +2277,7 @@
 
   function renderBridge() {
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
-    var html = conditionBanner(now, today, list) + '<div class="ov-grid">' +
+    var html = briefPanel(now) + conditionBanner(now, today, list) + '<div class="ov-grid">' +
       pnl("now", nowPanel(now, list)) + (canHabits() ? pnl("habits", habitsPanel(today)) : "") + (canTarot() ? pnl("tarot", tarotPanel()) : "") + pnl("env", envPanel(now)) +
       pnl("prio", prioritiesPanel(today, true, moreBtn("prio", "priorities")) + duePanel(today)) +
       pnl("horizon", horizonPanel(now, list)) + pnl("kd", kdNextPanel(today)) +
@@ -2289,12 +2290,202 @@
       restartClass(cEl, "changed");
     }
     if (lv) state.lastCond = lv;
+    briefLoop();
     loadTasks(today, false);
     loadDates(false);
     loadDone(false);
     loadWeather(false);
     var rdue = reviewDue(now);
     if (rdue && canReviews() && !reviewSaved(ymd(rdue))) loadWeek(rdue, false);
+    briefMaybe();
+  }
+
+  /* ---------- Morning Briefing (2.36, bridge 1.29) ---------- */
+  /* The first time Bridge is in front after 06:00 (at 06:00 itself when it stood by overnight), the app sends ASK's
+     snapshot plus yesterday's habits to the bridge (mode "brief": Sonnet, low effort, no tools) and gets back a
+     headline, labelled paragraphs and one recommended action. It prints once like a teleprinter, reads aloud in the
+     iPad's own voice on request, and folds to one line by hand (−) or at 10:30. Never the Captain's Log. */
+  var LS_BRIEF = "tos.brief.v1", LS_BRIEFOFF = "tos.briefoff.v1";
+  var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
+  var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
+  function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
+  function minsOf(d) { return d.getHours() * 60 + d.getMinutes(); }
+  function briefToday(now) { return br.b && br.b.day === ymd(now || new Date()) ? br.b : null; }
+  function briefSave() { lsSet(LS_BRIEF, br.b); }
+  function briefUnread() { var b = briefToday(); return !!(b && !b.typed && canBrief()); }
+  /* Today's facts are in: events, today's tasks, the weather (once a location is set) and the habits. */
+  function briefReady() {
+    var t = ymd(new Date());
+    return hasData(bridgeRange()) && (!canPlan() || !!state.tasks[t]) && (!lsGet(LS_PLACE) || !!wxData()) && (!canHabits() || !!hb.data);
+  }
+  function briefMaybe() {
+    var now = new Date();
+    if (!state.conn || !canBrief() || br.busy || document.hidden || minsOf(now) < BRIEF_FROM || briefToday(now)) return;
+    if (br.err && Date.now() - br.errAt < BRIEF_RETRY_MS) return;
+    if (!briefReady()) {
+      briefFetch();   /* a minute at most, looking again every few seconds: then it goes with what's there */
+      if (!br.waitFrom) br.waitFrom = Date.now();
+      if (Date.now() - br.waitFrom < BRIEF_WAIT_MS) { clearTimeout(br.retry); br.retry = setTimeout(briefMaybe, 3000); return; }
+    }
+    briefCompile();
+  }
+  /* Opened on another screen: fetch what the Bridge would have (its 14 days of calendars, today's tasks, the weather, habits). */
+  function briefFetch() {
+    var r = bridgeRange(), k = rkey(r), today = ymd(new Date());
+    if (!hasData(r) && !state.inflight[k]) {
+      state.inflight[k] = true;
+      api({ action: "events", from: r.from.getTime(), to: r.to.getTime() }).then(function (j) {
+        state.ranges[k] = { from: r.from.getTime(), to: r.to.getTime(), fetched: Date.now(), events: j.events || [] }; persist();
+      }).catch(function () { /* the briefing goes with what's there after a minute */ }).then(function () { delete state.inflight[k]; });
+    }
+    if (canPlan()) loadTasks(today, false);
+    if (canHabits()) loadHabits(false);
+    loadWeather(false);
+  }
+  function briefHabits() {
+    var k = ymd(addDays(sod(new Date()), -1)), d = hDay(k);
+    if (!d) return "YESTERDAY'S HABITS: nothing recorded.";
+    var yn = function (v) { return v ? "yes" : "no"; };
+    return "YESTERDAY'S HABITS: meditated " + yn(d.med) + "; evening walk " + yn(d.walk) + "; water " + (d.water == null ? "not recorded" : litres(d.water) + " of a " + litres(waterGoal(k)) + " goal") +
+      "; debit card " + (d.card == null ? "not recorded" : d.card === "kept" ? "not swiped" : "swiped") + ".";
+  }
+  function briefSteps() {
+    var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], canHabits() ? ["Yesterday's habits"] : [], ["Sonnet writing the briefing"]);
+    var k = Math.min(st.length - 1, Math.floor((Date.now() - br.t0) / 380));
+    return st.map(function (s, i) { return i < k ? '<span class="ok">✓</span> ' + s : i === k ? "<b>› " + s + "…</b>" : '<span class="dim">' + s + "</span>"; }).join("<br>");
+  }
+  function briefCompile(asked) {
+    var now = new Date(), today = ymd(now), prev = briefToday(now);
+    briefQuiet(); br.typeT0 = 0;
+    br.busy = true; br.err = ""; br.t0 = Date.now(); br.waitFrom = 0; br.showOld = false;
+    clearInterval(br.ci); br.ci = setInterval(function () { var c = $("brComp"); if (c) c.innerHTML = briefSteps(); }, 200);
+    if (state.screen === "bridge") render(true);
+    var ctx = briefing() + (canHabits() ? "\n\n" + briefHabits() : "");
+    return apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: "Write this morning's briefing." }], context: ctx, ignore: ignoreList }, 150000).then(function (j) {
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      var b = briefParse(j.reply);
+      if (!b) throw { code: "brief_shape" };
+      /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
+      b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
+      br.b = b; briefSave();
+    }).catch(function (err) {
+      if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
+      var msg = err && err.code === "brief_shape" ? "Claude's answer didn't come back in the briefing's shape." : describeAi(err);
+      if (briefToday()) toast("Briefing not refreshed: " + msg);   /* this morning's stays */
+      else { br.err = msg; br.errAt = Date.now(); }
+    }).then(function () { br.busy = false; clearInterval(br.ci); if (state.screen === "bridge") render(true); if (sb.on) paintStandby(); });
+  }
+  /* Claude answers {headline, paras[{label, text}], action}; anything else is refused rather than shown half-right. */
+  function briefParse(reply) {
+    var s = String(reply || ""), a = s.indexOf("{"), z = s.lastIndexOf("}"), o;
+    if (a < 0 || z <= a) return null;
+    try { o = JSON.parse(s.slice(a, z + 1)); } catch (e) { return null; }
+    var str = function (x, n) { return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, n) : ""; };
+    var paras = (Array.isArray(o.paras) ? o.paras : []).map(function (p) { return { label: str(p && p.label, 24).replace(/[.:]+$/, "").toUpperCase(), text: str(p && p.text, 600) }; })
+      .filter(function (p) { return p.text; }).slice(0, 10);
+    if (!paras.length) return null;
+    /* the Condition panel sits right below, so the folded line never repeats the level */
+    var head = str(o.headline, 160).split(/\s+·\s+/).filter(function (x) { return !/^condition\b/i.test(x); }).join(" · ");
+    return { headline: head, paras: paras, action: str(o.action, 300) };
+  }
+  /* Each paragraph as [class, text] pieces: its label, the condition level in its colour, the recommended action. */
+  function briefSegs(b) {
+    var out = b.paras.map(function (p) {
+      var segs = p.label ? [["lbl", p.label + ". "]] : [], m = !p.label && p.text.match(/^(.*?)(\bcondition (green|yellow|red)\b:?)(.*)$/i);
+      if (m) { if (m[1]) segs.push(["", m[1]]); segs.push(["c-" + m[3].toLowerCase(), m[2]]); if (m[4]) segs.push(["", m[4]]); }
+      else segs.push(["", p.text]);
+      return segs;
+    });
+    if (b.action) out.push([["act", "RECOMMENDED"], ["", " " + b.action]]);
+    return out;
+  }
+  function briefLen(segs) { var n = 0; segs.forEach(function (p) { p.forEach(function (s) { n += s[1].length; }); }); return n; }
+  /* The paper with n characters printed (all when n is null), the caret after the last one. */
+  function briefHtml(segs, n) {
+    var left = n == null ? Infinity : Math.max(0, n), html = "";
+    for (var i = 0; i < segs.length; i++) {
+      html += '<p data-bp="' + i + '"' + (br.say === i ? ' class="say"' : "") + ">";
+      for (var j = 0; j < segs[i].length; j++) {
+        var s = segs[i][j], t = s[1].slice(0, left);
+        html += (s[0] ? '<span class="' + s[0] + '">' : "<span>") + esc(t) + "</span>";
+        left -= t.length;
+        if (left <= 0 && n != null && (j < segs[i].length - 1 || i < segs.length - 1 || t.length < s[1].length)) return html + '<span class="br-caret"></span></p>';
+      }
+      html += "</p>";
+    }
+    return html;
+  }
+  function briefFolded(b, now) {
+    if (b.day !== ymd(now)) return !br.showOld;
+    if (b.fold === true) return true;
+    if (b.fold === false) return false;
+    return minsOf(now) >= BRIEF_FOLD;
+  }
+  function briefHead(meta, btn) {
+    return '<div class="phead" style="--c: var(--chrome-b)"><span class="cap"></span><h2>MORNING BRIEFING</h2><span class="rule"></span><span class="meta">' + meta + "</span>" + (btn || "") + "</div>";
+  }
+  function briefPanel(now) {
+    if (!state.conn || !canAsk() || lsGet(LS_BRIEFOFF)) return "";
+    if (state.caps.indexOf("brief") < 0) return "";   /* an older bridge: Systems says to update it */
+    var b = br.b, today = briefToday(now);
+    if (br.busy) return '<section class="br" aria-busy="true">' + briefHead("COMPILING · SONNET") + '<div class="br-comp" id="brComp">' + briefSteps() + '</div><div class="br-sweep"><i></i></div></section>';
+    if (br.err && !today) return '<section class="br">' + briefHead("NOT COMPILED") + '<div class="br-err">' + esc(br.err) + "</div>" +
+      '<div class="btnrow br-tools"><button type="button" class="btn sm" data-brief="now">COMPILE NOW</button><span class="muted">It tries again on its own in a few minutes.</span></div></section>';
+    if (!b) return "";
+    if (briefFolded(b, now)) return '<button type="button" class="br-fold" data-brief="open" aria-label="Open the morning briefing"><b>' + (today ? "" : "YESTERDAY'S ") + "MORNING BRIEFING · " + hm(new Date(b.at)) +
+      "</b><span>" + esc(b.headline || b.paras[0].text) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
+    if (today && !b.typed && !sb.on && !document.hidden) { b.typed = true; briefSave(); br.typeT0 = calm() ? 0 : performance.now(); }   /* prints once, the first time it's seen */
+    var segs = briefSegs(b), n = br.typeT0 ? Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * briefLen(segs)) : today && !b.typed ? 0 : null;
+    return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
+      '<button type="button" class="ov-more" data-brief="fold" aria-expanded="true" aria-label="Fold the briefing to one line"></button>') +
+      '<div class="br-paper" id="brPaper">' + briefHtml(segs, n) + "</div>" +
+      '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
+      '<button type="button" class="btn sm ghost" data-brief="again">REFRESH</button>' +
+      (today && b.fold == null && minsOf(now) < BRIEF_FOLD ? '<span class="muted">Folds to one line at 10:30, or tap −.</span>' : "") + "</div></section>";
+  }
+  /* Typing runs on its own frames and finds the paper by id, so the Bridge redrawing underneath never restarts it. */
+  function briefLoop() {
+    if (br.raf || !br.typeT0) return;
+    var frame = function () {
+      br.raf = 0;
+      if (!br.typeT0) return;   /* finished by a tap, or folded */
+      var el = $("brPaper");
+      if (!el || state.screen !== "bridge") { br.typeT0 = 0; return; }   /* left the Bridge: next time it's simply there */
+      var segs = briefSegs(br.b), total = briefLen(segs), n = Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * total);
+      if (n >= total) { br.typeT0 = 0; el.innerHTML = briefHtml(segs, null); return; }
+      el.innerHTML = briefHtml(segs, n);
+      br.raf = requestAnimationFrame(frame);
+    };
+    br.raf = requestAnimationFrame(frame);
+  }
+  /* READ IT TO ME: every paragraph queued at once, inside the tap, so iPadOS lets it speak; each lights up as it starts. */
+  function briefSay() {
+    if (br.speaking) { briefQuiet(); render(true); return; }
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast("This iPad has no voice to read with."); return; }
+    br.typeT0 = 0;
+    var texts = briefSegs(br.b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/°F/g, " degrees").replace(/\s·\s/g, ", ").replace(/¢/g, " cents"); });
+    try { speechSynthesis.cancel(); } catch (e) { /* nothing was speaking */ }
+    br.speaking = true; br.say = 0;
+    texts.forEach(function (t, i) {
+      var u = new SpeechSynthesisUtterance(t);
+      u.lang = "en-US";
+      u.onstart = function () { if (!br.speaking) return; br.say = i; if (state.screen === "bridge") render(true); };
+      u.onend = u.onerror = function () { if (i === texts.length - 1 && br.speaking) { br.speaking = false; br.say = -1; if (state.screen === "bridge") render(true); } };
+      speechSynthesis.speak(u);
+    });
+    render(true);
+  }
+  function briefQuiet() { if (!br.speaking) return; br.speaking = false; br.say = -1; try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ } }
+  function briefClick(b) {
+    var d = b.dataset.brief;
+    if (!d) return false;
+    if (d === "off" || d === "on") { if (d === "off") { lsSet(LS_BRIEFOFF, true); briefQuiet(); } else lsDel(LS_BRIEFOFF); render(true); return true; }
+    if (d === "say") { if (br.b) briefSay(); return true; }
+    if (d === "again" || d === "now") { if (!br.busy) briefCompile(true); return true; }
+    if (!br.b) return true;
+    if (d === "fold") { briefQuiet(); br.typeT0 = 0; br.showOld = false; if (briefToday()) { br.b.fold = true; briefSave(); } render(true); return true; }
+    if (d === "open") { if (briefToday()) { br.b.fold = false; briefSave(); } else br.showOld = true; render(true); return true; }
+    return false;
   }
 
   /* ---------- Weekly Review ---------- */
@@ -3143,7 +3334,9 @@
     if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs bridge 1.6 and ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
     var cap = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / cap * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / cap * 100)) : 80;
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
-      "<dt>MODELS</dt><dd>Sonnet 5.5 for questions and weekly summaries · Opus 5.5 for THINK HARDER</dd>" +
+      "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
+      "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs bridge 1.29: update the Google bridge (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
+        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>") + "</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
       '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
       '<small class="muted">The count here is worked out from each answer\'s tokens at list prices. Enter the Console\'s figure to line the two up; new questions add on from there.</small></dd></dl>';
@@ -3152,7 +3345,7 @@
       var d = new Date(x.t), when = DOW[d.getDay()] + " " + hm(d);
       if (x.mode === "matched") return '<div class="ai-row"><span class="tnum">' + when + "</span><span>MATCHED TO THE CONSOLE</span><span></span><span class=\"tnum\">$" + Number(x.usd).toFixed(2) + "</span></div>";
       var k = function (n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "K" : String(n || 0); };
-      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
+      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION", brief: "BRIEFING" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
         '</span><span class="muted tnum">' + k((x.in || 0) + (x.cw || 0) + (x.cr || 0)) + " in · " + k(x.out) + ' out</span><span class="tnum">' + money(x.usd || 0) + "</span></div>";
     }).join("") + "</div>";
     html += '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
@@ -3612,6 +3805,7 @@
       var running = kd.s < today, n = running ? daysBetween(today, kd.e) : daysBetween(today, kd.s);
       foot += '<span class="sb-sep wide"></span>◆ ' + esc(kd.d.title.toUpperCase()) + " · " + (running ? n + " D LEFT" : n === 0 ? "TODAY" : "IN " + n + " D");
     }
+    if (briefUnread()) html += '<div class="sb-brief"><i aria-hidden="true"></i>BRIEFING READY · TAP TO READ</div>';
     return html + '<div class="sb-lbl sb-dim sb-foot">' + foot + "</div>";
   }
   var SB_WAKE_MS = 900;   /* matches .standby.waking in app.css */
@@ -3640,6 +3834,7 @@
   function exitStandby() {
     if (!sb.on) return;
     sb.on = false; noteTouch();
+    if (briefUnread() && state.screen !== "bridge") go("bridge");   /* BRIEFING READY: the wake lands on it */
     clearInterval(sb.clock); clearInterval(sb.drift);
     var el = $("standby"), my = ++sb.fade;
     /* Redraw underneath first, so the fade never stalls on it; then fade out in full and only
@@ -4930,6 +5125,10 @@
       TR_DECK.forEach(function (id) { A(trName(id), "TAROT · EVERY TIME THIS CARD CAME UP", "REFLECT", "card history meaning", function () { go("tarot"); if (tr.data) trHistory(id); }, "CARD"); });
     }
     if (canAsk()) A("Ask the ship's computer", "ASK · CLAUDE", "TIME", "question claude ai", function () { openAsk(); });
+    if (canBrief()) A("Morning briefing", "BRIDGE · MORNING BRIEFING", "TIME", "brief report summary morning read aloud", function () {
+      go("bridge");
+      if (briefToday()) { br.b.fold = false; briefSave(); render(true); } else if (!br.busy && minsOf(new Date()) >= BRIEF_FROM) briefCompile(true);
+    });
     if (canLedger()) A("Add to the Replicator Queue", "LEDGER · REPLICATOR QUEUE", "RESOURCES", "buy wish list want", function () { go("ledger"); var q = $("qName"); if (q) { q.scrollIntoView({ block: "center" }); q.focus(); } });
     if (canLibrary()) {
       A("Add a book", "LIBRARY · + ADD BOOK", "RESOURCES", "books new search", function () { go("library"); openAddBook(); });
@@ -8451,7 +8650,7 @@
     "tos.upkeep.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
-    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1"];
+    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1"];
   var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
   var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
@@ -8692,6 +8891,8 @@
   $("logBtn").addEventListener("click", function () { go("review"); });
   $("todayBtn").addEventListener("click", function () { go(state.screen, state.screen === "review" ? sow(new Date()) : new Date()); });
 
+  /* A tap on the paper finishes the printing. On press, not click: the printing replaces the text under the finger every frame. */
+  $("content").addEventListener("pointerdown", function (e) { if (br.typeT0 && e.target.closest("#brPaper")) { br.typeT0 = 0; render(true); } });
   $("content").addEventListener("click", function (e) {
     var hit = e.target.closest(".hit");
     if (hit) { showTip(hit); return; }
@@ -8699,7 +8900,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if (bkClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if (bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);
@@ -8890,6 +9091,7 @@
     if (Date.now() - state.lastAuto > AUTO_MS) { state.lastAuto = Date.now(); refresh(true); }
     flushQueue(false);
     checkForUpdate(false);
+    briefMaybe();
   }
   setInterval(tick, 60 * 1000);
   document.addEventListener("visibilitychange", function () { if (!document.hidden) { tick(); refresh(false); checkForUpdate(true); } });
