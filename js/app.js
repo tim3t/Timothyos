@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.36.1";
+  var VERSION = "2.36.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2480,12 +2480,27 @@
     return isha.filter(function (v) { return /premium|enhanced/i.test((v.name || "") + " " + (v.voiceURI || "")); })[0] || isha[0] || null;
   }
   try { if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.addEventListener("voiceschanged", function () { speechSynthesis.getVoices(); }); } } catch (e) { /* no voices on this device */ }
+  /* Systems: which voice READ IT TO ME uses, and what this iPad offers Bridge (iPadOS may keep downloaded voices from web apps). */
+  function briefVoiceLine() {
+    var vs = [], v = briefVoice();
+    try { vs = speechSynthesis.getVoices() || []; } catch (e) { /* no voices */ }
+    var en = vs.filter(function (x) { return /^en[-_]/i.test(x.lang || ""); }).map(function (x) { return x.name + " (" + x.lang + ")"; })
+      .filter(function (x, i, a) { return a.indexOf(x) === i; });
+    return '<div class="br-voice"><small class="muted">' + (v ? "Voice: " + esc(v.name) + " · " + esc(v.lang) + "."
+      : "Voice: Isha isn't among the " + vs.length + " voices this iPad offers Bridge, so the iPad's default reads it." + (en.length ? " English voices offered: " + esc(en.slice(0, 20).join(", ")) + (en.length > 20 ? ", …" : "") + "." : "")) +
+      '</small> <button type="button" class="chip sm" data-brief="test">TEST VOICE</button></div>';
+  }
   function briefQuiet() { if (!br.speaking) return; br.speaking = false; br.say = -1; try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ } }
   function briefClick(b) {
     var d = b.dataset.brief;
     if (!d) return false;
     if (d === "off" || d === "on") { if (d === "off") { lsSet(LS_BRIEFOFF, true); briefQuiet(); } else lsDel(LS_BRIEFOFF); render(true); return true; }
     if (d === "say") { if (br.b) briefSay(); return true; }
+    if (d === "test") {
+      try { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance("Good morning, Captain. This is the voice that reads your briefing."), v = briefVoice(); if (v) { u.voice = v; u.lang = v.lang; } speechSynthesis.speak(u); }
+      catch (e) { toast("This iPad has no voice to read with."); }
+      return true;
+    }
     if (d === "again" || d === "now") { if (!br.busy) briefCompile(true); return true; }
     if (!br.b) return true;
     if (d === "fold") { briefQuiet(); br.typeT0 = 0; br.showOld = false; if (briefToday()) { br.b.fold = true; briefSave(); } render(true); return true; }
@@ -3341,7 +3356,7 @@
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
       "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs bridge 1.29: update the Google bridge (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
-        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>") + "</dd>" +
+        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + briefVoiceLine()) + "</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
       '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
       '<small class="muted">The count here is worked out from each answer\'s tokens at list prices. Enter the Console\'s figure to line the two up; new questions add on from there.</small></dd></dl>';

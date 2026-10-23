@@ -162,6 +162,10 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   // ---- Systems: off and on; an older bridge is named
   await p.click('#status'); await p.waitForSelector('[data-brief="off"]');
   assert.ok((await txt(p, '#content')).includes('MORNING BRIEFING On: written the first time Bridge is in front after 06:00'));
+  assert.ok((await txt(p, '#content')).includes('Voice: Isha (Premium) · en-IN.'), 'Systems names the voice in use');
+  const before = await p.evaluate(() => window.__said.length);
+  await p.click('[data-brief="test"]');
+  assert.strictEqual(await p.evaluate(n => window.__said.length - n + '|' + window.__said[window.__said.length - 1].voice.name, before), '1|Isha (Premium)', 'TEST VOICE speaks in Isha');
   await p.click('[data-brief="off"]'); await p.waitForSelector('[data-brief="on"]');
   await bridge(p);
   assert.strictEqual(await p.locator('.br, .br-fold').count(), 0, 'off: no panel');

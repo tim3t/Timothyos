@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.36.2 · 2026-10-23
+- **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** now says which voice reads the briefing, and if Isha isn't offered to Bridge, which English voices are. **TEST VOICE** plays a line in it. (iPadOS may keep downloaded voices, Premium ones included, from web apps.)
+
 ## 2.36.1 · 2026-10-23
 - **Morning Briefing, shorter:** about 80 words, one or two sentences a paragraph. Yesterday's habits, tarot and the apiary are left out (even when shared with ASK).
 - **Read aloud in Isha (Premium),** the iPad voice you downloaded; the iPad's default voice if it isn't there.
