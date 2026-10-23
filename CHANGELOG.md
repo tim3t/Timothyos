@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.36.1 · 2026-10-23
+- **Morning Briefing, shorter:** about 80 words, one or two sentences a paragraph. Yesterday's habits, tarot and the apiary are left out (even when shared with ASK).
+- **Read aloud in Isha (Premium),** the iPad voice you downloaded; the iPad's default voice if it isn't there.
+
 ## 2.36.0 · 2026-10-23 (bridge 1.29)
 - **Morning Briefing on the Bridge.** The first time Bridge is in front after 06:00 (at 06:00 itself if it stood by overnight), the ship's computer writes this morning's report: the condition and why, today, outside, the week ahead, yesterday's habits, and one recommended first action. Sonnet, about 1 to 2¢ a day.
   - It prints itself once like a teleprinter, in Courier New; a tap finishes it.

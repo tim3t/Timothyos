@@ -324,7 +324,7 @@ class H(BaseHTTPRequestHandler):
                 if k in q: BRIEF[k] = int(q[k])
             if "reset" in q: BRIEF["n"] = 0; BRIEF["ctx"] = ""
             body = {"ok": True}
-        elif q.get("action") == "briefstats": body = {"ok": True, "n": BRIEF["n"], "ctx": BRIEF["ctx"], "ignore": BRIEF["ignore"]}
+        elif q.get("action") == "briefstats": body = {"ok": True, "n": BRIEF["n"], "ctx": BRIEF["ctx"], "ignore": BRIEF["ignore"], "ask": BRIEF.get("ask", "")}
         elif q.get("action") == "pincode":
             global PIN
             PIN = "OMEGA-1701"; CODE[:] = [1]; LOGFAIL[0] = 0; body = {"ok": True}
@@ -482,7 +482,7 @@ class H(BaseHTTPRequestHandler):
                 else:
                     if mode == "brief":
                         import time; time.sleep(1.2)   # long enough to see COMPILING
-                        BRIEF["n"] += 1; BRIEF["ctx"] = b.get("context", ""); BRIEF["ignore"] = b.get("ignore")
+                        BRIEF["n"] += 1; BRIEF["ctx"] = b.get("context", ""); BRIEF["ignore"] = b.get("ignore"); BRIEF["ask"] = last
                         reply = "Not JSON at all." if BRIEF["shape"] else "```json\n" + json.dumps(BRIEF_REPLY) + "\n```"
                     elif mode == "patterns": reply = "- Evening calls drain you in weeks 39 and 35.\n- Weeks with fewer picks finish more of them.\n- Try one call-free evening next week."
                     elif mode == "summary": reply = "A steady week, Captain. The deck shipped and the hives were checked; bulbs slipped again."

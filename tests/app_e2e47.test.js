@@ -1,8 +1,8 @@
 // MORNING BRIEFING (2.36, bridge 1.29; simulated on :8105 after e2e46, a canned invented briefing): nothing before
-// 06:00; the first time Bridge is in front after 06:00 it compiles once (ASK's snapshot plus yesterday's habits, mode
-// "brief", the ignore list) and prints like a teleprinter (a tap finishes it); − folds it to one line without the
+// 06:00; the first time Bridge is in front after 06:00 it compiles once (ASK's snapshot without tarot or the apiary
+// even when they're shared, no habits, a short ask, mode "brief", the ignore list) and prints like a teleprinter (a tap finishes it); − folds it to one line without the
 // condition and the Condition banner moves up; it stays folded, opens already printed, folds itself at 10:30 unless
-// opened; READ IT TO ME queues every paragraph and lights each as it starts; REFRESH writes a new one; a failed
+// opened; READ IT TO ME queues every paragraph in Isha's voice (2.36.1) and lights each as it starts; REFRESH writes a new one; a failed
 // compile offers COMPILE NOW, a malformed answer keeps the old one; yesterday's shows folded before 06:00; compiled
 // while away, Standby shows BRIEFING READY and the wake lands on it; Systems turns it off and on and names the
 // bridge it needs; COMPUTER finds it; phone width fits; no emoji.
@@ -24,7 +24,8 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
     window.__said = []; window.__cancels = 0;
     function U(t) { this.text = t; }
     Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: U, configurable: true, writable: true });
-    Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() { window.__cancels++; } }, configurable: true });
+    const voices = [{ name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Isha', lang: 'en-IN', voiceURI: 'com.apple.voice.compact.en-IN.Isha' }, { name: 'Isha (Premium)', lang: 'en-IN', voiceURI: 'com.apple.voice.premium.en-IN.Isha' }];
+    Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() { window.__cancels++; }, getVoices() { return voices; }, addEventListener() {} }, configurable: true });
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(at('23T05:30'));
@@ -32,8 +33,12 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   await p.evaluate(([k, u]) => {
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k }));
     localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); localStorage.setItem('tos.ignore.v1', JSON.stringify(['Away block']));
+    localStorage.setItem('tos.aitarot.v1', 'true'); localStorage.setItem('tos.aiapiary.v1', 'true');   // shared with ASK, still left out of the briefing
   }, [K, U]);
   await p.reload(); await p.waitForSelector('.ov-cond', { timeout: 10000 }); await p.waitForTimeout(1500);
+  // load the tarot readings and the hives, so ASK's snapshot would carry them
+  for (const s of ['tarot', 'apiary']) { await p.click('#allBtn'); await p.click('[data-station="' + s + '"]'); await p.waitForTimeout(1200); }
+  await bridge(p);
 
   // ---- before 06:00: nothing is written
   assert.strictEqual((await stats()).n, 0, 'nothing compiles before 06:00');
@@ -47,7 +52,9 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   await p.waitForSelector('#brPaper', { timeout: 10000 });
   let st = await stats();
   assert.strictEqual(st.n, 1, 'one compile');
-  assert.ok(st.ctx.includes('CONDITION:') && st.ctx.includes('TODAY:') && st.ctx.includes("YESTERDAY'S HABITS:"), st.ctx.slice(0, 300));
+  assert.ok(st.ctx.includes('CONDITION:') && st.ctx.includes('TODAY:'), st.ctx.slice(0, 300));
+  assert.ok(!/^TAROT|^APIARY|YESTERDAY'S HABITS/m.test(st.ctx), 'no tarot, apiary or habits in the briefing');
+  assert.ok(st.ask.includes('about 80 words') && st.ask.includes('No YESTERDAY, APIARY or TAROT'), st.ask);
   assert.ok(!/captain'?s log/i.test(st.ctx), 'never the log');
   assert.deepStrictEqual(st.ignore, ['Away block'], 'ignored titles go along');
   // prints like a teleprinter: the caret is there part way; a tap finishes it
@@ -88,6 +95,8 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   const said = await p.evaluate(() => window.__said.map(u => u.text));
   assert.strictEqual(said.length, 5, said.join(' | '));
   assert.ok(said[2].includes('41 degrees') && !said[2].includes('°'), said[2]);
+  const v = await p.evaluate(() => window.__said.map(u => (u.voice && u.voice.name) + '|' + u.lang));
+  assert.ok(v.every(x => x === 'Isha (Premium)|en-IN'), 'Isha (Premium) reads it: ' + v.join(', '));
   assert.strictEqual(await txt(p, '[data-brief="say"]'), 'STOP READING');
   await p.evaluate(() => window.__said[2].onstart());
   await p.waitForTimeout(100);

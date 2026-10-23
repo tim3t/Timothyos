@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.36.0";
+  var VERSION = "2.36.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2306,6 +2306,9 @@
      headline, labelled paragraphs and one recommended action. It prints once like a teleprinter, reads aloud in the
      iPad's own voice on request, and folds to one line by hand (−) or at 10:30. Never the Captain's Log. */
   var LS_BRIEF = "tos.brief.v1", LS_BRIEFOFF = "tos.briefoff.v1";
+  var BRIEF_SKIP = ["tarot readings", "apiary"];   /* snapshot parts the briefing leaves out (habits were never in it) */
+  var BRIEF_ASK = "Write this morning's briefing. Keep it short: about 80 words in all, one or two sentences a paragraph, only what matters today. No YESTERDAY, APIARY or TAROT paragraphs.";
+  var BRIEF_VOICE = /\bisha\b/i;   /* Timothy's choice (2.36.1): Isha (Premium), downloaded on the iPad; the iPad's default voice when it isn't there */
   var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
   var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
   function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
@@ -2316,7 +2319,7 @@
   /* Today's facts are in: events, today's tasks, the weather (once a location is set) and the habits. */
   function briefReady() {
     var t = ymd(new Date());
-    return hasData(bridgeRange()) && (!canPlan() || !!state.tasks[t]) && (!lsGet(LS_PLACE) || !!wxData()) && (!canHabits() || !!hb.data);
+    return hasData(bridgeRange()) && (!canPlan() || !!state.tasks[t]) && (!lsGet(LS_PLACE) || !!wxData());
   }
   function briefMaybe() {
     var now = new Date();
@@ -2329,7 +2332,7 @@
     }
     briefCompile();
   }
-  /* Opened on another screen: fetch what the Bridge would have (its 14 days of calendars, today's tasks, the weather, habits). */
+  /* Opened on another screen: fetch what the Bridge would have (its 14 days of calendars, today's tasks, the weather). */
   function briefFetch() {
     var r = bridgeRange(), k = rkey(r), today = ymd(new Date());
     if (!hasData(r) && !state.inflight[k]) {
@@ -2339,18 +2342,10 @@
       }).catch(function () { /* the briefing goes with what's there after a minute */ }).then(function () { delete state.inflight[k]; });
     }
     if (canPlan()) loadTasks(today, false);
-    if (canHabits()) loadHabits(false);
     loadWeather(false);
   }
-  function briefHabits() {
-    var k = ymd(addDays(sod(new Date()), -1)), d = hDay(k);
-    if (!d) return "YESTERDAY'S HABITS: nothing recorded.";
-    var yn = function (v) { return v ? "yes" : "no"; };
-    return "YESTERDAY'S HABITS: meditated " + yn(d.med) + "; evening walk " + yn(d.walk) + "; water " + (d.water == null ? "not recorded" : litres(d.water) + " of a " + litres(waterGoal(k)) + " goal") +
-      "; debit card " + (d.card == null ? "not recorded" : d.card === "kept" ? "not swiped" : "swiped") + ".";
-  }
   function briefSteps() {
-    var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], canHabits() ? ["Yesterday's habits"] : [], ["Sonnet writing the briefing"]);
+    var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], ["Sonnet writing the briefing"]);
     var k = Math.min(st.length - 1, Math.floor((Date.now() - br.t0) / 380));
     return st.map(function (s, i) { return i < k ? '<span class="ok">✓</span> ' + s : i === k ? "<b>› " + s + "…</b>" : '<span class="dim">' + s + "</span>"; }).join("<br>");
   }
@@ -2360,8 +2355,9 @@
     br.busy = true; br.err = ""; br.t0 = Date.now(); br.waitFrom = 0; br.showOld = false;
     clearInterval(br.ci); br.ci = setInterval(function () { var c = $("brComp"); if (c) c.innerHTML = briefSteps(); }, 200);
     if (state.screen === "bridge") render(true);
-    var ctx = briefing() + (canHabits() ? "\n\n" + briefHabits() : "");
-    return apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: "Write this morning's briefing." }], context: ctx, ignore: ignoreList }, 150000).then(function (j) {
+    /* Timothy (2.36.1): shorter, and no habits, apiary or tarot. Those parts stay out of the snapshot, and the ask asks for brevity. */
+    var ctx = briefing(true).filter(function (x) { return BRIEF_SKIP.indexOf(x.k) < 0; }).map(function (x) { return x.t; }).join("\n\n");
+    return apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList }, 150000).then(function (j) {
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       var b = briefParse(j.reply);
       if (!b) throw { code: "brief_shape" };
@@ -2465,16 +2461,25 @@
     br.typeT0 = 0;
     var texts = briefSegs(br.b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/°F/g, " degrees").replace(/\s·\s/g, ", ").replace(/¢/g, " cents"); });
     try { speechSynthesis.cancel(); } catch (e) { /* nothing was speaking */ }
+    var voice = briefVoice();
     br.speaking = true; br.say = 0;
     texts.forEach(function (t, i) {
       var u = new SpeechSynthesisUtterance(t);
-      u.lang = "en-US";
+      if (voice) { u.voice = voice; u.lang = voice.lang; } else u.lang = "en-US";
       u.onstart = function () { if (!br.speaking) return; br.say = i; if (state.screen === "bridge") render(true); };
       u.onend = u.onerror = function () { if (i === texts.length - 1 && br.speaking) { br.speaking = false; br.say = -1; if (state.screen === "bridge") render(true); } };
       speechSynthesis.speak(u);
     });
     render(true);
   }
+  /* Isha, the Premium one when both are there. Safari fills its voice list a moment after load, so it's asked early and again here. */
+  function briefVoice() {
+    var vs = [];
+    try { vs = speechSynthesis.getVoices() || []; } catch (e) { return null; }
+    var isha = vs.filter(function (v) { return BRIEF_VOICE.test(v.name || "") || BRIEF_VOICE.test(v.voiceURI || ""); });
+    return isha.filter(function (v) { return /premium|enhanced/i.test((v.name || "") + " " + (v.voiceURI || "")); })[0] || isha[0] || null;
+  }
+  try { if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.addEventListener("voiceschanged", function () { speechSynthesis.getVoices(); }); } } catch (e) { /* no voices on this device */ }
   function briefQuiet() { if (!br.speaking) return; br.speaking = false; br.say = -1; try { speechSynthesis.cancel(); } catch (e) { /* already quiet */ } }
   function briefClick(b) {
     var d = b.dataset.brief;
