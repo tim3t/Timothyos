@@ -29,6 +29,7 @@ run bridge_calendar.test.js
 run bridge_notion.test.js
 run bridge_ask.test.js
 run bridge_voice.test.js
+run version_sync.test.js
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
@@ -79,7 +80,7 @@ PY
 # nothing (each relay lane has its own relay, RELAY_PORT) and run side by side, up to $JOBS at once, longest first.
 # A lane is: name|environment|tests…   Comments name what each test covers.
 LANES=(
-  "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js"
+  "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js"
   "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e7.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
   "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js"

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.37.2";
+  var VERSION = "2.38.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -338,7 +338,8 @@
     if (code === "busy") return "The bridge was busy with another request, even after retrying. It will try again on its own.";
     if (code === "bad_json") return "Google sent an error page instead of data, even after retrying. Usually temporary. If it persists, check that the URL ends in /exec.";
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
-    if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs.";
+    if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs." + bridgeNote();
+    if (code === "bad_request" && bridgeBehind()) return "The bridge refused it." + bridgeNote();
     if (/^http_/.test(code || "")) return "The script answered with " + code.replace("http_", "HTTP ") + ". Check the deployment.";
     if (err && err.name === "AbortError") return "Google took too long to answer, even after retrying. Usually temporary.";
     if (isNetworkError(err)) return navigator.onLine === false ? "No connection. Showing saved data." : "Couldn't reach the script, even after retrying. If this keeps happening, check that the URL ends in /exec and access is set to Anyone.";
@@ -860,8 +861,8 @@
     html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
       STANDBY_MODULES.map(function (m) { return '<div class="stubbox"><span><b style="color:var(--fg)">' + m[0] + "</b><br>" + m[1] + "</span></div>"; }).join("") + "</div></section>";
 
-    html += "<section>" + phead("APP", "", "chrome-d") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
-      "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) : '<span class="muted">Unknown</span>') + "</dd>" +
+    html += '<section id="sec-app">' + phead("APP", "", "chrome-d") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
+      "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) + (bridgeBehind() ? ' <span class="pill warn">UPDATE TO ' + BRIDGE_WANT + "</span>" : ' <span class="pill ok">UP TO DATE</span>') : '<span class="muted">Unknown</span>') + "</dd>" +
       "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd>" +
       "</dl></section></div>";
     $("content").innerHTML = html;
@@ -882,11 +883,43 @@
     if (code === "offline") return ["Check the iPad's Wi-Fi.", "Tap <b>" + retry + "</b> once you're back online."];
     return ["Tap <b>" + retry + "</b>. Most of these clear on the next try.", "Still failing? Google or Notion is slow. Wait a few minutes; TimothyOS also retries on its own.", "Failing for an hour or more? Open <b>script.google.com → Executions</b> and look for red errors."];
   }
+  /* ---------- Bridge version check (2.38) ---------- */
+  /* The app updates itself; the Google bridge changes only when Timothy pastes the code, runs setup and deploys a
+     new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
+     equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
+     what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
+  var BRIDGE_WANT = "1.30.0";
+  var BRIDGE_FEATURES = [["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+    ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
+    ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
+  var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
+  function verCmp(a, b) {
+    var x = String(a || "0").split(".").map(Number), y = String(b || "0").split(".").map(Number);
+    for (var i = 0; i < 3; i++) { var d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; }
+    return 0;
+  }
+  function bridgeBehind() { return !!(state.conn && state.bridgeVersion && verCmp(state.bridgeVersion, BRIDGE_WANT) < 0); }
+  function bridgeMissing() { return BRIDGE_FEATURES.filter(function (f) { return verCmp(state.bridgeVersion, f[0]) < 0; }).map(function (f) { return f[1]; }); }
+  function bridgeNote() { return bridgeBehind() ? " The Google bridge is " + state.bridgeVersion + "; this app needs " + BRIDGE_WANT + ": SYSTEMS → NEEDS YOU has the steps." : ""; }
+  function fixBridge() {
+    fixRun("bridge", function () {
+      refresh(true);
+      return new Promise(function (res) { var n = 0, t = setInterval(function () { if (++n > 120 || (state.sync.status !== "syncing" && state.sync.status !== "retrying")) { clearInterval(t); res(); } }, 250); });
+    }, "Google bridge " + BRIDGE_WANT + " found. Up to date");
+  }
   function fixTickets() {
     var now = new Date();
     return conditions(now, ymd(now), eventsFor(bridgeRange())).filter(function (i) { return i.fix; }).map(function (i) {
       var t = { id: i.fix, lvl: i.lvl, ic: i.ic, txt: i.txt, busy: !!state.fixBusy[i.fix] };
       if (i.fix === "tasks") { t.why = esc(state.tasksErr.msg); t.btn = ["fixtasks", "RETRY NOW"]; t.steps = fixSteps(state.tasksErr.code, "RETRY NOW"); t.sec = ["sec-notion", "NOTION"]; }
+      else if (i.fix === "bridge") {
+        t.why = i.sub; t.btn = ["fixbridge", "CHECK AGAIN"]; t.sec = ["sec-app", "APP"];
+        t.steps = ['Open the latest code: <a href="' + BRIDGE_CODE_URL + '" target="_blank" rel="noopener">Code.gs on GitHub</a> (in Safari, aA → Request Desktop Website). Select all, copy.',
+          "In <b>script.google.com → TimothyOS bridge</b>: select all the old code, delete it, paste, save.",
+          "Choose <b>setup</b>, tap <b>Run</b>, approve anything Google asks. The log ends with <b>Bridge version " + BRIDGE_WANT + "</b>.",
+          "<b>Deploy → Manage deployments → pencil → Version: New version → Deploy.</b> The step that's easy to miss: without it the old version keeps answering.",
+          "Come back and tap <b>CHECK AGAIN</b>."];
+      }
       else if (i.fix === "sync") { t.why = esc(state.sync.error || "The bridge hasn't answered."); t.btn = ["fixsync", "REFRESH NOW"]; t.steps = fixSteps(state.sync.code, "REFRESH NOW"); t.sec = ["sec-conn", "CONNECTION"]; }
       else { t.why = i.sub; t.btn = ["fixqueue", "SEND NOW"]; t.sec = ["sec-capture", "CAPTURE"];
         t.steps = ["Tap <b>SEND NOW</b> to try every waiting capture again.", "A capture that still fails shows the reason under CAPTURE. Fix it there, or <b>DISCARD</b> it and capture again."]; }
@@ -1949,6 +1982,10 @@
     var st = state.sync;
     if (state.conn && (st.status === "error" || st.status === "offline") && (!st.at || Date.now() - st.at > STALE_SYNC_MS)) {
       items.push({ lvl: "bad", ic: "◌", txt: "Sync failing for over 6 hours", sub: st.at ? "Showing data from " + esc(stamp(st.at)) + "." : "No data loaded yet.", act: "systems", fix: "sync", go: "SYSTEMS" });
+    }
+    if (bridgeBehind()) {
+      var miss = bridgeMissing();
+      items.push({ lvl: "warn", ic: "▲", txt: "Google bridge out of date", sub: "Deployed " + esc(state.bridgeVersion) + ", this app needs " + BRIDGE_WANT + "." + (miss.length ? " Missing: " + esc(miss.slice(0, 3).join(", ") + (miss.length > 3 ? " and " + (miss.length - 3) + " more" : "")) + "." : ""), act: "systems", fix: "bridge", go: "SYSTEMS" });
     }
     var stuck = state.queue.filter(function (q) { return q.failed || (q.attempts || 0) >= 2; });
     if (stuck.length) items.push({ lvl: "warn", ic: "▲", txt: stuck.length === 1 ? "1 capture not saved yet" : stuck.length + " captures not saved yet", sub: titles(stuck), act: "systems", fix: "queue", go: "SYSTEMS" });
@@ -6641,6 +6678,7 @@
       nasList(dir, false).then(function (l) {
         var order = l.items.filter(function (x) { return !x.dir && AUDIO_EXT.test(x.name); }).sort(sorterFor(sortOf(dir))).map(function (x) { return x.path; });
         if (pl.path === d.nasresume && order.indexOf(d.nasresume) > -1) pl.list = order;
+        if (state.screen === "storage" && nas.view === "now") render(true);   /* the rest of the folder shows under UP NEXT once it's in */
       }).catch(function () {});
       nas.view = "now"; render(false); renderHeader(); return true;
     }
@@ -9103,6 +9141,7 @@
     else if (b.dataset.act === "systems") { state.fixFocus = b.dataset.fix || null; go("systems"); if (state.fixFocus) setTimeout(function () { var c = $("fix-" + state.fixFocus); if (c) restartClass(c, "flash"); }, 350); }
     else if (b.dataset.act === "fixtasks") fixTasks();
     else if (b.dataset.act === "fixsync") fixSync();
+    else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixqueue") fixQueue();
     else if (b.dataset.act === "fixdone") go("bridge");
     else if (b.dataset.jump) fixJump(b.dataset.jump);

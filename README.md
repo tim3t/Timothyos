@@ -100,7 +100,7 @@ New features sometimes need a newer Google bridge; the CHANGELOG says so when th
 4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
 5. In the app: **SYSTEMS → REFRESH NOW**.
 
-Code changes have no effect until step 4.
+Code changes have no effect until step 4. When the app needs a newer bridge than the one deployed (step 4 missed, or a new feature), the Bridge's Condition shows **Google bridge out of date** with what's missing; **SYSTEMS → NEEDS YOU** has these steps and **CHECK AGAIN**, and **SYSTEMS → APP** shows the version with **UP TO DATE** or **UPDATE TO**.
 
 ## Connect Notion
 
@@ -551,7 +551,7 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | Level | When |
 |---|---|
 | 🔴 RED | A High-priority task is overdue · Events on two different calendars overlap later today · Sync has failed for over 6 hours |
-| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Weekly review due · An upkeep item is overdue · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load |
+| 🟡 YELLOW | A key date is 3 days away or less · Any other task is overdue · A task is due today but not picked · No priorities picked by 10:00 · Weekly review due · An upkeep item is overdue · Frost tonight (32°F or below) · A capture hasn't saved after 2 tries · The task list didn't load · The Google bridge is older than this app needs |
 | 🟢 GREEN | None of the above |
 
 Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
@@ -581,7 +581,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "Couldn't reach the script" | The URL must end in `/exec`; the deployment's access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
 | Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
-| A feature says the bridge is out of date, or "The bridge refused it" | Update the Google bridge to the version the CHANGELOG names |
+| **Google bridge out of date** in Condition, or "The bridge refused it" | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
 | A station says SETUP | It needs a database connected, a key in Script Properties, or a newer Google bridge: see its part of Setup |

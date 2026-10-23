@@ -1,5 +1,8 @@
 # Simulated bridge 1.10: everything in 1.9, plus the Captain's Log (PIN 135790, invented sample entries). Port 8101.
 import json, datetime as dt
+import os as _os, re as _re
+# The bridge version every answer reports: the one in Code.gs, so the app (2.38) sees an up-to-date bridge.
+BV = _re.search(r"var VERSION = '([\d.]+)'", open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
@@ -152,20 +155,20 @@ class H(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
         if q.get("action") == "batch" and q.get("key") == KEY:
             calls = json.loads(q.get("calls", "[]")); BATCHES.append([c.get("action") for c in calls])
-            body = {"ok": True, "version": "1.13.0", "results": [self.answer(dict(c, key=KEY)) for c in calls]}
+            body = {"ok": True, "version": BV, "results": [self.answer(dict(c, key=KEY)) for c in calls]}
         else: body = self.answer(q)
         b = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def answer(self, q):
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": BV, "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": BV, "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "tasks":
             d = q.get("day")
-            body = {"ok": True, "version": "1.2.0", "day": d, "focus": [t for t in TASKS if t["focus"] == d], "open": sorted([t for t in TASKS if t["status"] != "✅ Done"], key=lambda t: t["due"] or "9999"), "areas": AREAS, "priorities": PRIS}
+            body = {"ok": True, "version": BV, "day": d, "focus": [t for t in TASKS if t["focus"] == d], "open": sorted([t for t in TASKS if t["status"] != "✅ Done"], key=lambda t: t["due"] or "9999"), "areas": AREAS, "priorities": PRIS}
         elif q.get("action") == "week":
             wk = q.get("week", ""); nxt = (dt.date.fromisoformat(wk) + dt.timedelta(days=7)).isoformat()
-            body = {"ok": True, "version": "1.5.0", "week": wk, "done": WEEKDONE.get(wk, []),
+            body = {"ok": True, "version": BV, "week": wk, "done": WEEKDONE.get(wk, []),
                     "picked": [t for t in TASKS if t["focus"] and wk <= t["focus"] < nxt],
                     "review": None if UNSHARED else REVIEWS.get(wk), "reviewsError": "notion_not_shared" if UNSHARED else None}
         elif q.get("action") == "aispend":
@@ -173,13 +176,13 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "unshare":
             UNSHARED.append(1); body = {"ok": True}
         elif q.get("action") == "done":
-            body = {"ok": True, "version": "1.4.0", "days": 30, "done": DONE}
+            body = {"ok": True, "version": BV, "days": 30, "done": DONE}
         elif q.get("action") == "dates":
-            body = {"ok": True, "version": "1.3.0", "dates": KDATES, "areas": AREAS, "types": KTYPES}
+            body = {"ok": True, "version": BV, "dates": KDATES, "areas": AREAS, "types": KTYPES}
         elif q.get("action") == "ledger":
-            body = {"ok": True, "version": "1.9.0", "ynab": YNAB, "queue": qrows()}
+            body = {"ok": True, "version": BV, "ynab": YNAB, "queue": qrows()}
         elif q.get("action") == "reviews":
-            body = {"ok": True, "version": "1.7.0", "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
+            body = {"ok": True, "version": BV, "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
             if UNSHARED: body = {"ok": False, "error": "notion_not_shared"}
             RLISTS.append(1)
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
@@ -277,7 +280,7 @@ class H(BaseHTTPRequestHandler):
             elif it.get("cid") in SEEN: body = dict(SEEN[it["cid"]], duplicate=True)
             else:
                 ev = {"id": it["area"] + ":new:" + it["cid"], "area": it["area"], "title": it["title"], "busy": False, "allDay": bool(it.get("allDay")), "location": "", "start": it["start"], "end": it["end"]}
-                CREATED.append(ev); body = {"ok": True, "version": "1.1.0", "event": ev}; SEEN[it["cid"]] = body
+                CREATED.append(ev); body = {"ok": True, "version": BV, "event": ev}; SEEN[it["cid"]] = body
         out = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(out)
 HTTPServer(("127.0.0.1", 8101), H).serve_forever()

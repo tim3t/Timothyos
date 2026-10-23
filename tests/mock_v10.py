@@ -1,4 +1,7 @@
 import json, datetime as dt
+import os as _os, re as _re
+# The bridge version every answer reports: the one in Code.gs, so the app (2.38) sees an up-to-date bridge.
+BV = _re.search(r"var VERSION = '([\d.]+)'", open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
@@ -30,8 +33,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.0.0", "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.0.0", "calendars": CALS, "events": events(int(q["from"]), int(q["to"]))}
+        elif q.get("action") == "ping": body = {"ok": True, "version": BV, "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": BV, "calendars": CALS, "events": events(int(q["from"]), int(q["to"]))}
         else: body = {"ok": False, "error": "unknown_action"}
         b = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)

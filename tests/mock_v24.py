@@ -4,6 +4,10 @@
 # Simulated bridge 1.16/1.17: everything in 1.14, plus Captain's Log search and its index (invented sample entries), and
 # (after ?action=pincode) a code-word authorization like OMEGA-1701 with timed lockouts. Port 8103.
 import json, datetime as dt
+import os as _os, re as _re
+# The bridge version every answer reports: the one in Code.gs, so the app (2.38) sees an up-to-date bridge. e2e49 lowers it (setversion).
+BV = _re.search(r"var VERSION = '([\d.]+)'", open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
+VER = {"v": BV}
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
@@ -308,7 +312,7 @@ class H(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
         if q.get("action") == "batch" and q.get("key") == KEY:
             calls = json.loads(q.get("calls", "[]")); BATCHES.append([c.get("action") for c in calls])
-            body = {"ok": True, "version": "1.13.0", "results": [self.answer(dict(c, key=KEY)) for c in calls]}
+            body = {"ok": True, "version": VER["v"], "results": [self.answer(dict(c, key=KEY)) for c in calls]}
         else: body = self.answer(q)
         b = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
@@ -319,9 +323,10 @@ class H(BaseHTTPRequestHandler):
             from zoneinfo import ZoneInfo
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
-            body = {"ok": True, "version": "1.23.0", "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+            body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
                 if k in q: BRIEF[k] = int(q[k])
@@ -346,10 +351,10 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "tasks":
             d = q.get("day")
             if TSLOW[0]: __import__("time").sleep(TSLOW[0])
-            body = {"ok": True, "version": "1.2.0", "day": d, "focus": [t for t in TASKS if t["focus"] == d], "open": sorted([t for t in TASKS if t["status"] != "✅ Done"], key=lambda t: t["due"] or "9999"), "areas": AREAS, "priorities": PRIS}
+            body = {"ok": True, "version": VER["v"], "day": d, "focus": [t for t in TASKS if t["focus"] == d], "open": sorted([t for t in TASKS if t["status"] != "✅ Done"], key=lambda t: t["due"] or "9999"), "areas": AREAS, "priorities": PRIS}
         elif q.get("action") == "week":
             wk = q.get("week", ""); nxt = (dt.date.fromisoformat(wk) + dt.timedelta(days=7)).isoformat()
-            body = {"ok": True, "version": "1.5.0", "week": wk, "done": WEEKDONE.get(wk, []),
+            body = {"ok": True, "version": VER["v"], "week": wk, "done": WEEKDONE.get(wk, []),
                     "picked": [t for t in TASKS if t["focus"] and wk <= t["focus"] < nxt],
                     "review": None if UNSHARED else REVIEWS.get(wk), "reviewsError": "notion_not_shared" if UNSHARED else None}
         elif q.get("action") == "aispend":
@@ -357,40 +362,40 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "unshare":
             UNSHARED.append(1); body = {"ok": True}
         elif q.get("action") == "done":
-            body = {"ok": True, "version": "1.4.0", "days": 30, "done": DONE}
+            body = {"ok": True, "version": VER["v"], "days": 30, "done": DONE}
         elif q.get("action") == "dates":
-            body = {"ok": True, "version": "1.3.0", "dates": KDATES, "areas": AREAS, "types": KTYPES}
+            body = {"ok": True, "version": VER["v"], "dates": KDATES, "areas": AREAS, "types": KTYPES}
         elif q.get("action") == "ledger":
             # bridge 1.21: the bridge's copy of YNAB is kept 10 minutes; fresh=1 goes to YNAB itself
             LEDGERCALLS.append(q.get("fresh") == "1")
             if q.get("fresh") == "1" or not YCACHE: YCACHE[:] = [json.loads(json.dumps(dict(YNAB, at=YAT[0])))]
-            body = {"ok": True, "version": "1.21.0", "ynab": YCACHE[0], "queue": qrows()}
+            body = {"ok": True, "version": VER["v"], "ynab": YCACHE[0], "queue": qrows()}
         elif q.get("action") == "ynabset":
             YNAB["checking"][0]["balance"] = float(q.get("bal")); YAT[0] = q.get("at", YAT[0]); body = {"ok": True}
         elif q.get("action") == "reviews":
-            body = {"ok": True, "version": "1.7.0", "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
+            body = {"ok": True, "version": VER["v"], "reviews": [] if UNSHARED else [REVIEWS[k] for k in sorted(REVIEWS, reverse=True)]}
             if UNSHARED: body = {"ok": False, "error": "notion_not_shared"}
             RLISTS.append(1)
         elif q.get("action") == "habits":
             f, t = q.get("from", ""), q.get("to", "")
-            body = {"ok": True, "version": "1.14.0", "from": f, "to": t, "days": [h for d, h in sorted(HABITS.items()) if f <= d <= t]}
-        elif q.get("action") == "library": body = {"ok": True, "version": "1.14.0", "books": BOOKS}
+            body = {"ok": True, "version": VER["v"], "from": f, "to": t, "days": [h for d, h in sorted(HABITS.items()) if f <= d <= t]}
+        elif q.get("action") == "library": body = {"ok": True, "version": VER["v"], "books": BOOKS}
         elif q.get("action") == "tarot":
             rs = sorted([r for r in TAROT if q["from"] <= r["day"] <= q["to"]], key=lambda r: r["day"], reverse=True)
-            body = {"ok": True, "version": "1.24.0", "readings": rs, "meanings": [{"id": "m-" + k, "kind": "meaning", "card": k, "text": v} for k, v in TMEAN.items() if v], "spreads": TSPREADS}
+            body = {"ok": True, "version": VER["v"], "readings": rs, "meanings": [{"id": "m-" + k, "kind": "meaning", "card": k, "text": v} for k, v in TMEAN.items() if v], "spreads": TSPREADS}
         elif q.get("action") == "tbmode":
             TB["on"] = q.get("on") == "1"; TB["fail"] = q.get("fail") or None
             if "made" in q: TB.update(made=int(q["made"]), imports=0, reads=[], suggests=[])
             body = {"ok": True}
         elif q.get("action") == "tarotbooks" and TB["on"]:
-            body = {"ok": True, "version": "1.25.0", "books": tb_counts(), "per": 78, "file": TB["file"], "url": "https://www.notion.so/tarotbooks"}
+            body = {"ok": True, "version": VER["v"], "books": tb_counts(), "per": 78, "file": TB["file"], "url": "https://www.notion.so/tarotbooks"}
         elif q.get("action") == "tarotbook" and TB["on"]:
             TB["reads"].append([q.get("card"), q.get("fresh")])
-            body = {"ok": True, "version": "1.25.0", "card": q.get("card"), "books": tb_books(q.get("card", ""))}
+            body = {"ok": True, "version": VER["v"], "card": q.get("card"), "books": tb_books(q.get("card", ""))}
         elif q.get("action") == "tbstats": body = {"ok": True, "tb": TB}
         elif q.get("action") == "apmode": AP["on"] = q.get("on", "1") == "1"; AP["fail"] = int(q.get("fail", "0")); body = {"ok": True}
         elif q.get("action") == "apstats": body = {"ok": True, "saves": AP["saves"], "removes": AP["removes"], "hives": AHIVES, "checks": ACHECKS, "yard": AYARD}
-        elif q.get("action") == "apiary" and AP["on"]: body = {"ok": True, "version": "1.26.0", "yard": AYARD, "hives": AHIVES, "checks": sorted(ACHECKS, key=lambda c: c["day"], reverse=True), "url": "https://www.notion.so/apiary"}
+        elif q.get("action") == "apiary" and AP["on"]: body = {"ok": True, "version": VER["v"], "yard": AYARD, "hives": AHIVES, "checks": sorted(ACHECKS, key=lambda c: c["day"], reverse=True), "url": "https://www.notion.so/apiary"}
         elif q.get("action") == "slowsave": SLOW[0] = int(q.get("ms", "0")); body = {"ok": True}
         elif q.get("action") == "busysave": BUSY[0] = int(q.get("n", "0")); body = {"ok": True}
         elif q.get("action") == "hfail": HFAIL[0] = int(q.get("n", "1")); body = {"ok": True}
@@ -426,17 +431,17 @@ class H(BaseHTTPRequestHandler):
                         for x in TAROT:
                             if x["weekly"] and x["id"] != rid and m0.isoformat() <= x["day"] <= (m0 + dt.timedelta(days=6)).isoformat(): x["weekly"] = False
                     TAROT[:] = [x for x in TAROT if x["id"] != rid] + [rec]
-                    body = {"ok": True, "version": "1.24.0", "reading": rec}
+                    body = {"ok": True, "version": VER["v"], "reading": rec}
                     if r.get("cid"): TCID[r["cid"]] = body
             elif act == "tarotbookimport" and TB["on"]:
                 TB["imports"] += 1; before = TB["made"]; TB["made"] = min(156, TB["made"] + 60)
-                body = {"ok": True, "version": "1.25.0", "made": TB["made"] - before, "books": tb_counts(), "left": 156 - TB["made"]}
+                body = {"ok": True, "version": VER["v"], "made": TB["made"] - before, "books": tb_counts(), "left": 156 - TB["made"]}
             elif act == "tarotsuggest" and TB["on"]:
                 TB["suggests"].append({k: b.get(k) for k in ("mode", "at", "q", "sname", "sum", "cards")})
                 if TB["fail"]: body = {"ok": False, "error": TB["fail"], "spend": SPEND}
                 else:
                     cs = b.get("cards") or []; tgt = cs[b.get("at")]["id"] if b.get("mode") == "card" else "the whole spread"
-                    body = {"ok": True, "version": "1.25.0", "mode": b.get("mode"), "text": "Sample suggestion for " + tgt + ".\nA second line.", "model": "claude-sonnet-5-5", "cost": 0.0091, "spend": SPEND}
+                    body = {"ok": True, "version": VER["v"], "mode": b.get("mode"), "text": "Sample suggestion for " + tgt + ".\nA second line.", "model": "claude-sonnet-5-5", "cost": 0.0091, "spend": SPEND}
             elif act == "tarotmeaning":
                 TMEAN[b.get("card")] = b.get("text") or ""; body = {"ok": True, "card": b.get("card"), "meaning": {"card": b.get("card"), "text": b.get("text")} if b.get("text") else None}
             elif act == "tarotspread":
@@ -465,7 +470,7 @@ class H(BaseHTTPRequestHandler):
                         hv = None
                         if kind == "check" and boxes:
                             hv = next(h for h in AHIVES if h["id"] == rec["hive"]); hv["data"] = dict(hv["data"], boxes=boxes)
-                        body = {"ok": True, "version": "1.26.0", "item": rec, "hive": hv}
+                        body = {"ok": True, "version": VER["v"], "item": rec, "hive": hv}
                         if b["item"].get("cid"): AP["cids"][b["item"]["cid"]] = body
             elif act == "apiaryremove" and AP["on"]:
                 rid = b.get("id"); AP["removes"].append(rid); n0 = len(AHIVES) + len(ACHECKS)
@@ -587,7 +592,7 @@ class H(BaseHTTPRequestHandler):
             elif it.get("cid") in SEEN: body = dict(SEEN[it["cid"]], duplicate=True)
             else:
                 ev = {"id": it["area"] + ":new:" + it["cid"], "area": it["area"], "title": it["title"], "busy": False, "allDay": bool(it.get("allDay")), "location": "", "start": it["start"], "end": it["end"]}
-                CREATED.append(ev); body = {"ok": True, "version": "1.1.0", "event": ev}; SEEN[it["cid"]] = body
+                CREATED.append(ev); body = {"ok": True, "version": VER["v"], "event": ev}; SEEN[it["cid"]] = body
         out = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(out)
 HTTPServer(("127.0.0.1", 8105), H).serve_forever()

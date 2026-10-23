@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.38.0 · 2026-10-23
+- **Bridge version check.** When the Google bridge deployed is older than this app needs (a new feature, or the Deploy → New version step missed), the Bridge's Condition shows **Google bridge out of date** (YELLOW) with what's missing, and **SYSTEMS → NEEDS YOU** has the five steps, a link to the code and **CHECK AGAIN**. **SYSTEMS → APP** shows the bridge's version as **UP TO DATE** or **UPDATE TO**. Errors an old bridge causes now say so. A newer bridge never warns.
+- **STORAGE:** after CONTINUE LISTENING, the rest of the folder now appears under UP NEXT as soon as it's loaded (it could stay empty until something else redrew the screen).
+
 ## 2.37.2 · 2026-10-23
 - **Nova's audio for the 06:00 briefing now arrives.** OpenAI takes about two minutes for a whole briefing; the app used to stop waiting at two minutes (then Moira read it). It now waits up to five, on its own line so syncing isn't held up behind it, and if the voice still fails it tries again ten minutes later.
 

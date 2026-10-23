@@ -95,7 +95,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a && a.currentTime > 30 && !a.paused; }, null, { timeout: 8000 });
 
   // ---- MARK PLAYED: on to the next one in the folder
-  await p.waitForFunction(() => document.querySelectorAll('.nas-now ~ section .nas-row').length > 0, null, { timeout: 12000 });   // the folder list can be slow while other lanes run
+  await p.waitForFunction(() => document.querySelectorAll('.nas-now ~ section .nas-row').length > 0, null, { timeout: 5000 });   // drawn as soon as the folder's list arrives (2.38: it used to wait for an unrelated redraw)
   assert.ok((await txt(p, '#content')).includes('UP NEXT'));
   await p.click('[data-nas="markplayed"]');
   await p.waitForFunction(() => /ep%202/.test(document.getElementById('nasAudio').src), null, { timeout: 5000 });

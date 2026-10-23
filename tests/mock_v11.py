@@ -1,4 +1,7 @@
 import json, datetime as dt
+import os as _os, re as _re
+# The bridge version every answer reports: the one in Code.gs, so the app (2.38) sees an up-to-date bridge.
+BV = _re.search(r"var VERSION = '([\d.]+)'", open(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 from zoneinfo import ZoneInfo
@@ -33,8 +36,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
         if q.get("key") != KEY: body = {"ok": False, "error": "unauthorized"}
-        elif q.get("action") == "ping": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create"], "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": "1.1.0", "capabilities": ["read", "create"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": BV, "capabilities": ["read", "create"], "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": BV, "capabilities": ["read", "create"], "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED]}
         else: body = {"ok": False, "error": "unknown_action"}
         b = json.dumps(body).encode()
@@ -53,7 +56,7 @@ class H(BaseHTTPRequestHandler):
             elif it.get("cid") in SEEN: body = dict(SEEN[it["cid"]], duplicate=True)
             else:
                 ev = {"id": "personal:new:" + it["cid"], "area": "personal", "title": it["title"], "busy": False, "allDay": bool(it.get("allDay")), "location": "", "start": it["start"], "end": it["end"]}
-                CREATED.append(ev); body = {"ok": True, "version": "1.1.0", "event": ev}; SEEN[it["cid"]] = body
+                CREATED.append(ev); body = {"ok": True, "version": BV, "event": ev}; SEEN[it["cid"]] = body
         out = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(out)
 HTTPServer(("127.0.0.1", 8092), H).serve_forever()
