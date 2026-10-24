@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.41.0 · 2026-10-24 (bridge 1.33)
+- **CAPTURE → NOTE:** a thought to sort later. One box (type or dictate), no area or day; it saves to the new **📥 Inbox** in Notion, and waits on the iPad when offline like other captures.
+- **INBOX** (ALL STATIONS → TIME, COMPUTER, or the Bridge's line): the waiting notes, oldest first, and a **KEPT** tab.
+  - Each note sorts into a **TASK** (Life Area, priority, due date), **KEY DATE**, **EVENT** or the Replicator **QUEUE** through a form filled in from the note, or **KEEP** holds it as it is. A sorted note is marked Sorted with what it became and leaves the list; Notion keeps it as the record.
+  - **✕** asks twice, then moves the note to Notion's trash. **SORT IT NOW** brings a kept note back.
+  - **SUGGEST SORTING:** Sonnet proposes a place for each waiting note (about 1¢), checked against your Notion lists. Nothing is saved until **CONFIRM**; **CHANGE** opens the form filled in; **SKIP** drops the suggestion.
+- **The Bridge:** **INBOX · N** under Condition while notes wait. Condition never counts them.
+- **COMPUTER** finds notes (waiting and kept) and has **Write a note**.
+- **SYSTEMS → INBOX** replaces the STANDBY MODULES placeholder.
+- **Bridge 1.33** (update the Google bridge, then connect **📥 Inbox** to the TimothyOS integration in Notion): `inbox`, `inboxadd`, `inboxset`, `inboxremove`, the sorting mode, and a due date on `addtask`. Setup logs `Notion inbox: OK (…)`.
+
 ## 2.40.1 · 2026-10-24
 - **Times spoken in ship's style.** Nova (and Moira) now hear 08:00 as "oh eight hundred" and 21:05 as "twenty-one oh five" (Nova had read 08:00 as "8 OK"). °F, ¢, %, lb and the · separators are spoken as words too. The printed briefing and Ship's Year are unchanged. Today's briefing audio is made again with the new reading the next time it's needed (under 1¢).
 

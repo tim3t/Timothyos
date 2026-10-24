@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.40.1";
+  var VERSION = "2.41.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -50,9 +50,6 @@
   };
   var LIVE = ["work", "personal"];         /* calendars in use; setAreas() adds farm once the bridge reports it */
   var STANDBY_AREAS = ["farm", "hobby"];
-  var STANDBY_MODULES = [
-    ["NOTES IN CAPTURE", "Quick notes, with a later Notion stage."]
-  ];
   var DOW = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
   var DOWL = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
   var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -551,6 +548,7 @@
       if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
+      flushInbox();
       if (rkey(viewRange()) === k || state.screen === "systems") render(true);
       briefMaybe();
       shipMaybe();
@@ -576,9 +574,9 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "inbox" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
-    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "inbox" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     $("todayBtn").textContent = state.screen === "review" ? "THIS WEEK" : state.screen === "astrometrics" ? "THIS YEAR" : "TODAY";
     if (state.screen === "astrometrics") $("nextBtn").disabled = as.y >= now.getFullYear(); else $("nextBtn").disabled = false;
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
@@ -630,6 +628,7 @@
     else if (state.screen === "tarot") { var th = trHead(); e.textContent = th.e; t.textContent = th.t; }
     else if (state.screen === "apiary") { var ah = apHead(); e.textContent = ah.e; t.textContent = ah.t; }
     else if (state.screen === "astrometrics") { var xh = astroHead(); e.textContent = xh.e; t.textContent = xh.t; }
+    else if (state.screen === "inbox") { var ih = inboxHead(); e.textContent = ih.e; t.textContent = ih.t; }
     else if (state.screen === "engineering") { var eo = upkeepOverdue(ymd(now)).length; e.textContent = eng.tab === "upkeep" ? "UPKEEP · " + (eo ? eo + " OVERDUE" : upkeepItems().length + (upkeepItems().length === 1 ? " ITEM" : " ITEMS")) : "CONTROLS · " + (haConf() ? haDevices().length + (haDevices().length === 1 ? " DEVICE" : " DEVICES") + (haDevices().filter(function (d) { return isOn(eng.states[d.id]); }).length ? " · " + haDevices().filter(function (d) { return isOn(eng.states[d.id]); }).length + " ON" : "") : "HOME ASSISTANT NOT SET"); t.textContent = "ENGINEERING"; }
     else { e.textContent = "SETTINGS + HEALTH"; t.textContent = "SYSTEMS"; }
     $("app").classList.toggle("on-bridge", linked && state.screen === "bridge");
@@ -862,8 +861,7 @@
     html += bridgeSection();
     html += captureSection();
     html += notionSection();
-    html += "<section>" + phead("STANDBY MODULES", "NOT ACTIVE YET") + '<div class="stublist">' +
-      STANDBY_MODULES.map(function (m) { return '<div class="stubbox"><span><b style="color:var(--fg)">' + m[0] + "</b><br>" + m[1] + "</span></div>"; }).join("") + "</div></section>";
+    html += inboxSection();
 
     html += '<section id="sec-app">' + phead("APP", "", "chrome-d") + '<dl class="kv"><dt>APP VERSION</dt><dd class="tnum">' + VERSION + "</dd>" +
       "<dt>BRIDGE VERSION</dt><dd class=\"tnum\">" + (state.bridgeVersion ? esc(state.bridgeVersion) + (bridgeBehind() ? ' <span class="pill warn">UPDATE TO ' + BRIDGE_WANT + "</span>" : ' <span class="pill ok">UP TO DATE</span>') : '<span class="muted">Unknown</span>') + "</dd>" +
@@ -892,8 +890,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.32.0";
-  var BRIDGE_FEATURES = [["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.33.0";
+  var BRIDGE_FEATURES = [["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -1153,6 +1151,7 @@
     return Array.prototype.map.call(a, function (b) { return p2(b.toString(16)); }).join("");
   }
   function whenLabel(q) {
+    if (q.kind === "note") return "NOTE · " + dLabel(new Date(q.at || q.created));
     if (q.kind === "date") return dLabel(parseYmd(q.start)) + (q.end ? " TO " + dLabel(parseYmd(q.end)) : "") + " · KEY DATE";
     if (q.allDay) return dLabel(parseYmd(q.start)) + " · ALL DAY";
     var s = new Date(q.start);
@@ -1160,7 +1159,7 @@
   }
   /* Captures still on this iPad, drawn on the calendar as dashed blocks. */
   function pendingEvents() {
-    return state.queue.filter(function (q) { return q.kind !== "date"; }).map(function (q) {
+    return state.queue.filter(function (q) { return q.kind !== "date" && q.kind !== "note"; }).map(function (q) {
       return { id: "pending:" + q.cid, cid: q.cid, area: q.area, title: q.title, allDay: !!q.allDay, start: q.start, end: q.end, location: "",
         pending: q.failed ? "failed" : q.attempts ? "queued" : "saving" };
     });
@@ -1195,6 +1194,7 @@
      look for it in what we already loaded; if it's there, it's done. */
   function norm1(t) { return String(t || "").trim().toLowerCase(); }
   function alreadySaved(q) {
+    if (q.kind === "note") return !!(ib.data && ib.data.waiting.concat(ib.data.kept).some(function (n) { return n.text === q.text; }));
     if (q.kind === "date") {
       return !!(state.dates && state.dates.dates.some(function (d) {
         return norm1(d.title) === norm1(q.title) && d.start === q.start && (d.end || null) === (q.end || null);
@@ -1221,10 +1221,10 @@
   function flushQueue(announce) {
     if (!state.conn || state.flushing) return;
     reconcileQueue();
-    var next = queued().filter(function (q) { return q.kind === "date" ? canDates() : canCreate(); })[0];
+    var next = queued().filter(function (q) { return q.kind === "note" ? canInbox() : q.kind === "date" ? canDates() : canCreate(); })[0];
     if (!next) return;
     state.flushing = true;
-    var req = next.kind === "date"
+    var req = next.kind === "note" ? { action: "inboxadd", note: { cid: next.cid, text: next.text, at: next.at } } : next.kind === "date"
       ? { action: "adddate", date: { cid: next.cid, title: next.title, start: next.start, end: next.end || null, area: next.area || null, type: next.type || null, yearly: !!next.yearly } }
       : { action: "create", item: { cid: next.cid, area: next.area, title: next.title, allDay: !!next.allDay, start: next.start, end: next.end } };
     apiPost(req)
@@ -1234,9 +1234,10 @@
         saveQueue();
         if (j.event) addConfirmed(j.event);
         if (j.date) addKeyDate(j.date);
-        if (announce) toast(next.kind === "date" ? "Key date saved to Notion · " + whenLabel(next) : "Saved to " + areaName(next.area) + " · " + whenLabel(next));
+        if (j.note && ib.data && !ib.data.waiting.some(function (n) { return n.id === j.note.id; })) { ib.data.waiting.push(j.note); ibSave(); }
+        if (announce) toast(next.kind === "note" ? "Note saved to the inbox · " + ibCount() + " waiting" : next.kind === "date" ? "Key date saved to Notion · " + whenLabel(next) : "Saved to " + areaName(next.area) + " · " + whenLabel(next));
         render(true);
-        if (queued().length) flushQueue(announce); else if (next.kind !== "date") refresh(true);
+        if (queued().length) flushQueue(announce); else if (next.kind !== "date" && next.kind !== "note") refresh(true);
       })
       .catch(function (err) {
         state.flushing = false;
@@ -1277,7 +1278,7 @@
     }
     if (!state.queue.length) html += '<div class="empty">Nothing waiting. Every capture has been saved.</div>';
     state.queue.forEach(function (q) {
-      html += '<div class="calrow a-' + (q.kind === "date" ? taskArea(q.area) : q.area) + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
+      html += '<div class="calrow a-' + (q.kind === "note" ? "personal" : q.kind === "date" ? taskArea(q.area) : q.area) + '"><span class="st"></span><span><b>' + esc(q.title) + '</b><small class="tnum">' + esc(whenLabel(q)) + " · " +
         (q.failed ? '<span class="errtxt">' + esc(q.lastError || "Not saved") + "</span>" : q.attempts ? "Queued, " + q.attempts + (q.attempts === 1 ? " try" : " tries") + (q.lastError ? '</small><small class="errtxt">Last reply: ' + esc(q.lastError) : "") : "Saving") +
         '</small></span><span class="btnrow">' + (q.failed ? '<button type="button" class="chip" data-qretry="' + esc(q.cid) + '">RETRY</button>' : "") +
         '<button type="button" class="chip" data-qdiscard="' + esc(q.cid) + '">DISCARD</button></span></div>';
@@ -1293,22 +1294,23 @@
     if (typeof hour === "number") h = hour;
     else if (sameDay(d, now)) h = Math.min(23.75, Math.ceil((now.getHours() + now.getMinutes() / 60) * 2) / 2);
     else h = 9;
-    cap = { day: d, hour: h, dur: capPrefs.dur || "1", type: type === "date" && canDates() ? "date" : "event", yearly: false, area: capPrefs.area || "personal" };
+    cap = { day: d, hour: h, dur: capPrefs.dur || "1", type: type === "date" && canDates() ? "date" : type === "note" && canInbox() ? "note" : "event", yearly: false, area: capPrefs.area || "personal" };
     $("capText").value = "";
+    $("capNoteText").value = "";
     $("capUntil").value = "";
     fillDateSelects();
     $("capErr").textContent = "";
     renderCapture();
     showSheet("capScrim");
-    setTimeout(function () { $("capText").focus(); }, 60);
+    setTimeout(function () { $(cap.type === "note" ? "capNoteText" : "capText").focus(); }, 60);
   }
   function closeCapture() { hideSheet("capScrim"); cap = null; }
   function renderCapture() {
-    var now = new Date(), allDay = cap.dur === "all", notes = [], isDate = cap.type === "date";
+    var now = new Date(), allDay = cap.dur === "all", notes = [], isDate = cap.type === "date", isNote = cap.type === "note";
     setAreas();
     if (WRITABLE.indexOf(cap.area) === -1) cap.area = "personal";
-    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : isDate ? "NOTION · KEY DATES" : AREAS[cap.area].name + " CALENDAR";
-    $("capForm").style.setProperty("--c", isDate ? "var(--chrome-b)" : "var(--" + cap.area + ")");
+    $("capMode").textContent = navigator.onLine === false ? "OFFLINE · WILL QUEUE" : isNote ? "NOTION · INBOX" : isDate ? "NOTION · KEY DATES" : AREAS[cap.area].name + " CALENDAR";
+    $("capForm").style.setProperty("--c", isNote ? "var(--chrome-c)" : isDate ? "var(--chrome-b)" : "var(--" + cap.area + ")");
     document.querySelectorAll("[data-carea]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.carea === cap.area)); });
     var fb = $("capFarm"), farmOn = WRITABLE.indexOf("farm") > -1;
     fb.disabled = !farmOn;
@@ -1319,16 +1321,20 @@
     document.querySelectorAll("[data-ctype]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.ctype === cap.type)); });
     $("capTypeDate").disabled = !canDates();
     $("capTypeDate").innerHTML = "KEY DATE" + (canDates() ? "" : "<small>SETUP</small>");
-    $("capAreaRow").hidden = isDate; $("capTimeRow").hidden = isDate;
+    $("capTypeNote").disabled = !canInbox();
+    $("capTypeNote").innerHTML = "NOTE" + (canInbox() ? "" : "<small>SETUP</small>");
+    $("capAreaRow").hidden = isDate || isNote; $("capTimeRow").hidden = isDate || isNote; $("capDayRow").hidden = isNote;
     $("capKdRow").hidden = !isDate; $("capUntilRow").hidden = !isDate;
+    $("capText").hidden = isNote; $("capNoteText").hidden = !isNote;
     $("capYearly").setAttribute("aria-pressed", String(!!cap.yearly));
     $("capText").placeholder = isDate ? "What's the date? e.g. First frost risk" : "What goes in? e.g. Pick up bee feeder";
-    $("capFootText").textContent = isDate ? "Saves to Key Dates in Notion." : "Saves to your " + areaName(cap.area) + " Google Calendar. Work is read-only.";
+    $("capFootText").textContent = isNote ? "Waits in INBOX to sort later. The keyboard's microphone takes dictation." : isDate ? "Saves to Key Dates in Notion." : "Saves to your " + areaName(cap.area) + " Google Calendar. Work is read-only.";
     if (!isDate && !canCreate()) notes.push("Your bridge needs the 1.1 update before events can be saved. See Systems.");
     if (!isDate && state.hidden[cap.area]) notes.push(areaName(cap.area) + " is hidden. New events save, but stay hidden until you tap " + areaName(cap.area) + " on Today.");
     $("capNote").hidden = !notes.length;
     $("capNote").textContent = notes.join(" ");
-    $("capSave").disabled = isDate ? !canDates() : !canCreate();
+    $("capSave").disabled = isNote ? !canInbox() : isDate ? !canDates() : !canCreate();
+    $("capSave").textContent = isNote ? "SAVE NOTE" : "SAVE";
     var today = sod(now), tomorrow = addDays(today, 1);
     document.querySelectorAll("[data-capday]").forEach(function (b) {
       var target = b.dataset.capday === "today" ? today : tomorrow;
@@ -1340,7 +1346,16 @@
     document.querySelectorAll("[data-dur]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.dur === cap.dur)); });
   }
   function submitCapture() {
-    var title = $("capText").value.trim(), err = $("capErr");
+    var err = $("capErr");
+    if (cap.type === "note") {
+      var text = $("capNoteText").value.replace(/\r\n/g, "\n").trim();
+      if (!text) { err.textContent = "Type or dictate the note first."; $("capNoteText").focus(); return; }
+      if (!canInbox()) return;
+      state.queue.push({ kind: "note", cid: newCid(), title: text.replace(/\s+/g, " ").slice(0, 200), text: text.slice(0, 2000), at: new Date().toISOString(), created: Date.now(), attempts: 0 });
+      saveQueue(); closeCapture(); render(true); flushQueue(true);
+      return;
+    }
+    var title = $("capText").value.trim();
     if (!title) { err.textContent = "Type what you want to add first."; $("capText").focus(); return; }
     if (cap.type === "date") {
       if (!canDates()) return;
@@ -1390,7 +1405,11 @@
     if (e.target === $("capScrim")) { closeCapture(); return; }
     var b = e.target.closest("button");
     if (!b || b.disabled || !cap) return;
-    if (b.dataset.ctype) { cap.type = b.dataset.ctype; renderCapture(); $("capText").focus(); }
+    if (b.dataset.ctype) {
+      var from = cap.type === "note" ? $("capNoteText") : $("capText"), to = b.dataset.ctype === "note" ? $("capNoteText") : $("capText");
+      if (from !== to && from.value && !to.value) to.value = from.value.replace(/\s+/g, to === $("capText") ? " " : "$&").slice(0, to.maxLength);   /* switching type keeps what was typed */
+      cap.type = b.dataset.ctype; renderCapture(); to.focus();
+    }
     else if (b.id === "capYearly") { cap.yearly = !cap.yearly; renderCapture(); }
     else if (b.dataset.capday) { cap.day = b.dataset.capday === "today" ? sod(new Date()) : addDays(sod(new Date()), 1); renderCapture(); }
     else if (b.dataset.dur) { cap.dur = b.dataset.dur; capPrefs.dur = cap.dur; lsSet(LS_CAPPREFS, capPrefs); renderCapture(); }
@@ -2369,7 +2388,7 @@
 
   function renderBridge() {
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
-    var html = briefPanel(now) + conditionBanner(now, today, list) + '<div class="ov-grid">' +
+    var html = briefPanel(now) + conditionBanner(now, today, list) + inboxLine() + '<div class="ov-grid">' +
       pnl("now", nowPanel(now, list)) + (canHabits() ? pnl("habits", habitsPanel(today)) : "") + (canTarot() ? pnl("tarot", tarotPanel()) : "") + pnl("env", envPanel(now)) +
       pnl("prio", prioritiesPanel(today, true, moreBtn("prio", "priorities")) + duePanel(today)) +
       pnl("horizon", horizonPanel(now, list)) + pnl("kd", kdNextPanel(today)) +
@@ -3642,7 +3661,7 @@
       var d = new Date(x.t), when = DOW[d.getDay()] + " " + hm(d);
       if (x.mode === "matched") return '<div class="ai-row"><span class="tnum">' + when + "</span><span>MATCHED TO THE CONSOLE</span><span></span><span class=\"tnum\">$" + Number(x.usd).toFixed(2) + "</span></div>";
       var k = function (n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "K" : String(n || 0); };
-      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION", brief: "BRIEFING", year: "SHIP'S YEAR" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
+      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION", brief: "BRIEFING", year: "SHIP'S YEAR", sort: "INBOX SORTING" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
         '</span><span class="muted tnum">' + k((x.in || 0) + (x.cw || 0) + (x.cr || 0)) + " in · " + k(x.out) + ' out</span><span class="tnum">' + money(x.usd || 0) + "</span></div>";
     }).join("") + "</div>";
     html += '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
@@ -5272,6 +5291,7 @@
     { id: "month", name: "MONTH", g: "TIME", sub: "The month at a glance" },
     { id: "loom", name: "LOOM", g: "TIME", sub: "The infinity loop of days" },
     { id: "dates", name: "DATES", g: "TIME", sub: "Key dates, next 12 months" },
+    { id: "inbox", name: "INBOX", g: "TIME", sub: "Notes to sort into tasks, dates, events or the queue" },
     { id: "review", name: "REVIEW", g: "REFLECT", sub: "Weekly reviews and trends" },
     { id: "log", name: "LOG", g: "REFLECT", sub: "Captain's Log, PIN locked" },
     { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, walk, water, debit card" },
@@ -5372,7 +5392,7 @@
     bridge: "home overview condition dashboard", today: "day calendar schedule agenda priorities", week: "calendar schedule",
     month: "calendar", loom: "infinity timeline calendar days", dates: "key dates birthdays anniversaries holidays countdown",
     review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated walk debit card",
-    tarot: "cards reading deck", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
+    tarot: "cards reading deck", inbox: "notes note capture sort ideas thoughts later jot", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
     storage: "nas podcasts audio music files listen", engineering: "home assistant lights devices thermostat upkeep maintenance",
     apiary: "bees hives beekeeping honey mites", systems: "settings setup health sync connection"
   };
@@ -5412,6 +5432,15 @@
     if (canReviews()) {
       A("Write this week's review", "REVIEW · " + weekLabel(defaultReviewWeek()), "REFLECT", "weekly reflection", function () { go("review", defaultReviewWeek()); });
       A("Review trends and patterns", "REVIEW · ALL REVIEWS", "REFLECT", "weekly history", function () { go("review"); });
+    }
+    if (canInbox()) {
+      A("Write a note", "CAPTURE · NOTE", "TIME", "jot idea thought inbox later", function () { openCapture(null, null, "note"); });
+      ((ib.data && ib.data.waiting) || []).concat((ib.data && ib.data.kept) || []).forEach(function (n) {
+        A(String(n.text).replace(/\s+/g, " ").slice(0, 90), "INBOX · " + (n.status === "kept" ? "KEPT" : "WAITING"), "TIME", "note", function () {
+          go("inbox"); ib.tab = n.status === "kept" ? "kept" : "waiting"; render(false);
+          var el = $("ibn-" + n.id); if (el) { el.scrollIntoView({ block: "center" }); restartClass(el, "flash"); }
+        }, "NOTE");
+      });
     }
     if (canShipsYear()) A("Compile the Ship's Year", "ASTROMETRICS · SHIP'S YEAR", "REFLECT", "year annual summary review of the year", function () { go("astrometrics"); shipCompile(as.y, false); });
     if (canLog()) {
@@ -8938,6 +8967,293 @@
     return txt.length > 4000 ? txt.slice(0, 4000) + "…" : txt;
   }
 
+  /* ---------- INBOX (2.41, bridge 1.33): notes captured to sort later ---------- */
+  /* CAPTURE → NOTE saves a thought to 📥 Inbox in Notion through the capture queue (so it waits on the iPad offline).
+     INBOX lists the waiting notes, oldest first. Each sorts into a TASK, KEY DATE, EVENT or the Replicator QUEUE through
+     a form filled in from the note, or KEEP holds it as it is (the KEPT tab). The task, date, event or queue item is made
+     with the app's own saves; then the note is marked Sorted with what it became (Notion keeps it as the record). ✕ asks
+     twice, then moves the note to Notion's trash. Marks wait on the iPad until the bridge takes them (tos.inboxq.v1).
+     SUGGEST SORTING: Sonnet proposes a place for each waiting note (ask mode "sort"); nothing is saved until CONFIRM,
+     and CHANGE opens the form filled in. The Bridge shows INBOX · N under Condition while notes wait; Condition never
+     counts them. Timothy confirmed all of this from the mockup, QUEUE included. */
+  var LS_INBOX = "tos.inbox.v1", LS_INBOXQ = "tos.inboxq.v1";
+  var IB_KINDS = { task: "TASK", date: "KEY DATE", event: "EVENT", queue: "QUEUE", keep: "KEEP" };
+  var IB_COLORS = { task: "personal", date: "chrome-b", event: "work", queue: "chrome-d", keep: "chrome-b" };
+  var IB_ASK = "Suggest where each note in the inbox belongs.";
+  var ib = { data: lsGet(LS_INBOX), q: lsGet(LS_INBOXQ) || {}, inflight: false, err: null, tab: "waiting", open: null, armed: null, sug: {}, sugBusy: false, sugErr: "", busy: {}, flushing: false };
+  function canInbox() { return state.caps.indexOf("inbox") > -1; }
+  function canInboxSort() { return state.caps.indexOf("inboxsort") > -1 && canAsk(); }
+  function ibSave() { lsSet(LS_INBOX, ib.data); }
+  function ibQueued() { return state.queue.filter(function (q) { return q.kind === "note"; }); }
+  function ibWaiting() { return ((ib.data && ib.data.waiting) || []).filter(function (n) { return !ib.q[n.id]; }); }
+  function ibKept() { return ((ib.data && ib.data.kept) || []).filter(function (n) { return !ib.q[n.id] || ib.q[n.id].status === "kept"; }); }
+  function ibCount() { return ibWaiting().length + ibQueued().length; }
+  function ibNote(id) { return ((ib.data && ib.data.waiting) || []).concat((ib.data && ib.data.kept) || []).filter(function (n) { return n.id === id; })[0]; }
+  function inboxErrText(err) {
+    var code = err && (err.code || err.message);
+    if (code === "notion_not_shared") return "Notion won't share the Inbox with the bridge yet. In Notion open 📥 Inbox → ••• → Connections → add TimothyOS bridge, then REFRESH.";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge to 1.33 (README: Updating the Google bridge).";
+    return describe(err);
+  }
+  function loadInbox(force) {
+    if (!state.conn || !canInbox() || ib.inflight) return;
+    if (!force && ib.data && Date.now() - ib.data.fetched < 120000) return;
+    if (!force && ib.err && !ib.err.write && Date.now() - ib.err.at < FRESH_MS) return;
+    ib.inflight = true;
+    api({ action: "inbox" }).then(function (j) {
+      ib.data = { fetched: Date.now(), waiting: j.waiting || [], kept: j.kept || [], url: j.url || "" };
+      if (!ib.err || !ib.err.write) ib.err = null;
+      ibSave(); flushInbox();
+    }).catch(function (err) { ib.err = { at: Date.now(), msg: inboxErrText(err) }; })
+      .then(function () { ib.inflight = false; if (state.screen === "inbox" || state.screen === "bridge") render(true); cmdFresh(); });
+  }
+  /* Marks (sorted, kept, removed), one at a time, oldest first; kept until the bridge takes them. */
+  function flushInbox() {
+    if (ib.flushing || !state.conn || !canInbox()) return;
+    var ids = Object.keys(ib.q); if (!ids.length) return;
+    var id = ids[0], m = ib.q[id];
+    ib.flushing = true;
+    apiPost(m.remove ? { action: "inboxremove", id: id } : { action: "inboxset", id: id, status: m.status, as: m.as || null }).then(function () {
+      if (ib.q[id] === m) delete ib.q[id];
+      ib.err = null;
+    }).catch(function (err) {
+      if (err && err.code === "not_writable") { delete ib.q[id]; return; }   /* already gone from the Inbox */
+      ib.err = { at: Date.now(), msg: inboxErrText(err), write: true };
+      clearTimeout(ib.timer); ib.timer = setTimeout(flushInbox, 30000);
+    }).then(function () {
+      lsSet(LS_INBOXQ, ib.q); ib.flushing = false;
+      if (!ib.err || !ib.err.write) flushInbox();
+      if (state.screen === "inbox") render(true);
+    });
+  }
+  function ibMark(n, status, as) {
+    ib.q[n.id] = status === "remove" ? { remove: true } : { status: status, as: as || null };
+    lsSet(LS_INBOXQ, ib.q);
+    if (ib.data) {
+      ib.data.waiting = ib.data.waiting.filter(function (x) { return x.id !== n.id; });
+      ib.data.kept = ib.data.kept.filter(function (x) { return x.id !== n.id; });
+      if (status === "kept") ib.data.kept.unshift(Object.assign({}, n, { status: "kept" }));
+      if (status === "new") ib.data.waiting.push(Object.assign({}, n, { status: "new" }));
+      ibSave();
+    }
+    delete ib.sug[n.id];
+    if (ib.open && ib.open.id === n.id) ib.open = null;
+    flushInbox();
+  }
+  /* The lists the forms and Claude choose from: Notion's own names. */
+  function ibAreas() { return (state.dates && state.dates.areas && state.dates.areas.length ? state.dates.areas : (state.tasks[ymd(new Date())] || {}).areas) || []; }
+  function ibPris() { return (state.tasks[ymd(new Date())] || {}).priorities || Object.keys(PRI_RANK); }
+  function ibTypes() { return (state.dates && state.dates.types) || []; }
+  function ibCals() { return ["personal"].concat(WRITABLE.indexOf("farm") > -1 ? ["farm"] : [], WRITABLE.indexOf("hobby") > -1 ? ["hobby"] : []); }
+  function ibDay(at) { var d = at ? new Date(at) : null; return d && !isNaN(d) ? DOW[d.getDay()] + " " + p2(d.getDate()) + " " + MON[d.getMonth()] + " · " + hm(d) : ""; }
+  function ibDefaults(n, kind) {
+    var t = String(n.text || "").replace(/\s+/g, " ").trim();
+    return { title: t.slice(0, kind === "queue" ? 120 : 200), life: null, pri: null, due: null, date: null, type: null, yearly: false, area: "personal", day: ymd(new Date()), time: "09:00", mins: 60, cost: null };
+  }
+
+  /* ---- the screen ---- */
+  function inboxHead() {
+    var n = ibCount();
+    return { e: "CAPTURE · " + (!ib.data && !n ? "NOTION" : n ? n + " WAITING" : "ALL SORTED"), t: "INBOX" };
+  }
+  function renderInbox() {
+    loadInbox(false); loadDates(false); if (canPlan()) loadTasks(ymd(new Date()), false);
+    if (!canInbox()) { $("content").innerHTML = '<div class="ib">' + phead("INBOX", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated to 1.33 and the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections). Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
+    var w = ibWaiting(), qd = ibQueued(), k = ibKept(), list = ib.tab === "kept" ? k : w, html = '<div class="ib">';
+    html += '<div class="ib-tools"><div class="ib-tabs"><button type="button" class="chip" data-ibtab="waiting" aria-pressed="' + (ib.tab === "waiting") + '" style="--c: var(--chrome-c)">WAITING <span class="tnum">' + (w.length + qd.length) + "</span></button>" +
+      '<button type="button" class="chip" data-ibtab="kept" aria-pressed="' + (ib.tab === "kept") + '">KEPT <span class="tnum">' + k.length + "</span></button></div>" +
+      '<div class="ib-tabs"><button type="button" class="btn sm capture" data-ib="note">+ NOTE</button>' +
+      (ib.tab === "waiting" && w.length && canInboxSort() ? '<button type="button" class="btn sm ask" data-ib="suggest"' + (ib.sugBusy || navigator.onLine === false ? " disabled" : "") + ">" + (ib.sugBusy ? "SUGGESTING…" : "SUGGEST SORTING") + "<small>CLAUDE · ABOUT 1¢</small></button>" : "") + "</div></div>";
+    if (ib.sugErr) html += '<div class="err">' + esc(ib.sugErr) + "</div>";
+    if (ib.err) html += '<div class="' + (ib.err.write ? "err" : "empty") + '">' + esc(ib.err.msg) + (ib.err.write ? " Kept on this iPad; it tries again on its own." : "") + "</div>";
+    if (ib.tab === "waiting" && Object.keys(ib.sug).length) html += '<div class="ib-sugbar"><b>SUGGESTED</b><span>Nothing is saved until you tap CONFIRM. CHANGE opens the form, filled in.</span></div>';
+    if (!ib.data && !ib.err) html += '<div class="empty">Loading the Inbox from Notion…</div>';
+    else {
+      html += '<div class="ib-notes">';
+      if (ib.tab === "waiting") html += qd.map(function (q) {
+        return '<article class="ib-note queued"><span class="st"></span><div class="in"><div class="tx">' + esc(q.text || q.title) + '</div><div class="meta"><span>CAPTURED ' + esc(ibDay(q.at)) + '</span><span class="pill">' + (q.failed ? "NOT SAVED · SYSTEMS → CAPTURE" : "QUEUED · SAVES WHEN ONLINE") + "</span></div></div></article>";
+      }).join("");
+      html += list.map(ibNoteHtml).join("");
+      if (!list.length && !(ib.tab === "waiting" && qd.length)) html += '<div class="empty">' + (ib.tab === "waiting" ? "Inbox clear. CAPTURE → NOTE drops a thought here to sort later." : "Nothing kept yet. KEEP holds a note here as it is.") + "</div>";
+      html += "</div>";
+      if (ib.tab === "kept" && k.length) html += '<small class="muted">COMPUTER finds kept notes too: type a word from one.</small>';
+      if (ib.data && ib.data.url) html += '<div class="btnrow"><a class="btn ghost sm" href="' + esc(ib.data.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a></div>';
+    }
+    $("content").innerHTML = html + "</div>";
+  }
+  function ibNoteHtml(n) {
+    var kept = n.status === "kept", open = ib.open && ib.open.id === n.id, sug = ib.sug[n.id], busy = ib.busy[n.id];
+    var h = '<article class="ib-note' + (kept ? " kept" : "") + '" id="ibn-' + esc(n.id) + '"><span class="st"></span><div class="in"><div class="tx">' + esc(n.text) + "</div>" +
+      '<div class="meta"><span>' + (kept ? "KEPT · " : "") + "CAPTURED " + esc(ibDay(n.at)) + "</span>" + (busy ? '<span class="pill">SAVING…</span>' : "") + "</div>";
+    if (sug && !open && !kept) h += ibPropHtml(n, sug);
+    if (open) h += ibFormHtml(n, ib.open.kind, ib.open.v);
+    else if (!busy) h += '<div class="ib-sort">' + (kept ? '<button type="button" class="chip" data-ibback="' + esc(n.id) + '">SORT IT NOW</button>' :
+      ["task", "date", "event", "queue", "keep"].map(function (kd) { return '<button type="button" class="chip" data-ibkind="' + kd + '" data-ibid="' + esc(n.id) + '"' + ibKindOff(kd) + ">" + IB_KINDS[kd] + "</button>"; }).join("")) +
+      '<button type="button" class="chip ib-del' + (ib.armed === n.id ? " armed" : "") + '" data-ibdel="' + esc(n.id) + '" aria-label="Delete this note">' + (ib.armed === n.id ? "DELETE IT" : "✕") + "</button></div>";
+    return h + "</div></article>";
+  }
+  function ibKindOff(kd) { return (kd === "task" && !canPlan()) || (kd === "date" && !canDates()) || (kd === "event" && !canCreate()) || (kd === "queue" && !canQueue()) ? " disabled" : ""; }
+  function ibLine(kind, v) {
+    if (kind === "task") return [v.life ? bare(v.life) : "", v.pri ? bare(v.pri) + " priority" : "", v.due ? "due " + shortDay(v.due) : ""].filter(Boolean).join(" · ");
+    if (kind === "date") return [v.date ? shortDay(v.date) : "", v.type ? bare(v.type) : "", v.yearly ? "every year" : ""].filter(Boolean).join(" · ");
+    if (kind === "event") return AREAS[v.area].name + " · " + (v.day ? shortDay(v.day) : "") + " " + (v.time || "") + " · " + v.mins + " min";
+    if (kind === "queue") return "Replicator Queue" + (v.cost != null ? " · $" + v.cost : "");
+    return "Kept as it is";
+  }
+  function ibPropHtml(n, s) {
+    return '<div class="prop ib-prop" style="--c: var(--' + IB_COLORS[s.kind] + ')"><span class="st"></span><span class="tx"><small class="ib-k">SUGGESTED · ' + IB_KINDS[s.kind] + "</small><b>" + esc(s.v.title) + "</b><small>" + esc([ibLine(s.kind, s.v), s.why].filter(Boolean).join(" · ")) + "</small></span>" +
+      '<span class="btnrow"><button type="button" class="btn ghost sm" data-ibskip="' + esc(n.id) + '">SKIP</button><button type="button" class="btn ghost sm" data-ibchange="' + esc(n.id) + '">CHANGE</button><button type="button" class="btn sm" data-ibok="' + esc(n.id) + '"' + ibKindOff(s.kind) + ">CONFIRM</button></span></div>";
+  }
+  function ibFormHtml(n, kind, v) {
+    var opt = function (list, cur, blank) { return (blank ? '<option value="">' + blank + "</option>" : "") + list.map(function (x) { return '<option value="' + esc(x) + '"' + (x === cur ? " selected" : "") + ">" + esc(bare(x)) + "</option>"; }).join(""); };
+    var h = '<div class="ib-form" data-ibform="' + esc(n.id) + '"><div class="ib-dest" style="--c: var(--' + IB_COLORS[kind] + ')">' + IB_KINDS[kind] + (kind === "keep" ? "" : " · FILLED IN FROM THE NOTE") + "</div>";
+    if (kind === "keep") h += '<div class="muted">Kept as it is in the Inbox, under KEPT. Sort it any time later.</div>';
+    else {
+      h += '<div class="frow"><span>' + (kind === "queue" ? "ITEM" : "TITLE") + '</span><input type="text" id="ibf-title" maxlength="' + (kind === "queue" ? 120 : 200) + '" value="' + esc(v.title) + '"></div>';
+      if (kind === "task") {
+        h += '<div class="frow"><span>AREA</span><div class="chips"><select id="ibf-life" aria-label="Life Area">' + opt(ibAreas(), v.life, "Life Area") + "</select></div></div>";
+        h += '<div class="frow"><span>PRIORITY</span><div class="chips">' + ibPris().map(function (p) { return '<button type="button" class="chip" data-ibpri="' + esc(p) + '" aria-pressed="' + (p === v.pri) + '">' + esc(bare(p).toUpperCase()) + "</button>"; }).join("") + "</div></div>";
+        h += '<div class="frow"><span>DUE</span><div class="chips"><input type="date" id="ibf-due" value="' + esc(v.due || "") + '" aria-label="Due date"><span class="muted">Optional</span></div></div>';
+      } else if (kind === "date") {
+        h += '<div class="frow"><span>DATE</span><div class="chips"><input type="date" id="ibf-date" value="' + esc(v.date || "") + '" aria-label="Date"></div></div>';
+        h += '<div class="frow"><span>TYPE</span><div class="chips"><select id="ibf-life" aria-label="Life Area">' + opt(ibAreas(), v.life, "Life Area") + '</select><select id="ibf-type" aria-label="Type">' + opt(ibTypes(), v.type, "Type") + "</select>" +
+          '<button type="button" class="chip" data-ibyearly aria-pressed="' + !!v.yearly + '">YEARLY</button></div></div>';
+      } else if (kind === "event") {
+        h += '<div class="frow"><span>AREA</span><div class="chips">' + ibCals().map(function (a) { return '<button type="button" class="chip a-' + a + '" data-ibarea="' + a + '" aria-pressed="' + (a === v.area) + '">' + esc(AREAS[a].name) + "</button>"; }).join("") + "</div></div>";
+        h += '<div class="frow"><span>WHEN</span><div class="chips"><input type="date" id="ibf-day" value="' + esc(v.day || "") + '" aria-label="Day"><input type="time" id="ibf-time" value="' + esc(v.time || "09:00") + '" aria-label="Start">' +
+          '<select id="ibf-mins" aria-label="Length">' + [15, 30, 45, 60, 90, 120, 180].map(function (m) { return '<option value="' + m + '"' + (m === v.mins ? " selected" : "") + ">" + (m < 60 ? m + " MIN" : m / 60 + " HR") + "</option>"; }).join("") + "</select></div></div>";
+      } else if (kind === "queue") {
+        h += '<div class="frow"><span>COST</span><div class="chips"><input type="text" inputmode="decimal" id="ibf-cost" value="' + (v.cost != null ? esc(v.cost) : "") + '" placeholder="$ optional" style="max-width:160px"><span class="muted">Goes to the bottom of the Replicator Queue.</span></div></div>';
+      }
+    }
+    return h + '<div class="err" id="ibf-err" role="alert"></div><div class="btnrow ib-formbtns"><button type="button" class="btn ghost sm" data-ib="cancel">CANCEL</button><button type="button" class="btn sm" data-ibsave="' + esc(n.id) + '">' + (kind === "keep" ? "KEEP" : "SAVE " + IB_KINDS[kind]) + "</button></div></div>";
+  }
+  /* What the open form says, read back. */
+  function ibFormValues(kind) {
+    var g = function (id) { var el = $(id); return el ? el.value.trim() : ""; }, v = Object.assign({}, ib.open.v);
+    if (kind === "keep") return v;
+    v.title = g("ibf-title");
+    if (kind === "task") { v.life = g("ibf-life") || null; var pb = document.querySelector("[data-ibpri][aria-pressed=true]"); v.pri = pb ? pb.dataset.ibpri : null; v.due = g("ibf-due") || null; }
+    if (kind === "date") { v.date = g("ibf-date") || null; v.life = g("ibf-life") || null; v.type = g("ibf-type") || null; var yb = document.querySelector("[data-ibyearly]"); v.yearly = !!yb && yb.getAttribute("aria-pressed") === "true"; }
+    if (kind === "event") { var ab = document.querySelector("[data-ibarea][aria-pressed=true]"); v.area = ab ? ab.dataset.ibarea : "personal"; v.day = g("ibf-day") || null; v.time = g("ibf-time") || null; v.mins = +g("ibf-mins") || 60; }
+    if (kind === "queue") { var c = g("ibf-cost").replace(/^\$/, ""); v.cost = c === "" ? null : +c; }
+    return v;
+  }
+  /* Make it: the same saves the rest of the app uses, then the note is marked Sorted (or Kept). */
+  function ibApply(n, kind, v) {
+    var err = function (t) { var e = $("ibf-err"); if (e) e.textContent = t; else toast(t); return false; };
+    if (kind !== "keep" && !v.title) return err("Give it a title first.");
+    if (kind === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(v.date || "")) return err("Pick the date.");
+    if (kind === "event" && (!/^\d{4}-\d{2}-\d{2}$/.test(v.day || "") || !/^\d{2}:\d{2}$/.test(v.time || ""))) return err("Pick the day and the time.");
+    if (kind === "queue" && v.cost != null && !(isFinite(v.cost) && v.cost >= 0)) return err("The cost is a number, like 45 or 12.50.");
+    var today = ymd(new Date());
+    if (kind === "keep") { ibMark(n, "kept"); toast("Kept in the inbox"); render(true); return true; }
+    if (kind === "date") {
+      state.queue.push({ kind: "date", cid: newCid(), title: v.title.slice(0, 200), start: v.date, end: null, area: v.life || null, type: v.type || null, yearly: !!v.yearly, created: Date.now(), attempts: 0 });
+      saveQueue(); flushQueue(true); ibMark(n, "sorted", "date"); render(true); return true;
+    }
+    if (kind === "event") {
+      var s = parseYmd(v.day), t = v.time.split(":"); s.setHours(+t[0], +t[1], 0, 0);
+      state.queue.push({ cid: newCid(), area: WRITABLE.indexOf(v.area) > -1 ? v.area : "personal", title: v.title.slice(0, 200), allDay: false, start: s.toISOString(), end: new Date(s.getTime() + Math.max(5, Math.min(600, v.mins)) * 60000).toISOString(), created: Date.now(), attempts: 0 });
+      saveQueue(); flushQueue(true); ibMark(n, "sorted", "event"); render(true); return true;
+    }
+    ib.busy[n.id] = true; ib.open = null; render(true);
+    var req = kind === "task" ? { action: "addtask", task: { cid: newCid(), title: v.title.slice(0, 200), area: v.life || null, priority: v.pri || null, day: null, due: v.due || null } }
+      : { action: "queueadd", item: { cid: newCid(), title: v.title.slice(0, 120), cost: v.cost } };
+    apiPost(req).then(function () {
+      ibMark(n, "sorted", kind);
+      toast(kind === "task" ? "Task added to your Master Task List" : "Added to the Replicator Queue");
+      if (kind === "task") loadTasks(today, true);
+    }).catch(function (e) { toast("Not saved: " + describeTasks(e)); ib.open = { id: n.id, kind: kind, v: v }; })
+      .then(function () { delete ib.busy[n.id]; render(true); });
+    return true;
+  }
+  /* SUGGEST SORTING: the waiting notes and Notion's own lists to Sonnet; its answer checked against those lists. */
+  function ibSuggest() {
+    var w = ibWaiting(); if (!w.length || ib.sugBusy) return;
+    var now = new Date(), cals = ibCals().map(function (a) { return a === "hobby" ? "growth" : a; });
+    var ctx = ["TODAY: " + DOWL[now.getDay()] + " " + now.getDate() + " " + MONL[now.getMonth()].charAt(0) + MONL[now.getMonth()].slice(1).toLowerCase() + " " + now.getFullYear() + " (" + ymd(now) + ").",
+      "LIFE AREAS: " + ibAreas().join(" | "), "PRIORITY NAMES: " + ibPris().join(" | "), "KEY DATE TYPES: " + ibTypes().join(" | "), "CALENDARS HE CAN ADD TO: " + cals.join(", "),
+      "INBOX (id: note, when captured):"].concat(w.map(function (n) { return n.id + ": " + String(n.text).replace(/\s+/g, " ") + " (" + ibDay(n.at) + ")"; })).join("\n");
+    ib.sugBusy = true; ib.sugErr = ""; render(true);
+    apiPost({ action: "ask", cid: newCid(), mode: "sort", messages: [{ role: "user", text: IB_ASK }], context: ctx }, 150000).then(function (j) {
+      if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      var s = String(j.reply || ""), a = s.indexOf("{"), z = s.lastIndexOf("}"), o = null;
+      try { o = a > -1 && z > a ? JSON.parse(s.slice(a, z + 1)) : null; } catch (e) { o = null; }
+      var items = o && Array.isArray(o.items) ? o.items : null;
+      if (!items) throw { code: "sort_shape" };
+      var got = 0;
+      items.forEach(function (it) { var n = w.filter(function (x) { return x.id === it.id; })[0], sg = n && ibCheck(n, it); if (sg) { ib.sug[n.id] = sg; got++; } });
+      toast(got ? "Suggested a place for " + got + (got === 1 ? " note" : " notes") + " · " + money(j.cost || 0) : "No suggestions came back");
+    }).catch(function (err) {
+      if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
+      ib.sugErr = "No suggestions: " + (err && err.code === "sort_shape" ? "Claude's answer didn't come back in the expected shape." : describeAi(err));
+    }).then(function () { ib.sugBusy = false; render(true); });
+  }
+  /* One suggestion, held to Notion's lists and real dates; anything that doesn't fit falls back to a plain task. */
+  function ibCheck(n, it) {
+    var kind = IB_KINDS[it.kind] ? it.kind : null; if (!kind) return null;
+    var str = function (x, len) { return typeof x === "string" ? x.replace(/\s+/g, " ").trim().slice(0, len) : ""; }, isDay = function (x) { return /^\d{4}-\d{2}-\d{2}$/.test(x || "") && !isNaN(parseYmd(x)); };
+    var v = ibDefaults(n, kind), t = str(it.title, kind === "queue" ? 120 : 200);
+    if (t) v.title = t;
+    v.life = ibAreas().indexOf(it.life_area) > -1 ? it.life_area : null;
+    v.pri = ibPris().indexOf(it.priority) > -1 ? it.priority : null;
+    if (kind === "task") v.due = isDay(it.due) ? it.due : null;
+    if (kind === "date") { if (!isDay(it.date)) kind = "task"; else { v.date = it.date; v.type = ibTypes().indexOf(it.type) > -1 ? it.type : null; v.yearly = it.yearly === true; } }
+    if (kind === "event") {
+      var cal = it.calendar === "growth" ? "hobby" : it.calendar;
+      if (!isDay(it.day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(it.start_time || "")) kind = "task";
+      else { v.area = ibCals().indexOf(cal) > -1 ? cal : "personal"; v.day = it.day; v.time = it.start_time; v.mins = Math.max(5, Math.min(600, Math.round(+it.minutes || 60))); }
+    }
+    if (kind === "queue") v.cost = typeof it.cost === "number" && isFinite(it.cost) && it.cost >= 0 ? Math.round(it.cost * 100) / 100 : null;
+    return { kind: kind, v: v, why: str(it.why, 120) };
+  }
+  function inboxClick(b) {
+    var d = b.dataset;
+    if (d.act === "inbox") { go("inbox"); return true; }
+    if (state.screen !== "inbox") return false;
+    if (d.ibtab) { ib.tab = d.ibtab; ib.open = null; ib.armed = null; render(true); return true; }
+    if (d.ib === "note") { openCapture(null, null, "note"); return true; }
+    if (d.ib === "suggest") { ibSuggest(); return true; }
+    if (d.ib === "cancel") { ib.open = null; render(true); return true; }
+    if (d.ibkind) { var n = ibNote(d.ibid); if (n) { ib.open = { id: n.id, kind: d.ibkind, v: ibDefaults(n, d.ibkind) }; ib.armed = null; render(true); } return true; }
+    if (d.ibsave) { var n2 = ibNote(d.ibsave); if (n2 && ib.open) ibApply(n2, ib.open.kind, ibFormValues(ib.open.kind)); return true; }
+    if (d.ibok) { var n3 = ibNote(d.ibok), s = n3 && ib.sug[n3.id]; if (s) ibApply(n3, s.kind, s.v); return true; }
+    if (d.ibchange) { var n4 = ibNote(d.ibchange), s2 = n4 && ib.sug[n4.id]; if (s2) { ib.open = { id: n4.id, kind: s2.kind, v: Object.assign({}, s2.v) }; render(true); } return true; }
+    if (d.ibskip) { delete ib.sug[d.ibskip]; render(true); return true; }
+    if (d.ibback) { var n5 = ibNote(d.ibback); if (n5) { ibMark(n5, "new"); ib.tab = "waiting"; ib.open = { id: n5.id, kind: "task", v: ibDefaults(n5, "task") }; render(true); } return true; }
+    if (d.ibdel) {
+      var n6 = ibNote(d.ibdel);
+      if (n6 && ib.armed === n6.id) { ib.armed = null; ibMark(n6, "remove"); toast("Note moved to Notion's trash"); }
+      else ib.armed = d.ibdel;
+      render(true); return true;
+    }
+    if (d.ibpri !== undefined) { b.parentNode.querySelectorAll("[data-ibpri]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b && b.getAttribute("aria-pressed") !== "true")); }); return true; }
+    if (d.ibarea) { b.parentNode.querySelectorAll("[data-ibarea]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); }); return true; }
+    if (b.hasAttribute("data-ibyearly")) { b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")); return true; }
+    return false;
+  }
+  /* SYSTEMS → INBOX: what's there, marks still on this iPad, and what an older bridge needs. */
+  function inboxSection() {
+    if (!state.conn) return "";
+    var html = '<section id="sec-inbox">' + phead("INBOX", canInbox() ? (ib.data ? ibCount() + " WAITING · " + ibKept().length + " KEPT" : "NOTION") : "SETUP", "chrome-c");
+    if (!canInbox()) return html + stubBox("CAPTURE → NOTE and the INBOX need the Google bridge updated to 1.33, then the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections).") + "</section>";
+    var marks = Object.keys(ib.q).length, qd = ibQueued().length;
+    html += '<div class="calrow"><span class="st" style="--c: var(--chrome-c)"></span><span><b>Notes</b><small>' + (ib.err ? esc(ib.err.msg) : ib.data ? "Read " + esc(stamp(ib.data.fetched)) + "." : "Not read yet.") +
+      (qd ? " " + qd + (qd === 1 ? " note" : " notes") + " waiting on this iPad to save." : "") + (marks ? " " + marks + (marks === 1 ? " sorting mark" : " sorting marks") + " waiting to reach Notion." : "") + "</small></span>" +
+      (ib.data && ib.data.url ? '<a class="chip sm" href="' + esc(ib.data.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "<span></span>") + "</div>";
+    html += '<small class="muted">' + (canInboxSort() ? "SUGGEST SORTING asks Sonnet (about 1¢ a batch) and counts toward ASK's monthly total as INBOX SORTING." : "SUGGEST SORTING needs Ask Claude.") + "</small>";
+    return html + "</section>";
+  }
+  /* The Bridge's line: only while notes wait. Condition never counts them. */
+  function inboxLine() {
+    if (!state.conn || !canInbox()) return "";
+    loadInbox(false);
+    var n = ibCount(); if (!n) return "";
+    var w = ibWaiting(), first = w[0] || ibQueued()[0], at = first && first.at ? new Date(first.at) : null;
+    return '<button type="button" class="ib-line" data-act="inbox"><b>INBOX · ' + n + "</b><span>" + (n === 1 ? "1 note" : n + " notes") + " to sort" + (at && !isNaN(at) ? ", the oldest from " + DOW[at.getDay()] + " " + p2(at.getDate()) + " " + MON[at.getMonth()] : "") + '</span><span class="ov-more" aria-hidden="true"></span></button>';
+  }
+
   /* ---------- ASTROMETRICS (2.40, bridge 1.32): the year at a glance ---------- */
   /* Every station's year as one row of weeks (Monday to Sunday, every week that touches the year), each row shaded
      against its own busiest week (✦), hatched before its first record that year. Built from what the bridge already
@@ -9761,7 +10077,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, astrometrics: renderAstro, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, astrometrics: renderAstro, inbox: renderInbox, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
@@ -9786,6 +10102,8 @@
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */
+    if (screen === "inbox" && state.screen === "inbox") { ib.tab = "waiting"; ib.open = null; ib.armed = null; }   /* tapping INBOX again: back to the waiting notes */
+    if (screen === "inbox") loadInbox(true);
     if (screen === "astrometrics") { as.placed = false; if (state.screen === "astrometrics") { as.y = new Date().getFullYear(); as.cell = null; as.kd = null; } }   /* tapping it again comes back to this year */
     if (state.screen === "astrometrics" && screen !== "astrometrics") { shipQuiet(); as.typeT0 = 0; }
     if (screen === "tarot" && state.screen === "tarot") { tr.view = "home"; tr.arm = null; }   /* tapping TAROT again goes back to its front page */   /* arriving: read the devices fresh */   /* tapping STORAGE again goes back to its front page */
@@ -9836,7 +10154,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if (astroClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if (astroClick(b) || inboxClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

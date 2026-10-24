@@ -239,6 +239,23 @@ ASTRO = {"cap": 0, "fail": 0, "n": 0, "ctx": "", "years": [], "ask": ""}
 YDONE = [{"area": a, "at": "2026-%02d-%02dT15:00:00Z" % (m, d)} for (a, m, d) in [("🎯 Work & Calling", 1, 6), ("🌿 SkyGarden Farm", 3, 3), ("🌿 SkyGarden Farm", 3, 4), ("🐝 Beekeeping", 5, 12), ("🐝 Beekeeping", 5, 13), ("🐝 Beekeeping", 5, 14),
          ("🏡 Home & Property", 7, 1), ("🎯 Work & Calling", 8, 18), ("🎯 Work & Calling", 8, 19), ("🎯 Work & Calling", 8, 20), ("🎯 Work & Calling", 8, 21), ("🌱 Personal Growth", 9, 9), ("🏥 Health", 10, 2)]]
 YBOUGHT = [{"day": "2026-04-11", "cost": 40}, {"day": "2026-09-20", "cost": 25}]
+# INBOX (bridge 1.33): ?action=inboxmode&cap=1 turns it on; invented notes. Sort suggestions refer to them by id.
+INBOX = {"cap": 0, "fail": "", "ctx": "", "n": 0, "cids": {}, "posts": []}
+def _inote(i, text, at, status="new", as_=None): return {"id": "%032d" % i, "url": "https://www.notion.so/%032d" % i, "text": text, "at": at, "status": status, "as": as_}
+def inbox_seed():
+    INBOX["notes"] = [_inote(1, "Get a quote for the north fence before winter", "2026-10-19T07:42:00.000-05:00"),
+                      _inote(2, "Juniper felt light on stores. Heft again after the cold snap", "2026-10-21T17:10:00.000-05:00"),
+                      _inote(3, "Truck registration runs out 30 Nov", "2026-10-22T12:05:00.000-05:00"),
+                      _inote(4, "Look into a second honey extractor", "2026-10-23T20:31:00.000-05:00"),
+                      _inote(11, "Book idea: a sequel set in the salt orchard", "2026-10-12T22:40:00.000-05:00", "kept")]
+    INBOX["next"] = 20
+inbox_seed()
+SORT_REPLY = {"items": [
+    {"id": "%032d" % 1, "kind": "task", "title": "Get a quote for the north fence", "life_area": "🏡 Home & Property", "priority": "🟡 Medium", "due": "2026-11-06", "why": "Something to do before winter"},
+    {"id": "%032d" % 2, "kind": "event", "title": "Heft Juniper", "calendar": "farm", "day": "2026-10-28", "start_time": "16:00", "minutes": 30, "why": "A hive job after the cold snap"},
+    {"id": "%032d" % 3, "kind": "date", "title": "Truck registration renewal", "date": "2026-11-30", "type": "Not a type", "yearly": True, "why": "A fixed yearly date"},
+    {"id": "%032d" % 4, "kind": "queue", "title": "Second honey extractor", "cost": 450, "why": "Something to buy"},
+    {"id": "not-a-note", "kind": "task", "title": "Invented", "why": "x"}]}
 YEAR_REPLY = {"paras": [{"label": "", "text": "Captain, the year so far."}, {"label": "THE YEAR", "text": "Thirteen tasks closed and the calendars full."}, {"label": "KEPT", "text": "Four weekly reviews saved."}], "action": "Keep the weekly review going into November."}
 SILENT_MP3 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
 BRIEF_REPLY = {"headline": "Condition yellow · 4 meetings from 09:00 · hive check GO 11:00 to 15:00",
@@ -333,8 +350,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -348,6 +365,15 @@ class H(BaseHTTPRequestHandler):
                 dbs[0]["missing"] = [{"name": "Focus Date", "type": "date"}]
                 dbs[6]["wrong"] = [{"name": "Rating", "want": "number", "got": "rich_text"}]
             body = {"ok": True, "version": VER["v"], "at": "2026-10-23T18:00:00Z", "dbs": dbs}
+        elif q.get("action") == "inboxmode":
+            if "cap" in q: INBOX["cap"] = int(q["cap"])
+            if "fail" in q: INBOX["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "reset" in q: inbox_seed(); INBOX.update(ctx="", n=0, cids={}, posts=[])
+            body = {"ok": True}
+        elif q.get("action") == "inboxstats": body = {"ok": True, "notes": INBOX["notes"], "ctx": INBOX["ctx"], "n": INBOX["n"], "posts": INBOX["posts"], "tasks": [[t["title"], t["area"], t["priority"], t.get("due")] for t in TASKS], "queue": [[x["title"], x["cost"]] for x in QUEUE], "dates": [[d["title"], d["start"], d["type"], d["yearly"]] for d in KDATES], "created": [[e["title"], e["area"], e["start"]] for e in CREATED]}
+        elif q.get("action") == "inbox" and INBOX["cap"]:
+            ns = INBOX["notes"]
+            body = {"ok": True, "version": VER["v"], "waiting": sorted([n for n in ns if n["status"] == "new"], key=lambda n: n["at"]), "kept": sorted([n for n in ns if n["status"] == "kept"], key=lambda n: n["at"], reverse=True), "url": "https://www.notion.so/inbox"}
         elif q.get("action") == "astromode":
             for k in ("cap", "fail"):
                 if k in q: ASTRO[k] = int(q[k])
@@ -535,6 +561,10 @@ class H(BaseHTTPRequestHandler):
                         import time; time.sleep(1.2)   # long enough to see COMPILING
                         BRIEF["n"] += 1; BRIEF["ctx"] = b.get("context", ""); BRIEF["ignore"] = b.get("ignore"); BRIEF["ask"] = last
                         reply = "Not JSON at all." if BRIEF["shape"] else "```json\n" + json.dumps(BRIEF_REPLY) + "\n```"
+                    elif mode == "sort":
+                        import time; time.sleep(0.6)
+                        INBOX["n"] += 1; INBOX["ctx"] = b.get("context", "")
+                        reply = json.dumps(SORT_REPLY)
                     elif mode == "year":
                         import time; time.sleep(0.8)   # long enough to see COMPILING
                         ASTRO["n"] += 1; ASTRO["ctx"] = b.get("context", ""); ASTRO["ask"] = last
@@ -616,11 +646,25 @@ class H(BaseHTTPRequestHandler):
                 else:
                     nd = KDt(d["title"], d["start"], d.get("end"), d.get("area"), d.get("type"), bool(d.get("yearly"))); KDATES.append(nd)
                     body = {"ok": True, "date": nd}; DCIDS[d["cid"]] = body
+            elif act in ("inboxadd", "inboxset", "inboxremove"):
+                INBOX["posts"].append(act)
+                byid = {n["id"]: n for n in INBOX["notes"]}
+                if INBOX["fail"]: body = {"ok": False, "error": INBOX["fail"]}
+                elif act == "inboxadd":
+                    nt = b.get("note", {})
+                    if nt.get("cid") in INBOX["cids"]: body = dict(INBOX["cids"][nt["cid"]], duplicate=True)
+                    elif not str(nt.get("text", "")).strip(): body = {"ok": False, "error": "bad_title"}
+                    else:
+                        n = _inote(INBOX["next"], nt["text"].strip(), nt.get("at") or "2026-10-24T12:00:00Z"); INBOX["next"] += 1; INBOX["notes"].append(n)
+                        body = {"ok": True, "note": n}; INBOX["cids"][nt["cid"]] = body
+                elif b.get("id") not in byid: body = {"ok": False, "error": "not_writable"}
+                elif act == "inboxremove": INBOX["notes"].remove(byid[b["id"]]); body = {"ok": True, "removed": b["id"]}
+                else: byid[b["id"]].update(status=b.get("status"), **{"as": b.get("as")}); body = {"ok": True, "note": byid[b["id"]]}
             elif act == "addtask":
                 t = b.get("task", {})
                 if t.get("cid") in TCIDS: body = dict(TCIDS[t["cid"]], duplicate=True)
                 else:
-                    nt = T(t["title"], "⬜ To Do", t.get("priority"), t.get("area"), None, t.get("day")); TASKS.append(nt)
+                    nt = T(t["title"], "⬜ To Do", t.get("priority"), t.get("area"), t.get("due"), t.get("day")); TASKS.append(nt)
                     body = {"ok": True, "task": nt}; TCIDS[t["cid"]] = body
             elif it.get("area") not in ("personal", "farm", "hobby"): body = {"ok": False, "error": "not_writable"}
             elif it.get("title") == "FAILME": body = {"ok": False, "error": "bad_title"}

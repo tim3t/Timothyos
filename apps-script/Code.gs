@@ -79,17 +79,20 @@ var CONFIG = {
   NOTION_TAROT_BOOKS_DATABASE: '29cd26305cea4270a6c40f36cbe75511',
 
   // Your Notion Apiary: the yard, one page per hive, one page per hive check.
-  NOTION_APIARY_DATABASE: '548f88460e014b17a521dba092160da2'
+  NOTION_APIARY_DATABASE: '548f88460e014b17a521dba092160da2',
+
+  // Your Notion Inbox: notes captured to sort later (CAPTURE → NOTE), one page per note.
+  NOTION_INBOX_DATABASE: '5712ada1ef2742daad5629d70bf3f4d4'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.32.0';
+var VERSION = '1.33.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -125,7 +128,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -141,6 +144,7 @@ function read_(p) {
   if (p.action === 'tarot') return tarot_(p.from, p.to);
   if (p.action === 'tarotbooks') return tarotBooks_();
   if (p.action === 'apiary') return apiary_();
+  if (p.action === 'inbox') return inbox_();
   if (p.action === 'year') return year_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
@@ -187,6 +191,9 @@ function doPost(e) {
     if (body.action === 'aicontinue') return json_(aiContinue_());
     if (body.action === 'aispendset') return json_(aiSpendSet_(body.usd));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
+    if (body.action === 'inboxadd') return json_(inboxAdd_(body.note || {}));
+    if (body.action === 'inboxset') return json_(inboxSet_(String(body.id || ''), String(body.status || ''), body.as === null || body.as === undefined ? null : String(body.as)));
+    if (body.action === 'inboxremove') return json_(inboxRemove_(String(body.id || '')));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
     if (body.action === 'habitset') return json_(habitSet_(body.day));
     if (body.action === 'booksave') return json_(bookSave_(body.book));
@@ -252,6 +259,7 @@ function setup() {
   console.log('Notion tarot: ' + tarotStatus_());
   console.log('Notion tarot books: ' + tarotBooksStatus_());
   console.log('Notion apiary: ' + apiaryStatus_());
+  console.log('Notion inbox: ' + inboxStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
       var sc = schema_(true), bad = sc.dbs.filter(function (d) { return d.missing.length || d.wrong.length; }), conn = sc.dbs.filter(function (d) { return !d.error; });
@@ -646,7 +654,8 @@ function schemaSpec_() {
     { key: 'library', name: 'Library', src: librarySource_, need: [['Title', 'title'], ['Author', 'rich_text'], ['Status', 'select'], ['Started', 'date'], ['Finished', 'date'], ['Rating', 'number'], ['Notes', 'rich_text'], ['Cover', 'url'], ['Open Library', 'url'], ['Published', 'number']] },
     { key: 'tarot', name: 'Tarot', src: tarotSource_, need: [['Title', 'title'], ['Date', 'date'], ['Kind', 'select'], ['Weekly', 'checkbox'], ['Spread', 'rich_text'], ['Cards', 'rich_text'], ['Interpretation', 'rich_text'], ['Card', 'rich_text'], ['Data', 'rich_text']] },
     { key: 'tarotbooks', name: 'Tarot Books', src: tarotBooksSource_, need: [['Title', 'title'], ['Card', 'rich_text'], ['Book', 'select'], ['Source', 'rich_text'], ['Order', 'number']] },
-    { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) }
+    { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
+    { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] }
   ];
 }
 var SCHEMA_TYPE = { title: 'title', rich_text: 'text', select: 'select', date: 'date', number: 'number', checkbox: 'checkbox', url: 'URL', relation: 'relation' };
@@ -884,6 +893,7 @@ function addTask_(task) {
   if (!title || title.length > 200) return { ok: false, error: 'bad_title' };
   if (!/^[A-Za-z0-9-]{8,64}$/.test(String(task.cid || ''))) return { ok: false, error: 'bad_request' };
   if (task.day && !/^\d{4}-\d{2}-\d{2}$/.test(String(task.day))) return { ok: false, error: 'bad_request' };
+  if (task.due && !/^\d{4}-\d{2}-\d{2}$/.test(String(task.due))) return { ok: false, error: 'bad_request' };
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
@@ -900,6 +910,7 @@ function addTask_(task) {
       props.Priority = { select: { name: task.priority } };
     }
     if (task.day) props['Focus Date'] = { date: { start: task.day } };
+    if (task.due) props['Due Date'] = { date: { start: task.due } };   // 1.33: a due date (INBOX sorting)
     var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
     var out = { ok: true, version: VERSION, task: toTask_(pg) };
     cache.put('tcid:' + task.cid, JSON.stringify(out), 21600);
@@ -1844,6 +1855,90 @@ function libraryStatus_() {
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Library (... > Connections)' : ''); }
 }
 
+// ---- Inbox (bridge 1.33) ------------------------------------------------------------
+// Notes captured in TimothyOS (CAPTURE → NOTE) to sort later, one page per note: Note (the text, as the title),
+// Captured (when), Status (New, Sorted, Kept) and Sorted As (Task, Key Date, Event, Queue). The app makes the task,
+// key date, event or queue item through their own actions, then marks the note Sorted; a sorted note stays in
+// Notion as the record. Remove moves a page to Notion's trash. Only pages in the Inbox can be changed.
+var INBOX_STATUS = { new: 'New', sorted: 'Sorted', kept: 'Kept' };
+var INBOX_AS = { task: 'Task', date: 'Key Date', event: 'Event', queue: 'Queue' };
+function inboxSource_() { return sourceFor_(CONFIG.NOTION_INBOX_DATABASE, 'NOTION_INBOX_SOURCE'); }
+function inboxGen_() { return CacheService.getScriptCache().get('igen') || '0'; }
+function inboxBump_() { CacheService.getScriptCache().put('igen', Utilities.getUuid().slice(0, 8), 21600); }
+function toNote_(pg) {
+  var p = pg.properties || {}, st = sel_(p.Status), as = sel_(p['Sorted As']), key = function (map, v) { return Object.keys(map).filter(function (k) { return map[k] === v; })[0] || null; };
+  var cap = p.Captured && p.Captured.date && p.Captured.date.start;
+  return { id: pg.id, url: pg.url, text: plain_(p.Note && p.Note.title), at: cap || pg.created_time || null, status: key(INBOX_STATUS, st) || 'new', as: key(INBOX_AS, as) };
+}
+/** Notes waiting (oldest first) and kept (newest first, at most 200). */
+function inbox_() {
+  var cache = CacheService.getScriptCache(), k = 'inbox:' + inboxGen_(), hit = cache.get(k);
+  if (hit) return JSON.parse(hit);
+  var ds = inboxSource_();
+  var waiting = queryAll_(ds, { property: 'Status', select: { equals: 'New' } }, 3, [{ property: 'Captured', direction: 'ascending' }, { timestamp: 'created_time', direction: 'ascending' }]).map(toNote_);
+  var kept = queryAll_(ds, { property: 'Status', select: { equals: 'Kept' } }, 2, [{ property: 'Captured', direction: 'descending' }]).map(toNote_);
+  var out = { ok: true, version: VERSION, waiting: waiting, kept: kept, url: 'https://www.notion.so/' + String(CONFIG.NOTION_INBOX_DATABASE).replace(/-/g, '') };
+  try { cache.put(k, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+/** A new note: { cid, text (at most 2000 characters), at (ISO, when it was captured) }. Safe to repeat (cid). */
+function inboxAdd_(n) {
+  var text = String(n.text || '').replace(/\r\n/g, '\n').trim();
+  if (!text || text.length > 2000) return { ok: false, error: 'bad_title' };
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(String(n.cid || ''))) return { ok: false, error: 'bad_request' };
+  var at = n.at && ISO.test(String(n.at)) ? new Date(String(n.at)) : new Date();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var cache = CacheService.getScriptCache(), seen = cache.get('icid:' + n.cid);
+    if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var tz = Session.getScriptTimeZone();
+    var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: inboxSource_() }, properties: {
+      Note: { title: rt_(text) }, Captured: { date: { start: Utilities.formatDate(at, tz, "yyyy-MM-dd'T'HH:mm:ss"), time_zone: tz } }, Status: { select: { name: 'New' } } } });
+    inboxBump_();
+    var out = { ok: true, version: VERSION, note: toNote_(pg) };
+    cache.put('icid:' + n.cid, JSON.stringify(out), 21600);
+    return out;
+  } finally {
+    lock.releaseLock();
+  }
+}
+function inboxOwn_(id) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(id)) return null;
+  var cur = notion_('get', '/pages/' + id);
+  return cur.parent && String(cur.parent.data_source_id || '').replace(/-/g, '') === inboxSource_().replace(/-/g, '') && !cur.in_trash ? cur : null;
+}
+/** Mark a note: status new | sorted | kept; as (task | date | event | queue) only with sorted. Set-to-value, safe to repeat. */
+function inboxSet_(id, status, as) {
+  if (!INBOX_STATUS[status] || (as !== null && !INBOX_AS[as]) || (as && status !== 'sorted')) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    if (!inboxOwn_(id)) return { ok: false, error: 'not_writable' };
+    var pg = notion_('patch', '/pages/' + id, { properties: { Status: { select: { name: INBOX_STATUS[status] } }, 'Sorted As': { select: as ? { name: INBOX_AS[as] } : null } } });
+    inboxBump_();
+    return { ok: true, version: VERSION, note: toNote_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function inboxRemove_(id) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    if (!inboxOwn_(id)) return { ok: false, error: 'not_writable' };
+    notion_('patch', '/pages/' + id, { in_trash: true });
+    inboxBump_();
+    return { ok: true, version: VERSION, removed: id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function inboxStatus_() {
+  try { var b = inbox_(); return 'OK (' + b.waiting.length + ' waiting, ' + b.kept.length + ' kept)'; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Inbox (... > Connections)' : ''); }
+}
+
 // ---- Tarot ---------------------------------------------------------------------
 // One database, three kinds of page: Reading (one per reading; Weekly marks the card for the week),
 // Meaning (your own words for a card, one per card) and Spread (a layout you made). The app's own
@@ -2418,6 +2513,18 @@ var YEAR_RULES = [
   "action: one recommendation for the year ahead (or the rest of this one), one sentence, starting with a verb."
 ].join('\n');
 
+/* SUGGEST SORTING (app 2.41): a destination for each waiting Inbox note, from the note and the lists in the snapshot.
+   Sonnet, no tools, JSON; the app shows each as a card and saves nothing until CONFIRM. */
+var SORT_RULES = [
+  "Task: suggest where each note in the snapshot's INBOX belongs. Use only the snapshot; don't use tools.",
+  "This task replaces the style line above: answer with one JSON object and nothing else, shaped {\"items\": [{\"id\": \"...\", \"kind\": \"...\", \"title\": \"...\", \"why\": \"...\"}]}, one item per note, ids exactly as given.",
+  "kind is one of: task (something to do), date (a fixed date to remember: a deadline, renewal, birthday), event (something at a set time on a calendar), queue (something to buy), keep (an idea or reference to keep as it is).",
+  "title: short and clear, in his words where possible. why: under 12 words.",
+  "For task add life_area (exactly one of the snapshot's Life Areas), priority (exactly one of its priority names) and due (yyyy-mm-dd or null).",
+  "For date add date (yyyy-mm-dd), type (exactly one of the snapshot's key date types) and yearly (true or false). For event add calendar (personal, farm or growth, only those listed), day (yyyy-mm-dd), start_time (HH:MM, 24-hour) and minutes.",
+  "For queue add cost (a number, or null when unknown). Work out relative days (Thursday, next week) from TODAY in the snapshot. Never invent a date the note doesn't imply: use task with due null instead."
+].join('\n');
+
 var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
@@ -2665,7 +2772,7 @@ function ask_(body, test) {
   if (!/^[A-Za-z0-9-]{8,64}$/.test(String(body.cid || ''))) return { ok: false, error: 'bad_request' };
   var cache = CacheService.getScriptCache(), seen = cache.get('ask:' + body.cid);
   if (seen) return JSON.parse(seen);
-  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' || body.mode === 'brief' || body.mode === 'year' ? body.mode : 'fast';
+  var mode = body.mode === 'deep' || body.mode === 'summary' || body.mode === 'patterns' || body.mode === 'brief' || body.mode === 'year' || body.mode === 'sort' ? body.mode : 'fast';
   var turns = (Array.isArray(body.messages) ? body.messages : []).slice(-20).filter(function (m) {
     return (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim();
   }).map(function (m) { return { role: m.role, content: m.text.slice(0, 4000) }; });
@@ -2679,11 +2786,12 @@ function ask_(body, test) {
   var system = [{ type: 'text', text: AI_RULES + (mode === 'summary' ? "\nTask: write a weekly summary in 4 to 6 sentences: what the week held, what moved forward, what slipped, one observation about balance, and one suggestion for next week. Plain prose, no lists. Don't use tools." :
       mode === 'brief' ? '\n' + BRIEF_RULES :
       mode === 'year' ? '\n' + YEAR_RULES :
+      mode === 'sort' ? '\n' + SORT_RULES :
       mode === 'patterns' ? "\nTask: read the saved weekly reviews in the snapshot and name the patterns across them: what keeps draining him, what reliably goes well, focus areas that keep coming back or slipping, how he holds his bearing, and any trend in the numbers. 4 to 6 lines starting with '- ', each one concrete and tied to specific weeks. End with one suggestion. Don't use tools." : '') },
     { type: 'text', text: 'SNAPSHOT FROM THE APP\n' + String(body.context || 'No snapshot was sent.').slice(0, 40000) }];
   // Current models think by default and thinking counts toward max_tokens, so each cap leaves room for it.
-  var payload = { model: model, max_tokens: mode === 'fast' || mode === 'brief' || mode === 'year' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
-  var effort = (test && test.effort) || (mode === 'fast' || mode === 'brief' || mode === 'year' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
+  var payload = { model: model, max_tokens: mode === 'fast' || mode === 'brief' || mode === 'year' || mode === 'sort' ? 6000 : 12000, system: system, messages: turns, cache_control: { type: 'ephemeral' } };
+  var effort = (test && test.effort) || (mode === 'fast' || mode === 'brief' || mode === 'year' || mode === 'sort' ? AI.FAST_EFFORT : mode === 'deep' ? AI.DEEP_EFFORT : 'medium');
   if (model !== 'claude-haiku-4-5') payload.output_config = { effort: effort };   // Haiku 4.5 rejects effort
   if (mode === 'fast' || mode === 'deep') payload.tools = AI_TOOLS;
   var betas = [];

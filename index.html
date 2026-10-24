@@ -13,13 +13,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.40.1">
+<link rel="stylesheet" href="css/app.css?v=2.41.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.40</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
+    <div class="topbar"><span>TIMOTHYOS 2.41</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -57,9 +57,10 @@
     <div class="sbody">
       <div class="capnote" id="capNote" hidden></div>
       <input type="text" id="capText" maxlength="200" placeholder="What goes in? e.g. Pick up bee feeder" enterkeyhint="done" autocapitalize="sentences">
+      <textarea id="capNoteText" rows="4" maxlength="2000" placeholder="A thought to sort later. e.g. Look into a second honey extractor" autocapitalize="sentences" aria-label="Note" hidden></textarea>
       <div class="frow"><span>TYPE</span><div class="chips">
         <button type="button" class="chip" data-ctype="event">EVENT</button>
-        <button type="button" class="chip" disabled>NOTE<small>STANDBY</small></button>
+        <button type="button" class="chip" data-ctype="note" id="capTypeNote">NOTE</button>
         <button type="button" class="chip" disabled>PRIORITY<small>STANDBY</small></button>
         <button type="button" class="chip" data-ctype="date" id="capTypeDate">KEY DATE</button>
       </div></div>
@@ -73,7 +74,7 @@
         <select id="capKdType" aria-label="Type"></select>
         <button type="button" class="chip" id="capYearly" aria-pressed="false">YEARLY</button>
       </div></div>
-      <div class="frow"><span>DAY</span><div class="chips">
+      <div class="frow" id="capDayRow"><span>DAY</span><div class="chips">
         <button type="button" class="chip" data-capday="today">TODAY</button>
         <button type="button" class="chip" data-capday="tomorrow">TOMORROW</button>
         <input type="date" id="capDate" aria-label="Pick a day">
@@ -148,6 +149,6 @@
   <span class="sb-hint">TAP ANYWHERE TO WAKE</span>
 </div>
 
-<script src="js/app.js?v=2.40.1"></script>
+<script src="js/app.js?v=2.41.0"></script>
 </body>
 </html>

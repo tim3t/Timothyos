@@ -54,7 +54,7 @@ function notionMock(url, opts) {
     if (m === 'get') return res(200, pg);
     if (m === 'patch') { const pr = JSON.parse(opts.payload).properties; Object.keys(pr).forEach(k => { pg.properties[k] = pr[k]; }); return res(200, pg); } }
   if (m === 'post' && path === '/pages') { const b = JSON.parse(opts.payload); const pr = b.properties;
-    const pg = mk('e'.repeat(31) + pages.length, pr.Task.title[0].text.content, pr.Status.select.name, pr.Priority && pr.Priority.select.name, pr['Life Area'] && pr['Life Area'].select.name, null, pr['Focus Date'] && pr['Focus Date'].date.start, b.parent.data_source_id);
+    const pg = mk('e'.repeat(31) + pages.length, pr.Task.title[0].text.content, pr.Status.select.name, pr.Priority && pr.Priority.select.name, pr['Life Area'] && pr['Life Area'].select.name, pr['Due Date'] ? pr['Due Date'].date.start : null, pr['Focus Date'] && pr['Focus Date'].date.start, b.parent.data_source_id);
     pages.push(pg); return res(200, pg); }
   return res(400, { message: 'unexpected ' + m + ' ' + path });
 }
@@ -90,6 +90,10 @@ const add = { cid: 'task-0000-0001', title: 'Sugar syrup, Hive 2', area: '🌿 S
 console.log('add task:', JSON.stringify(post({ key, action: 'addtask', task: add }).task));
 console.log('add again same cid -> duplicate:', post({ key, action: 'addtask', task: add }).duplicate, '| pages now', pages.length);
 console.log('add bad area:', JSON.stringify(post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0002', area: '💣 Nope' }) })));
+// 1.33: a due date (INBOX sorting), checked like the focus day
+const withDue = post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0003', due: '2026-11-06', day: null }) });
+require('assert').ok(withDue.ok && withDue.task.due === '2026-11-06', JSON.stringify(withDue));
+require('assert').strictEqual(post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0004', due: '6 Nov' }) }).error, 'bad_request');
 const t2 = get({ action: 'tasks', key, day: '2026-10-06' });
 console.log('after writes: focus', t2.focus.map(x => x.title + '/' + x.status));
 // bridge 1.18: the picks and the open list are fetched together, and give the same answer as one at a time
@@ -132,7 +136,7 @@ assert.strictEqual(dn.ok, true);
 assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
 assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
 assert.ok(dn.done.length >= 1);
-assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year']);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox']);
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
 
 console.log('--- weekly review ---');

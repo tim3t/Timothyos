@@ -128,6 +128,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 🔮 Tarot | TAROT | Read; add; change; move to Notion's trash |
 | 📖 Tarot Books | TAROT → BOOKS | Read; make pages from the import file |
 | 🐝 Apiary | APIARY | Read; add; change; move checks and hives to Notion's trash |
+| 📥 Inbox | CAPTURE → NOTE, INBOX | Read; add notes; mark them Sorted or Kept; move to Notion's trash |
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
@@ -357,6 +358,16 @@ Tap **+** beside a panel title for its details (hours booked and open, wind and 
 
 Your calendars in day, week and month views. The arrows beside the title move through time; **TODAY** jumps back. Tap a day in Week or Month to open it, an event for its details, an empty spot on Today or Week to capture there. The calendar chips on Today hide or show a calendar on every view. Finished events are dimmed with a ✓. **PLAN DAY** picks up to three priorities from the Master Task List (or adds a new task); tap a priority on Today to mark it ✅ Done in Notion, again to reopen. To plan tomorrow, go to tomorrow on Today and tap **PLAN** in Priorities.
 
+### INBOX
+
+Notes you captured to sort later (CAPTURE → **NOTE**), saved in **📥 Inbox** in Notion. Open it from **ALL STATIONS**, **COMPUTER**, or the Bridge's **INBOX · N** line (shown under Condition only while notes wait; Condition never counts them).
+
+- **WAITING:** oldest first. Each note has **TASK · KEY DATE · EVENT · QUEUE · KEEP**. The first four open the usual form filled in from the note (a task takes a Life Area, priority and due date; QUEUE adds to the bottom of the Replicator Queue). **SAVE** makes it, then marks the note Sorted with what it became; it leaves the list and Notion keeps it as the record. **KEEP** moves it to KEPT as it is.
+- **SUGGEST SORTING:** Sonnet reads the waiting notes with your Life Areas, priorities, key date types and calendars, and puts a suggestion on each (about 1¢, counted in ASK's monthly total as INBOX SORTING). Nothing is saved until **CONFIRM**; **CHANGE** opens the form filled in; **SKIP** drops it. Names Notion doesn't have are left blank for you to pick.
+- **KEPT:** notes kept as they are. **SORT IT NOW** brings one back to WAITING with the form open. COMPUTER finds kept and waiting notes by any word.
+- **✕** asks twice (**DELETE IT**), then moves the note to Notion's trash.
+- Offline, a new note waits on this iPad marked **QUEUED**; sorting marks wait too and reach Notion when the bridge answers.
+
 ### LOOM
 
 Your calendars and key dates on an infinity loop. The focused day sits at the crossing, largest, with its events named beside it.
@@ -501,7 +512,7 @@ Find any station, or something to do inside one, by typing a few letters. Open i
 
 ### CAPTURE
 
-**CAPTURE** (top right), or tap an empty spot on the Day or Week timeline: an event on Personal (or the farm or Growth calendar, once linked), or a **KEY DATE**. Work is never offered. A capture made offline appears as a dashed block marked **QUEUED**, and the status block counts it; it saves automatically when you're back. Each one carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
+**CAPTURE** (top right), or tap an empty spot on the Day or Week timeline: an event on Personal (or the farm or Growth calendar, once linked), a **KEY DATE**, or a **NOTE** to sort later in INBOX (one box, no area or day; the keyboard's microphone takes dictation). Work is never offered. A capture made offline appears as a dashed block marked **QUEUED**, and the status block counts it; it saves automatically when you're back. Each one carries a unique ID, so a retry never creates a duplicate. If Google rejects one, the status turns red (**NOT SAVED**) and **SYSTEMS → CAPTURE** offers **RETRY** or **DISCARD**.
 
 ### ASK
 
