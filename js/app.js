@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.41.1";
+  var VERSION = "2.41.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2865,21 +2865,22 @@
   }
   function drafts() { return lsGet(LS_RDRAFT) || {}; }
   /* Question 4 a line per bearing (2.41.1). Saved as one paragraph, "Bearing: words" on each line, blanks left out.
-     A paragraph that doesn't read that way (saved before, or edited in Notion) stays one box, so nothing is lost. */
+     Text before the first "Bearing:" line (written before 2.41.1, or freely in Notion) shows in its own EARLIER NOTES
+     box above the lines and saves first (2.41.2), so the lines appear at once and nothing is lost. */
   function bearNames() { return bearings().slice(0, 12); }
   function bearSplit(text, names) {
-    var out = names.map(function () { return ""; }), cur = -1, ok = true;
+    var out = names.map(function () { return ""; }), pre = [], cur = -1, keys = names.map(function (n) { return n.toLowerCase() + ":"; });
     String(text || "").split("\n").forEach(function (line) {
-      if (!ok) return;
-      var i = names.map(function (n) { return n.toLowerCase() + ":"; }).indexOf((line.match(/^[^:]*:/) || [""])[0].toLowerCase());
+      var i = keys.indexOf((line.match(/^[^:]*:/) || [""])[0].toLowerCase());
       if (i > -1) { cur = i; out[i] = line.slice(names[i].length + 1).trim(); }
       else if (cur > -1) out[cur] += "\n" + line;
-      else if (line.trim()) ok = false;
+      else pre.push(line);
     });
-    return ok ? out.map(function (x) { return x.trim(); }) : null;
+    return { pre: pre.join("\n").trim(), parts: out.map(function (x) { return x.trim(); }) };
   }
   function bearJoin(names) {
-    return names.map(function (n, i) { var el = $("rv-bear-" + i), t = el ? el.value.trim() : ""; return t ? n + ": " + t : ""; }).filter(Boolean).join("\n");
+    var pre = $("rv-bear-pre"), lines = names.map(function (n, i) { var el = $("rv-bear-" + i), t = el ? el.value.trim() : ""; return t ? n + ": " + t : ""; });
+    return [pre ? pre.value.trim() : ""].concat(lines).filter(Boolean).join("\n");
   }
   function saveDraft(wk, field, value) {
     var d = drafts();
@@ -3013,11 +3014,13 @@
     html += "<section>" + phead("REFLECTION", "4 QUESTIONS · " + (saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET"));
     REVIEW_FIELDS.forEach(function (f) {
       var v = draft[f[0]] !== undefined ? draft[f[0]] : saved ? saved[f[0]] || "" : "";
-      var names = f[0] === "bearing" ? bearNames() : [], parts = names.length ? bearSplit(v, names) : null;
-      if (parts) {   /* 2.41.1: a line per bearing (Timothy's Waymarkers), saved as one paragraph, "Bearing: words" a line */
-        html += '<div class="rv-lab"><span class="ov-sub">' + f[1] + '</span></div><div class="rv-bears">' + names.map(function (nm, i) {
-          return '<div class="rv-bear"><label for="rv-bear-' + i + '">' + esc(nm) + '</label><textarea id="rv-bear-' + i + '" data-rvb="' + i + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(parts[i]) + "</textarea></div>";
-        }).join("") + "</div>";
+      var names = f[0] === "bearing" ? bearNames() : [], sp = names.length ? bearSplit(v, names) : null;
+      if (sp) {   /* 2.41.1: a line per bearing (Timothy's Waymarkers), saved as one paragraph, "Bearing: words" a line */
+        html += '<div class="rv-lab"><span class="ov-sub">' + f[1] + '</span></div><div class="rv-bears">' +
+          (sp.pre ? '<div class="rv-bear pre"><label for="rv-bear-pre">EARLIER NOTES</label><textarea id="rv-bear-pre" data-rvb="pre" rows="2" maxlength="2000">' + esc(sp.pre) + "</textarea></div>" : "") +
+          names.map(function (nm, i) {
+            return '<div class="rv-bear"><label for="rv-bear-' + i + '">' + esc(nm) + '</label><textarea id="rv-bear-' + i + '" data-rvb="' + i + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(sp.parts[i]) + "</textarea></div>";
+          }).join("") + "</div>";
         return;
       }
       html += '<div class="rv-lab"><label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + "</label>" + bulChip("rv-" + f[0]) + '</div><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
@@ -5572,7 +5575,7 @@
       '<i aria-hidden="true"></i><span class="tx"><b>' + t + "</b><small>" + (it.html ? it.s : esc(it.s)) + '</small></span><span class="k">' + esc(it.k) + "</span></button>";
   }
   function renderComputer(keep) {
-    var q = $("cmdText").value, html = "", i = 0, was = keep && cmd.shown[cmd.sel], key = function (it) { return it.k + "|" + it.t + "|" + it.s; };
+    var q = $("cmdText").value, html = "", i = 0, was = keep && cmd.moved && cmd.shown[cmd.sel], key = function (it) { return it.k + "|" + it.t + "|" + it.s; };
     if (!q.trim()) {
       cmd.shown = [];
       cmdEmpty().forEach(function (sec) {
@@ -5585,7 +5588,7 @@
       html = cmd.shown.length ? cmd.shown.map(function (it, n) { return cmdRow(it, n, q); }).join("") + (all.length > CMD_MAX ? '<div class="cmd-hint">' + (all.length - CMD_MAX) + " more. Keep typing to narrow it.</div>" : "")
         : '<div class="cmd-hint">Nothing here matches “' + esc(q.trim()) + '”. For questions about your days, try ASK.</div>';
     }
-    if (was) cmd.shown.some(function (it, n) { if (key(it) === key(was)) { cmd.sel = n; return true; } return false; });   /* books or hives arriving don't move the choice */
+    if (was) cmd.shown.some(function (it, n) { if (key(it) === key(was)) { cmd.sel = n; return true; } return false; });   /* books or hives arriving don't move a choice made with the arrows; untouched, it stays on the first row */
     if (cmd.sel >= cmd.shown.length) cmd.sel = 0;
     $("cmdList").innerHTML = html;
     cmdMark();
@@ -5601,7 +5604,7 @@
     if (!state.conn || sb.on) return;
     if (cmdShown()) { closeComputer(); return; }   /* ⌘K again closes it */
     closeDetail(); closeCapture(); closePlan(); closeAsk();
-    cmd.sel = 0; $("cmdText").value = "";
+    cmd.sel = 0; cmd.moved = false; $("cmdText").value = "";
     loadLibrary(false); loadApiary(false);   /* books and hives are searchable by name; the list fills in as they arrive */
     renderComputer();
     showSheet("cmdScrim");
@@ -5618,9 +5621,9 @@
     it.run();
   }
   $("cmdBtn").addEventListener("click", openComputer);
-  $("cmdText").addEventListener("input", function () { cmd.sel = 0; renderComputer(); $("cmdList").scrollTop = 0; });
+  $("cmdText").addEventListener("input", function () { cmd.sel = 0; cmd.moved = false; renderComputer(); $("cmdList").scrollTop = 0; });
   $("cmdText").addEventListener("keydown", function (e) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); var n = cmd.shown.length; if (n) { cmd.sel = (cmd.sel + (e.key === "ArrowDown" ? 1 : n - 1)) % n; cmdMark(); } }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); var n = cmd.shown.length; if (n) { cmd.sel = (cmd.sel + (e.key === "ArrowDown" ? 1 : n - 1)) % n; cmd.moved = true; cmdMark(); } }
     else if (e.key === "Enter") { e.preventDefault(); cmdRun(cmd.sel); }
   });
   $("cmdList").addEventListener("click", function (e) { var b = e.target.closest(".cmd-row"); if (b) cmdRun(+b.dataset.ci); });

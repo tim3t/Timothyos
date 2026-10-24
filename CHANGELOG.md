@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.41.2 · 2026-10-24
+- **The bearing lines show this week too.** A review that already had text in the old single box (or a paragraph written freely in Notion) used to stay one box. Now the lines always show, and that earlier text sits in its own **EARLIER NOTES** box above them; it saves first, and the box goes away once emptied.
+- **COMPUTER:** with nothing typed, the highlight now stays on the first row when a new item arrives above it (it used to follow the old first row down). A choice made with the arrow keys still stays put.
+
 ## 2.41.1 · 2026-10-24
 - **REVIEW → WHERE DID I HOLD MY BEARING?** is now a line for each of your bearings (SYSTEMS → BRIDGE → Bearings). It saves to Notion as one paragraph, each line starting with its bearing ("Bearing: what you wrote"); blank lines are left out. A paragraph saved before, or written another way in Notion, still opens as one box, so nothing is lost. Without bearings set, it stays one box.
 

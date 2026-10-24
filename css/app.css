@@ -2278,3 +2278,4 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .rv-bear label { font-family: var(--display); letter-spacing: .1em; font-size: 15px; color: var(--chrome-b); text-transform: uppercase; padding-top: 12px; }
 .rv-bear textarea { min-height: 48px; }
 @media (max-width: 640px) { .rv-bear { grid-template-columns: 1fr; gap: 4px; } .rv-bear label { padding-top: 0; } }
+.rv-bear.pre label { color: var(--dim); }

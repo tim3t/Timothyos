@@ -27,7 +27,7 @@ const note = async n => (await stats()).notes.find(x => x.id === id(n));
   // ---- the Bridge: INBOX · 4 under Condition
   await p.waitForSelector('.ib-line', { timeout: 10000 });
   assert.strictEqual(await txt(p, '.ib-line'), 'INBOX · 4 4 notes to sort, the oldest from MON 19 OCT');
-  assert.ok(!(await txt(p, '.cond, #content')).match(/CONDITION[^·]*INBOX/), 'Condition never counts notes');
+  assert.ok(!/INBOX|note/i.test(await txt(p, '.ov-cond')), 'Condition never counts notes');
 
   // ---- CAPTURE → NOTE: one box, no area or day
   await p.click('#capBtn'); await p.click('[data-ctype="note"]');
