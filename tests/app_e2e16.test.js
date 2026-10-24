@@ -89,6 +89,25 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   await p.click('.elbow'); await p.waitForTimeout(500);
   assert.strictEqual(await p.locator('.ov-alert:has-text("Weekly review due")').count(), 0, 'reminder clears once saved');
 
+  // --- 2.41.1: question 4 as a line per bearing, saved as one paragraph ("Bearing: words"); an older paragraph stays one box
+  await p.evaluate(() => localStorage.setItem('tos.bearings.v1', JSON.stringify(['Steady Hands', 'Open Door', 'Long View'])));
+  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(500); await p.click('.rl-card.saved'); await p.waitForTimeout(900);
+  assert.ok(await p.isVisible('#rv-bearing') && !(await p.$('#rv-bear-0')), 'a paragraph saved before stays one box');
+  await p.fill('#rv-bearing', '');
+  await p.click('.elbow'); await p.waitForTimeout(300); await p.click('[data-screen="review"].nav'); await p.waitForTimeout(500); await p.click('.rl-card.saved'); await p.waitForTimeout(900);
+  assert.deepStrictEqual(await p.$$eval('.rv-bear label', e => e.map(x => x.textContent)), ['Steady Hands', 'Open Door', 'Long View']);
+  await p.fill('#rv-bear-0', 'Kept calm in the vendor call');
+  await p.fill('#rv-bear-2', 'Planned the winter\nand the spring');
+  await p.click('[data-act="savereview"]'); await p.waitForTimeout(1200);
+  s = await stats();
+  assert.strictEqual(s.reviews['2026-10-05'].bearing, 'Steady Hands: Kept calm in the vendor call\nLong View: Planned the winter\nand the spring');
+  await p.reload(); await p.waitForTimeout(1500);
+  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(500); await p.click('.rl-card.saved'); await p.waitForTimeout(1200);
+  assert.strictEqual(await p.inputValue('#rv-bear-0'), 'Kept calm in the vendor call');
+  assert.strictEqual(await p.inputValue('#rv-bear-1'), '');
+  assert.strictEqual(await p.inputValue('#rv-bear-2'), 'Planned the winter\nand the spring', 'read back into its lines');
+  await p.click('.elbow'); await p.waitForTimeout(500);
+
   // --- browse to last week; database not connected
   await fetch('http://127.0.0.1:8096/x/exec?action=unshare&key=' + K);
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(500);

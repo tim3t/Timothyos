@@ -2271,3 +2271,10 @@ body.nas-pad-min .content { padding-bottom: 72px; }
   .ib-form .frow { grid-template-columns: 1fr; gap: 6px; }
   .ib-prop { grid-template-columns: 6px minmax(0, 1fr); } .ib-prop .btnrow { grid-column: 1 / -1; padding-left: 12px; }
 }
+
+/* REVIEW question 4, a line per bearing (2.41.1) */
+.rv-bears { display: grid; gap: 8px; }
+.rv-bear { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 12px; align-items: start; }
+.rv-bear label { font-family: var(--display); letter-spacing: .1em; font-size: 15px; color: var(--chrome-b); text-transform: uppercase; padding-top: 12px; }
+.rv-bear textarea { min-height: 48px; }
+@media (max-width: 640px) { .rv-bear { grid-template-columns: 1fr; gap: 4px; } .rv-bear label { padding-top: 0; } }

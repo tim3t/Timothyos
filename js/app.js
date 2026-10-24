@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.41.0";
+  var VERSION = "2.41.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2864,6 +2864,23 @@
     lsSet(LS_RSAVED, sw);
   }
   function drafts() { return lsGet(LS_RDRAFT) || {}; }
+  /* Question 4 a line per bearing (2.41.1). Saved as one paragraph, "Bearing: words" on each line, blanks left out.
+     A paragraph that doesn't read that way (saved before, or edited in Notion) stays one box, so nothing is lost. */
+  function bearNames() { return bearings().slice(0, 12); }
+  function bearSplit(text, names) {
+    var out = names.map(function () { return ""; }), cur = -1, ok = true;
+    String(text || "").split("\n").forEach(function (line) {
+      if (!ok) return;
+      var i = names.map(function (n) { return n.toLowerCase() + ":"; }).indexOf((line.match(/^[^:]*:/) || [""])[0].toLowerCase());
+      if (i > -1) { cur = i; out[i] = line.slice(names[i].length + 1).trim(); }
+      else if (cur > -1) out[cur] += "\n" + line;
+      else if (line.trim()) ok = false;
+    });
+    return ok ? out.map(function (x) { return x.trim(); }) : null;
+  }
+  function bearJoin(names) {
+    return names.map(function (n, i) { var el = $("rv-bear-" + i), t = el ? el.value.trim() : ""; return t ? n + ": " + t : ""; }).filter(Boolean).join("\n");
+  }
   function saveDraft(wk, field, value) {
     var d = drafts();
     d[wk] = d[wk] || {};
@@ -2996,6 +3013,13 @@
     html += "<section>" + phead("REFLECTION", "4 QUESTIONS · " + (saved ? "SAVED " + esc(stamp(Date.parse(saved.saved))) : "NOT SAVED YET"));
     REVIEW_FIELDS.forEach(function (f) {
       var v = draft[f[0]] !== undefined ? draft[f[0]] : saved ? saved[f[0]] || "" : "";
+      var names = f[0] === "bearing" ? bearNames() : [], parts = names.length ? bearSplit(v, names) : null;
+      if (parts) {   /* 2.41.1: a line per bearing (Timothy's Waymarkers), saved as one paragraph, "Bearing: words" a line */
+        html += '<div class="rv-lab"><span class="ov-sub">' + f[1] + '</span></div><div class="rv-bears">' + names.map(function (nm, i) {
+          return '<div class="rv-bear"><label for="rv-bear-' + i + '">' + esc(nm) + '</label><textarea id="rv-bear-' + i + '" data-rvb="' + i + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(parts[i]) + "</textarea></div>";
+        }).join("") + "</div>";
+        return;
+      }
       html += '<div class="rv-lab"><label class="ov-sub" for="rv-' + f[0] + '">' + f[1] + "</label>" + bulChip("rv-" + f[0]) + '</div><textarea id="rv-' + f[0] + '" data-rv="' + f[0] + '" rows="3" maxlength="2000" placeholder="' + esc(f[2]) + '">' + esc(v) + "</textarea>";
     });
     var bad = w && w.reviewsError, sumV = draft.summary !== undefined ? draft.summary : saved ? saved.summary || "" : "";
@@ -3015,7 +3039,7 @@
   }
   function submitReview() {
     var w0 = sow(state.anchor), wk = ymd(w0), st = weekStats(w0), d = drafts()[wk] || {}, w = state.weeks[wk], saved = w && w.review;
-    var field = function (k) { var el = $("rv-" + k); return el ? el.value.trim() : (d[k] !== undefined ? d[k] : saved ? saved[k] || "" : ""); };
+    var field = function (k) { if (k === "bearing" && $("rv-bear-0")) return bearJoin(bearNames()); var el = $("rv-" + k); return el ? el.value.trim() : (d[k] !== undefined ? d[k] : saved ? saved[k] || "" : ""); };
     var review = {
       week: wk,
       title: reviewTitle(w0),
@@ -3454,7 +3478,7 @@
      written, or with a message for the code panel. */
   function writeSummary(pin) {
     var w0 = sow(state.anchor), wk = ymd(w0), st = weekStats(w0), w = state.weeks[wk], d = drafts()[wk] || {}, saved = w && w.review;
-    var f = function (k) { var el = $("rv-" + k); return el ? el.value.trim() : d[k] || (saved && saved[k]) || ""; };
+    var f = function (k) { if (k === "bearing" && $("rv-bear-0")) return bearJoin(bearNames()); var el = $("rv-" + k); return el ? el.value.trim() : d[k] || (saved && saved[k]) || ""; };
     var lines = [weekLabel(w0) + (st.cur ? " (in progress, numbers so far)" : ""),
       "Hours: Work " + hrsLabel(st.work) + (st.cur ? "" : " (week before " + hrsLabel(st.prevWork) + ")") + ", Personal " + hrsLabel(st.personal) + (st.cur ? "" : " (week before " + hrsLabel(st.prevPersonal) + ")") +
         (hasFarm() ? ", " + areaName("farm") + " (farm and bees) " + hrsLabel(st.farm) + (st.cur ? "" : " (week before " + hrsLabel(st.prevFarm) + ")") : "") +
@@ -10287,6 +10311,7 @@
     if (e.target.id === "logIntent") saveLog(e.target.value.trim());
     else if (/^clText-/.test(e.target.id) && logOpen()) { onLogInput(e.target.id.slice(7), e.target.value); growLog(e.target); }
     else if (e.target.dataset.rv && state.screen === "review") saveDraft(ymd(sow(state.anchor)), e.target.dataset.rv, e.target.value);
+    else if (e.target.dataset.rvb !== undefined && state.screen === "review") saveDraft(ymd(sow(state.anchor)), "bearing", bearJoin(bearNames()));
   });
   $("content").addEventListener("keydown", function (e) {
     if (e.key === "Enter" && e.target.id === "logIntent") e.target.blur();

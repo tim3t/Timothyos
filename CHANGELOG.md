@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.41.1 · 2026-10-24
+- **REVIEW → WHERE DID I HOLD MY BEARING?** is now a line for each of your bearings (SYSTEMS → BRIDGE → Bearings). It saves to Notion as one paragraph, each line starting with its bearing ("Bearing: what you wrote"); blank lines are left out. A paragraph saved before, or written another way in Notion, still opens as one box, so nothing is lost. Without bearings set, it stays one box.
+
 ## 2.41.0 · 2026-10-24 (bridge 1.33)
 - **CAPTURE → NOTE:** a thought to sort later. One box (type or dictate), no area or day; it saves to the new **📥 Inbox** in Notion, and waits on the iPad when offline like other captures.
 - **INBOX** (ALL STATIONS → TIME, COMPUTER, or the Bridge's line): the waiting notes, oldest first, and a **KEPT** tab.
