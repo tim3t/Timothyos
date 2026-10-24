@@ -32,6 +32,7 @@ run bridge_voice.test.js
 run bridge_schema.test.js
 run bridge_year.test.js
 run version_sync.test.js
+run speak_text.test.js
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js

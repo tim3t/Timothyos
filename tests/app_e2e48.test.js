@@ -40,7 +40,8 @@ const reset = () => Promise.all([brief('cap=0&fail=0&shape=0'), voice('cap=0&fai
   // ---- compiled: the paragraphs go to speak once, as written
   let c = await until(async () => { const x = await calls(); return x.length === 1 && x; });
   assert.strictEqual(c[0].length, 5, 'four paragraphs and the action');
-  assert.ok(c[0][0].startsWith('Good morning, Captain.') && c[0][2].includes('41°F') && c[0][4].startsWith('RECOMMENDED Pick'), c[0].join(' | '));
+  assert.ok(c[0][0].startsWith('Good morning, Captain.') && c[0][2].includes('41 degrees Fahrenheit') && c[0][4].startsWith('RECOMMENDED Pick'), c[0].join(' | '));
+  assert.ok(c[0][1].includes('the first at oh nine hundred and the last ending at sixteen thirty') && !/\d:\d\d/.test(c[0].join(' ')), 'times in ship\'s style (2.40.1): ' + c[0][1]);
   await p.click('#brPaper'); await p.waitForTimeout(300);
 
   // ---- READ IT TO ME: Nova's clips in order, each paragraph lit; never the iPad voice

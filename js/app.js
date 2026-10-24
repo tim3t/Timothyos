@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.40.0";
+  var VERSION = "2.40.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -2555,7 +2555,7 @@
     if (canVoice() && vaRetryOk()) { vaSay(); return; }
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast("This iPad has no voice to read with."); return; }
     br.typeT0 = 0;
-    var texts = briefSegs(br.b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/°F/g, " degrees").replace(/\s·\s/g, ", ").replace(/¢/g, " cents"); });
+    var texts = vaTexts(br.b);
     try { speechSynthesis.cancel(); } catch (e) { /* nothing was speaking */ }
     var voice = briefVoice();
     br.speaking = true; br.say = 0;
@@ -2630,7 +2630,21 @@
     return bin.slice(0, 3) === "ID3" || (bin.charCodeAt(0) === 255 && (bin.charCodeAt(1) & 224) === 224) ? "MP3" : "not MP3 (" + h.trim() + ")";
   }
   function vaErrText(err) { return [err && err.code, err && (err.detail || err.message)].filter(Boolean).join(": ") || "unknown"; }
-  function vaTexts(b) { return briefSegs(b).map(function (p) { return p.map(function (s) { return s[1]; }).join("").replace(/\s·\s/g, ", "); }); }
+  /* Spoken text (2.40.1): what Nova and Moira are given, never what's printed. Times in ship's style (08:00 "oh eight
+     hundred", 21:05 "twenty-one oh five", Timothy's choice) and symbols in words, so a voice never guesses (Nova read
+     08:00 as "8 OK"). VA_SPEECH is part of each recording's key: change the rules, bump it, and the audio is made again. */
+  var VA_SPEECH = "s2", SAY_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  function sayNum(n) { var t = ["", "", "twenty", "thirty", "forty", "fifty"]; return n < 20 ? SAY_ONES[n] : t[Math.floor(n / 10)] + (n % 10 ? "-" + SAY_ONES[n % 10] : ""); }
+  function sayTime(h, m) { return (h === 0 ? "zero" : h < 10 ? "oh " + SAY_ONES[h] : sayNum(h)) + " " + (m === 0 ? "hundred" : m < 10 ? "oh " + SAY_ONES[m] : sayNum(m)); }
+  function speakable(t) {
+    return String(t)
+      .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, function (x, h, m) { return sayTime(+h, +m); })
+      .replace(/\s*°\s*F\b/g, " degrees Fahrenheit").replace(/\s*°\s*C\b/g, " degrees Celsius").replace(/°/g, " degrees")
+      .replace(/(\d)\s*¢/g, "$1 cents").replace(/(\d)\s*%/g, "$1 percent")
+      .replace(/\b1\s*lbs?\b/g, "1 pound").replace(/(\d)\s*lbs?\b/g, "$1 pounds")
+      .replace(/\s+·\s+/g, ", ").replace(/\s{2,}/g, " ").trim();
+  }
+  function vaTexts(b) { return briefSegs(b).map(function (p) { return speakable(p.map(function (s) { return s[1]; }).join("")); }); }
   function vaDb() {
     return new Promise(function (res, rej) {
       if (!window.indexedDB) { rej(new Error("no IndexedDB")); return; }
@@ -2648,7 +2662,7 @@
       .catch(function () { /* kept in memory only */ });
   }
   function vaRetryOk() { return !va.err || Date.now() - va.errAt > VA_RETRY_MS; }   /* after a failure, Moira reads; Nova is tried again 10 minutes on */
-  function vaKey(b) { return b ? b.id || String(b.at) : ""; }   /* which briefing the audio belongs to */
+  function vaKey(b) { return b ? (b.id || String(b.at)) + ":" + VA_SPEECH : ""; }   /* which briefing, read by which rules, the audio belongs to */
   function vaFree() { (va.urls || []).forEach(function (u) { URL.revokeObjectURL(u); }); va.urls = null; va.at = ""; }
   function vaUse(k, blobs) { vaFree(); va.at = k; va.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); }
   function vaReady(b) { return !!(b && va.urls && va.at === vaKey(b)); }
@@ -9479,7 +9493,8 @@
     return true;
   }
   /* Nova, as for the briefing: asked for when it's written, kept on this iPad (IndexedDB "year"); Moira otherwise. */
-  function shipTexts(b) { return briefSegs(b).map(function (p) { return p.map(function (x) { return x[1]; }).join("").replace(/\s·\s/g, ", "); }); }
+  function shipTexts(b) { return vaTexts(b); }
+  function shipKey(b) { return b.id + ":" + VA_SPEECH; }
   function shipIdb(rec) {
     return vaDb().then(function (db) {
       return new Promise(function (res) {
@@ -9491,21 +9506,22 @@
   }
   function shipVoice(b) {
     if (!b || !canVoice()) return Promise.resolve(false);
-    if (as.urls && as.at === b.id) return Promise.resolve(true);
-    if (as.vbusy === b.id && as.vp) return as.vp;
-    as.vbusy = b.id; as.verr = "";
+    var k = shipKey(b);
+    if (as.urls && as.at === k) return Promise.resolve(true);
+    if (as.vbusy === k && as.vp) return as.vp;
+    as.vbusy = k; as.verr = "";
     as.vp = shipIdb(null).then(function (rec) {
-      if (rec && rec.at === b.id && rec.clips && rec.clips.length) return rec.clips;
+      if (rec && rec.at === k && rec.clips && rec.clips.length) return rec.clips;
       return apiPost({ action: "speak", texts: shipTexts(b) }, VA_TIMEOUT_MS, true).then(function (j) {
         if (j.spend) lsSet(LS_VOICESPEND, j.spend);
         var blobs = (j.clips || []).map(b64Blob);
-        if (blobs.length) shipIdb({ at: b.id, clips: blobs });
+        if (blobs.length) shipIdb({ at: k, clips: blobs });
         return blobs;
       });
     }).then(function (blobs) {
       if (!blobs.length) return false;
       (as.urls || []).forEach(function (u) { URL.revokeObjectURL(u); });
-      as.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); as.at = b.id;
+      as.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); as.at = k;
       return true;
     }).catch(function (err) { as.verr = describeVoice(err); as.verrAt = Date.now(); return false; })
       .then(function (ok) { as.vbusy = ""; as.vp = null; return ok; });
@@ -9528,7 +9544,7 @@
     if (canVoice() && (!as.verr || Date.now() - as.verrAt > VA_RETRY_MS)) {
       if (!as.el) { as.el = new Audio(); as.el.addEventListener("ended", function () { if (!as.speaking || as.el.src.indexOf("blob:") !== 0) return; if (as.urls && as.say + 1 < as.urls.length) shipPlay(as.say + 1); else { shipQuiet(); render(true); } }); }
       as.speaking = true;
-      if (as.urls && as.at === b.id) { shipPlay(0); return; }
+      if (as.urls && as.at === shipKey(b)) { shipPlay(0); return; }
       as.el.src = VA_SILENT; var pr = as.el.play(); if (pr && pr.catch) pr.catch(function () { /* the real clip tries */ });
       as.prep = true; render(true);
       shipVoice(b).then(function (ok) {
@@ -9539,7 +9555,7 @@
       return;
     }
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { toast("This iPad has no voice to read with."); return; }
-    var texts = shipTexts(b).map(function (t) { return t.replace(/¢/g, " cents"); }), voice = briefVoice();
+    var texts = shipTexts(b), voice = briefVoice();
     try { speechSynthesis.cancel(); } catch (e) { /* nothing speaking */ }
     as.speaking = true; as.say = 0;
     texts.forEach(function (t, i) {

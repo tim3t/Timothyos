@@ -303,6 +303,8 @@ READ IT TO ME in **Nova**, OpenAI's voice, styled "Calm, measured starship compu
 
 Each briefing's audio is made when it compiles (in the background; OpenAI takes about two minutes for a whole briefing, so on a 06:00 Standby compile it's ready long before you are) and kept on this iPad, so READ IT TO ME starts at once and replays cost nothing. About 1.5¢ a minute of speech: under 1¢ a briefing. The bridge allows 30 voice requests a day.
 
+Times are spoken in ship's style (08:00 is "oh eight hundred", 21:05 "twenty-one oh five") and °F, ¢, %, lb in words; the printed text keeps its figures.
+
 ### Home Assistant
 
 Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.

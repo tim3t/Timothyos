@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.40.1 · 2026-10-24
+- **Times spoken in ship's style.** Nova (and Moira) now hear 08:00 as "oh eight hundred" and 21:05 as "twenty-one oh five" (Nova had read 08:00 as "8 OK"). °F, ¢, %, lb and the · separators are spoken as words too. The printed briefing and Ship's Year are unchanged. Today's briefing audio is made again with the new reading the next time it's needed (under 1¢).
+
 ## 2.40.0 · 2026-10-23 (bridge 1.32)
 - **ASTROMETRICS,** a new station (ALL STATIONS → REFLECT, or COMPUTER: "year"): the year at a glance.
   - **SENSOR SWEEP:** tasks done, hours planned, books finished, Log days, honey (or tarot readings) and reviews. Tap one for its sector.
