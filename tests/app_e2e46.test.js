@@ -32,7 +32,7 @@ const DAY = 864e5;
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'loom', 'log', 'habits', 'ledger', 'apiary']));
     const now = Date.now();
-    localStorage.setItem('tos.visits.v1', JSON.stringify({ _since: now - 30 * d, review: now - 20 * d, ledger: now - 2 * 3600e3, apiary: now - 3600e3, month: now - 2 * d, dates: now - 3 * d, tarot: now - 4 * d, storage: now - 5 * d, engineering: now - 6 * d, astrometrics: now - 7 * d, inbox: now - 8 * d }));   /* stations added later, opened lately */
+    localStorage.setItem('tos.visits.v1', JSON.stringify({ _since: now - 30 * d, review: now - 20 * d, ledger: now - 2 * 3600e3, apiary: now - 3600e3, month: now - 2 * d, dates: now - 3 * d, tarot: now - 4 * d, storage: now - 5 * d, engineering: now - 6 * d, astrometrics: now - 7 * d, inbox: now - 8 * d, ressikan: now - 9 * d }));   /* stations added later, opened lately */
   }, [K, U, DAY]);
   await p.reload(); await p.waitForSelector('[data-screen="apiary"].nav', { timeout: 10000 });
   await p.waitForFunction(() => !document.querySelector('#cmdBtn').disabled);

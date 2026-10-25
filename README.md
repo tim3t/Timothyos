@@ -451,6 +451,16 @@ The year at a glance, across every station. Not pinned by default: **ALL STATION
 - **◀ ▶** step a year at a time; **THIS YEAR** comes back.
 - **SHIP'S YEAR:** at the first open after 06:00 on 31 December, Sonnet writes about 200 words on your year from the counts, printed like the Morning Briefing. **READ IT TO ME** reads it in Nova (or Moira). **COMPILE** gives a year-so-far version any day (a few cents, counted in ASK's monthly total as SHIP'S YEAR). It never sees the Log; tarot, the apiary and the Replicator Queue's spend go in only when SHARE WITH ASK is on for them. Kept on this iPad and in backups. Needs bridge 1.32 and Ask Claude.
 
+### RESSIKAN
+
+Play with sound, named after Picard's flute. Everything is made on this iPad (Web Audio): nothing to download, no keys, works offline. **ALL STATIONS → RESSIKAN**, or **COMPUTER** ("theremin", "beat", "ambient"). Tap **▶ SOUND ON** (or just touch a surface). Headphones bring out the low end; with newer iPadOS it plays even with the silent setting on.
+
+- **SOUND** (over both cards): **ECHO** (timed to the beat), **SPACE**, **LO-FI**, **WOW** (tape wobble). **SCALE LOCK** keeps every note in a scale (Pentatonic, Dorian, Hirajoshi, Whole Tone) in the **KEY** you pick; **◌ FREEFORM** lets every pitch through. **RECORD** captures what you hear; each take plays back here, and **SAVE TO FILES** puts it in the Files app (takes aren't kept after you leave).
+- **FIELD:** the theremin. Touch and hold: height is pitch, across is tone, two fingers make two voices, Apple Pencil pressure adds vibrato. **ACROSS THE FIELD** can instead sweep **VOWEL** (a voice saying "ah, eh, ee, oh, oo"), **RING MOD** (metallic) or **FOLD** (gritty). **HOLD NOTES** keeps a note sounding when you lift your finger (up to four; **RELEASE** lets them go). **SYNTH** knobs, live on every voice: **VOICE** (WAVE, SUB, SPREAD, RANGE), **COLOUR** (FOLD, RESO, VOWEL, RING MOD), **MOTION** (GLIDE, VIBRATO, TREMOLO).
+- **The beat ring:** **▶ BEAT**. Four rings (KICK, SNARE, HAT, KEYS) of fixed steps; the gold beam sweeps and plays the lit dots. Tap a dot to light it or clear it. Patterns to start from: **LOFI, BOOM BAP, DUB, MOTORIK, SPARSE, CLEAR**. Tap a ring's name to make it 16, 12, 10 or 8 steps, so it drifts against the others. **TEMPO, SWING, BEAT LEVEL**, and **VINYL** crackle. **RING INSIDE / BESIDE** sets it into the field's corner or next to it.
+- **DRIFT:** ambient. **LISTEN** (it plays on its own), **PLAY** (only your touches: tap blooms a note, hold to swell, drag to scatter chimes) or **DUET** (both; sometimes the room answers a note you played, later and softer, from the other side). **BED**: wind, surf, rain or none. **DENSITY, GLOW, DEPTH, ANSWER, BED**, and **SLEEP** (15, 30, 60 minutes). A beat that's on keeps playing here.
+- **Leaving RESSIKAN** turns its sound off. Your settings, patterns and knobs are kept on this iPad (and in your backups); nothing goes to Notion or the bridge.
+
 ## RESOURCES
 
 ### LEDGER
@@ -668,6 +678,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
+- **RESSIKAN** makes all its sound on the iPad; nothing it plays or records leaves it unless you save a take to Files.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
 - **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Landmarks: the rounded location goes once to OpenStreetMap (Overpass) to suggest them, and a place you search for goes to Open-Meteo's place search; the landmarks themselves stay on this iPad and never reach the bridge, Notion or the Science Log. Nothing else leaves; the bridge never stores the location.
 

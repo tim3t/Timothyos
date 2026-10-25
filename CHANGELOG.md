@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.44.0 · 2026-10-25
+- **RESSIKAN,** a new station under REFLECT (named after Picard's flute): play with sound, all made on the iPad. No downloads, no keys, works offline.
+  - **FIELD:** a theremin (height is pitch, across is tone, two fingers for two voices, Pencil pressure for vibrato) played over a **beat ring**: four rings of fixed steps (kick, snare, hat, electric-piano keys) and a sweeping beam, with LOFI, BOOM BAP, DUB, MOTORIK and SPARSE patterns, swing, vinyl crackle, and rings of 16, 12, 10 or 8 steps that drift against each other.
+  - **SYNTH:** WAVE, SUB, SPREAD, RANGE · FOLD, RESO, VOWEL, RING MOD · GLIDE, VIBRATO, TREMOLO, live on every voice. **ACROSS THE FIELD** can sweep tone, vowel, ring mod or fold; **HOLD NOTES** keeps up to four notes sounding.
+  - **DRIFT:** ambient that plays (LISTEN), lets you play (PLAY: bloom, swell, scatter chimes) or both (DUET), where the room sometimes answers you. Wind, surf or rain beds; a sleep timer.
+  - **One room:** echo timed to the beat, space, lo-fi, tape wow. Scale lock with FREEFORM, any key. **RECORD** takes and **SAVE TO FILES**.
+  - Settings stay on this iPad and in backups; sound stops when you leave the station.
+- **Fixed: LOOM.** Since 2.43.0, SCIENCE's landmarks and the Time Loom shared one name in the code, so the Loom started without its own settings (swipes could misjudge where they were). Each has its own again, and a new test fails if two parts of the app ever share a name.
+- **STORAGE:** the hand-off to the next track also has a timer for its last moment, so it lands even if no time update does.
+
 ## 2.43.2 · 2026-10-25
 - **UPDATE READY comes up whole.** Tapping it could leave a header over a black screen, or the page as unstyled text, until the app was closed and reopened. A new version used to take over the moment it finished downloading, which could land while the page was reloading: the old version was retired with the page's script and styles still on their way, and those never arrived. Now a new version downloads completely and waits; UPDATE READY asks it to take over and reloads only once it has. Closing and reopening the app also brings it in, as before.
 - New versions are now always fetched fresh rather than from the browser's short-term cache, so one never stores an old copy of a file.
