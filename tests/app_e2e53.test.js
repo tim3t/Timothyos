@@ -109,6 +109,10 @@ const hits = {};
   // ---- the other departments
   await p.click('.sci-line'); await p.waitForSelector('.sci-tile');
   await p.click('[data-scitab="space"]'); await p.waitForSelector('.sci-kp i');
+  // every Kp bar stays inside its chart (the current one once picked up the Today timeline's .now line: 2.42.1)
+  const kpOut = await p.$$eval('.sci-kp i', (els) => { const box = els[0].parentElement.getBoundingClientRect(); return els.filter(e => { const r = e.getBoundingClientRect(); return getComputedStyle(e).position !== 'static' || r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1; }).length; });
+  assert.strictEqual(kpOut, 0, 'Kp bars stay in the chart');
+  assert.strictEqual(await p.$$eval('.sci-kp i.kp-now', e => e.length), 1);
   const sp = await txt(p, '.sci-panel');
   assert.ok(sp.includes('Kp 3.3QUIET') && sp.includes('it needs about Kp 7 at your latitude; tonight\'s forecast peaks at Kp 4') && sp.includes('SOLAR FLUX 91 sfu') && sp.includes('M1.2 FRI 09:11'), sp);
   assert.strictEqual(await p.$$eval('.sci-bands tbody tr', e => e.length), 4);

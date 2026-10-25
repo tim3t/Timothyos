@@ -28,7 +28,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
   (Caddy + Tailscale on the NAS, read-only files; /ha proxies Home Assistant for ENGINEERING).
 ```
 
-Current versions: **app 2.42.0**, **bridge 1.34.0**.
+Current versions: **app 2.42.1**, **bridge 1.34.0**.
 
 ### Bridge actions
 

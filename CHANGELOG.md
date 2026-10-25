@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.42.1 · 2026-10-25
+- **SCIENCE → SPACE WEATHER:** the Kp chart's current bar no longer turns into a wide green band across the screen. It shared a style name with the Today timeline's now line; renamed, with a test that every bar stays inside its chart.
+
 ## 2.42.0 · 2026-10-25 (bridge 1.34)
 - **SCIENCE,** a new station and the hub of a new **SCIENCE** group (ALL STATIONS, or COMPUTER: "aircraft", "iss", "aurora", "quake", "moon"). Free public feeds about the sky and your surroundings, from your location rounded to about 1 km (as for the weather). It opens on **SKY TRAFFIC**; the **SENSOR SWEEP** tiles switch departments.
   - **SKY TRAFFIC:** aircraft within 50 km on a scope, pointing where they fly, every 10 seconds while open (community ADS-B receivers through the Google bridge). Low ones (under 5,000 ft) in amber, military in orange. The list adds the airline and route (adsbdb); tap one for its card: type, operator, route, height, speed, heading, squawk, with **TRACK LIVE** and **PHOTOS**.

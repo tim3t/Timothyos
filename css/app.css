@@ -2339,7 +2339,7 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .sci-big small { font-size: 16px; letter-spacing: .12em; color: var(--dim); font-weight: 400; margin-left: 6px; }
 .sci-kp { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; align-items: end; height: 120px; margin-top: 6px; }
 .sci-kp i { display: block; border-radius: 3px 3px 0 0; background: var(--ok); min-height: 4px; }
-.sci-kp i.g1 { background: var(--warn); } .sci-kp i.g2 { background: var(--chrome-d); } .sci-kp i.now { outline: 2px solid var(--fg); outline-offset: 1px; }
+.sci-kp i.g1 { background: var(--warn); } .sci-kp i.g2 { background: var(--chrome-d); } .sci-kp i.kp-now { outline: 2px solid var(--fg); outline-offset: 1px; }
 .sci-kpax { display: flex; justify-content: space-between; font-family: var(--display); font-size: 11px; letter-spacing: .12em; color: var(--dim); margin-top: 4px; }
 .sci-bands { width: 100%; border-collapse: collapse; font-size: 15px; }
 .sci-bands td, .sci-bands th { padding: 6px 8px; border-top: 1px solid var(--line); text-align: left; }

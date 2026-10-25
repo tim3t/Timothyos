@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.42.0";
+  var VERSION = "2.42.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9418,7 +9418,7 @@
   function sciSpaceHtml() {
     var kp = sciV("kp") || [], kf = sciV("kpf") || [], pl = sciPlace(), now = sciKpNow(), tn = sciKpTonight(), need = pl ? sciAuroraKp(pl.lat) : 9, b = (sciV("feeds") || {}).bands;
     var obs = kp.slice(-8).map(function (r) { return parseFloat(r.Kp != null ? r.Kp : r[1]); }).filter(function (v) { return !isNaN(v); }), fc = kf.filter(function (r) { return (r.observed || r[2]) !== "observed" && Date.parse((r.time_tag || r[0]) + "Z") > Date.now(); }).slice(0, 16).map(function (r) { return parseFloat(r.kp != null ? r.kp : r[1]); }).filter(function (v) { return !isNaN(v); });
-    var bars = obs.concat(fc).map(function (v, i) { return '<i class="' + (v >= 5 ? "g2" : v >= 4 ? "g1" : "") + (i === obs.length - 1 ? " now" : "") + '" style="height:' + Math.max(4, v / 9 * 100) + '%" title="Kp ' + v + '"></i>'; }).join("");
+    var bars = obs.concat(fc).map(function (v, i) { return '<i class="' + (v >= 5 ? "g2" : v >= 4 ? "g1" : "") + (i === obs.length - 1 ? " kp-now" : "") + '" style="height:' + Math.max(4, v / 9 * 100) + '%" title="Kp ' + v + '"></i>'; }).join("");
     var flares = (sciV("flares") || []).filter(function (f) { return f.max_class; }).slice(-3).reverse(), flux = (sciV("flux") || []).slice().sort(function (x, y) { return x.time_tag < y.time_tag ? 1 : -1; })[0];   /* NOAA lists it newest first */
     var bandRows = b && b.bands ? (function () {
       var names = []; b.bands.forEach(function (x) { if (names.indexOf(x.name) < 0) names.push(x.name); });
