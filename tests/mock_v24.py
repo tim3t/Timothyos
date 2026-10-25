@@ -256,6 +256,20 @@ SORT_REPLY = {"items": [
     {"id": "%032d" % 3, "kind": "date", "title": "Truck registration renewal", "date": "2026-11-30", "type": "Not a type", "yearly": True, "why": "A fixed yearly date"},
     {"id": "%032d" % 4, "kind": "queue", "title": "Second honey extractor", "cost": 450, "why": "Something to buy"},
     {"id": "not-a-note", "kind": "task", "title": "Invented", "why": "x"}]}
+# SCIENCE (bridge 1.34): ?action=scimode&cap=1&log=1 turns it on (log=1: the Science Log in Notion too). Invented
+# aircraft and logged events; the real ISS orbit sci_sky.test.js checks. ?action=scistats shows what reached the log.
+SCI = {"cap": 0, "log": 0, "fail": "", "posts": [], "events": [], "next": 1, "sky": 0, "birds": 0}
+SCI_TLE = {"iss": {"name": "ISS", "l1": "1 25544U 98067A   26297.20915682  .00007800  00000+0  14938-3 0  9991", "l2": "2 25544  51.6335  21.6229 0006884 302.9098  57.1228 15.49030149591752"}}
+SCI_AC = [{"hex": "a7c0de", "cs": "", "reg": "N42JB", "type": "C172", "alt": 1500, "gs": 98, "track": 260, "km": 6, "dir": 140, "sq": "1200", "mil": False, "emergency": "", "cat": "A1"},
+          {"hex": "a1b2c3", "cs": "TST101", "reg": "N101TS", "type": "B738", "alt": 34000, "gs": 452, "track": 75, "km": 12, "dir": 300, "sq": "4521", "mil": False, "emergency": "", "cat": "A3"},
+          {"hex": "ae0f11", "cs": "RCH411", "reg": "05-5140", "type": "C17", "alt": 21000, "gs": 410, "track": 190, "km": 28, "dir": 20, "sq": "1255", "mil": True, "emergency": "", "cat": "A5"}]   # nearest first, as the bridge sends them
+def sci_ev(i, key, at, dept, kind, title, starred=False): return {"id": "e%031d" % i, "url": "https://www.notion.so/e%031d" % i, "key": key, "at": at, "dept": dept, "kind": kind, "title": title, "detail": "", "value": None, "starred": starred}
+def sci_seed():
+    SCI["events"] = [sci_ev(901, "eq:old1", "2026-03-14T09:10:00-05:00", "earth", "quake", "M 3.1 earthquake, 120 km SW", True),
+                     sci_ev(902, "moon:full:2026-08-28", "2026-08-28T05:40:00-05:00", "night", "moon", "Full moon"),
+                     sci_ev(903, "met:Perseids:2026", "2026-08-12T03:00:00-05:00", "night", "meteors", "Perseids meteor shower peaks tonight", True)]
+    SCI.update(posts=[], next=1)
+sci_seed()
 YEAR_REPLY = {"paras": [{"label": "", "text": "Captain, the year so far."}, {"label": "THE YEAR", "text": "Thirteen tasks closed and the calendars full."}, {"label": "KEPT", "text": "Four weekly reviews saved."}], "action": "Keep the weekly review going into November."}
 SILENT_MP3 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
 BRIEF_REPLY = {"headline": "Condition yellow · 4 meetings from 09:00 · hive check GO 11:00 to 15:00",
@@ -350,8 +364,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -365,6 +379,22 @@ class H(BaseHTTPRequestHandler):
                 dbs[0]["missing"] = [{"name": "Focus Date", "type": "date"}]
                 dbs[6]["wrong"] = [{"name": "Rating", "want": "number", "got": "rich_text"}]
             body = {"ok": True, "version": VER["v"], "at": "2026-10-23T18:00:00Z", "dbs": dbs}
+        elif q.get("action") == "scimode":
+            for k in ("cap", "log", "birds"):
+                if k in q: SCI[k] = int(q[k])
+            if "fail" in q: SCI["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "reset" in q: sci_seed(); SCI["sky"] = 0
+            body = {"ok": True}
+        elif q.get("action") == "scistats": body = {"ok": True, "events": SCI["events"], "posts": SCI["posts"], "sky": SCI["sky"]}
+        elif q.get("action") == "sky" and SCI["cap"]:
+            SCI["sky"] += 1
+            body = {"ok": True, "version": VER["v"], "at": "2026-10-24T20:00:00Z", "source": "adsb.lol", "aircraft": SCI_AC}
+        elif q.get("action") == "sciencefeeds" and SCI["cap"]:
+            body = {"ok": True, "version": VER["v"], "tle": SCI_TLE, "ebird": bool(SCI["birds"]),
+                    "bands": {"flux": "91", "sunspots": "64", "bands": [{"name": n, "time": t, "cond": c} for n, t, c in [("80m-40m", "day", "Fair"), ("30m-20m", "day", "Good"), ("17m-15m", "day", "Good"), ("12m-10m", "day", "Poor"), ("80m-40m", "night", "Good"), ("30m-20m", "night", "Good"), ("17m-15m", "night", "Fair"), ("12m-10m", "night", "Poor")]]}}
+            if SCI["birds"]: body["birds"] = [{"id": "S1:snobun", "name": "Snow Bunting", "sci": "Plectrophenax nivalis", "at": "2026-10-23 08:15", "loc": "Test Lake dam", "count": 3, "km": 18, "dir": 330}]
+        elif q.get("action") == "sciencelog" and SCI["log"]:
+            body = {"ok": True, "version": VER["v"], "events": sorted([e for e in SCI["events"] if q["from"] <= e["at"][:10] <= q["to"]], key=lambda e: e["at"], reverse=True), "url": "https://www.notion.so/science"}
         elif q.get("action") == "inboxmode":
             if "cap" in q: INBOX["cap"] = int(q["cap"])
             if "fail" in q: INBOX["fail"] = "" if q["fail"] == "0" else q["fail"]
@@ -646,6 +676,20 @@ class H(BaseHTTPRequestHandler):
                 else:
                     nd = KDt(d["title"], d["start"], d.get("end"), d.get("area"), d.get("type"), bool(d.get("yearly"))); KDATES.append(nd)
                     body = {"ok": True, "date": nd}; DCIDS[d["cid"]] = body
+            elif act in ("sciencelogadd", "sciencestar"):
+                SCI["posts"].append(act)
+                byid = {e["id"]: e for e in SCI["events"]}; bykey = {e["key"]: e for e in SCI["events"]}
+                if SCI["fail"]: body = {"ok": False, "error": SCI["fail"]}
+                elif act == "sciencestar":
+                    if b.get("id") not in byid: body = {"ok": False, "error": "not_writable"}
+                    else: byid[b["id"]]["starred"] = b.get("starred") is True; body = {"ok": True, "event": byid[b["id"]]}
+                else:
+                    added, skipped = [], []
+                    for e in b.get("events") or []:
+                        if e["key"] in bykey: skipped.append({"key": e["key"], "id": bykey[e["key"]]["id"]}); continue
+                        ne = sci_ev(SCI["next"], e["key"], dt.datetime.fromisoformat(e["at"].replace("Z", "+00:00")).astimezone(TZ).isoformat(), e["dept"], e["kind"], e["title"], e.get("starred") is True); SCI["next"] += 1
+                        ne.update(detail=e.get("detail", ""), value=e.get("value")); SCI["events"].append(ne); bykey[e["key"]] = ne; added.append({"key": e["key"], "id": ne["id"]})
+                    body = {"ok": True, "added": added, "skipped": skipped}
             elif act in ("inboxadd", "inboxset", "inboxremove"):
                 INBOX["posts"].append(act)
                 byid = {n["id"]: n for n in INBOX["notes"]}

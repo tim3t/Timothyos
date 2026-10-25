@@ -129,6 +129,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 📖 Tarot Books | TAROT → BOOKS | Read; make pages from the import file |
 | 🐝 Apiary | APIARY | Read; add; change; move checks and hives to Notion's trash |
 | 📥 Inbox | CAPTURE → NOTE, INBOX | Read; add notes; mark them Sorted or Kept; move to Notion's trash |
+| 🔭 Science Log | SCIENCE, ASTROMETRICS | Read; add events; star them |
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
@@ -140,6 +141,7 @@ After connecting, **run setup**: the log shows `OK` for each connected database 
 - **Library:** Title, Author, Status, Started, Finished, Rating, Notes, Cover, Open Library, Published.
 - **Tarot:** Title, Date, Kind, Weekly, Spread, Cards, Interpretation, Card, Data.
 - **Apiary:** Name, Kind (Yard, Hive, Check), Date, Hive, the text columns (Queen, Frames, Feed, Did, Next…), Mites (%), Honey (lb), Data. Edit the text columns freely; leave **Data** to the app.
+- **Science Log:** Event, When, Department, Kind, Detail, Value, Starred, Key. Star or annotate events freely; leave **Key** to the app (it stops an event being logged twice).
 
 ## Script Properties
 
@@ -159,6 +161,7 @@ All settings and keys live in **Project Settings (gear) → Script Properties**,
 | `YNAB_TOKEN` | Turns on LEDGER (read-only) |
 | `OPENAI_API_KEY` | Reads the Morning Briefing in the AI voice Nova (OpenAI) |
 | `YNAB_PLAN_ID`, `LEDGER_FUND_CATEGORY` | Only if the plan or the fund category (default Discretionary) isn't the right one |
+| `EBIRD_API_KEY` | Optional: notable birds nearby in SCIENCE → NATURE. A free key from ebird.org/api/keygen |
 
 The bridge also keeps its own working values there (spend counters, the log's lock state, remembered database ids). Leave those alone.
 
@@ -499,6 +502,21 @@ Your hive log, in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard pa
 - **+ ADD HIVE** on the yard for a new package, nuc or split. **REMOVE HIVE** (two taps, in EDIT HIVE) moves the hive page to Notion's trash; its checks stay.
 - **No signal at the hives:** saves wait on the iPad and go when the Google bridge answers. A save Notion refuses shows in red with **RETRY**.
 
+## SCIENCE
+
+### SCIENCE (the hub)
+
+Free public feeds about the sky and your surroundings, worked out from your **Location** (SYSTEMS → BRIDGE), rounded to about 1 km as for the weather. Open it from **ALL STATIONS → SCIENCE**, **COMPUTER** ("aircraft", "iss", "aurora", "quake", "moon"), or the Bridge's **SCIENCE** line. It opens on **SKY TRAFFIC**; the **SENSOR SWEEP** tiles along the top switch departments, and tapping SCIENCE again comes back to SKY TRAFFIC. Feeds refresh only while it's open.
+
+- **SKY TRAFFIC:** aircraft within 50 km on the scope (you're the gold dot; each mark points where it flies), every 10 seconds. Amber is low (under 5,000 ft), orange is military. Tap a mark or a row for its card: type, operator, route, height, speed, heading and squawk, with **TRACK LIVE** (the live map) and **PHOTOS**. Coverage is whatever volunteers' receivers hear, so a quiet sky may just be a gap.
+- **SPACE STATIONS + SATELLITES:** where the ISS is now and its next visible pass here, then every visible pass of the ISS, Tiangong and Hubble for five days: when, the direction it rises, how high it gets, where it sets, how long. Only passes you can actually see (a dark sky, the station in sunlight) are listed; 40° or more is bright and easy. While one is overhead, the scope's rim shows where to look.
+- **SPACE WEATHER:** Kp (geomagnetic activity, 0 to 9) now, the last day and the forecast; whether an aurora could reach your latitude tonight; solar flux, sunspots, this week's flares; shortwave band conditions day and night.
+- **EARTH:** earthquakes within 500 km (and M6 anywhere this week), tap one for USGS; weather alerts from the National Weather Service; air quality.
+- **NIGHT SKY:** the Moon, full darkness, planets, the next meteor shower and eclipses, and this week's closest asteroids (LD: lunar distances).
+- **NATURE:** what people have confirmed seeing nearby this week (iNaturalist), and notable birds (eBird, with the optional `EBIRD_API_KEY`).
+- **EVENT LOG:** anything worth remembering lands here once: military, emergency or low aircraft, bright station passes, storms, M and X flares, nearby or big quakes, alerts, full and new moons, meteor peaks, eclipses, close asteroids, notable birds. The iPad keeps 30 days; **🔭 Science Log** in Notion keeps every one (it waits on the iPad when offline). **☆** stars one in both; starred events show on ASTROMETRICS' key-date line. **ALL DEPARTMENTS** or just the one you're on.
+- **The Bridge line:** on days with something worth knowing (a bright ISS or Tiangong pass tonight, an aurora chance, a nearby M4 quake, a meteor shower peak), one **SCIENCE** line under Condition; never a Condition item. The Morning Briefing mentions the same. **SYSTEMS → SCIENCE** turns the line off.
+
 ## ALWAYS AVAILABLE
 
 ### COMPUTER
@@ -608,6 +626,9 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
 | **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
 | ASTROMETRICS says **TASKS and QUEUE need bridge 1.32**, or SHIP'S YEAR says it needs 1.32 | Update the Google bridge (Updating the Google bridge), then **RESCAN** |
+| SCIENCE says it needs bridge 1.34, or a location | Update the Google bridge; set **Location** in **SYSTEMS → BRIDGE** |
+| SCIENCE shows no aircraft | Coverage depends on volunteers' receivers near you; the source is named under the scope. If it says it couldn't read the feed, it tries again on its own |
+| SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
 | **Google bridge out of date** in Condition, or "The bridge refused it" | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
@@ -644,7 +665,8 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
-- **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to the Google bridge or this repository.
+- **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
+- **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Nothing else leaves; the bridge never stores the location.
 
 ## Updating the app
 
@@ -658,6 +680,7 @@ New versions arrive from this repository within a few minutes of a push. When yo
 index.html               app page
 css/app.css              styles (design tokens at the top)
 js/app.js                app logic (one file, no build step)
+js/vendor/               satellite.js and Astronomy Engine (MIT), for SCIENCE's passes and night sky
 sw.js                    offline cache
 manifest.webmanifest     home screen install settings (the name Bridge)
 version.json             current version (the app checks it for updates)

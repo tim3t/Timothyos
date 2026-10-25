@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.42.0 · 2026-10-25 (bridge 1.34)
+- **SCIENCE,** a new station and the hub of a new **SCIENCE** group (ALL STATIONS, or COMPUTER: "aircraft", "iss", "aurora", "quake", "moon"). Free public feeds about the sky and your surroundings, from your location rounded to about 1 km (as for the weather). It opens on **SKY TRAFFIC**; the **SENSOR SWEEP** tiles switch departments.
+  - **SKY TRAFFIC:** aircraft within 50 km on a scope, pointing where they fly, every 10 seconds while open (community ADS-B receivers through the Google bridge). Low ones (under 5,000 ft) in amber, military in orange. The list adds the airline and route (adsbdb); tap one for its card: type, operator, route, height, speed, heading, squawk, with **TRACK LIVE** and **PHOTOS**.
+  - **SPACE STATIONS + SATELLITES:** the ISS now (height, speed, sunlit or in shadow) and its next visible pass here, then the visible passes of the ISS, Tiangong and Hubble for five days: when, where it rises, how high, where it sets. Worked out on the iPad from CelesTrak's orbits; only passes in a dark sky with the station in sunlight are listed. While one is overhead, the scope shows where to look.
+  - **SPACE WEATHER:** Kp now with the last day and the forecast, the aurora chance at your latitude, solar flux, sunspots, this week's flares, and shortwave band conditions day and night (ready for a listening post).
+  - **EARTH:** earthquakes within 500 km in the last 30 days (and M6 anywhere this week), National Weather Service alerts, and air quality (US AQI, PM2.5, ozone, UV).
+  - **NIGHT SKY:** the Moon (phase, % lit, rise and set, next full and new), sunset and full darkness, planets well placed tonight, the next meteor shower peak and eclipses, and this week's closest asteroids.
+  - **NATURE:** research-grade iNaturalist sightings within 25 km this week; notable birds from eBird with an optional free key.
+  - **EVENT LOG:** what's worth remembering (military, emergency or low aircraft; bright station passes; geomagnetic storms; M and X flares; nearby or big quakes; weather alerts; full and new moons, meteor peaks, eclipses, asteroids inside the Moon's distance; notable birds), logged once each. The last 30 days stay on the iPad; every one goes to the new **🔭 Science Log** in Notion (it waits on the iPad when offline). **☆** stars one, there too.
+- **The Bridge:** one **SCIENCE** line under Condition on days with something worth knowing (a bright space station pass tonight, an aurora chance, a nearby quake of M4 or more, a meteor shower peak). Never a Condition item. **SYSTEMS → SCIENCE** turns it off.
+- **Morning Briefing:** a SKY sentence when there is one (the same things, quakes from M3.5).
+- **ASTROMETRICS:** a **SCIENCE** row (events logged per week, by department), and starred events on the key-date line (★).
+- **Refreshing:** only while SCIENCE is open, except a light, slow read for the line and the briefing (orbits twice a day, the Kp forecast every 3 hours, quakes hourly).
+- **Bridge 1.34** (update the Google bridge, then connect **🔭 Science Log** to the TimothyOS integration in Notion): `sky`, `sciencefeeds`, `sciencelog`, `sciencelogadd`, `sciencestar`; capability `science` always, `sciencelog` with Notion. Optional `EBIRD_API_KEY` in Script Properties. Setup logs `Notion science log: OK (…)` and `SCIENCE feeds: …`.
+
 ## 2.41.2 · 2026-10-24
 - **The bearing lines show this week too.** A review that already had text in the old single box (or a paragraph written freely in Notion) used to stay one box. Now the lines always show, and that earlier text sits in its own **EARLIER NOTES** box above them; it saves first, and the box goes away once emptied.
 - **COMPUTER:** with nothing typed, the highlight now stays on the first row when a new item arrives above it (it used to follow the old first row down). A choice made with the arrow keys still stays put.

@@ -82,17 +82,20 @@ var CONFIG = {
   NOTION_APIARY_DATABASE: '548f88460e014b17a521dba092160da2',
 
   // Your Notion Inbox: notes captured to sort later (CAPTURE → NOTE), one page per note.
-  NOTION_INBOX_DATABASE: '5712ada1ef2742daad5629d70bf3f4d4'
+  NOTION_INBOX_DATABASE: '5712ada1ef2742daad5629d70bf3f4d4',
+
+  // Your Notion Science Log: events the SCIENCE station noticed, one page per event.
+  NOTION_SCIENCE_DATABASE: '497256af405747a3a9bb064759865cf6'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.33.0';
+var VERSION = '1.34.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -128,7 +131,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -145,6 +148,9 @@ function read_(p) {
   if (p.action === 'tarotbooks') return tarotBooks_();
   if (p.action === 'apiary') return apiary_();
   if (p.action === 'inbox') return inbox_();
+  if (p.action === 'sky') return sky_(p.lat, p.lon);
+  if (p.action === 'sciencefeeds') return sciFeeds_(p.lat, p.lon);
+  if (p.action === 'sciencelog') return scienceLog_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'year') return year_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
@@ -192,6 +198,8 @@ function doPost(e) {
     if (body.action === 'aispendset') return json_(aiSpendSet_(body.usd));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'inboxadd') return json_(inboxAdd_(body.note || {}));
+    if (body.action === 'sciencelogadd') return json_(scienceLogAdd_(body.events));
+    if (body.action === 'sciencestar') return json_(scienceStar_(String(body.id || ''), body.starred === true));
     if (body.action === 'inboxset') return json_(inboxSet_(String(body.id || ''), String(body.status || ''), body.as === null || body.as === undefined ? null : String(body.as)));
     if (body.action === 'inboxremove') return json_(inboxRemove_(String(body.id || '')));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
@@ -260,6 +268,8 @@ function setup() {
   console.log('Notion tarot books: ' + tarotBooksStatus_());
   console.log('Notion apiary: ' + apiaryStatus_());
   console.log('Notion inbox: ' + inboxStatus_());
+  console.log('Notion science log: ' + scienceStatus_());
+  console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
       var sc = schema_(true), bad = sc.dbs.filter(function (d) { return d.missing.length || d.wrong.length; }), conn = sc.dbs.filter(function (d) { return !d.error; });
@@ -655,7 +665,8 @@ function schemaSpec_() {
     { key: 'tarot', name: 'Tarot', src: tarotSource_, need: [['Title', 'title'], ['Date', 'date'], ['Kind', 'select'], ['Weekly', 'checkbox'], ['Spread', 'rich_text'], ['Cards', 'rich_text'], ['Interpretation', 'rich_text'], ['Card', 'rich_text'], ['Data', 'rich_text']] },
     { key: 'tarotbooks', name: 'Tarot Books', src: tarotBooksSource_, need: [['Title', 'title'], ['Card', 'rich_text'], ['Book', 'select'], ['Source', 'rich_text'], ['Order', 'number']] },
     { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
-    { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] }
+    { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] },
+    { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] }
   ];
 }
 var SCHEMA_TYPE = { title: 'title', rich_text: 'text', select: 'select', date: 'date', number: 'number', checkbox: 'checkbox', url: 'URL', relation: 'relation' };
@@ -1939,6 +1950,175 @@ function inboxStatus_() {
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Inbox (... > Connections)' : ''); }
 }
 
+// ---- SCIENCE (bridge 1.34) ----------------------------------------------------------
+// Free public feeds the iPad can't call itself (they don't allow browser requests): aircraft near the rounded
+// location the app sends, from the community ADS-B network (adsb.lol, with adsb.fi if it doesn't answer); orbits
+// of the ISS, China's station and Hubble from CelesTrak; shortwave band conditions from N0NBH (hamqsl.com); and
+// eBird's notable sightings, only once EBIRD_API_KEY is in Script Properties. Read-only, cached briefly.
+// The Science Log is a Notion database of events the station noticed: logged once each (by Key), starrable.
+var SCI_SATS = { iss: [25544, 'ISS'], css: [48274, 'Tiangong'], hst: [20580, 'Hubble'] };
+var SCI_DEPTS = { sky: 'Sky', space: 'Space', earth: 'Earth', night: 'Night', nature: 'Nature' };
+var SCI_KINDS = { aircraft: 'Aircraft', station: 'Space Station', storm: 'Geomagnetic Storm', flare: 'Solar Flare', quake: 'Earthquake', alert: 'Weather Alert',
+  moon: 'Moon', eclipse: 'Eclipse', meteors: 'Meteor Shower', asteroid: 'Asteroid', bird: 'Bird' };
+var SCI_NM = 27;   // the scope's 50 km, in the nautical miles the ADS-B feeds use
+function sciPlace_(lat, lon) {
+  lat = Number(lat); lon = Number(lon);
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };   // about 1 km, as for the weather
+}
+function sciFetch_(url, headers) {
+  var r = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: headers || {} });
+  if (r.getResponseCode() !== 200) { var e = new Error('HTTP ' + r.getResponseCode() + ' from ' + url.split('/')[2]); e.sci = 'feed_unavailable'; throw e; }
+  return r.getContentText();
+}
+function sciKm_(a, b) {   // distance (km) and bearing (degrees) from a to b
+  var R = 6371, rad = Math.PI / 180, dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad, la1 = a.lat * rad, la2 = b.lat * rad;
+  var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  var brg = Math.atan2(Math.sin(dLon) * Math.cos(la2), Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon)) / rad;
+  return { km: Math.round(2 * R * Math.asin(Math.sqrt(h)) * 10) / 10, dir: Math.round((brg + 360) % 360) };
+}
+/** Aircraft within 50 km: { hex, cs, reg, type, alt, gs, track, km, dir, sq, mil, emergency, cat }. Cached 8 s. */
+function sky_(lat, lon) {
+  var pl = sciPlace_(lat, lon);
+  if (!pl) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), key = 'sky:' + pl.lat + ':' + pl.lon, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var list, src = 'adsb.lol';
+  try { list = JSON.parse(sciFetch_('https://api.adsb.lol/v2/lat/' + pl.lat + '/lon/' + pl.lon + '/dist/' + SCI_NM)).ac; }
+  catch (e) {
+    try { src = 'adsb.fi'; list = JSON.parse(sciFetch_('https://opendata.adsb.fi/api/v2/lat/' + pl.lat + '/lon/' + pl.lon + '/dist/' + SCI_NM)).aircraft; }
+    catch (e2) { return { ok: false, error: 'feed_unavailable', detail: String(e2.message || e2) }; }
+  }
+  var num = function (x) { return typeof x === 'number' && isFinite(x) ? x : null; };
+  var aircraft = (list || []).filter(function (a) { return num(a.lat) !== null && num(a.lon) !== null && a.alt_baro !== 'ground'; }).map(function (a) {
+    var d = sciKm_(pl, { lat: a.lat, lon: a.lon });
+    return { hex: String(a.hex || '').replace(/^~/, ''), cs: String(a.flight || '').trim(), reg: a.r || '', type: a.t || '', alt: num(a.alt_baro), gs: num(a.gs) === null ? null : Math.round(a.gs),
+      track: num(a.track) === null ? null : Math.round(a.track), km: d.km, dir: d.dir, sq: a.squawk || '', mil: !!(Number(a.dbFlags) & 1), emergency: a.emergency && a.emergency !== 'none' ? String(a.emergency) : '', cat: a.category || '' };
+  }).filter(function (a) { return a.km <= 50.5; }).sort(function (a, b) { return a.km - b.km; }).slice(0, 60);
+  var out = { ok: true, version: VERSION, at: new Date().toISOString(), source: src, aircraft: aircraft };
+  try { cache.put(key, JSON.stringify(out), 8); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function sciTle_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('tle');
+  if (hit) return JSON.parse(hit);
+  var out = {};
+  Object.keys(SCI_SATS).forEach(function (k) {
+    var lines = sciFetch_('https://celestrak.org/NORAD/elements/gp.php?CATNR=' + SCI_SATS[k][0] + '&FORMAT=TLE').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var i = lines.findIndex(function (l) { return l.indexOf('1 ') === 0; });
+    if (i < 0 || !lines[i + 1] || lines[i + 1].indexOf('2 ') !== 0) { var e = new Error('No orbit for ' + SCI_SATS[k][1]); e.sci = 'feed_unavailable'; throw e; }
+    out[k] = { name: SCI_SATS[k][1], l1: lines[i], l2: lines[i + 1] };
+  });
+  cache.put('tle', JSON.stringify(out), 43200);
+  return out;
+}
+function sciBands_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('bands');
+  if (hit) return JSON.parse(hit);
+  var x = sciFetch_('https://www.hamqsl.com/solarxml.php'), tag = function (n) { var m = x.match(new RegExp('<' + n + '>\\s*([^<]*?)\\s*</' + n + '>')); return m ? m[1] : ''; };
+  var bands = [], re = /<band name="([^"]+)" time="(day|night)">\s*([^<]*?)\s*<\/band>/g, m;
+  while ((m = re.exec(x))) bands.push({ name: m[1], time: m[2], cond: m[3] });
+  var out = { updated: tag('updated'), flux: tag('solarflux'), sunspots: tag('sunspots'), kindex: tag('kindex'), xray: tag('xray'), noise: tag('signalnoise'), bands: bands };
+  cache.put('bands', JSON.stringify(out), 3600);
+  return out;
+}
+function sciBirds_(pl) {
+  var k = PropertiesService.getScriptProperties().getProperty('EBIRD_API_KEY');
+  if (!k || !pl) return null;
+  var cache = CacheService.getScriptCache(), key = 'ebird:' + pl.lat + ':' + pl.lon, hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var rows = JSON.parse(sciFetch_('https://api.ebird.org/v2/data/obs/geo/recent/notable?lat=' + pl.lat + '&lng=' + pl.lon + '&dist=25&back=7&detail=simple', { 'X-eBirdApiToken': k }));
+  var seen = {}, out = [];
+  rows.forEach(function (r) {
+    if (seen[r.speciesCode]) return; seen[r.speciesCode] = 1;
+    var d = sciKm_(pl, { lat: r.lat, lon: r.lng });
+    out.push({ id: r.subId + ':' + r.speciesCode, name: r.comName, sci: r.sciName, at: r.obsDt, loc: r.locName, count: r.howMany || null, km: d.km, dir: d.dir });
+  });
+  out = out.slice(0, 40);
+  cache.put(key, JSON.stringify(out), 3600);
+  return out;
+}
+/** The slow feeds in one call: orbits (12 h), band conditions (1 h), eBird notables (1 h, with a key). Each part reports its own error. */
+function sciFeeds_(lat, lon) {
+  var pl = sciPlace_(lat, lon), out = { ok: true, version: VERSION };
+  try { out.tle = sciTle_(); } catch (e) { out.tleError = e.sci || 'feed_unavailable'; }
+  try { out.bands = sciBands_(); } catch (e2) { out.bandsError = e2.sci || 'feed_unavailable'; }
+  try { out.birds = sciBirds_(pl); if (out.birds === null) delete out.birds; } catch (e3) { out.birdsError = e3.sci || 'feed_unavailable'; }
+  out.ebird = !!PropertiesService.getScriptProperties().getProperty('EBIRD_API_KEY');
+  return out;
+}
+function sciStatus_() {
+  var s = sciFeeds_(null, null);
+  return [s.tle ? 'orbits OK' : 'orbits: ' + s.tleError, s.bands ? 'band conditions OK' : 'band conditions: ' + s.bandsError, s.ebird ? 'eBird key set' : 'eBird OFF (add EBIRD_API_KEY for notable birds)'].join(', ');
+}
+function scienceSource_() { return sourceFor_(CONFIG.NOTION_SCIENCE_DATABASE, 'NOTION_SCIENCE_SOURCE'); }
+function scienceGen_() { return CacheService.getScriptCache().get('sgen') || '0'; }
+function scienceBump_() { CacheService.getScriptCache().put('sgen', Utilities.getUuid().slice(0, 8), 21600); }
+function toSci_(pg) {
+  var p = pg.properties || {}, key = function (map, v) { return Object.keys(map).filter(function (k) { return map[k] === v; })[0] || null; };
+  return { id: pg.id, url: pg.url, title: plain_(p.Event && p.Event.title), at: (p.When && p.When.date && p.When.date.start) || null, dept: key(SCI_DEPTS, sel_(p.Department)), kind: key(SCI_KINDS, sel_(p.Kind)),
+    detail: plain_(p.Detail && p.Detail.rich_text), value: p.Value && typeof p.Value.number === 'number' ? p.Value.number : null, starred: !!(p.Starred && p.Starred.checkbox), key: plain_(p.Key && p.Key.rich_text) };
+}
+/** Events between two days (yyyy-mm-dd, at most 400 apart), newest first. */
+function scienceLog_(from, to) {
+  if (!YMD.test(from) || !YMD.test(to) || to < from || (new Date(to) - new Date(from)) / 864e5 > 400) return { ok: false, error: 'bad_request' };
+  var cache = CacheService.getScriptCache(), k = 'sci:' + scienceGen_() + ':' + from + ':' + to, hit = cache.get(k);
+  if (hit) return JSON.parse(hit);
+  var rows = queryAll_(scienceSource_(), { and: [{ property: 'When', date: { on_or_after: from } }, { property: 'When', date: { on_or_before: to } }] }, 10, [{ property: 'When', direction: 'descending' }]).map(toSci_);
+  var out = { ok: true, version: VERSION, events: rows, url: 'https://www.notion.so/' + String(CONFIG.NOTION_SCIENCE_DATABASE).replace(/-/g, '') };
+  try { cache.put(k, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+/** Up to 25 events: { key, at (ISO), dept, kind, title, detail, value, starred }. An event whose Key is already logged is skipped. */
+function scienceLogAdd_(events) {
+  if (!Array.isArray(events) || !events.length || events.length > 25) return { ok: false, error: 'bad_request' };
+  var bad = events.some(function (e) {
+    return !e || !/^[A-Za-z0-9:._\-]{3,120}$/.test(String(e.key || '')) || !ISO.test(String(e.at || '')) || !SCI_DEPTS[e.dept] || !SCI_KINDS[e.kind] ||
+      !String(e.title || '').trim() || String(e.title).length > 200 || String(e.detail || '').length > 500 || (e.value !== null && e.value !== undefined && !isFinite(Number(e.value)));
+  });
+  if (bad) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = scienceSource_(), cache = CacheService.getScriptCache(), tz = Session.getScriptTimeZone();
+    var first = events.map(function (e) { return e.at; }).sort()[0], since = Utilities.formatDate(new Date(Date.parse(first) - 2 * 864e5), tz, 'yyyy-MM-dd'), have = {};
+    queryAll_(ds, { property: 'When', date: { on_or_after: since } }, 5).forEach(function (pg) { var k = plain_((pg.properties || {}).Key && pg.properties.Key.rich_text); if (k) have[k] = pg.id; });
+    var added = [], skipped = [];
+    events.forEach(function (e) {
+      var known = have[e.key] || cache.get('skey:' + e.key);
+      if (known) { skipped.push({ key: e.key, id: known }); return; }
+      var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: {
+        Event: { title: rt_(String(e.title).trim()) }, When: { date: { start: Utilities.formatDate(new Date(e.at), tz, "yyyy-MM-dd'T'HH:mm:ss"), time_zone: tz } },
+        Department: { select: { name: SCI_DEPTS[e.dept] } }, Kind: { select: { name: SCI_KINDS[e.kind] } }, Detail: { rich_text: rt_(String(e.detail || '').trim()) },
+        Value: { number: e.value === null || e.value === undefined ? null : Number(e.value) }, Starred: { checkbox: e.starred === true }, Key: { rich_text: rt_(e.key) } } });
+      have[e.key] = pg.id; cache.put('skey:' + e.key, pg.id, 21600);
+      added.push({ key: e.key, id: pg.id });
+    });
+    if (added.length) scienceBump_();
+    return { ok: true, version: VERSION, added: added, skipped: skipped };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function scienceStar_(id, starred) {
+  if (!/^[0-9a-f-]{32,36}$/i.test(id)) return { ok: false, error: 'not_writable' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var cur = notion_('get', '/pages/' + id);
+    if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== scienceSource_().replace(/-/g, '') || cur.in_trash) return { ok: false, error: 'not_writable' };
+    var pg = notion_('patch', '/pages/' + id, { properties: { Starred: { checkbox: starred } } });
+    scienceBump_();
+    return { ok: true, version: VERSION, event: toSci_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function scienceStatus_() {
+  try { var t = new Date(), f = new Date(t.getTime() - 30 * 864e5), n = scienceLog_(f.toISOString().slice(0, 10), t.toISOString().slice(0, 10)).events.length; return 'OK (' + n + (n === 1 ? ' event' : ' events') + ' in 30 days)'; }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Science Log (... > Connections)' : ''); }
+}
+
 // ---- Tarot ---------------------------------------------------------------------
 // One database, three kinds of page: Reading (one per reading; Weekly marks the card for the week),
 // Meaning (your own words for a card, one per card) and Spread (a layout you made). The app's own
@@ -2496,7 +2676,7 @@ var BRIEF_RULES = [
   "paras, in this order, leaving out any with nothing worth saying: label \"\" opening with 'Good morning, Captain.', the weekday and date, then the condition level and why in one sentence;",
   "TODAY (how many meetings, the first and the last, the longest open stretch between 07:00 and 21:00, whether priorities are picked; BREAK entries are breaks, not meetings; HOLIDAY is not an event);",
   "OUTSIDE (temperature now and the high, wind or rain if notable, the hive check window, frost tonight); AHEAD (heavy days and key dates in the next 7 days);",
-  "YESTERDAY (habits, if the snapshot has them); and only when the snapshot includes them: APIARY, TAROT (this week's card), LEDGER (the fund and the queue).",
+  "YESTERDAY (habits, if the snapshot has them); and only when the snapshot includes them: APIARY, TAROT (this week's card), LEDGER (the fund and the queue), SKY (a visible space station pass tonight, an aurora chance, a nearby earthquake: one or two sentences).",
   "Each text: 1 to 3 short sentences, plain words, 24-hour times, degrees as °F, no lists, no emoji, no em dashes, no markdown. Never mention the snapshot itself.",
   "action: one recommended first action, one sentence, starting with a verb. headline: under 90 characters, the 3 or 4 facts that matter most today joined by ' · ', without the condition level (the Condition panel sits just below it)."
 ].join('\n');
