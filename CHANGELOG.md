@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.43.1 · 2026-10-25
+- **STORAGE: the next track plays on in the background.** With PLAY THE NEXT ONE on, music could stop at the end of a track while you were in another app, then carry on the moment you came back to Bridge. iPadOS keeps a home-screen web app awake in the background only while it's making sound; at the end of a track Bridge fell quiet and, if iPadOS paused it before the next file had started loading from the NAS, the next track waited. Now the next file is read into memory during the last 90 seconds (files up to 150 MB) and starts a moment before the end, while still playing.
+- **Fixed:** a track under a minute long wasn't kept as played once the next one started.
+
 ## 2.43.0 · 2026-10-25
 - **SCIENCE → SKY TRAFFIC: landmarks on the scope,** to judge how far away an aircraft is.
   - Suggested from OpenStreetMap the first time the scope opens: the main airport and one airfield, then the biggest town in each direction, one in each ring band first, none within 6 km of another, at most 8.

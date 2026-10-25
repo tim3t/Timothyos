@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.43.0";
+  var VERSION = "2.43.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6193,7 +6193,7 @@
   var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
   var plays = lsGet(LS_PLAYS) || {};
   var nasPref = Object.assign({ speed: 1, auto: true }, lsGet(LS_NASPREF) || {});
-  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false, artBig: null, artSmall: null };
+  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false, artBig: null, artSmall: null, pre: null, blob: null };
   function nasHidden() { return lsGet(LS_NASHIDE) || []; }
   function isHidden(path) { return nasHidden().indexOf(path) > -1; }
   function nasConf() { var c = lsGet(LS_NAS); return c && c.url && c.token ? c : null; }
@@ -6572,15 +6572,18 @@
       if (r && !r.done && r.p > 5 && r.p < a.duration - 5) a.currentTime = r.p;
       pl.ready = true; markPlay(false); paintPlayer();
     });
-    a.addEventListener("timeupdate", function () { if (Date.now() - pl.lastSave > 10000) markPlay(false); paintPlayer(true); sleepCheck(); });
+    a.addEventListener("timeupdate", function () {
+      if (Date.now() - pl.lastSave > 10000) markPlay(false);
+      paintPlayer(true); sleepCheck(); preNext();
+      if (pl.pre && pl.pre.url && !a.paused && isFinite(a.duration) && a.duration - a.currentTime <= PRE_HANDOFF && autoNext()) toNext();   /* still playing: iPadOS keeps the app awake */
+    });
     a.addEventListener("play", function () { pl.closed = false; paintPlayer(); mediaState(); });
     a.addEventListener("pause", function () { markPlay(false); paintPlayer(); mediaState(); });
     a.addEventListener("seeked", function () { markPlay(false); });
     a.addEventListener("ended", function () {
       markPlay(true);
       if (nas.sleep === "end") { nas.sleep = null; paintPlayer(); toast("Sleep timer: stopped at the end of the episode"); return; }
-      var nx = nextUp()[0];
-      if (nasPref.auto && nx) playPath(nx.path, pl.list); else paintPlayer();
+      if (autoNext()) toNext(); else paintPlayer();
     });
     a.addEventListener("error", function () { if (pl.path) toast(nas.ok === false ? "Can't reach the NAS to play this" : "This file won't play on the iPad"); paintPlayer(); });
     if ("mediaSession" in navigator) {
@@ -6598,9 +6601,30 @@
     var a = pl.el;
     if (!a || !pl.path || (!pl.ready && !ended)) return;   /* not before the file's start point is set, or a resume would be lost */
     var d = isFinite(a.duration) ? a.duration : (playOf(pl.path) || {}).d || 0, p = a.currentTime || 0;
-    var done = !!ended || (d > 60 && p > d - 30);
+    var done = !!ended || (d > 0 && p >= d - 1) || (d > 60 && p > d - 30);   /* at the very end counts too: a short track handed on stays played */
     plays[pl.path] = { p: done ? 0 : p, d: d, done: done, at: Date.now() };
     pl.lastSave = Date.now(); savePlays();
+  }
+  /* The next track, ready before this one ends (2.43.1). iPadOS keeps a home-screen web app running in the background
+     only while it's making sound. At the end of a track the app falls quiet, and if iPadOS pauses it before the next
+     file has started loading over the NAS link, the next track waits until Bridge is opened again. So in a track's last
+     90 seconds the next file (up to 150 MB) is read into memory, and the hand-off happens a moment before the end,
+     while still playing, with no network wait. Without it ready in time, 'ended' moves on as before. */
+  var PRE_SECS = 90, PRE_MAX = 150 * 1048576, PRE_HANDOFF = 0.4;
+  function autoNext() { return nasPref.auto && nas.sleep !== "end" && !!nextUp()[0]; }
+  function toNext() { var nx = nextUp()[0]; if (!nx) return; markPlay(true); playPath(nx.path, pl.list); }
+  function preDrop() { if (pl.pre && pl.pre.ctrl) pl.pre.ctrl.abort(); if (pl.pre && pl.pre.url) URL.revokeObjectURL(pl.pre.url); pl.pre = null; }
+  function preNext() {
+    var a = pl.el, nx = autoNext() && nextUp()[0], c = nasConf();
+    if (!a || !nx || !c || !isFinite(a.duration) || a.duration - a.currentTime > PRE_SECS) return;
+    if (pl.pre && pl.pre.path === nx.path) return;
+    preDrop();
+    var job = pl.pre = { path: nx.path, url: null, ctrl: typeof AbortController === "function" ? new AbortController() : null };
+    fetch(nasBase() + encPath(nx.path), { headers: { Authorization: "Bearer " + c.token }, signal: job.ctrl ? job.ctrl.signal : undefined }).then(function (r) {
+      if (!r.ok) throw { code: "http_" + r.status };
+      if (+r.headers.get("Content-Length") > PRE_MAX) throw { code: "too_big" };   /* a long episode: streamed as before */
+      return r.blob();
+    }).then(function (b) { if (pl.pre === job) { job.url = URL.createObjectURL(b); job.ctrl = null; } }, function () { if (pl.pre === job) job.ctrl = null; });
   }
   function playPath(path, list) {
     var c = nasConf();
@@ -6611,7 +6635,10 @@
     var r = playOf(path);
     if (r && r.done) { r.done = false; r.p = 0; savePlays(); }   /* playing a finished one starts it again */
     pl.path = path; pl.list = list || pl.list; pl.ready = false; pl.closed = false;
-    a.src = nasBase() + encPath(path) + "?k=" + encodeURIComponent(c.token);
+    if (pl.blob) { URL.revokeObjectURL(pl.blob); pl.blob = null; }
+    if (pl.pre && pl.pre.path === path && pl.pre.url) { pl.blob = pl.pre.url; pl.pre.url = null; a.src = pl.blob; }   /* already here: no wait */
+    else a.src = nasBase() + encPath(path) + "?k=" + encodeURIComponent(c.token);
+    if (pl.pre && pl.pre.path === path) pl.pre = null; else preDrop();
     a.playbackRate = nasPref.speed;
     a.play().catch(function () { /* the first tap on the iPad may be needed; PLAY works from the bar */ });
     if (pl.artBig) { URL.revokeObjectURL(pl.artBig); pl.artBig = null; }
@@ -6893,7 +6920,7 @@
       var what = a === "nasforget" ? "forget" : "plays";
       if (Date.now() - nas.armClear < 4000 && nas.armWhat === what) {
         nas.armClear = 0;
-        if (what === "forget") { if (pl.el) { pl.el.pause(); pl.el.removeAttribute("src"); } pl.path = null; lsDel(LS_NAS); nas.lists = {}; nas.err = null; nas.ok = null; toast("Storage forgotten on this iPad"); miniPaint(); }
+        if (what === "forget") { if (pl.el) { pl.el.pause(); pl.el.removeAttribute("src"); } preDrop(); if (pl.blob) { URL.revokeObjectURL(pl.blob); pl.blob = null; } pl.path = null; lsDel(LS_NAS); nas.lists = {}; nas.err = null; nas.ok = null; toast("Storage forgotten on this iPad"); miniPaint(); }
         else { plays = {}; savePlays(); toast("Saved places cleared"); }
       } else { nas.armClear = Date.now(); nas.armWhat = what; setTimeout(function () { if (state.screen === "systems") render(true); }, 4100); }
       render(true); return true;

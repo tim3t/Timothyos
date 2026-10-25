@@ -98,7 +98,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.waitForFunction(() => document.querySelectorAll('.nas-now ~ section .nas-row').length > 0, null, { timeout: 5000 });   // drawn as soon as the folder's list arrives (2.38: it used to wait for an unrelated redraw)
   assert.ok((await txt(p, '#content')).includes('UP NEXT'));
   await p.click('[data-nas="markplayed"]');
-  await p.waitForFunction(() => /ep%202/.test(document.getElementById('nasAudio').src), null, { timeout: 5000 });
+  await p.waitForFunction(() => { const h = document.querySelector('.nas-now h3'); return h && h.textContent === 'ep 2'; }, null, { timeout: 5000 });   // its file already read ahead (2.43.1), so the source may be in memory
   assert.ok((await txt(p, '.nas-now h3')) === 'ep 2');
   const p1 = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.plays.v1'))['/Podcasts/Show A/ep 1.wav']);
   assert.ok(p1.done, 'ep 1 marked played');
@@ -186,7 +186,20 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Album2"]');
   await p.waitForSelector('[data-nassort="track"][aria-pressed="true"]');
 
-  // ---- forget: two taps, and playback stops
+  // ---- PLAY THE NEXT ONE (2.43.1): the next track is read ahead in this one's last 90 s and handed over a moment before
+  // the end, while still playing (iPadOS pauses a quiet background web app; a network wait there stalled the next track)
+  const ahead = []; p.on('request', r => { const h = r.headers(); if (/\/Music\/Album2\//.test(r.url()) && h.authorization && !h.range) ahead.push(decodeURIComponent(r.url().split('/').pop())); });
+  await p.evaluate(() => { window.__ends = 0; document.getElementById('nasAudio').addEventListener('ended', () => window.__ends++); });
+  await p.click('[data-nasplay="/Music/Album2/b.mp3"]');
+  await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a.src.startsWith('blob:') && !a.paused; }, null, { timeout: 8000 });
+  const b1 = (await cur(p)).src;
+  await p.waitForFunction(b1 => { const a = document.getElementById('nasAudio'); return a.src.startsWith('blob:') && a.src !== b1 && !a.paused; }, b1, { timeout: 8000 });
+  assert.deepStrictEqual(ahead.slice(0, 2), ['c.mp3', 'a.mp3'], 'each next one read ahead, in track order: ' + ahead.join(','));
+  assert.strictEqual(await p.evaluate(() => window.__ends), 0, 'handed over before the end, never waiting on it');
+  const done = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.plays.v1')));
+  assert.ok(done['/Music/Album2/b.mp3'].done && done['/Music/Album2/c.mp3'].done, 'each one marked played');
+  await p.click('#nasBar [data-nas="toggle"]');
+
   await p.click('#status'); await p.waitForSelector('#sec-storage');
   await p.click('[data-act="nasforget"]'); assert.ok((await txt(p, '#sec-storage')).includes('TAP AGAIN TO FORGET'));
   await p.click('[data-act="nasforget"]'); await p.waitForTimeout(200);
