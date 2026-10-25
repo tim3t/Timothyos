@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.43.1";
+  var VERSION = "2.43.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -11128,14 +11128,34 @@
       .then(function (j) { if (j && j.version && newer(j.version, VERSION)) { $("updateBtn").hidden = false; } })
       .catch(function () { /* offline: check again later */ });
   }
+  /* UPDATE READY (2.43.2): fetch the new version, let it install completely, ask it to take over, and reload only once
+     it controls the page, so no request is caught between two versions (the cause of a header over a black screen, or
+     unstyled HTML, after tapping it). Fifteen seconds at most, then a plain reload. */
   $("updateBtn").addEventListener("click", function () {
     var b = $("updateBtn");
     b.disabled = true;
     b.textContent = "LOADING UPDATE…";
-    var reload = function () { location.reload(); };
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.getRegistration().then(function (reg) { return reg && reg.update(); }).then(reload, reload);
-    } else reload();
+    var done = false, reload = function () { if (!done) { done = true; location.reload(); } };
+    var sw = navigator.serviceWorker;
+    if (!sw || !sw.controller) { reload(); return; }
+    setTimeout(reload, 15000);
+    sw.addEventListener("controllerchange", reload);
+    var take = function (w) { w.postMessage("skipWaiting"); };
+    var watch = function (w) {
+      if (!w) return;
+      if (w.state === "installed") { take(w); return; }
+      w.addEventListener("statechange", function () { if (w.state === "installed") take(w); else if (w.state === "redundant") reload(); });
+    };
+    sw.getRegistration().then(function (reg) {
+      if (!reg) { reload(); return; }
+      if (reg.waiting) { take(reg.waiting); return; }
+      if (reg.installing) { watch(reg.installing); return; }
+      reg.addEventListener("updatefound", function () { watch(reg.installing); });
+      var check = function (again) {   /* a check already running can answer "nothing new": ask once more */
+        return reg.update().then(function () { if (reg.installing || reg.waiting) return; if (again) setTimeout(function () { check(false).catch(reload); }, 1500); else reload(); });
+      };
+      return check(true);
+    }).catch(reload);
   });
 
   /* ---------- Clock + background refresh ---------- */

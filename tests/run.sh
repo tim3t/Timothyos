@@ -98,6 +98,7 @@ LANES=(
   "review-log|-|app_e2e18.test.js app_e2e45.test.js"
   "farm|-|app_e2e19.test.js"
   "ledger|-|app_e2e20.test.js"
+  "updates|-|app_e2e54.test.js"
 )
 #   app_e2e        linking, Day/Week/Month, detail, offline cache, phone width
 #   app_e2e6       Capture: old bridge warning, save, validation, offline queue, failure
@@ -126,7 +127,8 @@ LANES=(
 #   app_e2e30      Bulleted lists in LOG and REVIEW (after e2e27: code-word PIN on the same mock)
 #   app_e2e31      Log Ask: scopes, preview, send, follow-up, save, insights; REVIEW summary behind the code
 #   app_e2e32      LEDGER: fresh from YNAB on opening, pull to refresh, REFRESH
-#   app_e2e33      STORAGE: relay setup, folders, player, resume on this iPad, pill, filters
+#   app_e2e33      STORAGE: relay setup, folders, player, resume on this iPad, pill, filters, read-ahead hand-off
+#   app_e2e54      UPDATE READY: real service worker, two versions published to a copy on :8125, each comes up whole
 #   app_e2e34      GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work

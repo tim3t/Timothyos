@@ -673,7 +673,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 
 ## Updating the app
 
-New versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
+New versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it: it reads **LOADING UPDATE…** while the new version finishes downloading, then reloads into it (a few seconds at most). Closing and reopening the app also brings a downloaded update in. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
 
 **Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push; it sets the version everywhere, which is what makes iPads fetch the new files and show the banner. `tests/run.sh` must print `ALL PASSED` first (CLAUDE.md has the checklist).
 

@@ -1,12 +1,12 @@
 /* TimothyOS service worker: keeps the app shell available offline.
    Bump VERSION on every release so the iPad picks up new files. */
-var VERSION = "2.43.1";
+var VERSION = "2.43.2";
 var SHELL = "tos-shell-" + VERSION;
 var SHELL_FILES = [
   "./",
   "index.html",
-  "css/app.css?v=2.43.1",
-  "js/app.js?v=2.43.1",
+  "css/app.css?v=2.43.2",
+  "js/app.js?v=2.43.2",
   "manifest.webmanifest",
   "js/vendor/satellite.min.js",
   "js/vendor/astronomy.min.js",
@@ -21,8 +21,17 @@ var SHELL_FILES = [
   "fonts/barlow-semi-condensed-latin-600-normal.woff2"
 ];
 
+/* A new version installs, then waits (2.43.2). It used to take over at once (skipWaiting on install), which could
+   happen while the page was reloading on UPDATE READY: the old worker was retired with the page's script and style
+   requests still in its hands, and the app came up as a header over a black screen, or as unstyled HTML. Now the
+   app asks the waiting version to take over and reloads only once it has (or the app is closed and reopened).
+   Files are fetched past the browser's HTTP cache so a new version never stores an old copy. */
 self.addEventListener("install", function (event) {
-  event.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(SHELL_FILES); }).then(function () { return self.skipWaiting(); }));
+  event.waitUntil(caches.open(SHELL).then(function (c) { return c.addAll(SHELL_FILES.map(function (u) { return new Request(u, { cache: "reload" }); })); }));
+});
+
+self.addEventListener("message", function (event) {
+  if (event.data === "skipWaiting") self.skipWaiting();
 });
 
 self.addEventListener("activate", function (event) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.43.2 · 2026-10-25
+- **UPDATE READY comes up whole.** Tapping it could leave a header over a black screen, or the page as unstyled text, until the app was closed and reopened. A new version used to take over the moment it finished downloading, which could land while the page was reloading: the old version was retired with the page's script and styles still on their way, and those never arrived. Now a new version downloads completely and waits; UPDATE READY asks it to take over and reloads only once it has. Closing and reopening the app also brings it in, as before.
+- New versions are now always fetched fresh rather than from the browser's short-term cache, so one never stores an old copy of a file.
+
 ## 2.43.1 · 2026-10-25
 - **STORAGE: the next track plays on in the background.** With PLAY THE NEXT ONE on, music could stop at the end of a track while you were in another app, then carry on the moment you came back to Bridge. iPadOS keeps a home-screen web app awake in the background only while it's making sound; at the end of a track Bridge fell quiet and, if iPadOS paused it before the next file had started loading from the NAS, the next track waited. Now the next file is read into memory during the last 90 seconds (files up to 150 MB) and starts a moment before the end, while still playing.
 - **Fixed:** a track under a minute long wasn't kept as played once the next one started.
