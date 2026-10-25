@@ -402,7 +402,7 @@ A plain journal: a calendar of days and a blank page. Each day is one page in **
 - **Opening LOG always asks for your authorization code:** tap your code word, then the four digits (or type its first letter and the digits on a keyboard). Your word shows only as a filled slot. The Google bridge checks it; five wrong tries lock the log for 15 minutes, and each lockout straight after another lasts twice as long (up to a day). The panel says until when.
 - **It locks** when you leave LOG, tap **LOCK**, the app goes to the background, standby starts, or after 10 minutes without a touch.
 - **Jump to a month:** tap the month name above the calendar, pick a year, then a month.
-- **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. The bar beside the day's name fills when a save lands. Until Notion has it, your writing is kept on this iPad; once saved it's removed from the iPad.
+- **Saving:** 5 seconds after you stop typing, on **SAVE**, and when it locks. Beside the day's name, **SAVING** shows from your first keystroke until Notion has it, then **SAVED**; nothing moves on the page. Until Notion has it, your writing is kept on this iPad; once saved it's removed from the iPad.
 - **Editing** an earlier day changes only the paragraphs you changed. A page that also holds something LOG can't show (a photo, a table) opens read-only; edit it in Notion.
 - **Lists:** type **- ** at the start of a line for a bullet; Return carries it on, Return on an empty bullet ends the list. **• LIST** turns lines into bullets and back. They're real list items in Notion. REVIEW's questions work the same way.
 - **+ BEARINGS** adds your bearings as a closing block to fill in. Today's intent from the Bridge shows above today's page.

@@ -39,7 +39,7 @@ const call = async q => (await (await fetch(M + q)).json());
   await p.click('[data-lact="lock"]'); await p.waitForTimeout(300); await p.keyboard.type('o1701'); await p.waitForSelector(ta);
   await p.waitForTimeout(800);
   assert.strictEqual(await p.inputValue(ta), 'Chores:\n\n• feed the hens\n• check the hives\n\nDone for the day.');
-  assert.ok(!(await p.textContent('#clStatus')).includes('UNSAVED'), 'not a change');
+  assert.ok(!(await p.textContent('#clStatus')).includes('SAVING'), 'not a change');
 
   // ---- • LIST: whole lines in and out, keyboard stays with the box
   await p.click('[data-lday="2026-10-08"]'); await p.waitForTimeout(500);

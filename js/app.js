@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.42.1";
+  var VERSION = "2.42.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4621,11 +4621,11 @@
     loadLogDay(d);
     render(true);
   }
+  /* A plain word, no motion (2.42.2, Timothy's ask): SAVING from the first keystroke until Notion has it, then SAVED. */
   function logStatusText(d) {
-    if (lg.saving) return "SAVING…";
-    if (logDrafts[d]) return lg.saveErr ? "NOT SAVED YET · KEPT ON THIS IPAD" : "UNSAVED · KEPT ON THIS IPAD";
-    var e = lg.entries[d];
-    return e && e.saved ? "SAVED " + esc(stamp(Date.parse(e.saved))) : e ? "IN NOTION" : "";
+    if (logDrafts[d] && lg.saveErr) return "NOT SAVED YET · KEPT ON THIS IPAD";
+    if (lg.saving || logDrafts[d]) return "SAVING";
+    return lg.entries[d] ? "SAVED" : "";
   }
   function logStatus() { var el = $("clStatus"), t = lg.day ? logStatusText(lg.day) : ""; if (el && lg.day) el.textContent = t ? " · " + t : ""; var er = $("clErr"); if (er) er.textContent = lg.saveErr || ""; }
   function onLogInput(d, value) {
@@ -4672,12 +4672,10 @@
       if ((mine.again || more) && !mine.saveErr) { mine.again = false; logSave(pin); }
     });
   }
-  /* A save landing: the page's bar fills left to right and the status flashes. SAVE
-     itself also reads SAVED ✓ for a moment. Done in place, never by redrawing, so the
-     keyboard and caret stay where they are. */
+  /* A save landing: the status already reads SAVED (no bar or flash since 2.42.2, they distracted while writing).
+     A tap on SAVE also reads SAVED ✓ for a moment. Done in place, never by redrawing, so the keyboard and caret stay. */
   function logSavedFx(manual) {
-    var bar = document.querySelector(".cl-page .phead .rule"), st = $("clStatus"), btn = document.querySelector('[data-lact="save"]');
-    restartClass(bar, "swept"); restartClass(st, "ok");
+    var btn = document.querySelector('[data-lact="save"]');
     if (manual && btn) {
       btn.textContent = "SAVED ✓"; restartClass(btn, "saved");
       setTimeout(function () { if (btn.isConnected) { btn.textContent = "SAVE"; btn.classList.remove("saved"); } }, 1600);

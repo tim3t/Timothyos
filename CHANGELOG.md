@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.42.2 · 2026-10-25
+- **LOG:** saving is now a plain word beside the day's name: **SAVING** from your first keystroke until Notion has it, then **SAVED**. The bar that filled and the status flash are gone, so nothing moves while you write. If a save can't get through, it still reads **NOT SAVED YET · KEPT ON THIS IPAD**.
+
 ## 2.42.1 · 2026-10-25
 - **SCIENCE → SPACE WEATHER:** the Kp chart's current bar no longer turns into a wide green band across the screen. It shared a style name with the Today timeline's now line; renamed, with a test that every bar stays inside its chart.
 

@@ -65,12 +65,12 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.click('#clText-2026-10-07'); await p.keyboard.type('Quiet evening by the pond.');
   await p.keyboard.press('Enter'); await p.keyboard.press('Enter'); await p.keyboard.type('Bees calm.');
   assert.ok((await stored(p)).includes('Bees calm.'), 'draft kept while unsaved');
-  assert.ok((await txt(p, '#clStatus')).includes('UNSAVED'));
+  assert.strictEqual(await txt(p, '#clStatus'), '· SAVING');
   await p.waitForTimeout(6500);
   let s = await stats();
   assert.strictEqual(s.log['2026-10-07'], 'Quiet evening by the pond.\n\nBees calm.');
   assert.ok(!(await stored(p)).includes('Bees calm'), 'draft gone once saved');
-  assert.ok((await txt(p, '#clStatus')).startsWith('· SAVED'));
+  assert.strictEqual(await txt(p, '#clStatus'), '· SAVED');
   assert.strictEqual(await p.evaluate(() => document.activeElement.id), 'clText-2026-10-07', 'still writing');
   // + BEARINGS adds the guiding words as a closing block
   await p.click('[data-lact="bearings"]');
@@ -89,9 +89,9 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.dispatchEvent('#clText-2026-10-05', 'input');
   await p.click('[data-lact="save"]'); await p.waitForTimeout(500);
   assert.strictEqual((await stats()).log['2026-10-05'], 'Planted the garlic. Two beds.\n\nQuiet evening.');
-  // the save shows: the bar fills, the status flashes, SAVE reads SAVED for a moment
-  assert.ok(await p.evaluate(() => document.querySelector('.cl-page .phead .rule').classList.contains('swept')));
-  assert.ok(await p.evaluate(() => document.getElementById('clStatus').classList.contains('ok')));
+  // the save shows as a word, with nothing moving on the page (2.42.2); SAVE reads SAVED for a moment
+  assert.strictEqual(await txt(p, '#clStatus'), '· SAVED');
+  assert.strictEqual(await p.evaluate(() => document.querySelector('.cl-page').getAnimations({ subtree: true }).filter(a => !(a.effect && a.effect.target && a.effect.target.matches('[data-lact="save"]'))).length), 0, 'nothing moving');
   assert.strictEqual(await p.textContent('[data-lact="save"]'), 'SAVED ✓');
   await p.waitForTimeout(1800);
   assert.strictEqual(await p.textContent('[data-lact="save"]'), 'SAVE');
