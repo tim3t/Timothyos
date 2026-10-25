@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.42.2";
+  var VERSION = "2.43.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9138,6 +9138,179 @@
     sciGet("https://api.adsbdb.com/v0/aircraft/" + encodeURIComponent(a.hex)).then(function (j) { sc.info[k].v = j.response && j.response.aircraft || null; if (state.screen === "science") sciPaintSky(); }).catch(function () { /* unknown aircraft */ });
   }
 
+  /* ---- landmarks on the scope (2.43, Timothy's ask): a few towns and airports to judge distance by ----
+     Suggested once from OpenStreetMap (towns by size, spread round the scope and across the rings, plus the main
+     airport and one airfield), then kept, hidden, renamed and added to by hand in SYSTEMS → SCIENCE. Privacy first:
+     the list lives only on this iPad (tos.scilm.v1, and in backups); never in the code, the bridge, Notion or an event.
+     Only the rounded location goes to OpenStreetMap (or a place name to Open-Meteo's search). */
+  var LS_SCILM = "tos.scilm.v1", LS_SCILMOFF = "tos.scilmoff.v1", SCI_LM_MAX = 8, SCI_LM_GAP = 6, SCI_NEAR_KM = 8;
+  var SCI_OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+  var lm = { d: lsGet(LS_SCILM), busy: false, err: "", errAt: 0, sel: null, edit: false, found: null, findMsg: "" };
+  function lmOn() { return !lsGet(LS_SCILMOFF); }
+  function lmSave() { lsSet(LS_SCILM, lm.d); }
+  function lmAll() { return (lm.d && lm.d.list) || []; }
+  function lmHome() { return (lm.d && lm.d.home) || "home"; }
+  /* East and north of here, in km: flat is close enough inside 50 km. */
+  function sciXY(pl, p) { return { x: (p.lon - pl.lon) * 111.32 * Math.cos(pl.lat * Math.PI / 180), y: (p.lat - pl.lat) * 110.57 }; }
+  function lmShown() {
+    var pl = sciPlace(); if (!pl) return [];
+    return lmAll().filter(function (x) { return !x.hidden; }).map(function (x) { var w = sciKm(pl, x); return Object.assign({ km: w.km, dir: w.dir, xy: sciXY(pl, x) }, x); }).filter(function (x) { return x.km <= SCI_KM; });
+  }
+  /* Where an aircraft is, in his own terms: "4 km NE of Riverton" (the nearest landmark within 8 km). */
+  function sciNear(a) {
+    if (!lmOn() || a.km == null || a.dir == null) return null;
+    var r = a.dir * Math.PI / 180, ax = a.km * Math.sin(r), ay = a.km * Math.cos(r), best = null;
+    lmShown().forEach(function (x) { var dx = ax - x.xy.x, dy = ay - x.xy.y, d = Math.sqrt(dx * dx + dy * dy); if (d <= SCI_NEAR_KM && (!best || d < best.km)) best = { lm: x, km: d, dir: (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360 }; });
+    if (!best) return null;
+    best.text = best.km < 1 ? "over " + best.lm.name : Math.round(best.km) + " km " + sciCompass(best.dir) + " of " + best.lm.name;
+    return best;
+  }
+  function sciPostForm(url, body) {
+    var ctrl = typeof AbortController === "function" ? new AbortController() : null, t = ctrl ? setTimeout(function () { ctrl.abort(); }, 30000) : 0;
+    return fetch(url, { method: "POST", body: body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
+      if (!r.ok) throw { code: "http_" + r.status, message: url.split("/")[2] + " answered " + r.status };
+      return r.json();
+    }).finally(function () { if (t) clearTimeout(t); });
+  }
+  /* Ask OpenStreetMap once (the first time the scope shows with landmarks on), or again on SUGGEST AGAIN. */
+  function lmSuggest(force) {
+    var pl = sciPlace(); if (!pl || lm.busy || !lmOn()) return;
+    if (!force && ((lm.d && lm.d.asked) || Date.now() - lm.errAt < 10 * 60000)) return;
+    lm.busy = true; lm.err = "";
+    var around = "(around:50000," + pl.lat + "," + pl.lon + ")";
+    var q = '[out:json][timeout:25];(node["place"~"^(city|town|village)$"]' + around + ';nwr["aeroway"="aerodrome"]' + around + ';way["aeroway"="runway"]' + around + ";);out center tags;";
+    var one = function (i) { return sciPostForm(SCI_OVERPASS[i], "data=" + encodeURIComponent(q)).catch(function (e) { if (i + 1 < SCI_OVERPASS.length) return one(i + 1); throw e; }); };
+    one(0).then(function (j) {
+      var old = {}; lmAll().forEach(function (x) { old[x.id] = x; });
+      var picks = lmPick(j.elements || [], pl).map(function (x) { var o = old[x.id]; return o ? Object.assign(x, { name: o.name, hidden: !!o.hidden }) : x; });
+      lm.d = { home: lm.d && lm.d.home || "", asked: true, at: Date.now(), list: lmAll().filter(function (x) { return !x.auto; }).concat(picks) };
+      lmSave();
+      if (!picks.length) lm.err = "OpenStreetMap had no towns or airports within 50 km. Add your own in SYSTEMS → SCIENCE.";
+    }).catch(function (e) { lm.err = "Couldn't reach OpenStreetMap for landmarks (" + (e && (e.message || e.code) || "no answer") + "). Tries again in a few minutes."; lm.errAt = Date.now(); })
+      .then(function () { lm.busy = false; if (state.screen === "science") sciPaintSky(); else if (state.screen === "systems") render(true); });
+  }
+  /* A few, spread out: the main airport (and one airfield), then the biggest town in each direction, one in each ring
+     band first (inside 10 km, 10 to 25, 25 to 50), none within 6 km of another, at most 8 in all. */
+  function lmPick(els, pl) {
+    var rank = { city: 3, town: 2, village: 1 }, towns = [], ports = [], rwys = [], out = [];
+    els.forEach(function (e) {
+      var t = e.tags || {}, lat = e.lat != null ? e.lat : e.center && e.center.lat, lon = e.lon != null ? e.lon : e.center && e.center.lon;
+      if (lat == null || lon == null) return;
+      var p = { lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4 };
+      if (t.aeroway === "runway") { var h = parseInt(String(t.ref || "").split("/")[0], 10); if (h >= 1 && h <= 36) rwys.push(Object.assign({ rwy: (h % 18) * 10 || 180 }, p)); return; }
+      if (!t.name) return;
+      var w = sciKm(pl, p); if (w.km > SCI_KM || w.km < 2) return;   /* inside 2 km is the centre itself */
+      var base = { id: e.type.charAt(0) + e.id, name: t.name, lat: p.lat, lon: p.lon, auto: true, km: w.km, dir: w.dir };
+      if (t.aeroway === "aerodrome") { if (!/^(private|no)$/.test(t.access || "")) ports.push(Object.assign(base, { kind: "airport", score: (t.iata ? 3 : t.icao ? 2 : 1) * 1000 - w.km })); }
+      else if (rank[t.place]) towns.push(Object.assign(base, { kind: "town", score: rank[t.place] * 1e7 + (parseInt(String(t.population || "").replace(/\D/g, ""), 10) || 0) }));
+    });
+    var far = function (x) { return out.every(function (y) { var a = sciXY(pl, x), b = sciXY(pl, y); return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) >= SCI_LM_GAP; }); };
+    var take = function (x) { if (out.length < SCI_LM_MAX && out.indexOf(x) < 0 && far(x)) { out.push(x); return true; } return false; };
+    var by = function (a, b) { return b.score - a.score; };
+    ports.sort(by);
+    if (ports[0]) take(ports[0]);
+    for (var i = 1; i < ports.length && out.length < 2; i++) take(ports[i]);   /* and one more airfield, 6 km or more from it */
+    towns.sort(by);
+    var oct = {}; towns.forEach(function (x) { var o = Math.floor(((x.dir + 22.5) % 360) / 45); if (!oct[o]) oct[o] = x; });
+    var winners = Object.keys(oct).map(function (k) { return oct[k]; }).sort(by), band = function (x) { return x.km < 10 ? 0 : x.km < 25 ? 1 : 2; };
+    [0, 1, 2].forEach(function (b) { winners.filter(function (x) { return band(x) === b; }).some(take); });
+    winners.forEach(take);
+    towns.forEach(take);
+    out.forEach(function (x) {
+      if (x.kind === "airport") { var r = rwys.map(function (y) { var a = sciXY(pl, x), c = sciXY(pl, y); return { r: y.rwy, d: Math.sqrt((a.x - c.x) * (a.x - c.x) + (a.y - c.y) * (a.y - c.y)) }; }).sort(function (a, b) { return a.d - b.d; })[0]; if (r && r.d <= 4) x.rwy = r.r; }
+      delete x.km; delete x.dir; delete x.score;
+    });
+    return out;
+  }
+  /* Drawn under the aircraft, muted; a label that would overlap another (or a ring's) is left off. */
+  function lmSvg(pt) {
+    if (!lmOn()) return "";
+    lmSuggest(false);
+    var boxes = [10, 25, 50].map(function (k) { var y = 210 + k / SCI_KM * 190 - 5; return [170, y - 11, 205, y + 2]; }), s = '<g class="lms">';
+    var list = lmShown().sort(function (a, b) { return (b.kind === "airport") - (a.kind === "airport"); });
+    list.forEach(function (x) {
+      var q = pt(x.dir, x.km), right = q[0] >= 210, name = x.name.length > 18 ? x.name.slice(0, 17) + "…" : x.name, w = name.length * 5.4 + 4;
+      var bx = right ? [q[0] + 8, q[1] - 7, q[0] + 8 + w, q[1] + 5] : [q[0] - 8 - w, q[1] - 7, q[0] - 8, q[1] + 5];
+      var clash = boxes.some(function (b) { return !(bx[2] < b[0] || bx[0] > b[2] || bx[3] < b[1] || bx[1] > b[3]); });
+      if (!clash) boxes.push(bx);
+      var icon = x.kind === "airport" ? '<circle r="4.5"/>' + (x.rwy != null ? '<line transform="rotate(' + x.rwy + ')" y1="-8" y2="8"/>' : "") : x.kind === "own" ? '<rect x="-4" y="-4" width="8" height="8"/>' : '<path d="M0 -5 L5 0 L0 5 L-5 0 Z"/>';
+      s += '<g class="lm' + (x.id === lm.sel ? " sel" : "") + '" data-scilm="' + esc(x.id) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="12"/>' + icon +
+        (clash ? "" : '<text x="' + (right ? 8 : -8) + '" y="3.5" text-anchor="' + (right ? "start" : "end") + '">' + esc(name) + "</text>") + "</g>";
+    });
+    return s + "</g>";
+  }
+  function lmLegend() {
+    var on = lmOn(), sel = on && lmShown().filter(function (x) { return x.id === lm.sel; })[0];
+    var kinds = { town: "town", airport: "airport", own: "your place" };
+    return '<button type="button" class="chip sm sci-lmt" data-scilmt aria-pressed="' + on + '">LANDMARKS</button>' +
+      (sel ? '<span class="sci-lmsel">' + esc(sel.name) + " · " + kinds[sel.kind] + " · " + sel.km + " km " + sciCompass(sel.dir) + " of " + esc(lmHome()) + "</span>" :
+        on && lm.busy ? '<span class="sci-lmsel">Finding landmarks…</span>' : on && lm.err ? '<span class="sci-lmsel">' + esc(lm.err) + "</span>" : "");
+  }
+  /* SYSTEMS → SCIENCE: the list, kept on this iPad. */
+  function lmEditor() {
+    var pl = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
+    var rows = lmAll().map(function (x) {
+      var w = pl ? sciKm(pl, x) : null;
+      return '<div class="lm-row' + (x.hidden ? " off" : "") + '"><span class="lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
+        '<small class="muted">' + kinds[x.kind] + (w ? " · " + w.km + " km " + sciCompass(w.dir) : "") + '</small><button type="button" class="chip sm" data-scilmhide="' + esc(x.id) + '" aria-pressed="' + !x.hidden + '">' + (x.hidden ? "HIDDEN" : "SHOWN") + "</button>" +
+        (x.auto ? "<span></span>" : '<button type="button" class="chip sm" data-scilmdel="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">✕</button>') + "</div>";
+    }).join("");
+    var found = (lm.found || []).map(function (r, i) { return '<button type="button" class="chip sm" data-scilmadd="' + i + '">+ ' + esc(r.name) + (r.sub ? " · " + esc(r.sub) : "") + " · " + r.km + " km " + sciCompass(r.dir) + "</button>"; }).join("");
+    return '<div class="lm-edit">' +
+      '<label class="lm-home"><span class="ov-sub">THE CENTRE IS CALLED</span><input type="text" id="lmHome" data-scilmhome value="' + esc(lm.d && lm.d.home || "") + '" placeholder="home" maxlength="30"></label>' +
+      (rows || '<div class="empty">' + (lm.busy ? "Finding landmarks…" : "None yet.") + "</div>") +
+      '<div class="lm-add"><input type="text" id="lmFind" placeholder="A place name, or latitude, longitude" aria-label="Find a place to add"><button type="button" class="chip sm" data-scilmact="find">FIND</button><button type="button" class="chip sm" data-scilmact="here">ADD WHERE I AM</button></div>' +
+      (found ? '<div class="btnrow lm-found">' + found + "</div>" : "") + (lm.findMsg ? '<small class="muted">' + esc(lm.findMsg) + "</small>" : "") +
+      '<div class="btnrow"><button type="button" class="chip sm" data-scilmact="suggest">SUGGEST AGAIN</button><button type="button" class="chip sm" data-scilmact="done">DONE</button></div>' +
+      '<small class="muted">Kept only on this iPad (and in your backups). SUGGEST AGAIN asks OpenStreetMap afresh and keeps the ones you added, renamed or hid.</small></div>';
+  }
+  function lmAdd(name, kind, lat, lon) {
+    var pl = sciPlace(); if (!pl) return;
+    var w = sciKm(pl, { lat: lat, lon: lon });
+    if (w.km > SCI_KM) { lm.findMsg = name + " is " + w.km + " km away, outside the scope's 50 km."; render(true); return; }
+    lm.d = lm.d || { home: "", asked: false, list: [] };
+    lm.d.list.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, kind: kind, lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4, auto: false });
+    lmSave(); lm.found = null; lm.findMsg = name + " added, " + w.km + " km " + sciCompass(w.dir) + "."; render(true);
+  }
+  function lmFind() {
+    var el = $("lmFind"), v = el ? el.value.trim() : "", pl = sciPlace(); if (!v || !pl) return;
+    var m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (m) { if (Math.abs(+m[1]) > 90 || Math.abs(+m[2]) > 180) { lm.findMsg = "Those aren't a latitude and longitude."; render(true); return; } lmAdd("My place", "own", +m[1], +m[2]); return; }
+    lm.findMsg = "Looking…"; lm.found = null; render(true);
+    sciGet("https://geocoding-api.open-meteo.com/v1/search?count=20&format=json&name=" + encodeURIComponent(v)).then(function (j) {
+      lm.found = (j.results || []).map(function (r) { var w = sciKm(pl, { lat: r.latitude, lon: r.longitude }); return { name: r.name, sub: r.admin2 || r.admin1 || "", lat: r.latitude, lon: r.longitude, km: w.km, dir: w.dir, kind: /^AIRP|^AIRF/.test(r.feature_code || "") ? "airport" : /^PPL/.test(r.feature_code || "") ? "town" : "own" }; })
+        .filter(function (r) { return r.km <= SCI_KM; }).sort(function (a, b) { return a.km - b.km; }).slice(0, 6);
+      lm.findMsg = lm.found.length ? "" : "Nothing called that within 50 km. Coordinates work too (latitude, longitude), or ADD WHERE I AM when you're there.";
+    }).catch(function (e) { lm.findMsg = "The place search didn't answer (" + describe(e) + ")."; })
+      .then(function () { if (state.screen === "systems") render(true); });
+  }
+  function lmClick(b) {
+    var d = b.dataset;
+    if (d.scilmt !== undefined) { if (lmOn()) lsSet(LS_SCILMOFF, true); else lsDel(LS_SCILMOFF); lm.sel = null; sciPaintSky(); return true; }
+    if (d.scilmhide) { lmAll().forEach(function (x) { if (x.id === d.scilmhide) x.hidden = !x.hidden; }); lmSave(); render(true); return true; }
+    if (d.scilmdel) { lm.d.list = lmAll().filter(function (x) { return x.id !== d.scilmdel; }); lmSave(); render(true); return true; }
+    if (d.scilmadd) { var r = (lm.found || [])[+d.scilmadd]; if (r) lmAdd(r.name, r.kind, r.lat, r.lon); return true; }
+    if (d.scilmact === "edit") { lm.edit = true; render(true); return true; }
+    if (d.scilmact === "done") { lm.edit = false; lm.found = null; lm.findMsg = ""; render(true); return true; }
+    if (d.scilmact === "find") { lmFind(); return true; }
+    if (d.scilmact === "suggest") { lmSuggest(true); render(true); return true; }
+    if (d.scilmact === "here") {
+      if (!navigator.geolocation) { lm.findMsg = "This browser can't share its location. Type the numbers instead."; render(true); return true; }
+      lm.findMsg = "Asking for location…"; render(true);
+      navigator.geolocation.getCurrentPosition(function (pos) { lmAdd("My place", "own", pos.coords.latitude, pos.coords.longitude); },
+        function () { lm.findMsg = "Location wasn't shared. Type the numbers instead."; render(true); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+      return true;
+    }
+    return false;
+  }
+  document.addEventListener("change", function (e) {
+    var t = e.target; if (!t || !t.dataset) return;
+    if (t.dataset.scilmname) { var v = t.value.trim(); lmAll().forEach(function (x) { if (x.id === t.dataset.scilmname && v) x.name = v.slice(0, 40); }); lmSave(); }
+    else if (t.dataset.scilmhome !== undefined && lm.d) { lm.d.home = t.value.trim().slice(0, 30); lmSave(); }
+    else if (t.dataset.scilmhome !== undefined) { lm.d = { home: t.value.trim().slice(0, 30), asked: false, list: [] }; lmSave(); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target && e.target.id === "lmFind") { e.preventDefault(); lmFind(); } });
+
   /* ---- orbits: visible passes, worked out here ---- */
   function sciPasses() {
     var pl = sciPlace(), f = sciV("feeds"), day = ymd(new Date());
@@ -9358,11 +9531,12 @@
     [10, 25, 50].forEach(function (k) { s += '<circle class="ring" cx="' + C + '" cy="' + C + '" r="' + (k / SCI_KM * R) + '"/><text class="lab" x="' + (C - 5) + '" y="' + (C + k / SCI_KM * R - 5) + '" text-anchor="end">' + k + " KM</text>"; });
     s += '<line class="axis" x1="210" y1="20" x2="210" y2="400"/><line class="axis" x1="20" y1="210" x2="400" y2="210"/><text class="card" x="210" y="14" text-anchor="middle">N</text><text class="card" x="210" y="416" text-anchor="middle">S</text><text class="card" x="410" y="215" text-anchor="end">E</text><text class="card" x="10" y="215">W</text>';
     if (!calm()) s += '<g class="sweepg" style="animation-delay:-' + (Date.now() / 1000 % 6).toFixed(2) + 's"><path class="sweepw" d="M210 210 L210 20 A190 190 0 0 1 344 76 Z"/><line class="sweepl" x1="210" y1="210" x2="210" y2="20"/></g>';
+    s += lmSvg(pt);
     var on = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.rise <= Date.now() && p.set >= Date.now(); })[0];
     if (on) { var e = pt(on.maxAz, SCI_KM); s += '<g class="iss"><circle cx="' + e[0] + '" cy="' + e[1] + '" r="7"/><text x="' + (e[0] + 10) + '" y="' + (e[1] + 16) + '">' + esc(on.name.toUpperCase()) + " · LOOK " + sciCompass(on.maxAz) + "</text></g>"; }
     ((sc.sky && sc.sky.list) || []).forEach(function (a) {
       var q = pt(a.dir, a.km), low = a.alt != null && a.alt < 5000, sel = a.hex === sc.sel;
-      s += '<g class="ac' + (sel ? " sel" : "") + (low ? " low" : "") + (a.mil ? " mil" : "") + '" data-sciac="' + esc(a.hex) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="hit" r="16"/>' +
+      s += '<g class="ac' + (sel ? " sel" : "") + (low ? " low" : "") + (a.mil ? " mil" : "") + '" data-sciac="' + esc(a.hex) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="16"/>' +   /* not .hit: that class opens the charts' tooltips and swallowed the tap */
         '<path transform="rotate(' + (a.track || 0) + ')" d="M0 -9 L6 7 L0 3 L-6 7 Z"/><text x="10" y="4">' + esc(a.cs || a.reg || a.hex.toUpperCase()) + "</text></g>";
     });
     return s + '<circle class="home" cx="210" cy="210" r="5"/></svg>';
@@ -9370,9 +9544,9 @@
   function sciRoute(a) { var r = sc.info["r:" + a.cs]; return r && r.v && r.v.origin && r.v.destination ? r.v : null; }
   function sciAcRow(a) {
     var r = sciRoute(a), low = a.alt != null && a.alt < 5000, ac = sc.info["a:" + a.hex] && sc.info["a:" + a.hex].v;
-    var who = r && r.airline ? r.airline.name : ac && ac.registered_owner ? ac.registered_owner : a.mil ? "Military" : "";
+    var who = r && r.airline ? r.airline.name : ac && ac.registered_owner ? ac.registered_owner : a.mil ? "Military" : "", near = sciNear(a);
     return '<button type="button" class="sci-row" data-sciac="' + esc(a.hex) + '" aria-pressed="' + (a.hex === sc.sel) + '" style="--c: var(--' + (sciEmer(a) ? "bad" : low ? "warn" : a.mil ? "chrome-d" : "personal") + ')"><i></i><span><b>' + esc(a.cs || a.reg || a.hex.toUpperCase()) + "</b>" + (who ? " · " + esc(who) : "") +
-      "<small>" + esc([a.type, r ? r.origin.iata_code + " → " + r.destination.iata_code : ""].filter(Boolean).join(" · ") || "Type not broadcast") + '</small></span><span class="r tnum">' + sciFt(a.alt) + " FT<small>" + a.km + " km " + sciCompass(a.dir) + "</small></span></button>";
+      "<small>" + esc([a.type, r ? r.origin.iata_code + " → " + r.destination.iata_code : ""].filter(Boolean).join(" · ") || "Type not broadcast") + (near ? ' <span class="sci-near">· near ' + esc(near.lm.name) + "</span>" : "") + '</small></span><span class="r tnum">' + sciFt(a.alt) + " FT<small>" + a.km + " km " + sciCompass(a.dir) + "</small></span></button>";
   }
   function sciAcDetail() {
     var a = ((sc.sky && sc.sky.list) || []).filter(function (x) { return x.hex === sc.sel; })[0];
@@ -9385,13 +9559,14 @@
       kv("OPERATOR", esc(r && r.airline ? r.airline.name : ac && ac.registered_owner ? ac.registered_owner : a.mil ? "Military" : "")) +
       kv("ROUTE", r ? esc(r.origin.name + " (" + r.origin.iata_code + ") → " + r.destination.name + " (" + r.destination.iata_code + ")") : "") +
       kv("NOW", esc(sciFt(a.alt) + " ft · " + (a.gs != null ? a.gs + " kt · " : "") + (a.track != null ? "heading " + a.track + "° · " : "") + a.km + " km " + sciCompass(a.dir))) +
+      kv("NEAR", sciNear(a) ? esc(sciNear(a).text) : "") +
       kv("AIRCRAFT", esc([a.reg, ac && ac.registered_owner_country_name, "squawk " + (a.sq || "–")].filter(Boolean).join(" · "))) +
       kv("NOTE", esc(emer ? "Squawking " + emer : a.mil ? "Military aircraft" : a.alt != null && a.alt < 5000 ? "Low: under 5,000 ft" : "")) + "</dl>" +
       '<div class="btnrow"><a class="chip sm" href="https://globe.adsb.lol/?icao=' + esc(a.hex) + '" target="_blank" rel="noopener">TRACK LIVE</a>' + (a.reg ? '<a class="chip sm" href="https://www.planespotters.net/search?q=' + encodeURIComponent(a.reg) + '" target="_blank" rel="noopener">PHOTOS</a>' : "") + "</div></div>";
   }
   function sciSkyInner() {
     var list = (sc.sky && sc.sky.list) || [];
-    return '<div class="sci-sky"><div><div class="sci-scope">' + sciScope() + '</div><div class="sci-legend"><span><i style="background: var(--fg)"></i>aircraft, pointing where it flies</span><span><i style="background: var(--warn)"></i>low, under 5,000 ft</span><span><i style="background: var(--chrome-d)"></i>military</span></div></div>' +
+    return '<div class="sci-sky"><div><div class="sci-scope">' + sciScope() + '</div><div class="sci-legend"><span><i style="background: var(--fg)"></i>aircraft, pointing where it flies</span><span><i style="background: var(--warn)"></i>low, under 5,000 ft</span><span><i style="background: var(--chrome-d)"></i>military</span>' + lmLegend() + "</div></div>" +
       '<div><div class="sci-rows">' + (list.length ? list.slice(0, 14).map(sciAcRow).join("") : '<div class="empty">' + (sc.skyErr ? esc(sc.skyErr) : sc.sky ? "No aircraft within 50 km right now." : "Listening…") + "</div>") + "</div>" + sciAcDetail() + "</div></div>" +
       '<div class="sci-src">Aircraft: the community ADS-B network (' + esc((sc.sky && sc.sky.source) || "adsb.lol") + "), routes and aircraft from adsbdb. Coverage is what volunteers' receivers hear." + (sc.sky ? " Updated " + hm(new Date(sc.sky.at)) + ":" + p2(new Date(sc.sky.at).getSeconds()) + "." : "") + "</div>";
   }
@@ -9493,6 +9668,7 @@
     return false;
   }
   function sciActs(b) {
+    if (lmClick(b)) return true;
     if (b.dataset.act === "science") { go("science"); return true; }
     if (b.dataset.act === "sciline") { if (lsGet(LS_SCILINEOFF)) lsDel(LS_SCILINEOFF); else lsSet(LS_SCILINEOFF, true); render(true); return true; }
     return false;
@@ -9534,6 +9710,8 @@
     var off = !!lsGet(LS_SCILINEOFF), pend = sc.q.add.length + Object.keys(sc.q.star).length, f = sciV("feeds") || {};
     html += '<div class="calrow"><span class="st" style="--c: var(--personal)"></span><span><b>Bridge line</b><small>' + (off ? "Off." : "One line under Condition on days with something worth knowing (a bright ISS pass tonight, an aurora chance, a nearby quake). Never a Condition item.") + '</small></span><button type="button" class="chip sm" data-act="sciline">' + (off ? "TURN ON" : "TURN OFF") + "</button></div>";
     html += '<div class="calrow"><span class="st" style="--c: var(--chrome-c)"></span><span><b>Science Log</b><small>' + (canSciLog() ? sc.log.length + " events on this iPad (30 days)" + (pend ? "; " + pend + " waiting to reach Notion" : "; all in Notion") + "." : "Needs the Notion key on the bridge.") + "</small></span><span></span></div>";
+    var lmn = lmAll().filter(function (x) { return !x.hidden; }).length, lmh = lmAll().length - lmn;
+    html += '<div class="calrow"><span class="st" style="--c: var(--dim)"></span><span><b>Landmarks on the scope</b><small>' + (lmAll().length ? lmn + " shown" + (lmh ? ", " + lmh + " hidden" : "") + "." : "Suggested from OpenStreetMap the first time SKY TRAFFIC opens.") + (lmOn() ? "" : " Off on the scope.") + " Kept only on this iPad.</small></span>" + (lm.edit ? "<span></span>" : '<button type="button" class="chip sm" data-scilmact="edit">EDIT</button>') + "</div>" + (lm.edit ? lmEditor() : "");
     html += '<div class="calrow"><span class="st" style="--c: var(--ok)"></span><span><b>eBird</b><small>' + (f.ebird ? "Key set: notable birds on." : "Optional: add EBIRD_API_KEY to the Google bridge's Script Properties for notable birds (free key at ebird.org/api/keygen).") + "</small></span><span></span></div>";
     return html + '<small class="muted">Your location goes out rounded to about 1 km, as for the weather. Feeds refresh only while SCIENCE is open, plus a light, slow read for this line and the Morning Briefing.</small></section>';
   }
@@ -10489,7 +10667,7 @@
     "tos.upkeep.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
-    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1"];
+    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1"];
   var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
   var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
@@ -10746,6 +10924,8 @@
     if (bar) { asBarClick(bar); return; }
     var acg = e.target.closest("g[data-sciac]");
     if (acg) { sc.sel = sc.sel === acg.getAttribute("data-sciac") ? null : acg.getAttribute("data-sciac"); sciPaintSky(); return; }
+    var lmg = e.target.closest("g[data-scilm]");
+    if (lmg) { lm.sel = lm.sel === lmg.getAttribute("data-scilm") ? null : lmg.getAttribute("data-scilm"); sciPaintSky(); return; }
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;

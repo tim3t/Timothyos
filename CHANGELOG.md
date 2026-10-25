@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.43.0 · 2026-10-25
+- **SCIENCE → SKY TRAFFIC: landmarks on the scope,** to judge how far away an aircraft is.
+  - Suggested from OpenStreetMap the first time the scope opens: the main airport and one airfield, then the biggest town in each direction, one in each ring band first, none within 6 km of another, at most 8.
+  - Muted and drawn under the aircraft: towns ◇, airports ○ with a line at the runway's heading, your own places □. A label that would overlap another is left off. Tap one for its name and distance.
+  - **Near:** a plane within 8 km of a landmark reads "near …" in its row, and its card says where ("1 km WNW of …").
+  - The **LANDMARKS** chip under the scope turns them off (remembered on this iPad).
+  - **SYSTEMS → SCIENCE → Landmarks → EDIT:** rename, show or hide, add by name, by latitude and longitude, or where you're standing; **SUGGEST AGAIN** keeps your own, your names and what you hid; and a name for the centre.
+  - **Privacy:** kept only on this iPad and in backups; never in the code, the Google bridge, Notion or the Science Log.
+- **Fixed:** tapping a plane's own mark on the scope did nothing (its tap ring shared a class with the charts' tooltips). It now opens the card.
+
 ## 2.42.2 · 2026-10-25
 - **LOG:** saving is now a plain word beside the day's name: **SAVING** from your first keystroke until Notion has it, then **SAVED**. The bar that filled and the status flash are gone, so nothing moves while you write. If a save can't get through, it still reads **NOT SAVED YET · KEPT ON THIS IPAD**.
 

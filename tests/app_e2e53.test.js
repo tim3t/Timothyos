@@ -3,7 +3,9 @@
 // visible ISS passes worked out on the iPad from a real orbit; the event log (military and low aircraft, a storm, a
 // flare, a quake, an alert, a close asteroid) reaching the Science Log once each, a reload sending nothing twice;
 // ☆ stars one in Notion; the other departments; ASTROMETRICS' SCIENCE row and starred events on its key-date line;
-// Systems' SCIENCE section turns the line off; COMPUTER finds it. Invented aircraft and events throughout.
+// Systems' SCIENCE section turns the line off; COMPUTER finds it. Landmarks (2.43): suggested once from OpenStreetMap
+// (a few, spread out), muted under the aircraft, "near" wording, a toggle, and the list edited in Systems; kept only
+// on the iPad, never sent to the bridge. Invented aircraft, events and places throughout.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
@@ -30,6 +32,21 @@ const FEEDS = {
   'api.inaturalist.org': { results: [{ observed_on: '2026-10-23', place_guess: 'Test Park', taxon: { id: 1, name: 'Sciurus niger', preferred_common_name: 'Fox Squirrel', iconic_taxon_name: 'Mammalia' } }, { observed_on: '2026-10-22', place_guess: 'Test Creek', taxon: { id: 2, name: 'Ardea herodias', preferred_common_name: 'Great Blue Heron', iconic_taxon_name: 'Aves' } }] },
   'api.wheretheiss.at': { latitude: -33.97, longitude: -62.27, altitude: 425.4, velocity: 27571, visibility: 'eclipsed' },
   'api.adsbdb.com/v0/callsign/TST101': { response: { flightroute: { callsign: 'TST101', airline: { name: 'Test Air' }, origin: { iata_code: 'MSP', name: 'Minneapolis-St Paul' }, destination: { iata_code: 'DEN', name: 'Denver' } } } },
+  'overpass-api.de/api/interpreter': { elements: [
+    { type: 'node', id: 1, lat: 45.03, lon: -93.39, tags: { name: 'Testburg', place: 'city', population: '300000' } },
+    { type: 'node', id: 2, lat: 44.98, lon: -93.04, tags: { name: 'Riverton', place: 'town', population: '20,000' } },
+    { type: 'node', id: 3, lat: 44.79, lon: -93.57, tags: { name: 'Oakfield', place: 'town', population: '5000' } },
+    { type: 'node', id: 4, lat: 45.23, lon: -93.65, tags: { name: 'Pinecrest', place: 'village', population: '800' } },
+    { type: 'node', id: 5, lat: 45.0, lon: -93.0, tags: { name: 'Littleton', place: 'village', population: '300' } },
+    { type: 'node', id: 6, lat: 44.985, lon: -93.27, tags: { name: 'Centreville', place: 'village' } },
+    { type: 'node', id: 7, lat: 44.9, lon: -93.1, tags: { place: 'hamlet' } },
+    { type: 'way', id: 8, center: { lat: 44.845, lon: -93.27 }, tags: { name: 'Test International', aeroway: 'aerodrome', iata: 'TST', icao: 'KTST' } },
+    { type: 'way', id: 9, center: { lat: 44.846, lon: -93.268 }, tags: { aeroway: 'runway', ref: '12/30' } },
+    { type: 'node', id: 10, lat: 45.3, lon: -93.25, tags: { name: 'Grass Strip', aeroway: 'aerodrome' } },
+    { type: 'node', id: 11, lat: 44.9, lon: -93.4, tags: { name: 'Private Field', aeroway: 'aerodrome', access: 'private' } }] },
+  'geocoding-api.open-meteo.com': { results: [
+    { name: 'Water Tower Hill', latitude: 45.06, longitude: -93.12, feature_code: 'HLL', admin1: 'Minnesota', admin2: 'Test County' },
+    { name: 'Water Tower Hill', latitude: 40.1, longitude: -90.1, feature_code: 'HLL', admin1: 'Illinois' }] },
   'api.adsbdb.com/v0/aircraft/a1b2c3': { response: { aircraft: { type: '737-800', manufacturer: 'Boeing', registered_owner: 'Test Air', registered_owner_country_name: 'United States' } } }
 };
 const hits = {};
@@ -45,6 +62,8 @@ const hits = {};
     route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(FEEDS[k]) });
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  const toBridge = []; p.on('request', r => { if (r.url().includes(':8105/')) toBridge.push(r.url() + ' ' + (r.postData() || '')); });
+  await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 44.9, longitude: -93.3 });
   await p.clock.setFixedTime(new Date(NOW));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); localStorage.setItem('tos.place.v1', JSON.stringify({ lat: 44.98, lon: -93.27 })); }, [K, U]);
@@ -72,9 +91,28 @@ const hits = {};
   await p.waitForFunction(() => /Boeing 737-800/.test((document.querySelector('.sci-detail h3') || {}).textContent || ''), null, { timeout: 8000 });
   const det = await txt(p, '#sciSky .sci-detail');
   assert.ok(det.includes('ROUTE Minneapolis-St Paul (MSP) → Denver (DEN)') && det.includes('NOW 34,000 ft · 452 kt · heading 75° · 12 km WNW') && det.includes('TRACK LIVE'), det);
-  await p.click('g[data-sciac="a1b2c3"]');   // the scope too: tapping it again closes the card
+  await p.click('g[data-sciac="a1b2c3"] .tap', { position: { x: 6, y: 6 } });   // on the scope too, on the plane's own tap ring: again closes the card
   assert.strictEqual(await p.$('#sciSky .sci-detail'), null);
 
+  // ---- landmarks: suggested once from OpenStreetMap, a few and spread out, muted under the aircraft
+  await p.waitForSelector('.sci-scope g.lm', { timeout: 8000 });
+  const lms = await p.$$eval('.sci-scope g.lm', els => els.map(e => e.textContent));
+  assert.deepStrictEqual(lms, ['Test International', 'Grass Strip', 'Testburg', 'Oakfield', 'Riverton', 'Pinecrest'], lms.join('|'));   // airports first; no village 4 km from Riverton, nothing at the centre, no private field
+  assert.strictEqual(await p.getAttribute('g[data-scilm="w8"] line', 'transform'), 'rotate(120)', 'the runway at its heading');
+  assert.ok(await p.$('g[data-scilm="n1"] path') && !(await p.$('g[data-scilm="n10"] line')), 'a town is a diamond; an airfield without a runway is a plain circle');
+  assert.ok(await p.evaluate(() => { const g = [...document.querySelectorAll('.sci-scope svg > *')]; return g.findIndex(x => x.matches('g.lms')) < g.findIndex(x => x.matches('g.ac')); }), 'drawn under the aircraft');
+  await p.waitForFunction(() => /near Testburg/.test(document.querySelector('.sci-row[data-sciac="a1b2c3"]').textContent), null, { timeout: 12000 });
+  await p.click('.sci-row[data-sciac="a1b2c3"]');
+  assert.ok((await txt(p, '#sciSky .sci-detail')).includes('NEAR 1 km WNW of Testburg'));
+  await p.click('.sci-row[data-sciac="a1b2c3"]');
+  await p.click('g[data-scilm="n2"] .tap');
+  assert.strictEqual(await txt(p, '.sci-lmsel'), 'Riverton · town · 18 km E of home');
+  await p.click('[data-scilmt]');   // off: no marks, no "near"
+  assert.strictEqual(await p.$('.sci-scope g.lm'), null);
+  assert.ok(!(await txt(p, '.sci-rows')).includes('near '));
+  await p.click('[data-scilmt]');
+  assert.strictEqual(await p.$$eval('.sci-scope g.lm', e => e.length), 6);
+  assert.strictEqual(hits['overpass-api.de/api/interpreter'], 1, 'asked once');
   // visible passes from the real orbit: mornings this week, low in the north
   await p.waitForSelector('.sci-passes tbody tr', { timeout: 15000 });
   const pass = await txt(p, '.sci-passes tbody tr:first-child');
@@ -155,6 +193,46 @@ const hits = {};
   await p.click('.elbow'); await p.waitForSelector('.ov-cond');
   await new Promise(r => setTimeout(r, 500));
   assert.strictEqual(await p.$('.sci-line'), null, 'line off');
+
+  // ---- Systems: the landmarks, edited on this iPad
+  await p.click('#status'); await p.waitForSelector('#sec-science');
+  const secL = await txt(p, '#sec-science'); assert.ok(secL.includes('Landmarks on the scope 6 shown. Kept only on this iPad.'), secL);
+  await p.click('[data-scilmact="edit"]'); await p.waitForSelector('.lm-edit');
+  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 6);
+  await p.fill('[data-scilmname="n2"]', 'River Town'); await p.dispatchEvent('[data-scilmname="n2"]', 'change');
+  await p.click('[data-scilmhide="n3"]');
+  await p.fill('#lmHome', 'Juniper Hill'); await p.dispatchEvent('#lmHome', 'change');
+  await p.fill('#lmFind', 'Water Tower Hill'); await p.click('[data-scilmact="find"]');
+  await p.waitForSelector('[data-scilmadd]');
+  assert.strictEqual(await p.$$eval('[data-scilmadd]', e => e.length), 1, 'only places within 50 km');
+  assert.strictEqual(await txt(p, '[data-scilmadd="0"]'), '+ Water Tower Hill · Test County · 15 km NE');
+  await p.click('[data-scilmadd="0"]');
+  await p.fill('#lmFind', '44.6, -93.27'); await p.keyboard.press('Enter');
+  await p.click('[data-scilmact="here"]');
+  await p.waitForFunction(() => document.querySelectorAll('.lm-row').length === 9, null, { timeout: 5000 });
+  const names = await p.$$eval('.lm-name', e => e.map(x => x.value));
+  assert.deepStrictEqual(names.slice(6), ['Water Tower Hill', 'My place', 'My place']);
+  const dels = await p.$$('[data-scilmdel]'); assert.strictEqual(dels.length, 3, 'only your own can be removed'); await dels[2].click();
+  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 8);
+  await p.click('[data-scilmact="suggest"]');
+  await p.waitForFunction(() => !/Finding/.test(document.querySelector('.lm-edit').textContent), null, { timeout: 5000 });
+  assert.strictEqual(hits['overpass-api.de/api/interpreter'], 2);
+  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 8, 'your own kept');
+  assert.strictEqual(await p.inputValue('[data-scilmname="n2"]'), 'River Town', 'a rename kept');
+  assert.strictEqual(await p.getAttribute('[data-scilmhide="n3"]', 'aria-pressed'), 'false', 'a hidden one stays hidden');
+  await p.click('[data-scilmact="done"]');
+  // back on the scope
+  await p.click('#allBtn'); await p.click('[data-station="science"]'); await p.waitForSelector('.sci-scope g.lm');
+  const lms2 = await p.$$eval('.sci-scope g.lm', els => els.map(e => e.textContent));
+  assert.ok(lms2.includes('River Town') && !lms2.includes('Oakfield') && lms2.includes('Water Tower Hill') && lms2.length === 7, lms2.join('|'));
+  assert.strictEqual(await p.$$eval('.sci-scope g.lm rect', e => e.length), 2, 'a found hill and your place: squares');
+  await p.click('g[data-scilm="n2"] .tap');
+  assert.strictEqual(await txt(p, '.sci-lmsel'), 'River Town · town · 18 km E of Juniper Hill');
+  await (await p.$('.sci-scope')).screenshot({ path: D + 'science-landmarks.png' });
+  // privacy: on this iPad and in backups only; nothing about them reached the bridge
+  assert.ok(await p.evaluate(() => /River Town/.test(localStorage.getItem('tos.scilm.v1'))));
+  assert.ok(!toBridge.some(x => /Testburg|Riverton|River Town|Juniper|Water Tower|scilm/.test(x)), 'never sent to the bridge');
+  assert.ok(!(await stats()).events.some(e => /Testburg|Riverton|River Town/.test(e.title + e.detail)), 'never in the Science Log');
 
   // ---- COMPUTER
   await p.click('#cmdBtn'); await p.fill('#cmdText', 'iss');
