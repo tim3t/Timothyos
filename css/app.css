@@ -2329,7 +2329,9 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .sci-detail { margin: 12px 0; border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px; }
 .sci-detail.hot { border-color: var(--chrome-a); }
 .sci-detail h3 { margin: 0; font-family: var(--display); font-weight: 600; letter-spacing: .12em; font-size: 20px; }
-.sci-photo { width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; }
+.sci-photo-a { display: block; }
+.sci-photo { display: block; width: 100%; max-height: 260px; object-fit: cover; border-radius: 10px; background: var(--panel-2); }
+.sci-dbody { display: grid; gap: 8px; }
 .sci-table { overflow-x: auto; }
 .sci-passes { width: 100%; border-collapse: collapse; font-size: 16px; }
 .sci-passes th { font-family: var(--display); font-weight: 400; letter-spacing: .12em; font-size: 12px; color: var(--dim); text-align: left; padding: 4px 8px 6px 0; }

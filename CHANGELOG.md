@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.44.2 · 2026-10-26
+- **SCIENCE → SKY TRAFFIC: no more flash on an open aircraft.** Every 10-second radar update rebuilt the whole aircraft card, so its photo was thrown away, fetched again and redrawn. Now the radar, list and the card's words update in place and the photo stays put (also through the rarer full redraws).
+- **Sharper aircraft photos:** the card now shows adsbdb's full-size photo (it used the small thumbnail), and tapping the photo opens it.
+
 ## 2.44.1 · 2026-10-26
 - **RESSIKAN: sound after a while away.** Coming back to the station later could give silence with every setting right. iPadOS pauses web audio whenever something else takes the sound (another app, a call, Siri, the lock screen, STORAGE or the Morning Briefing's voice), and Safari leaves it "interrupted", a state the station never woke from. Now every **SOUND ON** starts a fresh sound engine, **SOUND OFF** and leaving hand the iPad's sound back, and if iPadOS takes the sound mid-play the station says so (**IPADOS PAUSED THE SOUND · TAP TO START AGAIN**) instead of staying silently "on".
 

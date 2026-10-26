@@ -47,7 +47,7 @@ const FEEDS = {
   'geocoding-api.open-meteo.com': { results: [
     { name: 'Water Tower Hill', latitude: 45.06, longitude: -93.12, feature_code: 'HLL', admin1: 'Minnesota', admin2: 'Test County' },
     { name: 'Water Tower Hill', latitude: 40.1, longitude: -90.1, feature_code: 'HLL', admin1: 'Illinois' }] },
-  'api.adsbdb.com/v0/aircraft/a1b2c3': { response: { aircraft: { type: '737-800', manufacturer: 'Boeing', registered_owner: 'Test Air', registered_owner_country_name: 'United States' } } }
+  'api.adsbdb.com/v0/aircraft/a1b2c3': { response: { aircraft: { type: '737-800', manufacturer: 'Boeing', registered_owner: 'Test Air', registered_owner_country_name: 'United States', url_photo: 'https://photos.test/a1b2c3-full.png', url_photo_thumbnail: 'https://photos.test/a1b2c3-thumb.png' } } }
 };
 const hits = {};
 
@@ -57,6 +57,7 @@ const hits = {};
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   await ctx.route(u => !/^http:\/\/(localhost|127\.0\.0\.1)/.test(u.href), route => {
     const u = route.request().url(), k = Object.keys(FEEDS).find(x => u.includes(x));
+    if (u.includes('photos.test')) { hits.photo = (hits.photo || 0) + 1; return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }); }
     if (!k) return route.abort();
     hits[k] = (hits[k] || 0) + 1;
     route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(FEEDS[k]) });
@@ -89,6 +90,14 @@ const hits = {};
   assert.ok(rows[2].startsWith('RCH411 · Military'), rows[2]);
   await p.click('.sci-row[data-sciac="a1b2c3"]');
   await p.waitForFunction(() => /Boeing 737-800/.test((document.querySelector('.sci-detail h3') || {}).textContent || ''), null, { timeout: 8000 });
+  // the photo: full size, and left alone while the radar updates every 10 s (it was rebuilt and fetched again, a flash: 2.44.2)
+  await p.waitForSelector('.sci-photo');
+  assert.strictEqual(await p.getAttribute('.sci-photo', 'src'), 'https://photos.test/a1b2c3-full.png');
+  await p.evaluate(() => { document.querySelector('.sci-photo').__kept = 1; });
+  const h0 = hits.photo, sky0 = (await stats()).sky;
+  await until(async () => (await stats()).sky >= sky0 + 1, 15000); await p.waitForTimeout(400);
+  assert.ok(await p.evaluate(() => (document.querySelector('.sci-photo') || {}).__kept === 1), 'the same photo, not a new one');
+  assert.strictEqual(hits.photo, h0, 'not fetched again');
   const det = await txt(p, '#sciSky .sci-detail');
   assert.ok(det.includes('ROUTE Minneapolis-St Paul (MSP) → Denver (DEN)') && det.includes('NOW 34,000 ft · 452 kt · heading 75° · 12 km WNW') && det.includes('TRACK LIVE'), det);
   await p.click('g[data-sciac="a1b2c3"] .tap', { position: { x: 6, y: 6 } });   // on the scope too, on the plane's own tap ring: again closes the card

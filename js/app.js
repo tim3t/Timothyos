@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.44.1";
+  var VERSION = "2.44.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9530,7 +9530,9 @@
     sciLoad(true);
     sciStart();
     var body = { sky: sciSkyHtml, space: sciSpaceHtml, earth: sciEarthHtml, night: sciNightHtml, nature: sciNatureHtml }[sc.tab]();
+    var photo = document.querySelector("#content .sci-photo");   /* an open card's photo survives a full redraw too */
     $("content").innerHTML = '<div class="sci">' + sciSweep() + body + sciLogHtml() + "</div>";
+    var again = photo && document.querySelector("#content .sci-photo"); if (again && again.getAttribute("src") === photo.getAttribute("src")) again.replaceWith(photo);
   }
   function sciStart() {
     if (sc.timer) return;
@@ -9583,29 +9585,49 @@
     return '<button type="button" class="sci-row" data-sciac="' + esc(a.hex) + '" aria-pressed="' + (a.hex === sc.sel) + '" style="--c: var(--' + (sciEmer(a) ? "bad" : low ? "warn" : a.mil ? "chrome-d" : "personal") + ')"><i></i><span><b>' + esc(a.cs || a.reg || a.hex.toUpperCase()) + "</b>" + (who ? " · " + esc(who) : "") +
       "<small>" + esc([a.type, r ? r.origin.iata_code + " → " + r.destination.iata_code : ""].filter(Boolean).join(" · ") || "Type not broadcast") + (near ? ' <span class="sci-near">· near ' + esc(near.lm.name) + "</span>" : "") + '</small></span><span class="r tnum">' + sciFt(a.alt) + " FT<small>" + a.km + " km " + sciCompass(a.dir) + "</small></span></button>";
   }
+  /* The open aircraft's card. Its photo stays put while the radar updates (2.44.2: every 10 s the whole card, photo
+     included, was rebuilt and the picture fetched again, which flashed); only the words below it change. */
+  function sciAcPhoto(ac) { return ac ? ac.url_photo || ac.url_photo_thumbnail || "" : ""; }   /* the full-size photo first: the thumbnail was too small to use */
   function sciAcDetail() {
     var a = ((sc.sky && sc.sky.list) || []).filter(function (x) { return x.hex === sc.sel; })[0];
     if (!a) return "";
     sciAircraftInfo(a);
+    var ph = sciAcPhoto(sc.info["a:" + a.hex] && sc.info["a:" + a.hex].v);
+    return '<div class="sci-detail" data-hex="' + esc(a.hex) + '" data-photo="' + esc(ph) + '">' + (ph ? '<a class="sci-photo-a" href="' + esc(ph) + '" target="_blank" rel="noopener" aria-label="Open the photo"><img class="sci-photo" src="' + esc(ph) + '" alt="" referrerpolicy="no-referrer"></a>' : "") +
+      '<div class="sci-dbody">' + sciAcBody(a) + "</div></div>";
+  }
+  function sciAcBody(a) {
     var r = sciRoute(a), ac = sc.info["a:" + a.hex] && sc.info["a:" + a.hex].v, emer = sciEmer(a);
     var kv = function (k, v) { return v ? "<dt>" + k + "</dt><dd>" + v + "</dd>" : ""; };
-    return '<div class="sci-detail">' + (ac && ac.url_photo_thumbnail ? '<img class="sci-photo" src="' + esc(ac.url_photo_thumbnail) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : "") +
-      "<h3>" + esc(a.cs || a.reg || a.hex.toUpperCase()) + (ac && ac.type ? " · " + esc((ac.manufacturer ? ac.manufacturer + " " : "") + ac.type) : a.type ? " · " + esc(a.type) : "") + '</h3><dl class="kv">' +
+    return "<h3>" + esc(a.cs || a.reg || a.hex.toUpperCase()) + (ac && ac.type ? " · " + esc((ac.manufacturer ? ac.manufacturer + " " : "") + ac.type) : a.type ? " · " + esc(a.type) : "") + '</h3><dl class="kv">' +
       kv("OPERATOR", esc(r && r.airline ? r.airline.name : ac && ac.registered_owner ? ac.registered_owner : a.mil ? "Military" : "")) +
       kv("ROUTE", r ? esc(r.origin.name + " (" + r.origin.iata_code + ") → " + r.destination.name + " (" + r.destination.iata_code + ")") : "") +
       kv("NOW", esc(sciFt(a.alt) + " ft · " + (a.gs != null ? a.gs + " kt · " : "") + (a.track != null ? "heading " + a.track + "° · " : "") + a.km + " km " + sciCompass(a.dir))) +
       kv("NEAR", sciNear(a) ? esc(sciNear(a).text) : "") +
       kv("AIRCRAFT", esc([a.reg, ac && ac.registered_owner_country_name, "squawk " + (a.sq || "–")].filter(Boolean).join(" · "))) +
       kv("NOTE", esc(emer ? "Squawking " + emer : a.mil ? "Military aircraft" : a.alt != null && a.alt < 5000 ? "Low: under 5,000 ft" : "")) + "</dl>" +
-      '<div class="btnrow"><a class="chip sm" href="https://globe.adsb.lol/?icao=' + esc(a.hex) + '" target="_blank" rel="noopener">TRACK LIVE</a>' + (a.reg ? '<a class="chip sm" href="https://www.planespotters.net/search?q=' + encodeURIComponent(a.reg) + '" target="_blank" rel="noopener">PHOTOS</a>' : "") + "</div></div>";
+      '<div class="btnrow"><a class="chip sm" href="https://globe.adsb.lol/?icao=' + esc(a.hex) + '" target="_blank" rel="noopener">TRACK LIVE</a>' + (a.reg ? '<a class="chip sm" href="https://www.planespotters.net/search?q=' + encodeURIComponent(a.reg) + '" target="_blank" rel="noopener">PHOTOS</a>' : "") + "</div>";
   }
+  function sciLegend() { return '<span><i style="background: var(--fg)"></i>aircraft, pointing where it flies</span><span><i style="background: var(--warn)"></i>low, under 5,000 ft</span><span><i style="background: var(--chrome-d)"></i>military</span>' + lmLegend(); }
+  function sciRows() { var list = (sc.sky && sc.sky.list) || []; return list.length ? list.slice(0, 14).map(sciAcRow).join("") : '<div class="empty">' + (sc.skyErr ? esc(sc.skyErr) : sc.sky ? "No aircraft within 50 km right now." : "Listening…") + "</div>"; }
+  function sciSrcLine() { return 'Aircraft: the community ADS-B network (' + esc((sc.sky && sc.sky.source) || "adsb.lol") + "), routes and aircraft from adsbdb. Coverage is what volunteers' receivers hear." + (sc.sky ? " Updated " + hm(new Date(sc.sky.at)) + ":" + p2(new Date(sc.sky.at).getSeconds()) + "." : ""); }
   function sciSkyInner() {
-    var list = (sc.sky && sc.sky.list) || [];
-    return '<div class="sci-sky"><div><div class="sci-scope">' + sciScope() + '</div><div class="sci-legend"><span><i style="background: var(--fg)"></i>aircraft, pointing where it flies</span><span><i style="background: var(--warn)"></i>low, under 5,000 ft</span><span><i style="background: var(--chrome-d)"></i>military</span>' + lmLegend() + "</div></div>" +
-      '<div><div class="sci-rows">' + (list.length ? list.slice(0, 14).map(sciAcRow).join("") : '<div class="empty">' + (sc.skyErr ? esc(sc.skyErr) : sc.sky ? "No aircraft within 50 km right now." : "Listening…") + "</div>") + "</div>" + sciAcDetail() + "</div></div>" +
-      '<div class="sci-src">Aircraft: the community ADS-B network (' + esc((sc.sky && sc.sky.source) || "adsb.lol") + "), routes and aircraft from adsbdb. Coverage is what volunteers' receivers hear." + (sc.sky ? " Updated " + hm(new Date(sc.sky.at)) + ":" + p2(new Date(sc.sky.at).getSeconds()) + "." : "") + "</div>";
+    return '<div class="sci-sky"><div><div class="sci-scope" id="sciScopeBox">' + sciScope() + '</div><div class="sci-legend" id="sciLegend">' + sciLegend() + "</div></div>" +
+      '<div><div class="sci-rows" id="sciRows">' + sciRows() + '</div><div id="sciDet">' + sciAcDetail() + "</div></div></div>" +
+      '<div class="sci-src" id="sciSrc">' + sciSrcLine() + "</div>";
   }
-  function sciPaintSky() { var el = $("sciSky"); if (el) el.innerHTML = sciSkyInner(); var h = scienceHead(); $("eyebrow").textContent = h.e; }
+  function sciPaintSky() {   /* in place: the scope, legend, list and words refresh; an open card's photo is left alone */
+    var el = $("sciSky"); if (!el) return;
+    if (!$("sciScopeBox")) el.innerHTML = sciSkyInner();
+    else {
+      $("sciScopeBox").innerHTML = sciScope(); $("sciLegend").innerHTML = sciLegend(); $("sciRows").innerHTML = sciRows(); $("sciSrc").innerHTML = sciSrcLine();
+      var host = $("sciDet"), cur = host.querySelector(".sci-detail"), a = ((sc.sky && sc.sky.list) || []).filter(function (x) { return x.hex === sc.sel; })[0];
+      if (a && cur && cur.dataset.hex === a.hex && cur.dataset.photo === sciAcPhoto(sc.info["a:" + a.hex] && sc.info["a:" + a.hex].v)) {
+        var b = sciAcBody(a), db = cur.querySelector(".sci-dbody"); if (db.innerHTML !== b) db.innerHTML = b;
+      } else host.innerHTML = sciAcDetail();
+    }
+    var h = scienceHead(); $("eyebrow").textContent = h.e;
+  }
   function sciSkyHtml() {
     var ps = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.set > Date.now(); }), on = ps.filter(function (p) { return p.rise <= Date.now(); })[0], iss = sc.iss;
     var nx = ps.filter(function (p) { return p.sat === "iss"; })[0], nxd = nx && new Date(nx.rise);
