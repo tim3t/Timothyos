@@ -15,6 +15,8 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', acceptDownloads: true });
+  await ctx.addInitScript(() => { const C = window.AudioContext; window.__acs = []; window.AudioContext = class extends C { constructor(o) { super(o); window.__acs.push(this); } }; });   // to see each sound engine
+  const acs = p => p.evaluate(() => window.__acs.map(a => a.state));
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-25T21:14:00-05:00'));
   await p.goto('http://localhost:8080/');
@@ -28,6 +30,14 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
   assert.ok((await txt(p, '[data-rsread="field"]')).startsWith('SOUND OFF'));
   await p.click('[data-rsact="power"]');
   assert.strictEqual(await p.getAttribute('[data-rsact="power"]', 'aria-pressed'), 'true');
+  assert.strictEqual(await txt(p, '[data-rsread="field"]'), 'PENTATONIC IN A');
+  await until(async () => (await acs(p)).join() === 'running');
+  // iPadOS takes the sound away mid-play (another app, a call, the lock screen): SOUND OFF, and the next tap starts clean (2.44.1)
+  await p.evaluate(() => window.__acs[0].suspend());
+  await p.waitForFunction(() => document.querySelector('[data-rsact="power"]').getAttribute('aria-pressed') === 'false');
+  assert.strictEqual(await txt(p, '[data-rsread="field"]'), 'IPADOS PAUSED THE SOUND · TAP TO START AGAIN');
+  await p.click('[data-rsact="power"]');
+  await until(async () => (await acs(p)).join() === 'closed,running');
   assert.strictEqual(await txt(p, '[data-rsread="field"]'), 'PENTATONIC IN A');
 
   // ---- the beat: a lofi pattern, the ring's fixed slots
@@ -93,6 +103,11 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
   await p.click('.elbow'); await p.waitForSelector('.ov-cond');
   await p.click('#allBtn'); await p.click('[data-station="ressikan"]'); await p.waitForSelector('.rs');
   assert.strictEqual(await p.getAttribute('[data-rsact="power"]', 'aria-pressed'), 'false', 'quiet after leaving');
+  assert.strictEqual((await acs(p)).pop(), 'suspended', 'the iPad\'s sound handed back');
+  const n = (await acs(p)).length;
+  await p.click('[data-rsact="power"]');   // coming back later: a fresh engine, running
+  await until(async () => { const a = await acs(p); return a.length === n + 1 && a[n] === 'running' && a.slice(0, n).every(x => x === 'closed'); });
+  await p.click('[data-rsact="power"]');
   await p.reload(); await p.waitForSelector('#allBtn');
   await p.click('#allBtn'); await p.click('[data-station="ressikan"]'); await p.waitForSelector('.rs');
   assert.strictEqual(await p.getAttribute('[data-rsscale="free"]', 'aria-pressed'), 'true');

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.44.1 · 2026-10-26
+- **RESSIKAN: sound after a while away.** Coming back to the station later could give silence with every setting right. iPadOS pauses web audio whenever something else takes the sound (another app, a call, Siri, the lock screen, STORAGE or the Morning Briefing's voice), and Safari leaves it "interrupted", a state the station never woke from. Now every **SOUND ON** starts a fresh sound engine, **SOUND OFF** and leaving hand the iPad's sound back, and if iPadOS takes the sound mid-play the station says so (**IPADOS PAUSED THE SOUND · TAP TO START AGAIN**) instead of staying silently "on".
+
 ## 2.44.0 · 2026-10-25
 - **RESSIKAN,** a new station under REFLECT (named after Picard's flute): play with sound, all made on the iPad. No downloads, no keys, works offline.
   - **FIELD:** a theremin (height is pitch, across is tone, two fingers for two voices, Pencil pressure for vibrato) played over a **beat ring**: four rings of fixed steps (kick, snare, hat, electric-piano keys) and a sweeping beam, with LOFI, BOOM BAP, DUB, MOTORIK and SPARSE patterns, swing, vinyl crackle, and rings of 16, 12, 10 or 8 steps that drift against each other.

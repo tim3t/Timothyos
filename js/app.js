@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.44.0";
+  var VERSION = "2.44.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9780,10 +9780,16 @@
 
     /* ---- the room: everything plays through one chain ---- */
     var A = null, bus, beatBus, master, recDest, dly, dlySend, verbSend, lofiWet, lofiDry, wowDepth, vinylG, bedG, bedF, bedLfo, bedLfoG;
+    /* A fresh engine for every SOUND ON (2.44.1). iPadOS pauses Web Audio when something else takes the sound (another
+       app, a call, Siri, the lock screen, STORAGE or Nova) and Safari leaves it "interrupted", a state the old code never
+       woke from: silence with every setting right. Now SOUND ON builds a new engine inside the tap, SOUND OFF and
+       leaving the station set it aside, and an interruption mid-play turns SOUND OFF so the next tap starts clean. */
     function start() {
-      if (A) { if (A.state === "suspended") A.resume(); return true; }
       var C = window.AudioContext || window.webkitAudioContext; if (!C) return false;
-      A = new C({ latencyHint: "interactive" });
+      if (A) { var old = A; A = null; old.onstatechange = null; try { old.close(); } catch (e) { /* already closed */ } }
+      A = new C({ latencyHint: "interactive" }); nbuf = null;
+      A.onstatechange = function () { if (this === A && this.state !== "running" && X.on && !X.quiet) lost(); };
+      try { A.resume(); } catch (e) { /* resumes with the first sound */ }
       try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { /* older iPadOS: the silent setting may mute it */ }
       bus = A.createGain(); beatBus = A.createGain(); beatBus.connect(bus);
       var wow = A.createDelay(.1); wow.delayTime.value = .012; var wl = A.createOscillator(); wl.frequency.value = .55; wowDepth = A.createGain(); wl.connect(wowDepth); wowDepth.connect(wow.delayTime); wl.start(); bus.connect(wow);
@@ -9804,7 +9810,7 @@
       var nb = A.createBuffer(1, A.sampleRate * 3, A.sampleRate), nd = nb.getChannelData(0); for (var q = 0, last = 0; q < nd.length; q++) { var w = Math.random() * 2 - 1; last = (last + .02 * w) / 1.02; nd[q] = last * 1.75 + w * .5; }
       var bs = A.createBufferSource(); bs.buffer = nb; bs.loop = true; bedF = A.createBiquadFilter(); bedG = A.createGain(); bedG.gain.value = 0; bedLfo = A.createOscillator(); bedLfoG = A.createGain(); bedLfo.connect(bedLfoG);
       bs.connect(bedF); bedF.connect(bedG); bedG.connect(bus); bs.start(); bedLfo.start();
-      setInterval(beatTick, 25); driftTick();
+      if (!X.ticking) { X.ticking = true; setInterval(beatTick, 25); driftTick(); }
       return true;
     }
     function applyFx() {
@@ -9826,9 +9832,18 @@
     }
     function setPower(on) {
       if (on && !start()) { toast("This browser can't make sound here"); return; }
-      X.on = on;
-      if (A) { master.gain.setTargetAtTime(on ? .85 : 0, A.currentTime, .05); if (!on) { thRelease(true); X.beat = false; } }
+      if (!on && X.rec) X.rec.mr.stop();
+      X.on = on; X.lost = false;
+      if (A) {
+        master.gain.setTargetAtTime(on ? .85 : 0, A.currentTime, .05);
+        if (!on) { thRelease(true); X.beat = false; X.quiet = true; var a = A; setTimeout(function () { X.quiet = false; if (a === A && !X.on) try { a.suspend(); } catch (e) { /* closed */ } }, 300); }   /* hand the iPad's sound back */
+      }
       applyFx(); applyBed(); paint();
+    }
+    function lost() {   /* iPadOS took the sound away mid-play */
+      X.on = false; X.beat = false; X.lost = true; thV = {}; held = []; dr.touches = {};
+      if (X.rec) X.rec.mr.stop();
+      if (state.screen === "ressikan") render();
     }
 
     /* ---- FIELD: the theremin ---- */
@@ -10081,7 +10096,7 @@
     function paint() {
       if (state.screen !== "ressikan") return;
       var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e;
-      document.querySelectorAll("#content [data-rsread]").forEach(function (el) { el.textContent = !X.on ? "SOUND OFF · TAP TO START" : el.dataset.rsread === "field" ? (SCALES[S.scale].s ? SCALES[S.scale].n + " IN " + KEYS[S.key] : "FREEFORM · EVERY PITCH") : (X.sleep ? "SLEEPS IN " + Math.max(0, Math.ceil((X.sleepAt - Date.now()) / 60000)) + " MIN" : "NO SLEEP TIMER"); });
+      document.querySelectorAll("#content [data-rsread]").forEach(function (el) { el.textContent = !X.on ? (X.lost ? "IPADOS PAUSED THE SOUND · TAP TO START AGAIN" : "SOUND OFF · TAP TO START") : el.dataset.rsread === "field" ? (SCALES[S.scale].s ? SCALES[S.scale].n + " IN " + KEYS[S.key] : "FREEFORM · EVERY PITCH") : (X.sleep ? "SLEEPS IN " + Math.max(0, Math.ceil((X.sleepAt - Date.now()) / 60000)) + " MIN" : "NO SLEEP TIMER"); });
       var p = document.querySelector('#content [data-rsact="power"]'); if (p) { p.setAttribute("aria-pressed", X.on); p.textContent = X.on ? "■ SOUND OFF" : "▶ SOUND ON"; }
     }
     function bindSurface(el) {

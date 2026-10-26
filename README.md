@@ -661,6 +661,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
+| RESSIKAN is silent though SOUND is on | Update to 2.44.1 or later. If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
 | Music stops at the end of a track while Bridge is in the background | Update to 2.43.1 or later (the next file is now read ahead). Over 150 MB, or a slow NAS link, can still stall: keep Bridge in Split View or Slide Over, or open it to carry on |
 | Storage or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
 | The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
