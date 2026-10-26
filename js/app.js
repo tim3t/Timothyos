@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.45.0";
+  var VERSION = "2.46.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9777,78 +9777,112 @@
   }
 
   /* ---------- HOLODECK (2.45): a TV that's always on air, from one NAS folder ---------- */
-  /* Timothy's idea: tune in and it's mid-broadcast, like MTV or VH1 in the day. One folder on the NAS (through the
-     STORAGE relay, under its /Video share), no subfolders. The schedule is computed, never stored: the folder's videos
-     in a shuffled order laid end to end from 1 Jan 2026 (local), reshuffled each time round, so the clock alone says
-     what is on and how far in. Nothing about viewing is remembered. Files the iPad can't play are skipped. Lengths are
-     read once with a hidden player (metadata only) and kept on the iPad. One <video> for the app, kept outside the
-     page so PICTURE IN PICTURE can carry on across stations. Its own scope (`holo`; `hd` is taken inside renderHeader) and hd- class names. */
+  /* Timothy's idea: tune in and it's mid-broadcast, like MTV or VH1 in the day. Each channel is one folder on the NAS
+     (through the STORAGE relay, under its /Video share), with one level of subfolders for a series in seasons. The
+     schedule is computed, never stored: a channel's videos in order (seasons by number, episodes by number, then the
+     specials and extras) laid end to end from the moment the channel was added, round again at the end, so the clock
+     alone says what is on and how far in. Every channel keeps running whichever one is on the screen. Nothing about
+     viewing is remembered. Files the iPad can't play are skipped. Lengths are read once with a hidden player (metadata
+     only) and kept on the iPad. One <video> for the app, kept outside the page so PICTURE IN PICTURE can carry on across
+     stations. Its own scope (`holo`; `hd` is taken inside renderHeader) and hd- class names. */
   var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1";
   var holo = (function () {
-    var cfg = Object.assign({ dir: "", look: "crt", muted: false }, lsGet(LS_HOLO) || {});
+    var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false }, lsGet(LS_HOLO) || {});
     var lens = lsGet(LS_HOLOLEN) || {};
-    var X = { fails: 0, on: false, pick: false, pickDir: "/Video", files: null, at: 0, err: "", busy: false, probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, burst: 0 };
-    var EPOCH = new Date(2026, 0, 1).getTime();
+    var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
+    var X = { fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
+    var moved = "dir" in cfg;   /* 2.45's one folder is channel 1, premiered afresh, in order */
+    if (moved) { if (cfg.dir && !cfg.chans.length) cfg.chans = [{ id: 1, name: folderName(cfg.dir), dir: cfg.dir, premiere: Date.now() }]; delete cfg.dir; cfg.ch = 0; }
+    if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; moved = true; }
+    if (moved) save();
     function save() { lsSet(LS_HOLO, cfg); }
+    function chById(id) { return cfg.chans.filter(function (c) { return c.id === id; })[0] || null; }
+    function cur() { return chById(cfg.ch); }
+    function num(c) { return cfg.chans.indexOf(c) + 1; }
+    function folderName(p) { return baseName(p).replace(/_+/g, " ").trim(); }
     function ext(n) { var m = /\.([a-z0-9]+)$/i.exec(n); return m ? m[1].toLowerCase() : ""; }
     function canPlay(n) { var t = KINDS[ext(n)]; if (!t) return false; var v = document.createElement("video"); return !!v.canPlayType && v.canPlayType(t) !== ""; }
     function url(p) { return nasBase() + encPath(p) + "?k=" + encodeURIComponent(nasConf().token); }
-    function lenOfFile(f) { var x = lens[f.path]; return x && x.z === f.size && x.s > 0 ? x.s : null; }
+    function unknown(it) { var x = lens[it.f.path]; return !(x && x.z === it.f.size); }   /* never measured, or the file has changed */
+    function lenOf(it) { var x = lens[it.f.path]; return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
 
-    /* ---- the folder: what plays, what's skipped, the lengths ---- */
-    function load(force) {
-      if (!cfg.dir || !nasConf() || X.busy) return;
-      if (!force && X.files && Date.now() - X.at < 10 * 60000) return;
-      X.busy = true; X.err = "";
-      nasList(cfg.dir, true).then(function (l) {
-        var vids = l.items.filter(function (x) { return !x.dir && VIDEO.test(x.name); });
-        X.files = { play: vids.filter(function (x) { return canPlay(x.name); }).sort(function (a, b) { return a.path < b.path ? -1 : 1; }), skip: vids.filter(function (x) { return !canPlay(x.name); }) };
-        X.at = Date.now(); probe();
-      }).catch(function (e) { X.err = nasErrText(e); }).then(function () { X.busy = false; if (state.screen === "holodeck") render(); });
+    /* ---- a channel's folder: the running order, what's skipped, the lengths ---- */
+    function seasonOf(n) { var m = /\b(?:season|series)\s*(\d+)/i.exec(n) || /\bS(\d{1,2})\b/i.exec(n) || /^\s*(\d{1,2})\s*$/.exec(n); return m ? +m[1] : null; }
+    function epOf(n) { n = n.replace(/\[[^\]]*\]/g, ""); var m = /\bepisode\s*(\d+)/i.exec(n) || /\bS\d{1,2}\s*E(\d{1,3})\b/i.exec(n) || /\b\d{1,2}x(\d{1,3})\b/.exec(n) || /\bep\.?\s*(\d+)/i.exec(n); return m ? +m[1] : null; }
+    function nat(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); }
+    function arrange(root, kids) {   /* seasons by number, episodes by number; then other folders (specials), episodes without a number, loose files beside the seasons */
+      var vid = function (x) { return !x.dir && VIDEO.test(x.name); }, seas = [], others = [], extras = [], items;
+      kids.forEach(function (k) {
+        var fs = k.items.filter(vid), n = seasonOf(k.d.name); if (!fs.length) return;
+        if (n == null) { others.push({ name: k.d.name, fs: fs.sort(nat) }); return; }
+        seas.push({ n: n, name: k.d.name, eps: fs.filter(function (f) { return epOf(f.name) != null; }).sort(function (a, b) { return epOf(a.name) - epOf(b.name) || nat(a, b); }) });
+        fs.filter(function (f) { return epOf(f.name) == null; }).sort(nat).forEach(function (f) { extras.push(f); });
+      });
+      var series = seas.length > 0;
+      items = [];
+      seas.sort(function (a, b) { return a.n - b.n || nat(a, b); }).forEach(function (s) { s.eps.forEach(function (f) { items.push({ f: f, s: s.n, e: epOf(f.name) }); }); });
+      others.sort(nat).forEach(function (o) { o.fs.forEach(function (f) { items.push({ f: f, sp: series }); }); });
+      extras.concat(root.filter(vid).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
+      return { play: items.filter(function (it) { return canPlay(it.f.name); }), skip: items.filter(function (it) { return !canPlay(it.f.name); }), series: series, seasons: seas.length, specials: items.filter(function (it) { return it.sp; }).length };
     }
-    function probe() {   /* each new file's length, one at a time, from its header only */
-      if (X.probing || !X.files) return;
-      var f = X.files.play.filter(function (x) { return lenOfFile(x) == null && !(lens[x.path] && lens[x.path].z === x.size && lens[x.path].s < 0); })[0];
-      if (!f) { if (state.screen === "holodeck") render(); return; }
+    function load(c, force) {
+      var s = F[c.dir] || (F[c.dir] = { play: null, skip: [], at: 0, busy: false, err: "" });
+      if (s.busy || (!force && s.at && Date.now() - s.at < (s.play ? 10 * 60000 : 30000))) return;
+      s.busy = true; s.err = "";
+      nasList(c.dir, true).then(function (l) {
+        return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return nasList(d.path, force).then(function (k) { return { d: d, items: k.items }; }); })).then(function (kids) { return arrange(l.items, kids); });
+      }).then(function (r) { Object.assign(s, r); probe(); }).catch(function (e) { s.err = nasErrText(e); })
+        .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
+    }
+    function probe() {   /* each new file's length, one at a time, from its header only: this channel first, in running order */
+      if (X.probing) return;
+      var list = [cur()].concat(cfg.chans), it = null;
+      for (var i = 0; i < list.length && !it; i++) { var s = list[i] && F[list[i].dir]; if (s && s.play) it = s.play.filter(unknown)[0] || null; }
+      if (!it) { paint(); return; }
       X.probing = true;
-      var v = document.createElement("video"), done = false, fin = function (s) { if (done) return; done = true; clearTimeout(t); lens[f.path] = { s: s, z: f.size }; v.removeAttribute("src"); v.load(); X.probing = false;
-        var ks = Object.keys(lens); if (ks.length > 3000) ks.slice(0, ks.length - 3000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); paint(); probe(); };
+      var f = it.f, v = document.createElement("video"), done = false, fin = function (s) { if (done) return; done = true; clearTimeout(t); lens[f.path] = { s: s, z: f.size }; v.removeAttribute("src"); v.load(); X.probing = false;
+        var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); paint(); probe(); };
       var t = setTimeout(function () { fin(-1); }, 20000);
       v.preload = "metadata"; v.muted = true; v.onloadedmetadata = function () { fin(isFinite(v.duration) && v.duration > 1 ? Math.round(v.duration * 10) / 10 : -1); }; v.onerror = function () { fin(-1); };
       v.src = url(f.path);
     }
-    function measured() { return X.files ? X.files.play.filter(function (f) { return lenOfFile(f) != null; }) : []; }
-    function waiting() { return X.files ? X.files.play.filter(function (f) { return lenOfFile(f) == null && !(lens[f.path] && lens[f.path].z === f.size && lens[f.path].s < 0); }).length : 0; }
 
     /* ---- the broadcast: computed from the clock ---- */
-    function rng(seed) { var x = seed >>> 0 || 1; return function () { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-    function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-    function lineup() { return waiting() ? [] : measured(); }   /* the schedule waits until every length is known, so it never shifts under you */
-    function order(items, cycle) { var r = rng(hash(cfg.dir + "|" + items.length) ^ Math.imul(cycle + 1, 2654435761)), a = items.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
-    function at(ms) {
-      var items = lineup(); if (!items.length) return null;
-      var loop = items.reduce(function (s, f) { return s + lenOfFile(f); }, 0), sec = (ms - EPOCH) / 1000, cycle = Math.floor(sec / loop), off = sec - cycle * loop, o = order(items, cycle);
-      for (var i = 0; i < o.length; i++) { var d = lenOfFile(o[i]); if (off < d) return { f: o[i], pos: off, dur: d, startMs: ms - off * 1000 }; off -= d; }
-      return { f: o[o.length - 1], pos: 0, dur: lenOfFile(o[o.length - 1]), startMs: ms };
+    function walk(items, off) {   /* what's at `off` seconds into the order; the first time round needs only the lengths up to there */
+      for (var i = 0; i < items.length; i++) { if (unknown(items[i])) return { wait: true }; var d = lenOf(items[i]); if (d == null) continue; if (off < d) return { it: items[i], pos: off, dur: d }; off -= d; }
+      return { left: off };
     }
-    function after(c) { return at(c.startMs + c.dur * 1000 + 20); }
-    function loopLen() { return lineup().reduce(function (s, f) { return s + lenOfFile(f); }, 0); }
-    function label(f) {   /* "Artist - Title (1994).mp4", or "042 - Artist - Title": a name and a line */
-      var n = f.name.replace(/\.[^.]+$/, "").replace(/_/g, " ").replace(/^\s*\d{1,3}\s*[-.)_]\s*/, "").trim(), m = n.split(/\s+[-–—]\s+/);
-      return m.length > 1 ? { a: m[0], t: m.slice(1).join(" – ") } : { a: n, t: "" };
+    function at(c, ms) {
+      var s = c && F[c.dir]; if (!s || !s.play) return null;
+      var sec = Math.max(0, (ms - c.premiere) / 1000), w = walk(s.play, sec);
+      if (w.left != null) { var L = sec - w.left; if (L <= 0) return null; w = walk(s.play, sec % L); }   /* round again from the top */
+      return w.it ? { c: c, it: w.it, pos: w.pos, dur: w.dur, startMs: ms - w.pos * 1000 } : null;
     }
+    function after(c) { return at(c.c, c.startMs + c.dur * 1000 + 20); }
+    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
+    function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
+      var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+      if (it.s == null && !it.sp) { n = n.replace(/^\s*\d{1,3}\s*[-.)_]\s*/, "").trim(); var m = n.split(/\s+[-–—]\s+/); return m.length > 1 ? { a: m[0], t: m.slice(1).join(" – ") } : { a: n, t: "" }; }
+      var show = folderName(parentOf(it.f.path)).replace(/\s*[-–—,]?\s*\b(?:season|series)\s*\d+.*$/i, "").trim().toLowerCase(), chn = (cur() || {}).name || "";
+      var parts = n.replace(/\b(?:season|series)\s*\d+\s*,?\s*(?:episode|ep\.?)\s*\d+|\bS\d{1,2}\s*E\d{1,3}\b|\b(?:episode|ep\.?)\s*\d+/i, "|").replace(/\s+[-–—]\s+/g, "|").split("|")
+        .map(function (p) { return p.replace(/^[\s,–—-]+|[\s,–—-]+$/g, ""); })
+        .filter(function (p) { var q = p.toLowerCase(); return p && q !== show && q !== chn.toLowerCase() && !/^(?:updated |new |the )?full episode$/.test(q); });
+      var t = parts.join(" – ");
+      return it.sp ? { a: "Special", long: "Special", t: t || n } : { a: "S" + it.s + " E" + it.e, long: "Season " + it.s + ", Episode " + it.e, t: t };
+    }
+    function line(l) { return l.a + (l.t ? " · " + l.t : ""); }
 
     /* ---- the set: one video element for the app ---- */
     function vid() {
       if (X.v) return X.v;
       var k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k;
       var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
-      v.addEventListener("ended", function () { if (X.on && X.cur) start(after(X.cur), false); });
+      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; var n = after(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () {
         if (!X.on || !X.cur || !v.getAttribute("src")) return;
         if (++X.fails > 4) { off(); X.note = "Five videos in a row wouldn't play. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }
-        X.note = label(X.cur.f).a + " wouldn't play; on to the next."; start(after(X.cur), false);
+        X.note = line(label(X.cur.it)) + " wouldn't play; on to the next."; var n = after(X.cur); if (n) start(n, false); else resume();
       });
       v.addEventListener("playing", function () { X.fails = 0; });
       v.addEventListener("timeupdate", tick);
@@ -9858,74 +9892,146 @@
     function pip() { var v = X.v; return !!v && (document.pictureInPictureElement === v || v.webkitPresentationMode === "picture-in-picture"); }
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
-      v.muted = cfg.muted; v.src = url(c.f.path);
+      v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
       v.onloadedmetadata = function () { var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
       meta(c); paint();
     }
-    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.f); try { navigator.mediaSession.metadata = new MediaMetadata({ title: l.t || l.a, artist: l.t ? l.a : "", album: "HOLODECK · " + chan() }); } catch (e) { /* older iPadOS */ } }
+    function resume() {   /* on air: what's on this channel now, or as soon as its lengths say */
+      clearTimeout(X.wait); if (!X.on) return;
+      var c = at(cur(), Date.now()); if (c) start(c, true); else X.wait = setTimeout(resume, 1500);
+    }
+    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
-      var c = at(Date.now()); if (!c) return;
+      var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
     }
-    function off() { X.on = false; X.cur = null; var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
-    function burst() {   /* a moment of static as the set warms up */
+    function off() { X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
+      if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
+      if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
+      render();
+    }
+    function step(d) { var n = cfg.chans.length; if (n < 2) return; var i = cfg.chans.indexOf(cur()); switchTo(cfg.chans[(i + d + n) % n].id); }
+    function burst() {   /* a moment of static as the set warms up or changes channel */
       try { var C = window.AudioContext || window.webkitAudioContext; if (!C || cfg.muted) return; var a = new C(), b = a.createBuffer(1, a.sampleRate * .6, a.sampleRate), d = b.getChannelData(0); for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
         var s = a.createBufferSource(), g = a.createGain(); g.gain.value = .12; s.buffer = b; s.connect(g); g.connect(a.destination); s.start(); setTimeout(function () { a.close(); }, 1200); } catch (e) { /* no static, no matter */ }
     }
-    function chan() { return cfg.dir ? cfg.dir.split("/").pop() : "No folder"; }
 
     /* ---- the screen ---- */
-    function head() { return { e: "RESOURCES · HOLODECK · " + chan().toUpperCase() + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
+    function head() { var c = cur(); return { e: "RESOURCES · HOLODECK" + (c ? " · CH " + num(c) + " · " + c.name.toUpperCase() : "") + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
     function panel(c, title, meta, inner) { return '<section class="hd-panel" style="--c: var(--' + c + ')">' + phead(title, meta, c) + inner + "</section>"; }
     function mmss(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ":" + p2(m) : m) + ":" + p2(s % 60); }
-    function hmLong(s) { var h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return s < 60 ? Math.round(s) + " s" : h ? h + " h " + p2(m) + " m" : m + " min"; }
+    function hmLong(s) { var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.round(s % 3600 / 60); return s < 60 ? Math.round(s) + " s" : d ? d + " d " + h + " h" : h ? h + " h " + p2(m) + " m" : m + " min"; }
+    function kinds(list) { var k = {}; list.forEach(function (it) { var e = ext(it.f.name).toUpperCase(); k[e] = (k[e] || 0) + 1; }); return Object.keys(k).map(function (e) { return k[e] + " " + e; }).join(", "); }
+    function count(s, n) { return s.series ? s.seasons + (s.seasons === 1 ? " season" : " seasons") + (s.specials ? " + specials" : "") + " · " + n + (n === 1 ? " episode" : " episodes") : n + (n === 1 ? " video" : " videos"); }
+    function chanInfo(c) {
+      var s = F[c.dir]; if (!s || !s.play) return esc(s && s.err ? s.err : "Reading the folder…");
+      var n = s.play.length, L = loopLen(c), m = s.play.filter(function (it) { return !unknown(it); }).length, d = new Date(c.premiere);
+      return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : "measuring " + m + " of " + n) +
+        " · on air since " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + hm(d);
+    }
+    function tuneSub() {
+      var c = cur(), s = c && F[c.dir];
+      if (at(c, Date.now())) return "CHANNEL " + num(c) + " · " + c.name.toUpperCase();
+      if (!c) return "ADD A CHANNEL BELOW";
+      if (!s || !s.play) return s && s.err ? "CAN'T REACH THE FOLDER" : "READING THE FOLDER…";
+      if (!s.play.length) return "NO VIDEOS HERE THE IPAD CAN PLAY";
+      return "MEASURING " + s.play.filter(function (it) { return !unknown(it); }).length + " OF " + s.play.length + " VIDEOS…";
+    }
+    function ang(k) { var n = cfg.chans.length; return n > 1 ? -100 + k * 200 / (n - 1) : 0; }   /* the channels spread evenly across the dial's face */
+    function dial() {
+      var n = cfg.chans.length, i = cfg.chans.indexOf(cur());
+      return '<div class="hd-dialbox"><span class="hd-chnum">CH ' + (i > -1 ? i + 1 : "–") + '</span><div class="hd-dial" id="hdDial" role="slider" tabindex="0" aria-label="Channel dial" aria-valuemin="1" aria-valuemax="' + Math.max(1, n) + '" aria-valuenow="' + Math.max(1, i + 1) + '">' +
+        '<span class="hd-ptr" id="hdPtr" style="transform: rotate(' + (ang(Math.max(0, i)) + 180) + 'deg)"></span>' +
+        cfg.chans.map(function (c, k) { var a = (ang(k) - 90) * Math.PI / 180; return '<span class="hd-tick' + (k === i ? " on" : "") + '" style="left: calc(50% + ' + (Math.cos(a) * 64).toFixed(1) + "px); top: calc(50% + " + (Math.sin(a) * 64).toFixed(1) + 'px)">' + (k + 1) + "</span>"; }).join("") + "</div>" +
+        '<span class="hd-chbtns"><button type="button" class="chip sm" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="chip sm" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span></div>";
+    }
+    function bindDial() {   /* turn it with a finger and let go near a channel; a tap moves on one */
+      var dl = $("hdDial"), ptr = $("hdPtr"), drag = null; if (!dl) return;
+      var angle = function (e) { var r = dl.getBoundingClientRect(); return Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI; };
+      dl.addEventListener("pointerdown", function (e) { e.preventDefault(); try { dl.setPointerCapture(e.pointerId); } catch (x) { /* fine without */ } drag = { x: e.clientX, y: e.clientY, a: null }; });
+      dl.addEventListener("pointermove", function (e) { if (!drag) return; if (drag.a == null && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 10) return; drag.a = Math.max(-130, Math.min(130, angle(e))); ptr.style.transform = "rotate(" + (drag.a + 180) + "deg)"; });
+      dl.addEventListener("pointerup", function () {
+        if (!drag) return; var a = drag.a; drag = null;
+        if (a == null) { step(1); return; }
+        var best = 0; cfg.chans.forEach(function (c, k) { if (Math.abs(ang(k) - a) < Math.abs(ang(best) - a)) best = k; });
+        if (cfg.chans[best] && cfg.chans[best].id !== cfg.ch) switchTo(cfg.chans[best].id); else render();
+      });
+      dl.addEventListener("pointercancel", function () { drag = null; render(); });
+      dl.addEventListener("keydown", function (e) { var d = e.key === "ArrowUp" || e.key === "ArrowRight" ? 1 : e.key === "ArrowDown" || e.key === "ArrowLeft" ? -1 : 0; if (d) { e.preventDefault(); step(d); var n = $("hdDial"); if (n) n.focus(); } });
+    }
     function render() {
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through the STORAGE relay. Set it up first in <b>SYSTEMS → STORAGE</b>.")) + "</div>"; return; }
-      if (!cfg.dir) X.pick = true;
-      load(false);
-      var ready = !!at(Date.now()), w = waiting();
-      var tv = '<div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK 1</span>' +
-        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div>' : '<button type="button" class="hd-tune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small>' + esc(ready ? "CHANNEL 1 · " + chan().toUpperCase() : !cfg.dir ? "CHOOSE A FOLDER BELOW" : X.err ? "CAN'T REACH THE FOLDER" : w ? "MEASURING " + (X.files.play.length - w) + " OF " + X.files.play.length + " VIDEOS…" : X.files && !X.files.play.length ? "NO VIDEOS HERE THE IPAD CAN PLAY" : "READING THE FOLDER…") + "</small></button>") + "</div>" +
-        '<div class="hd-bar"><button type="button" class="chip" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
+      var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
+      if (!c) X.pick = true;
+      cfg.chans.forEach(function (x) { load(x, false); });
+      var tv = '<div class="hd-set"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
+        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div>" +
+        '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
         '<button type="button" class="chip sm" data-hd="pip"' + (X.on ? "" : " disabled") + '>PICTURE IN PICTURE</button><button type="button" class="chip sm" data-hd="full"' + (X.on ? "" : " disabled") + '>FULL SCREEN</button><span class="hd-gap"></span>' +
         '<button type="button" class="chip sm" data-hdlook="crt" aria-pressed="' + (cfg.look === "crt") + '">CRT</button><button type="button" class="chip sm" data-hdlook="clean" aria-pressed="' + (cfg.look === "clean") + '">CLEAN</button></div>' +
-        (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>";
-      var f = X.files, sk = f ? f.skip : [], kinds = {};
-      sk.forEach(function (x) { var e = ext(x.name).toUpperCase(); kinds[e] = (kinds[e] || 0) + 1; });
-      var src = cfg.dir ? '<dl class="hd-kv"><dt>FOLDER</dt><dd>' + esc(cfg.dir) + "</dd><dt>VIDEOS</dt><dd>" + (f ? f.play.length + (sk.length ? " play · " + sk.length + ' skipped <span class="pill warn">' + Object.keys(kinds).map(function (k) { return kinds[k] + " " + k; }).join(", ") + "</span>" : ' play <span class="pill ok">ALL PLAY</span>') : "…") + "</dd>" +
-        (ready ? "<dt>ONE TIME ROUND</dt><dd>" + hmLong(loopLen()) + " · then reshuffled</dd>" : w ? "<dt>LENGTHS</dt><dd>Measuring " + (f.play.length - w) + " of " + f.play.length + " (once; kept on this iPad)</dd>" : "") +
-        "<dt>ON AIR</dt><dd>Since 1 January, by the clock</dd></dl>" +
-        (sk.length ? '<p class="muted">The iPad can\'t play ' + Object.keys(kinds).join(", ") + " files, so the channel skips them. README → HOLODECK has a one-time fix on the NAS.</p>" : "") : '<p class="muted">Choose the folder this channel plays: one folder of video files, no subfolders.</p>';
-      src += '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">' + (cfg.dir ? "CHANGE FOLDER" : "CHOOSE A FOLDER") + "</button>" + (cfg.dir ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick ? picker() : "");
-      $("content").innerHTML = '<div class="hd">' + panel("chrome-d", "CHANNEL 1", "ALWAYS ON AIR · YOU JOIN MID-STREAM", tv) + '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · LATER", '<div class="hd-guide" id="hdGuide">' + guide() + "</div>") + panel("chrome-c", "SOURCE", "ONE NAS FOLDER, NO SUBFOLDERS", src) + "</div></div>";
+        (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + dial() + "</div>";
+      var rows = cfg.chans.map(function (x, i) {
+        var on = x.id === cfg.ch, arm = X.rm === x.id;
+        return '<div class="hd-chan" aria-current="' + on + '"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><b>' + esc(x.name) + '</b><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
+          (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") + "</span>" +
+          '<span class="hd-acts">' + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
+          '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div>";
+      }).join("");
+      var src = (rows ? '<div class="hd-chans">' + rows + "</div>" : '<p class="muted">Choose the folder for channel 1: a folder of videos, or a series with one folder per season.</p>') +
+        (s && s.skip && s.skip.length ? '<p class="muted">The iPad can\'t play ' + esc(kinds(s.skip).replace(/\d+ /g, "")) + " files, so the channel skips them. README → HOLODECK has a one-time fix on the NAS.</p>" : "") +
+        '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick ? picker() : "");
+      X.oth = "";
+      $("content").innerHTML = '<div class="hd">' + panel("chrome-d", c ? "CHANNEL " + k + " · " + esc(c.name.toUpperCase()) : "HOLODECK", "ALWAYS ON AIR · EVERY CHANNEL KEEPS RUNNING", tv) +
+        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER", src) + "</div></div>";
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
-      paint();
-      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); }, 1000);
+      bindDial(); paint();
+      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); }, 1000);
       if (X.on && Date.now() - X.tuneAt < 700) noise();
+    }
+    function pickInfo(dir) {   /* what USE THIS FOLDER would make, from one level of subfolders */
+      var l = nas.lists[dir]; if (!l) return null;
+      var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [], wait = false;   /* a top share (/Video) is a shelf of channels, not one */
+      subs.forEach(function (d) { var k = nas.lists[d.path]; if (k) kids.push({ d: d, items: k.items }); else { wait = true; nasList(d.path).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { /* stays "reading" */ }); } });
+      return wait ? { wait: true } : arrange(l.items, kids);
     }
     function picker() {
       var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
       if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
-      var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], vids = l ? l.items.filter(function (x) { return !x.dir && VIDEO.test(x.name); }).length : 0;
-      return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") +
-        (vids ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + vids + (vids === 1 ? " VIDEO" : " VIDEOS") + "</button>" : '<p class="muted">' + (dirs.length ? "Open a folder of videos." : "No videos here.") + "</p>") : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>";
+      var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
+      var act = used ? '<p class="muted">This folder is channel ' + num(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
+        '<p class="muted">' + (pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
+      return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>";
     }
     function guide() {
-      var c = X.on && X.cur ? X.cur : at(Date.now()); if (!c) return '<div class="empty">' + (cfg.dir ? "The guide fills in once every length is measured." : "Choose a folder first.") + "</div>";
-      var out = [c], n = c; for (var i = 0; i < 3; i++) { n = after(n); if (n) out.push(n); }
+      var ch = cur(), c = X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()); if (!c) return '<div class="empty">' + (ch ? "The guide fills in once the first lengths are measured." : "Add a channel first.") + "</div>";
+      var out = [c], n = c; for (var i = 0; i < 3; i++) { n = n && after(n); if (n) out.push(n); }
       var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
-      return out.map(function (u, k) { var l = label(u.f); return '<div class="hd-slot' + (k ? "" : " now") + '"><span class="t">' + (k ? hm(new Date(u.startMs)) : "NOW") + "</span><span><b>" + esc(l.a + (l.t ? " · " + l.t : "")) + "</b><small>" + (k ? mmss(u.dur) : mmss(pos) + " of " + mmss(u.dur) + " · " + mmss(u.dur - pos) + " left") + "</small>" + (k ? "" : '<span class="hd-prog"><i style="width:' + Math.min(100, pos / u.dur * 100).toFixed(1) + '%"></i></span>') + "</span></div>"; }).join("");
+      return out.map(function (u, k) { return '<div class="hd-slot' + (k ? "" : " hd-now") + '"><span class="t">' + (k ? hm(new Date(u.startMs)) : "NOW") + "</span><span><b>" + esc(line(label(u.it))) + "</b><small>" + (k ? mmss(u.dur) : mmss(pos) + " of " + mmss(u.dur) + " · " + mmss(u.dur - pos) + " left") + "</small>" + (k ? "" : '<span class="hd-prog"><i style="width:' + Math.min(100, pos / u.dur * 100).toFixed(1) + '%"></i></span>') + "</span></div>"; }).join("");
+    }
+    function others() {   /* one line per other channel; it changes only when their programme does, so a tap always lands */
+      var now = Date.now();
+      return cfg.chans.filter(function (x) { return x.id !== cfg.ch; }).map(function (x) {
+        var o = at(x, now), s = F[x.dir];
+        return '<button type="button" class="hd-other" data-hdch="' + x.id + '"><span class="t">CH ' + num(x) + "</span><span><b>" + esc(o ? line(label(o.it)) : x.name) + "</b><small>" + esc(x.name) + " · " + (o ? "until " + hm(new Date(o.startMs + o.dur * 1000)) : s && s.err ? "can't reach the folder" : "measuring…") + " · tap to switch</small></span></button>";
+      }).join("");
     }
     function tick() {
       if (state.screen !== "holodeck") return;
       var g = $("hdGuide"); if (g) g.innerHTML = guide();
+      var o = $("hdOthers"), h = others(); if (o && h !== X.oth) { o.innerHTML = h; X.oth = h; }
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
-      if (c && v && X.cur) { var lb = label(X.cur.f), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }
+      if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }
     }
-    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; tick(); }
+    function status() {   /* the parts that change as lengths come in, without redrawing the page */
+      var ready = !!at(cur(), Date.now()), tb = $("hdTune"), ts = $("hdTuneSub"), pw = $("hdPower");
+      if (tb) tb.disabled = !ready; if (ts) ts.textContent = tuneSub(); if (pw && !X.on) pw.disabled = !ready;
+      cfg.chans.forEach(function (x) { var e = $("hdInfo" + x.id), h = chanInfo(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
+    }
+    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; tick(); status(); }
     function noise() {   /* the static, drawn for half a second */
       var cv = $("hdStatic"); if (!cv) return; cv.classList.add("on"); var t0 = performance.now();
       var draw = function () { if (!cv.isConnected) return; var w = 160, h = 100; cv.width = w; cv.height = h; var x = cv.getContext("2d"), img = x.createImageData(w, h); for (var i = 0; i < img.data.length; i += 4) { var g = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = g; img.data[i + 3] = 255; } x.putImageData(img, 0, 0);
@@ -9934,22 +10040,35 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined) return false;
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined) return false;
       if (d.hd === "tune") { if (X.on) off(); else tune(); render(); }
+      else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
+      else if (d.hdch !== undefined) switchTo(+d.hdch);
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
       else if (d.hd === "pip" && X.v) { var v = X.v; if (pip()) { if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {}); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("inline"); } else if (v.requestPictureInPicture) v.requestPictureInPicture().catch(function () { toast("Picture in Picture isn't available here"); }); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("picture-in-picture"); }
       else if (d.hd === "full" && X.v) { var s = $("hdScreen"); if (X.v.webkitEnterFullscreen) X.v.webkitEnterFullscreen(); else if (s && s.requestFullscreen) s.requestFullscreen().catch(function () {}); }
-      else if (d.hd === "pick") { X.pick = !X.pick; if (X.pick && cfg.dir) X.pickDir = cfg.dir.replace(/\/[^/]+$/, "") || "/Video"; render(); }
+      else if (d.hd === "pick") { X.pick = !X.pick; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); render(); }
       else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; render(); }
-      else if (d.hd === "use") { if (X.on) off(); cfg.dir = X.pickDir; save(); X.files = null; X.pick = false; load(true); render(); }
-      else if (d.hd === "rescan") { load(true); render(); }
+      else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
+        var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
+        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; save(); switchTo(id);
+      }
+      else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
+      else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
+      else if (d.hdrm !== undefined) {   /* two taps: REMOVE, then REMOVE IT. The folder on the NAS is untouched */
+        var rid = +d.hdrm; if (X.rm !== rid) { X.rm = rid; render(); return true; }
+        X.rm = 0; var was = rid === cfg.ch; cfg.chans = cfg.chans.filter(function (x) { return x.id !== rid; }); save();
+        if (was) { if (cfg.chans.length) switchTo(cfg.chans[0].id); else { cfg.ch = 0; save(); off(); } }
+        render();
+      }
+      else if (d.hd === "rescan") { cfg.chans.forEach(function (x) { load(x, true); }); render(); }
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
     function leave() { if (X.on && pip()) { X.keep.appendChild(X.v); return; } if (X.on) off(); }   /* leaving: off, unless it's floating in Picture in Picture */
     document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
       if (document.hidden || !X.on || state.screen !== "holodeck") return;
-      var c = at(Date.now()); if (c && X.cur && c.f.path === X.cur.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
+      var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });
     return { render: render, head: head, click: click, leave: leave };
   })();

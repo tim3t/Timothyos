@@ -130,7 +130,7 @@ LANES=(
 #   app_e2e32      LEDGER: fresh from YNAB on opening, pull to refresh, REFRESH
 #   app_e2e33      STORAGE: relay setup, folders, player, resume on this iPad, pill, filters, read-ahead hand-off
 #   app_e2e55      RESSIKAN: sound on, beat ring, synth, hold, drift, record to Files, quiet on leaving, settings kept
-#   app_e2e56      HOLODECK: folder from /Video, skipped AVI, lengths, guide, tune in mid-stream, next video, leave = off
+#   app_e2e56      HOLODECK: channels from /Video (flat; a series in seasons), in order, skipped files, lengths, guide, tune in mid-stream, next video, CH ▲▼/dial/guide switching, rename, remove, 2.45 migration, leave = off
 #   app_e2e54      UPDATE READY: real service worker, two versions published to a copy on :8125, each comes up whole
 #   app_e2e34      GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row

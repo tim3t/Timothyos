@@ -2477,7 +2477,7 @@ body.nas-pad-min .content { padding-bottom: 72px; }
   .rs-knob { width: 56px; } .rs-dial { width: 48px; height: 48px; }
 }
 
-/* ---------- HOLODECK (2.45): a TV that's always on air. Every class is hd-. ---------- */
+/* ---------- HOLODECK (2.45): a TV that's always on air. Every class is hd- (its NOW row was .now until 2.46: the global .now rule pulled it out of the guide) ---------- */
 .hd { display: grid; gap: 16px; padding-bottom: 24px; }
 .hd-panel { background: var(--panel); border-radius: 0 22px 22px 0; border-left: 10px solid var(--c); padding: 14px 18px 16px; min-width: 0; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 .hd-panel .phead { margin-bottom: 0; min-width: 0; }
@@ -2509,16 +2509,39 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-slot .t { font-family: var(--display); font-size: 17px; letter-spacing: .06em; font-variant-numeric: tabular-nums; color: var(--chrome-b); }
 .hd-slot b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hd-slot small { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
-.hd-slot.now { box-shadow: inset 0 0 0 2px var(--chrome-d); }
-.hd-slot.now .t { color: var(--chrome-d); }
+.hd-slot.hd-now { box-shadow: inset 0 0 0 2px var(--chrome-d); }
+.hd-slot.hd-now .t { color: var(--chrome-d); }
 .hd-prog { display: block; height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
 .hd-prog i { display: block; height: 100%; background: var(--chrome-d); }
-.hd-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; }
-.hd-kv dt { font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--dim); }
-.hd-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+/* 2.46: channels and the dial */
+.hd-set { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 16px; align-items: stretch; }
+.hd-set > * { min-width: 0; }
+.hd-dialbox { display: grid; align-content: center; justify-items: center; gap: 18px; background: rgba(0, 0, 0, .25); border-radius: 18px; padding: 18px 8px; }
+.hd-chnum { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .08em; color: var(--chrome-b); }
+.hd-dial { position: relative; width: 96px; height: 96px; margin: 8px 0; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #4a4c5a, #16171d 70%); box-shadow: inset 0 0 0 3px #2c2e3a, 0 4px 10px rgba(0, 0, 0, .5); touch-action: none; cursor: grab; }
+.hd-dial:focus-visible { outline: 3px solid var(--chrome-b); outline-offset: 4px; }
+.hd-ptr { position: absolute; left: 50%; top: 50%; width: 4px; height: 40px; margin-left: -2px; transform-origin: 50% 0; background: var(--chrome-b); border-radius: 2px; transition: transform .25s ease; pointer-events: none; }
+.hd-tick { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-size: 13px; color: var(--dim); pointer-events: none; }
+.hd-tick.on { color: var(--chrome-b); font-weight: 700; }
+.hd-chbtns { display: grid; gap: 8px; }
+.hd-other { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; border: 2px dashed var(--line); border-radius: 12px; padding: 8px 12px; background: transparent; color: var(--fg); text-align: left; min-height: 52px; }
+.hd-other .t { font-family: var(--display); letter-spacing: .1em; font-size: 15px; color: var(--dim); }
+.hd-other b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-other small { display: block; color: var(--dim); font-size: 14px; }
+.hd-chans { display: grid; gap: 8px; }
+.hd-chan { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px 12px; align-items: center; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
+.hd-chan[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--chrome-b); }
+.hd-n { font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--chrome-b); text-align: center; }
+.hd-cm { min-width: 0; display: grid; gap: 2px; }
+.hd-cm b { font-weight: 600; overflow-wrap: anywhere; }
+.hd-cm small { font-size: 14px; overflow-wrap: anywhere; }
+.hd-acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+.hd-ren { display: flex; gap: 8px; margin-top: 6px; }
+.hd-ren input { flex: 1 1 auto; min-width: 0; min-height: 40px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--fg); padding: 0 10px; font: inherit; }
 .hd-pick { display: grid; gap: 10px; }
 .hd-dirs { display: grid; gap: 6px; }
 .hd-dir { border: 0; text-align: left; background: var(--panel-2); color: var(--fg); border-radius: 12px; min-height: 52px; padding: 8px 12px; display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
 .hd-dir > i { align-self: stretch; border-radius: 3px; background: var(--chrome-c); }
 @media (max-width: 900px) { .hd-two { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .hd-set { grid-template-columns: minmax(0, 1fr); } .hd-dialbox { grid-template-columns: auto auto auto; justify-content: center; align-items: center; gap: 22px; padding: 14px 28px; } }
 @media (max-width: 640px) { .hd-panel { padding: 12px 12px 14px; } .hd-tv { padding: 10px; border-radius: 18px; } .hd-screen { aspect-ratio: 4 / 3; } .hd-gap { display: none; } .hd-panel .phead { flex-wrap: wrap; } .hd-panel .phead .meta { width: 100%; text-align: left; padding-left: 40px; } }

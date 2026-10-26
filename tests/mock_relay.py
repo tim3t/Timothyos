@@ -112,10 +112,21 @@ def videos():
     out["/Video/Test Channel/04 - Old Rip - Not For iPad.avi"] = (b"RIFF\x00\x00\x00\x00AVI LIST", "2026-10-01T10:00:00Z")
     out["/Video/Test Channel/notes.txt"] = (b"channel notes", "2026-10-01T10:00:00Z")
     out["/Video/Other Channel/a - b.webm"] = out["/Video/Test Channel/02 - The Velvet Static - Satellite Heart.webm"]
+    # 2.46: a series, one folder per season (named as video sites name them), a specials folder, an extra without a number, one MKV
+    v1, v2, v3 = (out["/Video/Test Channel/" + n] for n in ("01 - Neon Harbor - Midnight Signal.webm", "02 - The Velvet Static - Satellite Heart.webm", "03 - Juniper Drive - Polaroid Weekend.webm"))
+    ser = "/Video/Test Series/Test Series \u2014 Season "
+    out[ser + "1/Test Series - Season 1 Episode 10 - Full Episode [aB3dE5fG7hI].webm"] = v2
+    out[ser + "1/Test Series - Season 1 Episode 2 - Full Episode [Zz9Yy8Xx7Ww].webm"] = v1
+    out[ser + "1/Test Series - Season 1, Episode 1 - Updated Full Episode [Qq1Ww2Ee3Rr].webm"] = v2
+    out[ser + "1/Behind the Scenes.webm"] = v1
+    out[ser + "2/Test Series - Season 2 Episode 1 - Full Episode [Kk4Jj3Hh2Gg].webm"] = v3
+    out[ser + "2/Test Series - Season 2 Episode 2 - Not For iPad.mkv"] = (b"\x1aE\xdf\xa3", "2026-10-01T10:00:00Z")
+    out[ser + "10/Test Series - Season 10 Episode 1 - The Last Case [Mm5Nn6Bb7Vv].webm"] = v2
+    out["/Video/Test Series/Specials/Christmas Special.webm"] = v1
     return out
 FILES.update(videos())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel"}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel", "/Video/Test Series", "/Video/Test Series/Specials"} | {"/Video/Test Series/Test Series \u2014 Season %d" % n for n in (1, 2, 10)}
 STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.46.0 · 2026-10-26
+- **HOLODECK channels.** Add as many channels as you like, one NAS folder each, and change between them like a TV: **CH ▲ / CH ▼**, a dial to turn (or tap), **WATCH** in the channel list, or the guide's line for what's on the other channels. A moment of static on each change; every channel keeps running whichever one you watch.
+  - **A series in season folders** makes one channel: seasons in number order, episodes by their number, then the specials and extras. **USE THIS FOLDER** says what it found (seasons, specials, episodes). The credit and guide show the season and episode; video IDs in brackets and "Full Episode" are left out.
+  - **Every channel plays in order now,** starting at its beginning when you add it and going round again at the end. Your first channel starts over from its first video with this update.
+  - A new channel can be watched as soon as its first videos are measured; the rest are measured while it plays. **RENAME** and **REMOVE** (two taps; nothing on the NAS changes) in the channel list; **LOOK AGAIN** rereads every channel.
+- **Fixed: HOLODECK's guide.** The NOW row borrowed a name from the calendar's "now" line and could float out of the guide to the bottom of the screen. It stays in place now.
+
 ## 2.45.0 · 2026-10-26
 - **HOLODECK,** a new station (RESOURCES): a TV that's always on air. One NAS folder of videos, through the STORAGE relay's new `/Video` share, plays as a channel shuffled and laid end to end since 1 January; the clock decides what's on, so **TUNE IN** always joins mid-broadcast and nothing about your viewing is remembered.
   - Static as the set warms up, **● LIVE**, the channel mark, and the artist and title from the file name in each video's first and last seconds. **GUIDE**: now, next and later with start times.
