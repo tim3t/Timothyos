@@ -292,6 +292,8 @@ services:
     restart: unless-stopped
 ```
 
+**Video for HOLODECK:** share a folder of videos the same way, under `/media/Video/`, for example `- PASTE_VIDEO_FOLDER_PATH:/media/Video/CHANNEL NAME:ro` (the name after `/media/Video/` is what HOLODECK shows). STORAGE leaves the `Video` share to HOLODECK.
+
 `HA_URL` and the `/ha` part are for Home Assistant (below); until its address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token. To share another folder, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
 
 **On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
@@ -479,6 +481,22 @@ Your finances from YNAB at a glance. YNAB stays where you budget: the Google bri
 - Tap any book to change its shelf, its dates, the stars or notes (**DONE** saves), or **REMOVE** it (tap twice; it goes to Notion's trash).
 - Searches go from the iPad straight to Open Library (openlibrary.org, free, no account); only the search words are sent.
 
+### HOLODECK
+
+A TV that's always on air. **ALL STATIONS → HOLODECK**, or **COMPUTER** ("tv"). One NAS folder of videos (no subfolders) plays as a channel: shuffled, laid end to end since 1 January, reshuffled each time round. The clock decides what's on, so **TUNE IN** always joins mid-broadcast, wherever it would be if it had been playing all along; nothing about your viewing is remembered.
+
+- **Setting up a channel:**
+  1. Share the folder with the relay under `/media/Video/` (Storage relay, above): one more line under the relay's `volumes`, then redeploy the project.
+  2. Check it in Safari: `https://timothyos-nas.YOUR-TAILNET.ts.net/Video/?k=YOUR-TOKEN` lists the folder.
+  3. **HOLODECK → CHOOSE A FOLDER → Video →** your folder **→ USE THIS FOLDER**. Bridge measures each video's length once (a minute or so for a hundred videos; kept on this iPad), then **TUNE IN** lights up.
+- **On screen:** a moment of static, **● LIVE**, the channel mark, and the artist and title (from the file name, "Artist - Title" with or without a leading number) in the first and last seconds of each video and when you tune in. **GUIDE**: now (with time left) and the next three with their start times. **CRT** (scan lines, the shows' own 4:3 shape) or **CLEAN**. **MUTE** (the iPad's buttons set the volume).
+- **PICTURE IN PICTURE** keeps a small TV floating while you use other stations or apps; otherwise leaving HOLODECK turns it off. **FULL SCREEN** for the iPad's own player. Coming back to the app catches up with the broadcast.
+- **What plays:** MP4, M4V and MOV (H.264 or HEVC video, AAC audio). Other files (AVI, MKV, WMV and so on) are skipped and counted under SOURCE. A one-time fix on the NAS, with ffmpeg (a free converter; easiest in a Docker container):
+  - MKV that already holds H.264 video: repackage, quick and lossless: `ffmpeg -i "in.mkv" -c copy -movflags +faststart "out.mp4"`
+  - Anything else: convert once: `ffmpeg -i "in.avi" -c:v libx264 -crf 20 -preset slow -c:a aac -b:a 160k -movflags +faststart "out.mp4"`
+  - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
+- **LOOK AGAIN** reads the folder afresh after you add videos (the schedule then reshuffles to include them).
+
 ### STORAGE
 
 Folders on the NAS, through the relay, with an audio player for podcasts.
@@ -661,6 +679,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
+| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Check Tailscale and the relay (STORAGE works?). Grey with MEASURING: wait for the lengths. Videos that never play: convert them to MP4 (HOLODECK, above) |
 | RESSIKAN is silent though SOUND is on | Update to 2.44.1 or later. If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
 | Music stops at the end of a track while Bridge is in the background | Update to 2.43.1 or later (the next file is now read ahead). Over 150 MB, or a slow NAS link, can still stall: keep Bridge in Split View or Slide Over, or open it to carry on |
 | Storage or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
@@ -679,6 +698,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
+- **HOLODECK** streams from your NAS through the relay only; the folder you chose and the video lengths stay on this iPad.
 - **RESSIKAN** makes all its sound on the iPad; nothing it plays or records leaves it unless you save a take to Files.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
 - **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Landmarks: the rounded location goes once to OpenStreetMap (Overpass) to suggest them, and a place you search for goes to Open-Meteo's place search; the landmarks themselves stay on this iPad and never reach the bridge, Notion or the Science Log. Nothing else leaves; the bridge never stores the location.

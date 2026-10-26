@@ -100,8 +100,22 @@ def tagkinds():
     }
     return {"/Podcasts/Show C/" + k: (v, "2026-10-1%dT10:00:00Z" % i) for i, (k, v) in enumerate(files.items())}
 FILES.update(tagkinds())
+def videos():
+    """2.45 HOLODECK: a channel folder of short WebM videos (the test browser has no H.264), one AVI the iPad can't play, a text file. Made with ffmpeg (skipped without it)."""
+    import subprocess, tempfile, os, shutil
+    if not shutil.which("ffmpeg"): return {}
+    d = tempfile.mkdtemp(); q = ["-loglevel", "error", "-y"]; out = {}
+    for name, secs, src in [("01 - Neon Harbor - Midnight Signal.webm", 6, "testsrc=s=160x120:r=15"), ("02 - The Velvet Static - Satellite Heart.webm", 5, "smptebars=s=160x120:r=15"), ("03 - Juniper Drive - Polaroid Weekend.webm", 7, "rgbtestsrc=s=160x120:r=15")]:
+        f = os.path.join(d, "v.webm")
+        subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-t", str(secs), "-i", src, "-f", "lavfi", "-t", str(secs), "-i", "sine=frequency=440:sample_rate=48000", "-c:v", "libvpx-vp9", "-b:v", "60k", "-deadline", "realtime", "-c:a", "libopus", "-b:a", "24k", "-shortest", f], check=True)
+        out["/Video/Test Channel/" + name] = (open(f, "rb").read(), "2026-10-01T10:00:00Z")
+    out["/Video/Test Channel/04 - Old Rip - Not For iPad.avi"] = (b"RIFF\x00\x00\x00\x00AVI LIST", "2026-10-01T10:00:00Z")
+    out["/Video/Test Channel/notes.txt"] = (b"channel notes", "2026-10-01T10:00:00Z")
+    out["/Video/Other Channel/a - b.webm"] = out["/Video/Test Channel/02 - The Velvet Static - Satellite Heart.webm"]
+    return out
+FILES.update(videos())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C"}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel"}
 STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {
@@ -213,7 +227,7 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body); return
         if path in FILES:
             STATS["media"] += 1
-            data = FILES[path][0]; ctype = {"wav": "audio/wav", "mp3": "audio/mpeg", "png": "image/png"}.get(path.rsplit(".", 1)[-1], "text/plain")
+            data = FILES[path][0]; ctype = {"wav": "audio/wav", "mp3": "audio/mpeg", "png": "image/png", "webm": "video/webm"}.get(path.rsplit(".", 1)[-1], "text/plain")
             rng = self.headers.get("Range"); m = re.match(r"bytes=(\d*)-(\d*)", rng or "")
             if m:
                 a = int(m.group(1) or 0); b = int(m.group(2)) if m.group(2) else len(data) - 1; b = min(b, len(data) - 1)

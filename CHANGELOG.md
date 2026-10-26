@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.45.0 · 2026-10-26
+- **HOLODECK,** a new station (RESOURCES): a TV that's always on air. One NAS folder of videos, through the STORAGE relay's new `/Video` share, plays as a channel shuffled and laid end to end since 1 January; the clock decides what's on, so **TUNE IN** always joins mid-broadcast and nothing about your viewing is remembered.
+  - Static as the set warms up, **● LIVE**, the channel mark, and the artist and title from the file name in each video's first and last seconds. **GUIDE**: now, next and later with start times.
+  - **CRT** or **CLEAN**, **MUTE**, **PICTURE IN PICTURE** (keeps playing across stations), **FULL SCREEN**. Coming back to the app catches up with the broadcast.
+  - Files the iPad can't play (AVI, MKV and so on) are skipped and counted; the README has a one-time ffmpeg fix. Lengths are measured once and kept on the iPad.
+  - Choosing the folder: **CHOOSE A FOLDER** browses `/Video`; **LOOK AGAIN** after adding videos.
+- **STORAGE** no longer lists the `Video` share; it's HOLODECK's.
+
 ## 2.44.2 · 2026-10-26
 - **SCIENCE → SKY TRAFFIC: no more flash on an open aircraft.** Every 10-second radar update rebuilt the whole aircraft card, so its photo was thrown away, fetched again and redrawn. Now the radar, list and the card's words update in place and the photo stays put (also through the rarer full redraws).
 - **Sharper aircraft photos:** the card now shows adsbdb's full-size photo (it used the small thumbnail), and tapping the photo opens it.
