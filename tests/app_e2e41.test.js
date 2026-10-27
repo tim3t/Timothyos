@@ -11,6 +11,7 @@ const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mmss = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 
+const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('[data-hdprog="audio"]'); await p.click('[data-hdprog="audio"]'); await p.waitForFunction(() => !document.querySelector('.hd-arch')); };   // 2.47: STORAGE is HOLODECK → AUDIO, through the arch
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
@@ -26,7 +27,7 @@ const mmss = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.
 
   // ---- STORAGE: lengths, not sizes
   const sent0 = (await (await fetch(R + '/__stats')).json()).sent;
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await audio(p); await p.waitForSelector('.nas-share');
   await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Lengths"]');
   await p.waitForSelector('[data-nasplay="/Music/Lengths/vbr.mp3"]');
   const row = f => p.$eval('[data-nasplay="/Music/Lengths/' + f + '"] .nas-m.tnum', el => el.textContent);

@@ -9,6 +9,8 @@ const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'); return a ? { t: a.currentTime, paused: a.paused, src: a.src } : null; });
 
+const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('[data-hdprog="audio"]'); await p.click('[data-hdprog="audio"]'); await p.waitForFunction(() => !document.querySelector('.hd-arch')); };   // 2.47: STORAGE is HOLODECK → AUDIO, through the arch
+const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.click('.nas-now [data-nasdir]'); await p.click('.nas-crumbs [data-nasdir="/"]'); } };   // the folders page (AUDIO opens the player while something plays)
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
@@ -18,8 +20,8 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.reload(); await p.waitForTimeout(1500);
 
   // ---- not set up yet: Storage points to Systems
-  await p.click('[data-screen="storage"].nav'); await p.waitForTimeout(300);
-  assert.ok((await txt(p, '#content')).includes('Add the relay address and token under STORAGE in Systems'));
+  await home(p); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '#content')).includes('Add the relay address and token under NAS RELAY in Systems'));
   await p.click('[data-nas="systems"]'); await p.waitForSelector('#sec-storage');
 
   // ---- wrong token refused, then the right one
@@ -32,7 +34,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   assert.strictEqual(saved.token, 'relay-test-token');
 
   // ---- front page: folders, not the placeholders or hidden ones
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await home(p); await p.waitForSelector('.nas-share');
   const shares = await p.$$eval('.nas-share b', n => n.map(x => x.textContent));
   assert.deepStrictEqual(shares, ['MUSIC', 'PODCASTS']);
   assert.ok((await txt(p, '.nas-status')).includes('ONLINE'));
@@ -78,7 +80,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   assert.ok(!(await p.isVisible('#nasMini')) && (await cur(p)).paused, 'closed: paused and put away');
   assert.ok((await txt(p, '#toast')).includes('CONTINUE LISTENING'));
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('content')).paddingBottom), '6px', 'room given back');
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('#nasBar');
+  await home(p); await p.waitForSelector('#nasBar');
   await p.click('#nasBar [data-nas="toggle"]'); await p.waitForTimeout(300);
   await p.click('[data-screen="today"].nav'); await p.waitForTimeout(300);
   assert.ok(await p.isVisible('#nasMini'), 'playing again brings it back');
@@ -89,7 +91,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
 
   // ---- after a reload: CONTINUE LISTENING picks up the place
   await p.reload(); await p.waitForTimeout(1200);
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-ep');
+  await home(p); await p.waitForSelector('.nas-ep');
   assert.ok((await txt(p, '.nas-cont')).includes('ep 1'));
   await p.click('.nas-ep'); await p.waitForSelector('.nas-now');
   await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a && a.currentTime > 30 && !a.paused; }, null, { timeout: 8000 });
@@ -119,9 +121,9 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   assert.strictEqual(await p.evaluate(() => document.activeElement.id), 'nasQ', 'keeps typing');
   await p.fill('#nasQ', ''); await p.click('[data-nasfilter="all"]');
 
-  // ---- crumbs back, and tapping STORAGE again returns to its front page
+  // ---- crumbs back to the folder, then to the front page (2.47: AUDIO from the arch opens the player while something plays)
   await p.click('.nas-crumbs >> text=PODCASTS'); await p.waitForSelector('text=Show A');
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await p.click('.nas-crumbs [data-nasdir="/"]'); await p.waitForSelector('.nas-share');
 
   // ---- phone width
   await p.setViewportSize({ width: 400, height: 860 });
@@ -132,7 +134,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   await p.setViewportSize({ width: 1180, height: 820 });
 
   // ---- hide a folder (kept on this iPad), unhide from Systems
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await home(p); await p.waitForSelector('.nas-share');
   await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Album"]'); await p.waitForSelector('[data-nas="hide"]');
   await p.click('[data-nas="hide"]'); await p.waitForTimeout(300);
   assert.ok((await txt(p, '#toast')).includes('Hidden: Album'));
@@ -142,7 +144,7 @@ const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'
   assert.ok((await txt(p, '#sec-storage')).includes('Music ▸ Album'));
   await p.click('[data-nasunhide="/Music/Album"]'); await p.waitForTimeout(200);
   assert.ok((await txt(p, '#sec-storage')).includes('HIDDEN FOLDERS None'));
-  await p.click('[data-screen="storage"].nav'); await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await home(p); await p.waitForSelector('.nas-share');
   await p.click('.nas-share >> text=MUSIC'); await p.waitForSelector('[data-nasdir="/Music/Album"]');
 
   // ---- art: a folder's own picture, and an episode's tags (title, show, artwork)

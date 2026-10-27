@@ -2513,6 +2513,42 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-slot.hd-now .t { color: var(--chrome-d); }
 .hd-prog { display: block; height: 6px; border-radius: 3px; background: var(--line); margin-top: 6px; overflow: hidden; }
 .hd-prog i { display: block; height: 100%; background: var(--chrome-d); }
+/* 2.47: the arch. HOLODECK opens here: the holodeck's own grid, black with amber lines, and a program panel */
+.hd-archrow { display: flex; }
+.hd-archb { border-style: dashed; border-color: rgba(246, 198, 107, .55); color: var(--hero); }
+.hd-arch { position: relative; overflow: hidden; min-height: min(640px, calc(100vh - 220px)); border-radius: 0 22px 22px 0; border-left: 10px solid var(--hero); background: #000; display: grid; place-items: center; padding: 28px 18px; }
+.hd-grid, .hd-grid > i { position: absolute; pointer-events: none; }
+.hd-grid { inset: 0; }
+.hd-wall { inset: 0 0 38% 0; background-image: linear-gradient(rgba(246, 198, 107, .22) 2px, transparent 2px), linear-gradient(90deg, rgba(246, 198, 107, .22) 2px, transparent 2px); background-size: 56px 56px; background-position: center bottom; }
+.hd-floor { left: -50%; right: -50%; bottom: 0; height: 62%; transform-origin: 50% 0; transform: perspective(420px) rotateX(62deg); background-image: linear-gradient(rgba(246, 198, 107, .55) 2px, transparent 2px), linear-gradient(90deg, rgba(246, 198, 107, .55) 2px, transparent 2px); background-size: 56px 56px; animation: hd-drift 9s linear infinite; }
+.hd-fade { inset: 0; background: radial-gradient(ellipse at 50% 58%, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, .85) 78%); }
+@keyframes hd-drift { to { background-position: 0 56px, 0 0; } }
+.hd-px { position: relative; z-index: 2; width: min(800px, 100%); background: rgba(7, 8, 11, .88); border-radius: 28px; padding: 18px 20px 20px; box-shadow: 0 0 0 2px rgba(246, 198, 107, .35), 0 20px 60px rgba(0, 0, 0, .7); display: grid; gap: 16px; transition: opacity .38s, transform .38s; }
+.hd-arch.leaving .hd-px { opacity: 0; transform: scale(.96); }
+.hd-atop { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.hd-atop .cap { width: 44px; height: 26px; border-radius: 13px 0 0 13px; background: var(--hero); }
+.hd-atop .rule { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--hero), var(--chrome-d)); }
+.hd-atop h2 { margin: 0; font-family: var(--display); font-size: 24px; letter-spacing: .2em; font-weight: 600; white-space: nowrap; }
+.hd-progs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.hd-pg { border: 0; text-align: left; background: var(--panel); color: var(--fg); border-radius: 0 22px 22px 0; border-left: 14px solid var(--c); padding: 16px 18px; display: grid; gap: 8px; min-height: 210px; align-content: start; min-width: 0; }
+.hd-pg:active { background: var(--panel-2); }
+.hd-pg .no { font-family: var(--display); font-size: 14px; letter-spacing: .2em; color: var(--c); }
+.hd-pg .nm { font-family: var(--display); font-weight: 700; font-size: 40px; letter-spacing: .1em; line-height: 1; }
+.hd-pg .kind { font-family: var(--display); letter-spacing: .16em; color: var(--dim); font-size: 14px; }
+.hd-pg .lu { display: grid; gap: 4px; margin-top: 6px; font-size: 15px; min-width: 0; }
+.hd-pg .lu span { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.hd-pg .lu em { font-style: normal; font-family: var(--display); letter-spacing: .12em; font-size: 13px; color: var(--c); flex: none; }
+.hd-pg .lu b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.hd-pg .go { margin-top: 4px; font-family: var(--display); letter-spacing: .16em; font-size: 14px; color: var(--c); }
+.hd-voice { font-family: var(--display); letter-spacing: .16em; color: var(--hero); font-size: 15px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .hd-floor { animation: none; } .hd-px { transition: none; } }
+@media (max-width: 760px) { .hd-progs { grid-template-columns: minmax(0, 1fr); } .hd-pg { min-height: 0; } .hd-pg .nm { font-size: 32px; } .hd-arch { min-height: 0; padding: 18px 10px; } .hd-atop h2 { font-size: 18px; } }
+/* 2.47: AUDIO's top folders sit on a radio band; a tap swings the needle there, then opens the folder (it never drags) */
+.nas-band { position: relative; background: linear-gradient(180deg, #1b1a16, #0e0e0c); border-radius: 18px; padding: 14px 14px 12px; box-shadow: inset 0 0 0 2px #2f2b22; display: grid; gap: 10px; }
+.nas-scale { height: 22px; border-bottom: 2px solid rgba(246, 198, 107, .4); background: repeating-linear-gradient(90deg, rgba(246, 198, 107, .55) 0 2px, transparent 2px 24px), repeating-linear-gradient(90deg, rgba(246, 198, 107, .25) 0 1px, transparent 1px 6px); background-size: auto 100%, auto 50%; background-repeat: repeat-x; background-position: 0 0, 0 100%; display: flex; justify-content: space-between; font-family: var(--display); font-size: 11px; color: var(--dim); letter-spacing: .1em; padding: 0 2px; overflow: hidden; }
+.nas-needle { position: absolute; left: 24px; top: 8px; width: 3px; height: 34px; background: var(--bad); border-radius: 2px; box-shadow: 0 0 8px rgba(255, 122, 122, .8); transition: left .38s cubic-bezier(.3, .7, .3, 1); pointer-events: none; }
+.nas-needle.still { transition: none; }
+@media (prefers-reduced-motion: reduce) { .nas-needle { transition: none; } }
 /* 2.46: channels and the dial */
 .hd-set { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 16px; align-items: stretch; }
 .hd-set > * { min-width: 0; }

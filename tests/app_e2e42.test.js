@@ -8,6 +8,7 @@ const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const sent = async () => (await (await fetch(R + '/__stats')).json()).sent;
 
+const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('[data-hdprog="audio"]'); await p.click('[data-hdprog="audio"]'); await p.waitForFunction(() => !document.querySelector('.hd-arch')); };   // 2.47: STORAGE is HOLODECK → AUDIO, through the arch
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
@@ -23,7 +24,7 @@ const sent = async () => (await (await fetch(R + '/__stats')).json()).sent;
   await p.reload(); await p.waitForTimeout(1200);
 
   const s0 = await sent();
-  await p.click('[data-screen="storage"].nav'); await p.waitForSelector('.nas-share');
+  await audio(p); await p.waitForSelector('.nas-share');
   await p.click('.nas-share >> text=PODCASTS'); await p.click('[data-nasdir="/Podcasts/Show C"]');
   await p.waitForSelector('[data-nassort="track"]');
   await p.click('[data-nassort="track"]');

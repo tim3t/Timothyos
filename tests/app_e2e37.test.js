@@ -1,5 +1,5 @@
 // ENGINEERING (2.24, controls 2.25): Home Assistant through the Storage relay's /ha path (simulated on :8110) and
-// UPKEEP kept on the iPad. Not set up: points to Systems. HOME ASSISTANT in Systems: USE THE STORAGE
+// UPKEEP kept on the iPad. Not set up: points to Systems. HOME ASSISTANT in Systems: USE THE NAS
 // RELAY, a wrong token refused, the right one tested. CONTROLS starts empty; + ADD DEVICE searches
 // Home Assistant, then a card style and an iPad-only group (new groups made on the way); a switch toggles;
 // Skylight 2's panel sends brightness, colour from the wheel (throttled), a quick color, white and an

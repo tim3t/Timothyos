@@ -4,11 +4,14 @@
 // position, the guide, the next video when one ends, the credit, CRT/CLEAN, mute. Channel 2 from a series in season
 // folders: seasons by number, episodes by number, specials and extras last, the MKV skipped; changing channel with the
 // buttons, the dial and the guide's other-channel line; rename, remove; 2.45's one folder becomes channel 1; leaving
-// turns it off, STORAGE no longer lists /Video, COMPUTER, phone width.
+// turns it off, STORAGE no longer lists /Video, COMPUTER, phone width. 2.47: HOLODECK opens on the arch (VISUAL or
+// AUDIO, which is STORAGE now); ◇ ARCH from either; one at a time (the TV pauses audio, audio turns the TV off); the
+// radio band's needle; STORAGE gone from ALL STATIONS.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
+const visual = async p => { await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd'); };
 const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo'); return v ? { src: decodeURIComponent(v.getAttribute('src') || ''), t: v.currentTime, paused: v.paused, inScreen: !!v.closest('#hdScreen'), muted: v.muted } : null; });
 
 (async () => {
@@ -20,7 +23,15 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.reload(); await p.waitForSelector('#allBtn');
 
   // ---- from ALL STATIONS → RESOURCES; no folder yet: the picker opens on /Video
-  await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await p.waitForSelector('.hd');
+  await p.click('#allBtn');
+  assert.strictEqual(await p.$('[data-station="storage"]'), null, 'STORAGE is inside HOLODECK now');
+  assert.ok((await txt(p, '[data-station="holodeck"]')).includes('your NAS audio'));
+  await p.click('[data-station="holodeck"]'); await p.waitForSelector('.hd-arch');
+  assert.strictEqual(await txt(p, '#title'), 'HOLODECK');
+  assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · ARCH');
+  assert.ok((await txt(p, '[data-hdprog="visual"]')).includes('NONE YET'));
+  await p.waitForFunction(() => /FOLDERS Music · Podcasts/.test(document.querySelector('[data-hdprog="audio"]').innerText.replace(/\s+/g, ' ')), null, { timeout: 5000 });
+  await visual(p);
   assert.strictEqual(await txt(p, '#title'), 'HOLODECK');
   assert.ok(await p.isDisabled('.hd-tune'), 'nothing to tune to yet');
   assert.ok((await txt(p, '.hd-tune')).includes('ADD A CHANNEL BELOW'));
@@ -35,7 +46,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.waitForFunction(() => / round/.test((document.getElementById('hdInfo1') || {}).textContent || ''), null, { timeout: 20000 });
   const info = await txt(p, '#hdInfo1');
   assert.ok(/^3 videos · 1 AVI skipped · in order · 1[78] s round · on air since /.test(info), info);
-  assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · CH 1 · TEST CHANNEL');
+  assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · VISUAL · CH 1 · TEST CHANNEL');
   const lens = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololen.v1')));
   const secs = Object.keys(lens).sort().map(k => Math.round(lens[k].s));
   assert.deepStrictEqual(secs, [6, 5, 7], 'each length read from the file: ' + JSON.stringify(lens));
@@ -89,7 +100,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.waitForSelector('[data-hd="use"]');
   assert.strictEqual(await txt(p, '[data-hd="use"]'), 'USE THIS FOLDER · 3 SEASONS + SPECIALS · 8 EPISODES');
   await p.click('[data-hd="use"]');
-  assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · CH 2 · TEST SERIES · ON AIR');
+  assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · VISUAL · CH 2 · TEST SERIES · ON AIR');
   assert.strictEqual(await txt(p, '.hd-chnum'), 'CH 2');
   assert.strictEqual(await txt(p, '.hd-bug'), 'HOLODECK 2');
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && /Test Series/.test(decodeURIComponent(v.getAttribute('src') || '')) && v.currentTime > 0; }, null, { timeout: 15000 });
@@ -122,7 +133,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('tos.holo.v1')), l = JSON.parse(localStorage.getItem('tos.hololen.v1'));
     const ep = n => Object.keys(l).find(k => k.includes(n)); const pre = ['Season 1, Episode 1', 'Episode 2 -', 'Episode 10', 'Season 2 Episode 1'].reduce((s, n) => s + l[ep(n)].s, 0);
     c.chans[1].premiere = Date.now() - (pre + 1) * 1000; localStorage.setItem('tos.holo.v1', JSON.stringify(c)); });
-  await p.reload(); await p.waitForSelector('#allBtn'); await p.click('#allBtn'); await p.click('[data-station="holodeck"]');
+  await p.reload(); await p.waitForSelector('#allBtn'); await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await visual(p);
   await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 15000 });
   const RUN = ['S1 E1', 'S1 E2', 'S1 E10', 'S2 E1', 'S10 E1 · The Last Case', 'Special · Christmas Special', 'Special · Behind the Scenes'];
   const g3 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent)), k3 = RUN.indexOf(g3[0]);
@@ -131,18 +142,45 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
 
   // ---- rename; remove (two taps); the numbers follow the list
   await p.click('[data-hdren="2"]'); await p.fill('#hdRename', 'Mystery Hour'); await p.click('[data-hd="rensave"]');
-  assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · CH 2 · MYSTERY HOUR'));
+  assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 2 · MYSTERY HOUR'));
   await p.click('[data-hdrm="1"]'); assert.strictEqual(await txt(p, '[data-hdrm="1"]'), 'REMOVE IT');
   await p.click('[data-hdrm="1"]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
-  assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · CH 1 · MYSTERY HOUR'));
+  assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 1 · MYSTERY HOUR'));
   assert.ok(await p.isDisabled('[data-hd="down"]'));
+
+  // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
+  await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
+  await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');
+  assert.ok(!(await vid(p)).src.includes('/Video/'), 'the arch turns the TV off');
+  assert.ok((await txt(p, '[data-hdprog="visual"]')).includes('CH 1 Mystery Hour'));
+  await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-band');
+  assert.strictEqual(await txt(p, '#eyebrow'), 'HOLODECK · AUDIO · NAS');
+  assert.strictEqual(await txt(p, '#title'), 'HOLODECK');
+  assert.ok((await txt(p, '#allBtn')).includes('HOLODECK'), 'AUDIO counts as HOLODECK');
+  const n0 = await p.$eval('#nasNeedle', e => e.style.left);
+  await p.click('.nas-share >> text=PODCASTS');
+  await p.waitForFunction(n0 => { const n = document.getElementById('nasNeedle'); return !n || n.style.left !== n0; }, n0, { timeout: 3000 });
+  await p.waitForSelector('.nas-row');
+  assert.strictEqual(await txt(p, '#title'), 'PODCASTS', 'the needle swings, then the folder opens');
+  await p.click('.nas-row >> text=Show A'); await p.waitForSelector('[data-nasplay]'); await p.click('[data-nasplay]');
+  await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a && !a.paused && a.currentTime > 0.3; }, null, { timeout: 8000 });
+  await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');
+  assert.ok((await txt(p, '[data-hdprog="audio"]')).includes('PLAYING'), 'the arch says what plays');
+  await visual(p); await p.click('.hd-tune');
+  await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
+  assert.ok(await p.evaluate(() => document.getElementById('nasAudio').paused), 'the TV paused the audio');
+  await p.waitForFunction(() => { const b = document.querySelector('#nasMini [data-nas="toggle"]'); return b && b.getAttribute('aria-label') === 'Play'; }, null, { timeout: 3000 });
+  await p.click('#nasMini [data-nas="toggle"]');   /* audio again: the TV goes off */
+  await p.waitForFunction(() => !(document.getElementById('hdVideo').getAttribute('src') || '').length, null, { timeout: 3000 });
+  assert.ok((await txt(p, '.hd')).includes('The TV went off while audio plays.'));
+  await p.click('#nasMini [data-nas="toggle"]');
 
   // ---- leaving: off (no Picture in Picture here); coming back: TUNE IN again, later in the broadcast
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
   await p.click('.elbow'); await p.waitForSelector('.ov-cond');
   const off = await vid(p); assert.ok(off.paused && !off.src.includes('/Video/'), 'off after leaving: ' + JSON.stringify(off));
-  await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await p.waitForSelector('.hd-tune:not([disabled])');
+  await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await visual(p); await p.waitForSelector('.hd-tune:not([disabled])');
 
   // ---- 2.45's one folder becomes channel 1, in order from now
   await p.evaluate(() => localStorage.setItem('tos.holo.v1', JSON.stringify({ dir: '/Video/Test Channel', look: 'clean', muted: false })));
@@ -150,18 +188,22 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   const mig = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')));
   assert.ok(!('dir' in mig) && mig.ch === 1 && mig.look === 'clean' && mig.chans.length === 1 && mig.chans[0].name === 'Test Channel' && Math.abs(mig.chans[0].premiere - Date.now()) < 10000, JSON.stringify(mig));
 
-  // ---- STORAGE leaves /Video to HOLODECK
-  await p.click('#allBtn'); await p.click('[data-station="storage"]'); await p.waitForSelector('.nas-share');
+  // ---- AUDIO (STORAGE) leaves /Video to VISUAL
+  await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-share');
   assert.ok(!(await p.$$eval('.nas-share b', e => e.map(x => x.textContent))).includes('VIDEO'));
 
   // ---- COMPUTER
   await p.click('#cmdBtn'); await p.fill('#cmdText', 'tv');
   assert.ok((await txt(p, '#cmdList')).includes('Tune in to the HOLODECK'));
-  await p.keyboard.press('Enter'); await p.waitForSelector('.hd');
+  await p.click('#cmdList >> text=Tune in to the HOLODECK'); await p.waitForSelector('.hd');   /* straight to VISUAL; the station row itself opens the arch */
 
   // ---- phone width
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= 390), 'no sideways scroll');
+  await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch'); await p.waitForTimeout(200);
+  const cards = await p.$$eval('.hd-pg', e => e.map(x => { const r = x.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+  assert.ok(cards.length === 2 && cards[0][0] === cards[1][0] && cards.every(c => c[1] > 120), 'the arch\'s programs, whole and side by side in width: ' + JSON.stringify(cards));
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= 390), 'the arch: no sideways scroll');
 
   console.log('errors', errs);
   await b.close();

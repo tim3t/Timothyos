@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.47.0 · 2026-10-27
+- **HOLODECK opens on the arch.** Entering HOLODECK (from the bar, ALL STATIONS or anywhere) brings up **ENTER PROGRAM** over the holodeck's amber grid: **PROGRAM 01 VISUAL**, the TV, with what's on each channel, and **PROGRAM 02 AUDIO**, your NAS folders, with what's playing or where to continue. Tap one to go in; **◇ ARCH** at the top of each program comes back.
+- **STORAGE is now HOLODECK → AUDIO.** The same folders, player, CONTINUE LISTENING, search, filters, track order, artwork, sleep timer and background play to the next track; every saved place, speed and hidden folder carried over. STORAGE no longer appears in ALL STATIONS, and a STORAGE pin in the bar is now HOLODECK. COMPUTER's "podcast", "music" and "storage" still open it directly, and the floating player's title opens the player. In Systems its settings are now **NAS RELAY**.
+- **A radio band** holds AUDIO's top folders: tap one and the needle swings to it, then the folder opens. It only moves by tapping.
+- **One at a time:** tuning in the TV pauses audio, and starting audio turns the TV off.
+- From the arch, AUDIO opens the player while something is playing, and the folders otherwise.
+
 ## 2.46.0 · 2026-10-26
 - **HOLODECK channels.** Add as many channels as you like, one NAS folder each, and change between them like a TV: **CH ▲ / CH ▼**, a dial to turn (or tap), **WATCH** in the channel list, or the guide's line for what's on the other channels. A moment of static on each change; every channel keeps running whichever one you watch.
   - **A series in season folders** makes one channel: seasons in number order, episodes by their number, then the specials and extras. **USE THIS FOLDER** says what it found (seasons, specials, episodes). The credit and guide show the season and episode; video IDs in brackets and "Full Episode" are left out.

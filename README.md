@@ -292,11 +292,11 @@ services:
     restart: unless-stopped
 ```
 
-**Video for HOLODECK:** share a folder of videos the same way, under `/media/Video/`, for example `- PASTE_VIDEO_FOLDER_PATH:/media/Video/CHANNEL NAME:ro` (the name after `/media/Video/` is the channel's name in HOLODECK; one line per channel). STORAGE leaves the `Video` share to HOLODECK.
+**Video for HOLODECK:** share a folder of videos the same way, under `/media/Video/`, for example `- PASTE_VIDEO_FOLDER_PATH:/media/Video/CHANNEL NAME:ro` (the name after `/media/Video/` is the channel's name in HOLODECK; one line per channel). Or share one parent folder that holds all your video folders, once, as `- "/PATH/TO/VIDEOS:/media/Video:ro"` in place of the channel lines: new folders there then show up in **+ ADD CHANNEL** with no relay change (the relay can then read everything in that folder, read-only, inside Tailscale). AUDIO leaves the `Video` share to VISUAL.
 
 `HA_URL` and the `/ha` part are for Home Assistant (below); until its address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token. To share another folder, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
 
-**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → STORAGE**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
+**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → NAS RELAY**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
 
 ### AI voice for the Morning Briefing (OpenAI)
 
@@ -318,7 +318,7 @@ Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and
 1. **A Home Assistant user for TimothyOS** (whoever administers Home Assistant): **Settings → People → Add person**, allow login, *not* an administrator. Note Home Assistant's local address (like `http://192.168.x.x:8123`).
 2. **A token:** log in as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it; it's shown only once.
 3. **The relay:** make sure the compose has the `HA_URL` line with Home Assistant's address (as above), then redeploy.
-4. **On the iPad:** **SYSTEMS → HOME ASSISTANT → USE THE STORAGE RELAY**, paste the token, **SAVE AND TEST**.
+4. **On the iPad:** **SYSTEMS → HOME ASSISTANT → USE THE NAS RELAY**, paste the token, **SAVE AND TEST**.
 
 ---
 
@@ -483,12 +483,16 @@ Your finances from YNAB at a glance. YNAB stays where you budget: the Google bri
 
 ### HOLODECK
 
-A TV that's always on air. **ALL STATIONS → HOLODECK**, or **COMPUTER** ("tv"). Each channel is one NAS folder: a folder of videos, or a series with one folder per season. A channel plays **in order** (file names in number order; a series season by season, episode by episode, then its specials and extras), laid end to end from the moment you added it, and starts again from the top when it reaches the end. The clock decides what's on, so **TUNE IN** always joins mid-broadcast, and every channel keeps running whichever one you watch; nothing about your viewing is remembered.
+HOLODECK opens on **the arch**, as on the ship: **ENTER PROGRAM** with two programs. **PROGRAM 01 VISUAL** is a TV with channels always on air (what's on each shows on the arch); **PROGRAM 02 AUDIO** is your NAS folders and the audio player (what's playing or where to continue shows on the arch). Tap one to go in; **◇ ARCH** at the top of each program comes back. Tapping HOLODECK in the bar, or opening it from anywhere, always starts at the arch. One plays at a time: tuning in the TV pauses audio, and starting audio turns the TV off.
+
+#### VISUAL
+
+A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**) goes straight in. Each channel is one NAS folder: a folder of videos, or a series with one folder per season. A channel plays **in order** (file names in number order; a series season by season, episode by episode, then its specials and extras), laid end to end from the moment you added it, and starts again from the top when it reaches the end. The clock decides what's on, so **TUNE IN** always joins mid-broadcast, and every channel keeps running whichever one you watch; nothing about your viewing is remembered.
 
 - **Adding a channel:**
   1. Share the folder with the relay under `/media/Video/` (Storage relay, above): one more line under the relay's `volumes`, then redeploy the project. Put quotes around a line whose path has spaces: `- "/PATH/TO/My Show:/media/Video/My Show:ro"`.
   2. Check it in Safari: `https://timothyos-nas.YOUR-TAILNET.ts.net/Video/?k=YOUR-TOKEN` lists the folder.
-  3. **HOLODECK → + ADD CHANNEL → Video →** your folder **→ USE THIS FOLDER** (it says what it found: "12 SEASONS + SPECIALS · 281 EPISODES", or "100 VIDEOS"). The new channel comes on at its beginning. Bridge measures each video's length once (kept on this iPad); a channel can be watched as soon as its first videos are measured, and the rest are measured as it plays.
+  3. **HOLODECK → VISUAL → + ADD CHANNEL → Video →** your folder **→ USE THIS FOLDER** (it says what it found: "12 SEASONS + SPECIALS · 281 EPISODES", or "100 VIDEOS"). The new channel comes on at its beginning. Bridge measures each video's length once (kept on this iPad); a channel can be watched as soon as its first videos are measured, and the rest are measured as it plays.
 - **A series:** one level of folders inside the channel's folder. A folder with a season number in its name ("Season 3", "Show — Season 3", "S03") is a season, played in number order; episodes go by the number in their names ("Episode 7", "S03E07", "3x07"). Folders without a season number (Specials, Extras) follow the last season, then any episode without a number, then videos loose beside the season folders. Bracketed video IDs and "Full Episode" are left out of what's shown.
 - **Changing channel:** **CH ▲ / CH ▼**, the dial (turn it and let go near a number, or tap it for the next one), **WATCH** in the channel list, or the guide's other-channel line. A moment of static, then whatever that channel is showing now. Channels are numbered in the order you added them; **RENAME** and **REMOVE** (tap twice; the folder on the NAS is untouched) are in the list.
 - **On screen:** **● LIVE**, the channel mark (HOLODECK 2), and in each video's first and last seconds the artist and title ("Artist - Title" with or without a leading number) or the series, season and episode. **GUIDE**: now (with time left), the next three with their start times, and what's on the other channels. **CRT** (scan lines, the shows' own 4:3 shape) or **CLEAN**. **MUTE** (the iPad's buttons set the volume).
@@ -500,17 +504,17 @@ A TV that's always on air. **ALL STATIONS → HOLODECK**, or **COMPUTER** ("tv")
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
 - **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order).
 
-### STORAGE
+#### AUDIO (was STORAGE)
 
-Folders on the NAS, through the relay, with an audio player for podcasts.
+Folders on the NAS, through the relay, with an audio player for podcasts, music and audiobooks. STORAGE became this program in 2.47; everything it kept (places, speed, hidden folders, track order) carried over, and a STORAGE pin in the bar became HOLODECK. **COMPUTER** ("podcast", "music", "storage") opens it directly, and the floating player's title opens the player.
 
-- **Folders** on the front page; tap into one, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way.
+- **Folders** on the front page sit on a radio band: tap one and the needle swings to it, then the folder opens (the band only moves by tapping). Tap into folders, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. From the arch, AUDIO opens the player while something is playing, and the folders otherwise.
 - **The player:** the place in each file, speed and "play the next one" are kept **on this iPad** (and in your backups). While something plays, a small pill on every other screen pauses or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too.
 - **Playing on in the background:** with **PLAY THE NEXT ONE** on, the next file is read into the iPad's memory during the last 90 seconds of the current one (files up to 150 MB) and starts a moment before the end. iPadOS keeps a home-screen web app awake in the background only while it's making sound, and this hand-off happens while it still is, so the next track no longer waits for you to come back to Bridge. A file over 150 MB, or one that couldn't be read in time, is fetched from the NAS at the end as before, and may still wait if iPadOS has already paused Bridge. Most dependable: Bridge left open on screen, or in Split View or Slide Over beside the other app.
 - **Artwork:** a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder gives it art. MP3 titles, show names and artwork come from the files' own tags as they play.
 - **Lengths:** each track shows its length, read from a few kilobytes of each MP3, M4A/M4B, FLAC or WAV when a folder opens and remembered on this iPad. Other formats (OGG, Opus, AAC) show their length once played. Documents show their size.
 - **TRACK #** (folders with MP3s) orders by disc and track number from the files' tags. The line under the sort chips says how many files have a number; files without one go last. Retagged files are read again by themselves; **READ TAGS AGAIN** re-reads the whole folder. Each folder remembers its own sort.
-- **HIDE FOLDER** keeps a folder off Storage on this iPad; **SYSTEMS → STORAGE** lists hidden folders with UNHIDE.
+- **HIDE FOLDER** keeps a folder out of AUDIO on this iPad; **SYSTEMS → NAS RELAY** lists hidden folders with UNHIDE.
 
 ### ENGINEERING
 
@@ -682,10 +686,10 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
-| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Check Tailscale and the relay (STORAGE works?). Grey with MEASURING: wait for the first lengths. Videos that never play: convert them to MP4 (HOLODECK, above) |
+| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Check Tailscale and the relay (does AUDIO open?). Grey with MEASURING: wait for the first lengths. Videos that never play: convert them to MP4 (HOLODECK, above) |
 | RESSIKAN is silent though SOUND is on | Update to 2.44.1 or later. If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
 | Music stops at the end of a track while Bridge is in the background | Update to 2.43.1 or later (the next file is now read ahead). Over 150 MB, or a slow NAS link, can still stall: keep Bridge in Split View or Slide Over, or open it to carry on |
-| Storage or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
+| HOLODECK or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
 | The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
 
 ## Security model
