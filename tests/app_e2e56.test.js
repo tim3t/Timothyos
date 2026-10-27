@@ -38,6 +38,10 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok((await txt(p, '.hd-tune')).includes('ADD A CHANNEL BELOW'));
   await p.waitForSelector('[data-hdpick="/Video/Test Channel"]');
   assert.deepStrictEqual(await p.$$eval('.hd-dir span:not(.muted)', e => e.map(x => x.textContent)), ['Other Channel', 'Test Channel', 'Test Network', 'Test Series']);
+  // a folder added to the relay while Bridge is open shows the next time the picker opens (2.48.1)
+  await p.evaluate(r => fetch(r + '/__mkdir?d=' + encodeURIComponent("/Video/80's Late [ Added ]")), R);
+  await p.click('[data-hd="pick"]'); await p.click('[data-hd="pick"]');
+  await p.waitForSelector('.hd-dir >> text=80\'s Late [ Added ]', { timeout: 5000 });
   await p.click('[data-hdpick="/Video/Test Channel"]');
   await p.waitForSelector('[data-hd="use"]');
   assert.strictEqual(await txt(p, '[data-hd="use"]'), 'USE THIS FOLDER · 4 VIDEOS');

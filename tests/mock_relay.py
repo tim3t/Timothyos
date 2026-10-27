@@ -238,6 +238,8 @@ class H(BaseHTTPRequestHandler):
             sk = HA["light.skylight_2"]; sk["state"] = "on"; sk["attributes"].update({"color_mode": "hs", "brightness": 178, "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "color_temp_kelvin": None, "effect": "None"})
             HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
             STATS["calls"] = []; return self.send_json(200, {})
+        if path == "/__mkdir":   # tests: a folder appears on the NAS mid-session, as a relay redeploy would
+            DIRS.add(q.get("d", [""])[0]); return self.send_json(200, {})
         if path == "/__stats":
             body = json.dumps(STATS).encode(); self.send_response(200); self.cors(); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body); return
         ok = self.headers.get("Authorization") == "Bearer " + TOKEN or q.get("k", [""])[0] == TOKEN

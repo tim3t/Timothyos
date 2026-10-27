@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.48.1 · 2026-10-27
+- **Fixed: a folder just added to the NAS relay didn't show in + ADD CHANNEL** until Bridge was closed and reopened. The picker kept the folder list it had read earlier in the session; it now reads the folder afresh each time it opens and at each step into a folder.
+
 ## 2.48.0 · 2026-10-27
 - **HOLODECK: NETWORK channels.** Each channel now has a style in the channel list: **IN ORDER** (as before) or **NETWORK**, for a folder of show folders programmed like TV. Every broadcast day from 6:00 gets its own lineup from the date: a show at random, never the same one twice in a row, sometimes two of its episodes back to back as a block, and no episode repeated that day. Show names come from their folders; the guide and credit read "Show · S2 E5 · title".
   - **UP NEXT** names the next show in an episode's last 15 seconds.

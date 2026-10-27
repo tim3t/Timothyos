@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.48.0";
+  var VERSION = "2.48.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10136,6 +10136,9 @@
         .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
       return missing.length ? { wait: true, err: X.pw[dir] === "err" } : arrange(l.items, kids);
     }
+    function fresh(dir) {   /* the picker reads a folder afresh each time it's opened, so a folder just added to the relay shows (2.48.1: it kept the list from earlier in the session) */
+      nasList(dir, true).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+    }
     function picker() {
       var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
       if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
@@ -10198,8 +10201,8 @@
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
       else if (d.hd === "pip" && X.v) { var v = X.v; if (pip()) { if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {}); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("inline"); } else if (v.requestPictureInPicture) v.requestPictureInPicture().catch(function () { toast("Picture in Picture isn't available here"); }); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("picture-in-picture"); }
       else if (d.hd === "full" && X.v) { var s = $("hdScreen"); if (X.v.webkitEnterFullscreen) X.v.webkitEnterFullscreen(); else if (s && s.requestFullscreen) s.requestFullscreen().catch(function () {}); }
-      else if (d.hd === "pick") { X.pick = !X.pick; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); render(); }
-      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; render(); }
+      else if (d.hd === "pick") { X.pick = !cur() || !X.pick; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
+      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
         cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; save(); switchTo(id);
