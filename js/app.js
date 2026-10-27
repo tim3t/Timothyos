@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.48.2";
+  var VERSION = "2.48.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6785,7 +6785,7 @@
   }
   function homeHtml() {
     var root = nas.lists["/"];
-    if (!root && !nas.inflight["/"] && !(nas.err && Date.now() - nas.err.at < 15000)) nasLoad("/", false);
+    if ((!root || Date.now() - root.at > 60000) && !nas.inflight["/"] && !(nas.err && Date.now() - nas.err.at < 15000)) nasLoad("/", false);   /* the shares, read again after a minute (2.48.3: once a session, so a share added to the relay never showed) */
     var host = nasBase().replace(/^https?:\/\//, "");
     var html = '<section class="nas-status"><div class="nas-card ' + (nas.ok === false ? "bad" : "ok") + '"><span class="pill ' + (nas.ok === false ? "bad" : nas.ok ? "ok" : "") + '">' + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "UNREACHABLE") : nas.ok ? "ONLINE" : "CHECKING") + "</span>" +
       '<span class="nas-host"><b>NAS</b><small>' + esc(host) + " · read-only</small></span></div>" + (nas.err && nas.ok === false ? '<div class="err">' + esc(nas.err.msg) + '</div><div class="btnrow"><button type="button" class="btn sm" data-nas="retry">TRY AGAIN</button></div>' : "") + "</section>";
@@ -10095,7 +10095,7 @@
     function enter(p) {   /* from the arch: the panel fades, then the program */
       var go2 = function () {
         X.fade = 0;
-        if (p === "audio") { var playing = pl.path && !pl.closed && pl.el && !pl.el.paused; nas.view = playing ? "now" : "home"; if (!playing) { nas.dir = "/"; nas.q = ""; } X.prog = null; go("storage"); return; }
+        if (p === "audio") { var playing = pl.path && !pl.closed && pl.el && !pl.el.paused; nas.view = playing ? "now" : "home"; if (!playing) { nas.dir = "/"; nas.q = ""; } X.prog = null; go("storage"); if (nasConf()) nasLoad("/", true); return; }   /* entering AUDIO reads the shares afresh */
         X.prog = "visual"; if (state.screen === "holodeck") { render(); $("content").scrollTop = 0; }
       };
       if (calm() || state.screen !== "holodeck") { go2(); return; }

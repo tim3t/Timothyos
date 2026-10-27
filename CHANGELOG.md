@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.48.3 · 2026-10-27
+- **Fixed: a folder newly shared through the NAS relay didn't appear in HOLODECK → AUDIO** until Bridge was closed and reopened. AUDIO read the NAS's top-level folders once a session; it now reads them again each time you enter AUDIO from the arch, and after a minute on its front page.
+
 ## 2.48.2 · 2026-10-27
 - **HOLODECK: NETWORK works on a plain folder of videos.** It used to look only for show folders, so a folder of music videos set to NETWORK showed "0 shows · 0 episodes" and played nothing. Videos sitting directly in the channel's folder now take part: on their own they're a fresh shuffle every day from 6:00 with no repeats that day (shown as artist and title, with UP NEXT naming the next one); beside show folders they join the rotation.
 

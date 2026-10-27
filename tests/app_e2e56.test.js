@@ -203,7 +203,9 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');
   assert.ok(!(await vid(p)).src.includes('/Video/'), 'the arch turns the TV off');
   assert.ok((await txt(p, '[data-hdprog="visual"]')).includes('CH 1 Mystery Hour'));
+  await p.evaluate(r => fetch(r + '/__mkdir?d=' + encodeURIComponent('/Radio Plays')), R);   /* a share added to the relay mid-session (2.48.3) */
   await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-band');
+  await p.waitForSelector('.nas-share >> text=RADIO PLAYS', { timeout: 5000 });
   assert.strictEqual(await txt(p, '#eyebrow'), 'HOLODECK · AUDIO · NAS');
   assert.strictEqual(await txt(p, '#title'), 'HOLODECK');
   assert.ok((await txt(p, '#allBtn')).includes('HOLODECK'), 'AUDIO counts as HOLODECK');
