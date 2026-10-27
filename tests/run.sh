@@ -50,6 +50,7 @@ run bridge_logask.test.js
 echo "== App (browser, against simulated bridges)"
 cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null; done; rm -rf "${lanes_dir:-}"; }
 trap cleanup EXIT
+python3 ../tools/ia_fetch.py --selftest || exit 1   # the Internet Archive fetcher: picking, naming, the query (offline)
 (cd .. && exec python3 -m http.server 8080 --bind 127.0.0.1 >/dev/null 2>&1) & pids+=($!)
 python3 mock_v10.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.0: calendars only      :8090
 python3 mock_v11.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.1: + capture           :8092

@@ -512,6 +512,47 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - A plain folder of videos (no show folders) set to NETWORK is a fresh shuffle every day from 6:00, no repeats that day; videos loose beside show folders join the rotation as one more "show".
   - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
 
+#### Public access TV from the Internet Archive
+
+`tools/ia_fetch.py` fills a NAS folder with old public access TV from archive.org, arranged for a NETWORK channel: one folder per show (the series name from the title, "Episode 3" and years dropped), files named `Title [identifier].mp4`, the iPad-friendly H.264 copy of each video. It lists what it would fetch unless given `--go`; it skips what it already has, resumes cut-off downloads, checks each file against the Archive's MD5, pauses between files, and logs every file's source page and license (blank if the item gives none) to `_ia_log.csv`. Searches by default for public, cable or community access television from 1980 to 2009, leaving out the TV News Archive and restricted items. For personal viewing; `--strict` keeps only items with a license.
+
+**On the NAS** (a throwaway Python container, nothing installed on the NAS itself):
+
+1. Make the folder, for example `/volume1/Media/Public Access`.
+2. **UGOS → Docker → Project → Create**, name `ia-fetch`, and paste:
+   ```yaml
+   services:
+     ia-fetch:
+       image: python:3.12-slim
+       container_name: ia-fetch
+       restart: "no"
+       volumes:
+         - "/volume1/Media/Public Access:/out"
+       entrypoint: ["sh", "-c"]
+       command:
+         - |
+           set -e
+           pip install -q internetarchive
+           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/main/tools/ia_fetch.py', '/tmp/ia_fetch.py')"
+           python -u /tmp/ia_fetch.py --out /out --max-items 50 --exclude "talk radio" "conference"
+   ```
+3. Deploy, then read **Logs**: the list of what it would fetch, with sizes and licenses. Trim with more `--exclude` words, or aim it with `--query`, `--collection` or `--ids` (below).
+4. When the list looks right, add `--go` (and a budget, `--max-gb 50`) to the last line and **Redeploy**. It downloads and stops; redeploy again any time to fetch more (what's there is skipped).
+5. Add the folder to the relay (`- "/volume1/Media/Public Access:/media/Video/Public Access:ro"`, redeploy the `timothyos` project), then **HOLODECK → VISUAL → + ADD CHANNEL → Video → Public Access**, and tap **NETWORK**.
+
+| Option | What it does |
+|---|---|
+| `--query '…'` | Search terms (Internet Archive syntax), e.g. `'"public access" AND subject:cooking'` |
+| `--years 1985-1995` or `--years any` | Date range (default 1980-2009) |
+| `--collection NAME` | Only one collection |
+| `--ids ITEM ITEM` | Exactly these items (the part after `/details/` in an item's address) |
+| `--exclude WORD "A PHRASE"` | Leave out items that mention these |
+| `--group series\|creator\|collection\|none` | How show folders are named (default `series`) |
+| `--max-items 50`, `--max-gb 50`, `--max-file-gb 4`, `--max-per-item 25` | Limits per run |
+| `--strict` | Only items with a public domain or Creative Commons license |
+
+The broad search is mixed: talk shows, conference recordings and adult cable-access programmes turn up next to the gems, which is why it lists first. Quality is what was uploaded: many 80s and 90s tapes only have the Archive's small 320×240 copy.
+
 #### AUDIO (was STORAGE)
 
 Folders on the NAS, through the relay, with an audio player for podcasts, music and audiobooks. STORAGE became this program in 2.47; everything it kept (places, speed, hidden folders, track order) carried over, and a STORAGE pin in the bar became HOLODECK. **COMPUTER** ("podcast", "music", "storage") opens it directly, and the floating player's title opens the player.
