@@ -2549,6 +2549,13 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .nas-needle { position: absolute; left: 24px; top: 8px; width: 3px; height: 34px; background: var(--bad); border-radius: 2px; box-shadow: 0 0 8px rgba(255, 122, 122, .8); transition: left .38s cubic-bezier(.3, .7, .3, 1); pointer-events: none; }
 .nas-needle.still { transition: none; }
 @media (prefers-reduced-motion: reduce) { .nas-needle { transition: none; } }
+/* 2.48: NETWORK channels. UP NEXT in an episode's last seconds, and each channel's style */
+.hd-upnext { position: absolute; right: 5%; bottom: 8%; z-index: 4; display: grid; gap: 2px; background: rgba(0, 0, 0, .62); border-left: 8px solid var(--chrome-b); border-radius: 0 16px 16px 0; padding: 8px 16px 8px 12px; pointer-events: none; transition: opacity .5s, transform .5s; max-width: 60%; }
+.hd-upnext small { font-family: var(--display); font-size: clamp(11px, 1.4vw, 14px); letter-spacing: .2em; color: var(--chrome-b); }
+.hd-upnext b { font-family: var(--display); font-weight: 700; font-size: clamp(16px, 2.6vw, 26px); letter-spacing: .1em; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hd-upnext[hidden] { display: grid !important; opacity: 0; transform: translateX(16px); }
+@media (prefers-reduced-motion: reduce) { .hd-upnext { transition: none; } }
+.hd-style { display: inline-flex; gap: 6px; margin-right: 6px; }
 /* 2.46: channels and the dial */
 .hd-set { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 16px; align-items: stretch; }
 .hd-set > * { min-width: 0; }

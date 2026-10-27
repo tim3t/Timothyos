@@ -503,6 +503,13 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
 - **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order).
+- **Style: IN ORDER or NETWORK** (in the channel list). IN ORDER is everything above. **NETWORK** is for a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
+  - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
+  - A show at random each time, never the same show twice in a row, except about one pick in four is a block: two episodes of it in a row, in order.
+  - Through the day, each show works through a shuffle of its own episodes, so none repeats that day.
+  - The show's name comes from its folder (`angry_beavers` → Angry Beavers); the guide reads "Angry Beavers · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
+  - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.
+  - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
 
 #### AUDIO (was STORAGE)
 

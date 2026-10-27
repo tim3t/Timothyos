@@ -6,7 +6,8 @@
 // buttons, the dial and the guide's other-channel line; rename, remove; 2.45's one folder becomes channel 1; leaving
 // turns it off, STORAGE no longer lists /Video, COMPUTER, phone width. 2.47: HOLODECK opens on the arch (VISUAL or
 // AUDIO, which is STORAGE now); ◇ ARCH from either; one at a time (the TV pauses audio, audio turns the TV off); the
-// radio band's needle; STORAGE gone from ALL STATIONS.
+// radio band's needle; STORAGE gone from ALL STATIONS. 2.48: a NETWORK channel (show folders, two levels, programmed
+// like TV: show names, never three of a show in a row, UP NEXT), back to IN ORDER.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
@@ -36,7 +37,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok(await p.isDisabled('.hd-tune'), 'nothing to tune to yet');
   assert.ok((await txt(p, '.hd-tune')).includes('ADD A CHANNEL BELOW'));
   await p.waitForSelector('[data-hdpick="/Video/Test Channel"]');
-  assert.deepStrictEqual(await p.$$eval('.hd-dir span:not(.muted)', e => e.map(x => x.textContent)), ['Other Channel', 'Test Channel', 'Test Series']);
+  assert.deepStrictEqual(await p.$$eval('.hd-dir span:not(.muted)', e => e.map(x => x.textContent)), ['Other Channel', 'Test Channel', 'Test Network', 'Test Series']);
   await p.click('[data-hdpick="/Video/Test Channel"]');
   await p.waitForSelector('[data-hd="use"]');
   assert.strictEqual(await txt(p, '[data-hd="use"]'), 'USE THIS FOLDER · 4 VIDEOS');
@@ -152,6 +153,35 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
   assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 1 · MYSTERY HOUR'));
   assert.ok(await p.isDisabled('[data-hd="down"]'));
+
+  // ---- 2.48: NETWORK. A folder of show folders, programmed like TV
+  await p.click('[data-hd="pick"]'); await p.waitForSelector('[data-hdpick="/Video/Test Network"]'); await p.click('[data-hdpick="/Video/Test Network"]');
+  await p.waitForSelector('[data-hd="use"]'); await p.click('[data-hd="use"]');
+  assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 2 · TEST NETWORK'));
+  await p.click('.hd-chan[aria-current="true"] [data-hdstyle$="|network"]');
+  await p.waitForFunction(() => /network/.test((document.querySelector('.hd-chan[aria-current="true"] [id^="hdInfo"]') || {}).textContent || ''), null, { timeout: 10000 });
+  assert.ok(/^3 shows · 8 episodes · network · a new lineup every day at 6:00/.test(await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]')), await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]'));
+  assert.strictEqual(await p.getAttribute('.hd-chan[aria-current="true"] [data-hdstyle$="|network"]', 'aria-pressed'), 'true');
+  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 10000 });
+  const SHOWS = ['Angry Test', 'Show Two', 'Third Show'];
+  const g4 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
+  const sh4 = g4.map(x => SHOWS.find(n => x.startsWith(n + ' · ')));
+  assert.ok(sh4.every(Boolean), 'each slot names its show: ' + g4.join(' | '));
+  for (let i = 0; i + 2 < sh4.length; i++) assert.ok(!(sh4[i] === sh4[i + 1] && sh4[i + 1] === sh4[i + 2]), 'never three of a show in a row: ' + g4.join(' | '));
+  assert.ok(g4.every(x => !/Full Episode|\[|\.f\d|\.part/.test(x)), 'no "Full Episode", ids or leftovers: ' + g4.join(' | '));
+  const all = await p.evaluate(() => [...document.querySelectorAll('#hdGuide .hd-slot b')].map(x => x.textContent).join(' | '));
+  assert.ok(!/Unfinished/.test(all), 'a .part download never airs');
+  await p.click('.hd-tune');
+  await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
+  await p.waitForSelector('#hdUpNext:not([hidden])', { timeout: 8000 });
+  const up = await p.evaluate(() => ({ t: document.getElementById('hdUpNext').innerText.replace(/\s+/g, ' ').trim(), credit: document.getElementById('hdCredit').innerText }));
+  assert.ok(/^UP NEXT (MORE )?(ANGRY TEST|SHOW TWO|THIRD SHOW)$/.test(up.t), 'UP NEXT names a show: ' + up.t);
+  assert.ok(SHOWS.some(n => up.credit.startsWith(n)), 'the credit leads with the show: ' + up.credit);
+  await p.click('.hd-chan[aria-current="true"] [data-hdstyle$="|order"]');
+  await p.waitForFunction(() => /in order/.test((document.querySelector('.hd-chan[aria-current="true"] [id^="hdInfo"]') || {}).textContent || ''), null, { timeout: 10000 });
+  await p.click('[data-hd="tune"]');   /* off again */
+  await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
+  assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });

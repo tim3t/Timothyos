@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.48.0 · 2026-10-27
+- **HOLODECK: NETWORK channels.** Each channel now has a style in the channel list: **IN ORDER** (as before) or **NETWORK**, for a folder of show folders programmed like TV. Every broadcast day from 6:00 gets its own lineup from the date: a show at random, never the same one twice in a row, sometimes two of its episodes back to back as a block, and no episode repeated that day. Show names come from their folders; the guide and credit read "Show · S2 E5 · title".
+  - **UP NEXT** names the next show in an episode's last 15 seconds.
+  - A NETWORK channel is on air at once: episodes not yet measured count as the show's usual length, and the schedule settles as lengths come in. An episode's length is also taken from the file the moment it plays.
+  - Shows can hold their episodes directly or in season folders. Unfinished downloads (`.part`) and unjoined streams are ignored.
+
 ## 2.47.1 · 2026-10-27
 - **Fixed: HOLODECK froze on a folder with many folders inside.** Choosing a folder for a new channel reads the folders inside it to count what's there; each redraw while they loaded asked for one more redraw per folder, so the redraws doubled until the app locked up (18 show folders were enough). It now asks once and redraws once when they're all in, and says so if they can't be read.
 

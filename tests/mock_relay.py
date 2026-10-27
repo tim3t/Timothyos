@@ -123,10 +123,22 @@ def videos():
     out[ser + "2/Test Series - Season 2 Episode 2 - Not For iPad.mkv"] = (b"\x1aE\xdf\xa3", "2026-10-01T10:00:00Z")
     out[ser + "10/Test Series - Season 10 Episode 1 - The Last Case [Mm5Nn6Bb7Vv].webm"] = v2
     out["/Video/Test Series/Specials/Christmas Special.webm"] = v1
+    # 2.48: a NETWORK folder: show folders, flat or with seasons, and a downloader's leftovers (.part, a video-only .f247) to ignore
+    nw = "/Video/Test Network/"
+    out[nw + "angry_test/Episode 1 - Full Episode [Aa1Bb2Cc3Dd].webm"] = v2
+    out[nw + "angry_test/Episode 2 - The Dam [Ee4Ff5Gg6Hh].webm"] = v1
+    out[nw + "angry_test/Episode 3 - Full Episode [Ii7Jj8Kk9Ll].webm"] = v2
+    out[nw + "angry_test/Episode 4 - Unfinished [Mm1Nn2Oo3Pp].f247.webm.part"] = (b"partial", "2026-10-01T10:00:00Z")
+    out[nw + "show_two/Season 1/Show Two - S01E01 - Pilot [Qq4Rr5Ss6Tt].webm"] = v3
+    out[nw + "show_two/Season 1/Show Two - S01E02 - The Fair [Uu7Vv8Ww9Xx].webm"] = v2
+    out[nw + "show_two/Season 2/Show Two - S02E01 - Return [Yy1Zz2Aa3Bb].webm"] = v1
+    out[nw + "third_show/A Night Out [Cc4Dd5Ee6Ff].webm"] = v2
+    out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].webm"] = v1
+    out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].f247"] = (b"video only", "2026-10-01T10:00:00Z")
     return out
 FILES.update(videos())
 
-DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel", "/Video/Test Series", "/Video/Test Series/Specials"} | {"/Video/Test Series/Test Series \u2014 Season %d" % n for n in (1, 2, 10)}
+DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel", "/Video/Test Series", "/Video/Test Series/Specials", "/Video/Test Network", "/Video/Test Network/angry_test", "/Video/Test Network/show_two", "/Video/Test Network/show_two/Season 1", "/Video/Test Network/show_two/Season 2", "/Video/Test Network/third_show"} | {"/Video/Test Series/Test Series \u2014 Season %d" % n for n in (1, 2, 10)}
 STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {

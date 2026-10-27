@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.47.1";
+  var VERSION = "2.48.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9807,13 +9807,18 @@
      stations. Its own scope (`holo`; `hd` is taken inside renderHeader) and hd- class names.
      2.47: HOLODECK opens on the arch, as on the ship: PROGRAM 01 VISUAL (this TV) or PROGRAM 02 AUDIO (the NAS folders,
      STORAGE's screen as it was, still state.screen "storage"). Each program has only an ◇ ARCH button back (Timothy chose
-     the extra tap to reorient). One at a time: tuning in pauses audio, and audio starting turns the TV off. */
+     the extra tap to reorient). One at a time: tuning in pauses audio, and audio starting turns the TV off.
+     2.48: a channel's style is IN ORDER (above) or NETWORK: a folder of show folders programmed like a TV network. Each
+     broadcast day (from 6:00) has its own lineup, worked out from the date: a show at random (never the same twice in a
+     row), sometimes two of its episodes in a row as a block, each show working through that day's shuffle of its
+     episodes. Unmeasured lengths count as the show's typical length, so it's on air at once; the times settle as the
+     real lengths come in (once, kept). UP NEXT shows in an episode's last seconds. */
   var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1";
   var holo = (function () {
     var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false }, lsGet(LS_HOLO) || {});
     var lens = lsGet(LS_HOLOLEN) || {};
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { lv: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var moved = "dir" in cfg;   /* 2.45's one folder is channel 1, premiered afresh, in order */
     if (moved) { if (cfg.dir && !cfg.chans.length) cfg.chans = [{ id: 1, name: folderName(cfg.dir), dir: cfg.dir, premiere: Date.now() }]; delete cfg.dir; cfg.ch = 0; }
@@ -9849,22 +9854,85 @@
       extras.concat(root.filter(vid).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
       return { play: items.filter(function (it) { return canPlay(it.f.name); }), skip: items.filter(function (it) { return !canPlay(it.f.name); }), series: series, seasons: seas.length, specials: items.filter(function (it) { return it.sp; }).length };
     }
+    function sub(d, force) { return nasList(d.path, force).then(function (k) { return { d: d, items: k.items }; }); }
     function load(c, force) {
-      var s = F[c.dir] || (F[c.dir] = { play: null, skip: [], at: 0, busy: false, err: "" });
-      if (s.busy || (!force && s.at && Date.now() - s.at < (s.play ? 10 * 60000 : 30000))) return;
+      var s = F[c.dir] || (F[c.dir] = { play: null, skip: [], at: 0, busy: false, err: "" }), style = net(c) ? "network" : "order";
+      if (s.busy || (!force && s.style === style && s.at && Date.now() - s.at < (s.play ? 10 * 60000 : 30000))) return;
       s.busy = true; s.err = "";
       nasList(c.dir, true).then(function (l) {
-        return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return nasList(d.path, force).then(function (k) { return { d: d, items: k.items }; }); })).then(function (kids) { return arrange(l.items, kids); });
-      }).then(function (r) { Object.assign(s, r); probe(); }).catch(function (e) { s.err = nasErrText(e); })
+        return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) {
+          if (style !== "network") return arrange(l.items, kids);
+          return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(lineupOf);
+        });
+      }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); })
         .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
     }
-    function probe() {   /* each new file's length, one at a time, from its header only: this channel first, in running order */
+    /* ---- NETWORK: a folder of show folders ---- */
+    function net(c) { return !!c && c.style === "network"; }
+    function showName(n) {   /* "angry_beavers" → "Angry Beavers"; a name with capitals is kept as it is */
+      n = n.replace(/_+/g, " ").replace(/\s+/g, " ").trim(); if (/[A-Z]/.test(n)) return n;
+      return n.split(" ").map(function (w, i) { return i && /^(and|of|the|a|an|in|on|to|for|vs)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
+    }
+    function lineupOf(list) {   /* each show folder: its episodes in its own order (seasons and episodes by number, or by name) */
+      var shows = [], play = [], skip = [];
+      list.forEach(function (x) {
+        var r = arrange(x.k.items, x.gk), name = showName(x.k.d.name);
+        r.play.forEach(function (it) { it.show = name; if (it.e == null) it.ep = epOf(it.f.name); });
+        if (r.play.length) shows.push({ name: name, items: r.play });
+        play = play.concat(r.play); skip = skip.concat(r.skip);
+      });
+      return { play: play, skip: skip, shows: shows, series: false, seasons: 0, specials: 0 };
+    }
+    var PK = {};
+    function rng(seed) { var x = seed >>> 0 || 1; return function () { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
+    function hash(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    function dayStart(ms) { var d = new Date(ms), s = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6); if (s.getTime() > ms) s.setDate(s.getDate() - 1); return s.getTime(); }   /* the broadcast day starts at 6:00 */
+    function picks(c, s, ds) {   /* the day's running order, from the date alone */
+      var key = c.dir + "|" + ymd(new Date(ds)) + "|" + s.play.length; if (PK[key]) return PK[key];
+      var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {};
+      var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hash(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptr[k] = 0; } return ord[k]; };
+      out.more = function () {   /* the lineup grows as far as the day needs: the same picks every time, from the date */
+        for (var m = out.length + 120; out.length < m && sh.length;) {
+          var k = Math.floor(r() * sh.length); if (sh.length > 1 && k === last) k = (last + 1 + Math.floor(r() * (sh.length - 1))) % sh.length;   /* never the same show twice in a row… */
+          var o = order(k), n = o.length, i = o[ptr[k]++ % n];
+          if (n > 1 && r() < .25) { var j = i + 1 < n ? i + 1 : i - 1; out.push(sh[k].items[Math.min(i, j)], sh[k].items[Math.max(i, j)]); }   /* …except as a block: two in a row, in order */
+          else out.push(sh[k].items[i]);
+          last = k;
+        }
+      };
+      out.more();
+      if (Object.keys(PK).length > 12) PK = {};
+      return (PK[key] = out);
+    }
+    function typical(s, show) {   /* an unmeasured episode counts as the show's middle length, else the channel's, else 23 min */
+      s.est = s.est && s.est.v === X.lv ? s.est : { v: X.lv };
+      if (s.est[show] == null) {
+        var med = function (a) { a = a.filter(function (x) { return x > 0; }).sort(function (x, y) { return x - y; }); return a.length ? a[a.length >> 1] : 0; };
+        var ofShow = s.play.filter(function (it) { return it.show === show; }).map(function (it) { return lenOf(it) || 0; });
+        s.est[show] = med(ofShow) || med(s.play.map(function (it) { return lenOf(it) || 0; })) || 1380;
+      }
+      return s.est[show];
+    }
+    function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lenOf(it); }   /* null: measured and unreadable, skipped */
+    function netAt(c, s, ms) {
+      var ds = dayStart(ms), list = picks(c, s, ds), t = ds;
+      for (var i = 0; ; i++) {
+        if (i >= list.length) { if (list.length > 30000 || !s.shows.length) return null; list.more(); if (i >= list.length) return null; }
+        var d = netLen(s, list[i]); if (d == null) continue; if (ms < t + d * 1000) return { c: c, it: list[i], pos: (ms - t) / 1000, dur: d, startMs: t }; t += d * 1000;
+      }
+    }
+    function want(c, wide) {   /* the next length to measure: today's lineup first (NETWORK), or the running order (IN ORDER) */
+      var s = c && F[c.dir]; if (!s || !s.play) return null;
+      if (s.shows && !wide) { var l = picks(c, s, dayStart(Date.now())); for (var i = 0; i < l.length; i++) if (unknown(l[i])) return l[i]; return null; }
+      return s.play.filter(unknown)[0] || null;
+    }
+    function probe() {   /* each new file's length, one at a time, from its header only: this channel first */
       if (X.probing) return;
       var list = [cur()].concat(cfg.chans), it = null;
-      for (var i = 0; i < list.length && !it; i++) { var s = list[i] && F[list[i].dir]; if (s && s.play) it = s.play.filter(unknown)[0] || null; }
+      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); });
       if (!it) { paint(); return; }
       X.probing = true;
-      var f = it.f, v = document.createElement("video"), done = false, fin = function (s) { if (done) return; done = true; clearTimeout(t); lens[f.path] = { s: s, z: f.size }; v.removeAttribute("src"); v.load(); X.probing = false;
+      var f = it.f, v = document.createElement("video"), done = false, fin = function (s) { if (done) return; done = true; clearTimeout(t); lens[f.path] = { s: s, z: f.size }; X.lv++; v.removeAttribute("src"); v.load(); X.probing = false;
         var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); paint(); probe(); };
       var t = setTimeout(function () { fin(-1); }, 20000);
       v.preload = "metadata"; v.muted = true; v.onloadedmetadata = function () { fin(isFinite(v.duration) && v.duration > 1 ? Math.round(v.duration * 10) / 10 : -1); }; v.onerror = function () { fin(-1); };
@@ -9878,14 +9946,23 @@
     }
     function at(c, ms) {
       var s = c && F[c.dir]; if (!s || !s.play) return null;
+      if (s.shows) return net(c) ? netAt(c, s, ms) : null;   /* read for the other style: wait for the reread */
       var sec = Math.max(0, (ms - c.premiere) / 1000), w = walk(s.play, sec);
       if (w.left != null) { var L = sec - w.left; if (L <= 0) return null; w = walk(s.play, sec % L); }   /* round again from the top */
       return w.it ? { c: c, it: w.it, pos: w.pos, dur: w.dur, startMs: ms - w.pos * 1000 } : null;
     }
     function after(c) { return at(c.c, c.startMs + c.dur * 1000 + 20); }
-    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
+    function next(c) { var n = after(c); return n && n.it === c.it ? after(n) : n; }   /* a length that settled mid-episode never replays it */
+    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
     function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
       var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+      if (it.show) {   /* NETWORK: the show, then the season and episode and whatever title the name has */
+        var sn = it.show.toLowerCase(), bits = n.replace(/\.f\d+$/i, "").replace(/\b(?:season|series)\s*\d+\s*,?\s*(?:episode|ep\.?)\s*\d+|\bS\d{1,2}\s*E\d{1,3}\b|\b(?:episode|ep\.?)\s*\d+/i, "|").replace(/\s+[-–—]\s+/g, "|").split("|")
+          .map(function (p) { return p.replace(/^[\s,"'“”‘’–—-]+|[\s,"'“”‘’–—-]+$/g, ""); })
+          .filter(function (p) { var q = p.toLowerCase(); return p && q !== sn && !/^(?:updated |new |the )?full episode$/.test(q) && !/^watch (?:the )?(?:full )?episode/.test(q); });
+        var se = it.s != null && it.e != null ? "S" + it.s + " E" + it.e : it.ep != null ? "E" + it.ep : "";
+        return { a: it.show, t: [se, bits.join(" – ")].filter(Boolean).join(" · "), net: true };
+      }
       if (it.s == null && !it.sp) { n = n.replace(/^\s*\d{1,3}\s*[-.)_]\s*/, "").trim(); var m = n.split(/\s+[-–—]\s+/); return m.length > 1 ? { a: m[0], t: m.slice(1).join(" – ") } : { a: n, t: "" }; }
       var show = folderName(parentOf(it.f.path)).replace(/\s*[-–—,]?\s*\b(?:season|series)\s*\d+.*$/i, "").trim().toLowerCase(), chn = (cur() || {}).name || "";
       var parts = n.replace(/\b(?:season|series)\s*\d+\s*,?\s*(?:episode|ep\.?)\s*\d+|\bS\d{1,2}\s*E\d{1,3}\b|\b(?:episode|ep\.?)\s*\d+/i, "|").replace(/\s+[-–—]\s+/g, "|").split("|")
@@ -9901,11 +9978,11 @@
       if (X.v) return X.v;
       var k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k;
       var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
-      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; var n = after(X.cur); if (n) start(n, false); else resume(); });
+      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; var n = next(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () {
         if (!X.on || !X.cur || !v.getAttribute("src")) return;
         if (++X.fails > 4) { off(); X.note = "Five videos in a row wouldn't play. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }
-        X.note = line(label(X.cur.it)) + " wouldn't play; on to the next."; var n = after(X.cur); if (n) start(n, false); else resume();
+        X.note = line(label(X.cur.it)) + " wouldn't play; on to the next."; var n = next(X.cur); if (n) start(n, false); else resume();
       });
       v.addEventListener("playing", function () { X.fails = 0; });
       v.addEventListener("timeupdate", tick);
@@ -9918,14 +9995,16 @@
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
       v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
-      v.onloadedmetadata = function () { var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
+      v.onloadedmetadata = function () {
+        if (isFinite(v.duration) && v.duration > 1) { if (unknown(c.it)) { lens[c.it.f.path] = { s: Math.round(v.duration * 10) / 10, z: c.it.f.size }; X.lv++; lsSet(LS_HOLOLEN, lens); } c.dur = v.duration; }   /* playing measures it: the schedule never runs on a guess for what's on */
+        var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
       meta(c); paint();
     }
     function resume() {   /* on air: what's on this channel now, or as soon as its lengths say */
       clearTimeout(X.wait); if (!X.on) return;
       var c = at(cur(), Date.now()); if (c) start(c, true); else X.wait = setTimeout(resume, 1500);
     }
-    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
+    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
@@ -9952,6 +10031,8 @@
     function chanInfo(c) {
       var s = F[c.dir]; if (!s || !s.play) return esc(s && s.err ? s.err : "Reading the folder…");
       var n = s.play.length, L = loopLen(c), m = s.play.filter(function (it) { return !unknown(it); }).length, d = new Date(c.premiere);
+      if (s.shows) return s.shows.length + (s.shows.length === 1 ? " show · " : " shows · ") + n + (n === 1 ? " episode" : " episodes") + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") +
+        " · network · a new lineup every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "");
       return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : "measuring " + m + " of " + n) +
         " · on air since " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + hm(d);
     }
@@ -10024,7 +10105,7 @@
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); });
       var tv = '<div class="hd-set"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
-        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div>" +
+        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
         '<button type="button" class="chip sm" data-hd="pip"' + (X.on ? "" : " disabled") + '>PICTURE IN PICTURE</button><button type="button" class="chip sm" data-hd="full"' + (X.on ? "" : " disabled") + '>FULL SCREEN</button><span class="hd-gap"></span>' +
         '<button type="button" class="chip sm" data-hdlook="crt" aria-pressed="' + (cfg.look === "crt") + '">CRT</button><button type="button" class="chip sm" data-hdlook="clean" aria-pressed="' + (cfg.look === "clean") + '">CLEAN</button></div>' +
@@ -10033,7 +10114,7 @@
         var on = x.id === cfg.ch, arm = X.rm === x.id;
         return '<div class="hd-chan" aria-current="' + on + '"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><b>' + esc(x.name) + '</b><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
           (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") + "</span>" +
-          '<span class="hd-acts">' + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
+          '<span class="hd-acts"><span class="hd-style" role="group" aria-label="Style">' + [["order", "IN ORDER"], ["network", "NETWORK"]].map(function (st) { return '<button type="button" class="chip sm" data-hdstyle="' + x.id + "|" + st[0] + '" aria-pressed="' + ((x.style || "order") === st[0]) + '">' + st[1] + "</button>"; }).join("") + "</span>" + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
           '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div>";
       }).join("");
       var src = (rows ? '<div class="hd-chans">' + rows + "</div>" : '<p class="muted">Choose the folder for channel 1: a folder of videos, or a series with one folder per season.</p>') +
@@ -10041,7 +10122,7 @@
         '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick ? picker() : "");
       X.oth = "";
       $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", c ? "CHANNEL " + k + " · " + esc(c.name.toUpperCase()) : "HOLODECK", "ALWAYS ON AIR · EVERY CHANNEL KEEPS RUNNING", tv) +
-        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER", src) + "</div></div>";
+        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER OR NETWORK", src) + "</div></div>";
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
       bindDial(); paint();
       clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); }, 1000);
@@ -10083,6 +10164,10 @@
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
       if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }
+      var u = $("hdUpNext");   /* NETWORK: UP NEXT in an episode's last 15 seconds, like a network bumper */
+      if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && left < 15 && left > .3 ? after(X.cur) : null;
+        if (nx) { var b = u.querySelector("b"), nm = nx.it.show === X.cur.it.show ? "MORE " + nx.it.show.toUpperCase() : nx.it.show.toUpperCase(); if (b.textContent !== nm) b.textContent = nm; }
+        u.hidden = !nx; }
     }
     function status() {   /* the parts that change as lengths come in, without redrawing the page */
       var ready = !!at(cur(), Date.now()), tb = $("hdTune"), ts = $("hdTuneSub"), pw = $("hdPower");
@@ -10098,7 +10183,13 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined) return false;
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined) return false;
+      if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
+        var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
+        sc.style = sp[1]; save(); load(sc, true);
+        if (X.on && sc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
+        render(); return true;
+      }
       if (d.hdprog) { if (!X.fade) enter(d.hdprog); return true; }
       if (d.hdgo) { leave(); arch(); render(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
       if (d.hd === "tune") { if (X.on) off(); else tune(); render(); }
