@@ -96,8 +96,12 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
 
   // ---- CHANNEL 2: a series in season folders, added while on air; it starts at the beginning
   await p.click('[data-hd="pick"]');
-  await p.waitForSelector('[data-hdpick="/Video/Test Series"]'); await p.click('[data-hdpick="/Video/Test Series"]');
-  await p.waitForSelector('[data-hd="use"]');
+  await p.waitForSelector('[data-hdpick="/Video/Test Series"]');
+  await p.evaluate(() => { window.__draws = 0; new MutationObserver(() => window.__draws++).observe(document.getElementById('content'), { childList: true }); });
+  await p.click('[data-hdpick="/Video/Test Series"]');
+  await p.waitForSelector('[data-hd="use"]'); await p.waitForTimeout(800);
+  const draws = await p.evaluate(() => window.__draws);
+  assert.ok(draws <= 4, 'the picker reads the folders inside once and redraws once, not once per folder per redraw (2.47.1 froze on 18): ' + draws);
   assert.strictEqual(await txt(p, '[data-hd="use"]'), 'USE THIS FOLDER · 3 SEASONS + SPECIALS · 8 EPISODES');
   await p.click('[data-hd="use"]');
   assert.strictEqual(await txt(p, '#eyebrow'), 'RESOURCES · HOLODECK · VISUAL · CH 2 · TEST SERIES · ON AIR');

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.47.0";
+  var VERSION = "2.47.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9813,7 +9813,7 @@
     var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false }, lsGet(LS_HOLO) || {});
     var lens = lsGet(LS_HOLOLEN) || {};
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var moved = "dir" in cfg;   /* 2.45's one folder is channel 1, premiered afresh, in order */
     if (moved) { if (cfg.dir && !cfg.chans.length) cfg.chans = [{ id: 1, name: folderName(cfg.dir), dir: cfg.dir, premiere: Date.now() }]; delete cfg.dir; cfg.ch = 0; }
@@ -10050,15 +10050,17 @@
     function pickInfo(dir) {   /* what USE THIS FOLDER would make, from one level of subfolders */
       var l = nas.lists[dir]; if (!l) return null;
       var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [], wait = false;   /* a top share (/Video) is a shelf of channels, not one */
-      subs.forEach(function (d) { var k = nas.lists[d.path]; if (k) kids.push({ d: d, items: k.items }); else { wait = true; nasList(d.path).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { /* stays "reading" */ }); } });
-      return wait ? { wait: true } : arrange(l.items, kids);
+      var missing = subs.filter(function (d) { var k = nas.lists[d.path]; if (k) kids.push({ d: d, items: k.items }); return !k; });
+      if (missing.length && !X.pw[dir]) X.pw[dir] = Promise.all(missing.map(function (d) { return nasList(d.path); }))   /* asked once for the lot, one redraw when all are in (2.47.1: a redraw per folder, each adding more, froze the app on 18 folders) */
+        .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+      return missing.length ? { wait: true, err: X.pw[dir] === "err" } : arrange(l.items, kids);
     }
     function picker() {
       var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
       if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
       var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
       var act = used ? '<p class="muted">This folder is channel ' + num(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
-        '<p class="muted">' + (pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
+        '<p class="muted">' + (pi && pi.err ? "Couldn't read the folders inside. Go up a level and back in to try again." : pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
       return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>";
     }
     function guide() {
@@ -10106,7 +10108,7 @@
       else if (d.hd === "pip" && X.v) { var v = X.v; if (pip()) { if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {}); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("inline"); } else if (v.requestPictureInPicture) v.requestPictureInPicture().catch(function () { toast("Picture in Picture isn't available here"); }); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("picture-in-picture"); }
       else if (d.hd === "full" && X.v) { var s = $("hdScreen"); if (X.v.webkitEnterFullscreen) X.v.webkitEnterFullscreen(); else if (s && s.requestFullscreen) s.requestFullscreen().catch(function () {}); }
       else if (d.hd === "pick") { X.pick = !X.pick; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); render(); }
-      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; render(); }
+      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; render(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
         cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; save(); switchTo(id);

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.47.1 · 2026-10-27
+- **Fixed: HOLODECK froze on a folder with many folders inside.** Choosing a folder for a new channel reads the folders inside it to count what's there; each redraw while they loaded asked for one more redraw per folder, so the redraws doubled until the app locked up (18 show folders were enough). It now asks once and redraws once when they're all in, and says so if they can't be read.
+
 ## 2.47.0 · 2026-10-27
 - **HOLODECK opens on the arch.** Entering HOLODECK (from the bar, ALL STATIONS or anywhere) brings up **ENTER PROGRAM** over the holodeck's amber grid: **PROGRAM 01 VISUAL**, the TV, with what's on each channel, and **PROGRAM 02 AUDIO**, your NAS folders, with what's playing or where to continue. Tap one to go in; **◇ ARCH** at the top of each program comes back.
 - **STORAGE is now HOLODECK → AUDIO.** The same folders, player, CONTINUE LISTENING, search, filters, track order, artwork, sleep timer and background play to the next track; every saved place, speed and hidden folder carried over. STORAGE no longer appears in ALL STATIONS, and a STORAGE pin in the bar is now HOLODECK. COMPUTER's "podcast", "music" and "storage" still open it directly, and the floating player's title opens the player. In Systems its settings are now **NAS RELAY**.
