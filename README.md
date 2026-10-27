@@ -509,6 +509,7 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - Through the day, each show works through a shuffle of its own episodes, so none repeats that day.
   - The show's name comes from its folder (`angry_beavers` → Angry Beavers); the guide reads "Angry Beavers · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
   - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.
+  - A plain folder of videos (no show folders) set to NETWORK is a fresh shuffle every day from 6:00, no repeats that day; videos loose beside show folders join the rotation as one more "show".
   - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
 
 #### AUDIO (was STORAGE)

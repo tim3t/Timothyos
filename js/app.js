@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.48.1";
+  var VERSION = "2.48.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9862,7 +9862,7 @@
       nasList(c.dir, true).then(function (l) {
         return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) {
           if (style !== "network") return arrange(l.items, kids);
-          return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(lineupOf);
+          return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(function (list) { return lineupOf(list, l.items); });
         });
       }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); })
         .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
@@ -9873,8 +9873,10 @@
       n = n.replace(/_+/g, " ").replace(/\s+/g, " ").trim(); if (/[A-Z]/.test(n)) return n;
       return n.split(" ").map(function (w, i) { return i && /^(and|of|the|a|an|in|on|to|for|vs)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
     }
-    function lineupOf(list) {   /* each show folder: its episodes in its own order (seasons and episodes by number, or by name) */
-      var shows = [], play = [], skip = [];
+    function lineupOf(list, root) {   /* each show folder: its episodes in its own order (seasons and episodes by number, or by name). Videos loose in the channel's folder are one more "show" with no name (2.48.2): a folder of music videos is a daily shuffle */
+      var shows = [], play = [], skip = [], loose = arrange(root || [], []);
+      if (loose.play.length) { loose.play.forEach(function (it) { it.show = ""; }); shows.push({ name: "", items: loose.play }); play = loose.play.slice(); }
+      skip = loose.skip.slice();
       list.forEach(function (x) {
         var r = arrange(x.k.items, x.gk), name = showName(x.k.d.name);
         r.play.forEach(function (it) { it.show = name; if (it.e == null) it.ep = epOf(it.f.name); });
@@ -9956,7 +9958,7 @@
     function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
     function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
       var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-      if (it.show) {   /* NETWORK: the show, then the season and episode and whatever title the name has */
+      if (it.show) {   /* NETWORK: the show, then the season and episode and whatever title the name has (a loose video, show "", reads as a music video) */
         var sn = it.show.toLowerCase(), bits = n.replace(/\.f\d+$/i, "").replace(/\b(?:season|series)\s*\d+\s*,?\s*(?:episode|ep\.?)\s*\d+|\bS\d{1,2}\s*E\d{1,3}\b|\b(?:episode|ep\.?)\s*\d+/i, "|").replace(/\s+[-–—]\s+/g, "|").split("|")
           .map(function (p) { return p.replace(/^[\s,"'“”‘’–—-]+|[\s,"'“”‘’–—-]+$/g, ""); })
           .filter(function (p) { var q = p.toLowerCase(); return p && q !== sn && !/^(?:updated |new |the )?full episode$/.test(q) && !/^watch (?:the )?(?:full )?episode/.test(q); });
@@ -10031,8 +10033,11 @@
     function chanInfo(c) {
       var s = F[c.dir]; if (!s || !s.play) return esc(s && s.err ? s.err : "Reading the folder…");
       var n = s.play.length, L = loopLen(c), m = s.play.filter(function (it) { return !unknown(it); }).length, d = new Date(c.premiere);
-      if (s.shows) return s.shows.length + (s.shows.length === 1 ? " show · " : " shows · ") + n + (n === 1 ? " episode" : " episodes") + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") +
-        " · network · a new lineup every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "");
+      if (s.shows) {
+        var named = s.shows.filter(function (x) { return x.name; }), lz = s.shows.filter(function (x) { return !x.name; })[0], ne = named.reduce(function (t, x) { return t + x.items.length; }, 0);
+        return (named.length ? named.length + (named.length === 1 ? " show · " : " shows · ") + ne + (ne === 1 ? " episode" : " episodes") : "") + (lz ? (named.length ? " + " : "") + lz.items.length + (lz.items.length === 1 ? " video" : " videos") : "") + (!named.length && !lz ? "0 shows · 0 episodes" : "") +
+          (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · network · a new " + (named.length ? "lineup" : "shuffle") + " every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "");
+      }
       return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : "measuring " + m + " of " + n) +
         " · on air since " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + hm(d);
     }
@@ -10169,7 +10174,7 @@
       if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }
       var u = $("hdUpNext");   /* NETWORK: UP NEXT in an episode's last 15 seconds, like a network bumper */
       if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && left < 15 && left > .3 ? after(X.cur) : null;
-        if (nx) { var b = u.querySelector("b"), nm = nx.it.show === X.cur.it.show ? "MORE " + nx.it.show.toUpperCase() : nx.it.show.toUpperCase(); if (b.textContent !== nm) b.textContent = nm; }
+        if (nx) { var b = u.querySelector("b"), nm = !nx.it.show ? line(label(nx.it)).toUpperCase() : nx.it.show === X.cur.it.show ? "MORE " + nx.it.show.toUpperCase() : nx.it.show.toUpperCase(); if (b.textContent !== nm) b.textContent = nm; }
         u.hidden = !nx; }
     }
     function status() {   /* the parts that change as lengths come in, without redrawing the page */

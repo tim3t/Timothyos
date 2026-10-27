@@ -186,6 +186,17 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('[data-hd="tune"]');   /* off again */
   await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
+  // NETWORK on a plain folder of videos: a daily shuffle (2.48.2; it found "0 shows")
+  await p.click('[data-hd="pick"]'); await p.waitForSelector('[data-hdpick="/Video/Test Channel"]'); await p.click('[data-hdpick="/Video/Test Channel"]');
+  await p.waitForSelector('[data-hd="use"]'); await p.click('[data-hd="use"]');
+  await p.click('.hd-chan[aria-current="true"] [data-hdstyle$="|network"]');
+  await p.waitForFunction(() => /network/.test((document.querySelector('.hd-chan[aria-current="true"] [id^="hdInfo"]') || {}).textContent || ''), null, { timeout: 10000 });
+  assert.ok(/^3 videos · 1 AVI skipped · network · a new shuffle every day at 6:00/.test(await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]')), await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]'));
+  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 10000 });
+  const g5 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
+  assert.ok(g5.every(x => ['Neon Harbor · Midnight Signal', 'The Velvet Static · Satellite Heart', 'Juniper Drive · Polaroid Weekend'].includes(x)), 'artist · title, as a music video: ' + g5.join(' | '));
+  await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
+  assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
