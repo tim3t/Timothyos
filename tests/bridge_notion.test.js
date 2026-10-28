@@ -152,7 +152,7 @@ assert.strictEqual(dn.ok, true);
 assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
 assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
 assert.ok(dn.done.length >= 1);
-assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog']);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions']);
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
 
 console.log('--- weekly review ---');

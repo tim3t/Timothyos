@@ -2,6 +2,15 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.51.0 · 2026-10-28 (needs bridge 1.35)
+- **LOG → SESSIONS: counseling session notes.** Once LOG is open, a second tab beside **JOURNAL**, behind the same authorization code. Saved to the new **🛋️ Session Notes** database in Notion, one page per session (connect it to the TimothyOS integration).
+  - **The list:** SOLO COUNSELING and COUPLES COUNSELING, then year, then quarter, then sessions, newest open. Each row shows the date, topics, what landed, and arriving → leaving.
+  - **+ SOLO SESSION / + COUPLES SESSION** in five steps, like a hive check: SESSION, TOPICS (each with a short box), INSIGHT, PRACTICE (how last time's went), WRAP UP. Last time's BRING UP NEXT TIME shows at the start.
+  - A session not yet saved stays on this iPad (never in a backup) with **RESUME** and **DISCARD**. **EDIT** and **DELETE** (to Notion's trash) on each session.
+  - **SUGGEST TOPICS** for the next session, only when you tap it and with **SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK** on: pick the last 3, 6 or 12 sessions of one type, **PREVIEW**, **SEND**. **ADD TO NEXT TIME** puts a topic into your latest session's BRING UP NEXT TIME. About 1¢, counted in ASK's monthly total as SESSIONS.
+  - The topic chips for each type are edited in **SYSTEMS → CAPTAIN'S LOG**. The ASK button, the briefing, the Ship's Year, ASTROMETRICS, REVIEW and COMPUTER's search never see session notes; COMPUTER ("session", "counseling") only opens the tab.
+- **Bridge 1.35** (update the Google bridge, then connect **🛋️ Session Notes**): `logsessions`, `logsessionsave`, `logsessionnext`, `logsessionremove`, `logsessionsuggest`, all behind the log's code; the column check covers the new database; setup logs `Notion session notes`.
+
 ## 2.50.1 · 2026-10-28
 - **SCIENCE → NATURE picks up an eBird key within minutes.** Bridge asked the Google bridge for the slow feeds (orbits, band conditions and eBird's notable birds) only every 12 hours, so an `EBIRD_API_KEY` added to Script Properties could take until the next day to show, and birds then updated twice a day. Now NATURE asks again after 5 minutes while it has no birds, and once the key is on, notable birds are refreshed hourly while SCIENCE is open (the bridge keeps them an hour). Nothing to do on the Google bridge.
 

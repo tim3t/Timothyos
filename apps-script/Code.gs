@@ -28,6 +28,8 @@
  *  - Habits and Library (bridge 1.14), Tarot and Tarot Books (1.24, 1.25), Apiary
  *    (1.26), Inbox (1.33) and the Science Log (1.34): read and save their own
  *    Notion databases; removing something moves it to Notion's trash.
+ *  - Session Notes (bridge 1.35): counseling sessions in LOG's SESSIONS tab, behind
+ *    the same authorization code as the Captain's Log.
  *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY),
  *    and writes the Morning Briefing, summaries, inbox sorting suggestions, tarot
  *    suggestions and the Ship's Year. Claude only reads; every change it suggests
@@ -94,17 +96,20 @@ var CONFIG = {
   NOTION_INBOX_DATABASE: '5712ada1ef2742daad5629d70bf3f4d4',
 
   // Your Notion Science Log: events the SCIENCE station noticed, one page per event.
-  NOTION_SCIENCE_DATABASE: '497256af405747a3a9bb064759865cf6'
+  NOTION_SCIENCE_DATABASE: '497256af405747a3a9bb064759865cf6',
+
+  // Your Notion Session Notes: counseling sessions from LOG → SESSIONS, one page per session. Behind LOG_PIN.
+  NOTION_SESSIONS_DATABASE: 'c0e793436cfd43c9962e3a82fe62dc07'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.34.0';
+var VERSION = '1.35.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -130,7 +135,7 @@ function doGet(e) {
   try {
     var refused = keyRefusal_(p.key);
     if (refused) return json_({ ok: false, error: refused });
-    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday' || p.action === 'logsearch') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
+    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday' || p.action === 'logsearch' || p.action === 'logsessions') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
     if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
     if (p.action === 'batch') return json_(batch_(p.calls));
     return json_(read_(p) || { ok: false, error: 'unknown_action' });
@@ -278,6 +283,7 @@ function setup() {
   console.log('Notion apiary: ' + apiaryStatus_());
   console.log('Notion inbox: ' + inboxStatus_());
   console.log('Notion science log: ' + scienceStatus_());
+  console.log('Notion session notes: ' + sessionsStatus_());
   console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
@@ -675,10 +681,11 @@ function schemaSpec_() {
     { key: 'tarotbooks', name: 'Tarot Books', src: tarotBooksSource_, need: [['Title', 'title'], ['Card', 'rich_text'], ['Book', 'select'], ['Source', 'rich_text'], ['Order', 'number']] },
     { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
     { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] },
-    { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] }
+    { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] },
+    { key: 'sessions', name: 'Session Notes', src: sessionsSource_, need: [['Session', 'title'], ['Type', 'select'], ['Date', 'date'], ['Where', 'select'], ['Topics', 'multi_select'], ['Arriving', 'number'], ['Leaving', 'number'], ['Felt', 'select'], ['Next Session', 'date'], ['Data', 'rich_text']].concat(t(vals(SES_TEXT), 'rich_text')) }
   ];
 }
-var SCHEMA_TYPE = { title: 'title', rich_text: 'text', select: 'select', date: 'date', number: 'number', checkbox: 'checkbox', url: 'URL', relation: 'relation' };
+var SCHEMA_TYPE = { title: 'title', rich_text: 'text', select: 'select', multi_select: 'multi-select', date: 'date', number: 'number', checkbox: 'checkbox', url: 'URL', relation: 'relation' };
 function schemaLine_(d) {
   return d.name + ': ' + d.missing.map(function (m) { return '"' + m.name + '" (' + (SCHEMA_TYPE[m.type] || m.type) + ') not found'; })
     .concat(d.wrong.map(function (w) { return '"' + w.name + '" is ' + (SCHEMA_TYPE[w.got] || w.got) + ', needs ' + (SCHEMA_TYPE[w.want] || w.want); })).join(', ');
@@ -1306,6 +1313,11 @@ function logAction_(body) {
   if (body.action === 'logasksave') return logInsightSave_(body.insight || {});
   if (body.action === 'loginsights') return logInsights_();
   if (body.action === 'loginsight') return logInsight_(String(body.id || ''));
+  if (body.action === 'logsessions') return sessions_();
+  if (body.action === 'logsessionsave') return sessionSave_(body.session);
+  if (body.action === 'logsessionnext') return sessionNext_(String(body.id || ''), body.text);
+  if (body.action === 'logsessionremove') return sessionRemove_(String(body.id || ''));
+  if (body.action === 'logsessionsuggest') return sessionSuggest_(body);
   return { ok: false, error: 'unknown_action' };
 }
 
@@ -1723,6 +1735,214 @@ function logInsight_(id) {
   var src = ((pg.parent || {}).data_source_id || '').replace(/-/g, ''), mine = String(logSource_()).replace(/-/g, '');
   if (src !== mine || sel_((pg.properties || {}).Source) !== LOG_INSIGHT) return { ok: false, error: 'not_writable' };
   return { ok: true, version: VERSION, insight: { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title), url: pg.url || '', text: logBlocksText_(logBlocks_(pg.id)) } };
+}
+
+// ---- Session Notes (bridge 1.35) ---------------------------------------------
+// 🛋️ Session Notes: one page per counseling session (Solo or Couples), in LOG's SESSIONS tab. Every action is
+// a log* action, so it passes logGate_ like the journal: the same code, the same lockout, nothing without it.
+// Columns are plain and readable in Notion; Data holds the detail the app draws (topic notes, practice). The page
+// body is a readable copy, rewritten on each save. Nothing is cached here, and the ASK button has no way in.
+// SUGGEST TOPICS sends only the sessions Timothy chose, of one type, after a PREVIEW, with no tools.
+var SES_TYPES = { solo: 'Solo', couples: 'Couples' };
+var SES_WHERE = ['In person', 'Video', 'Phone'];
+var SES_FELT = ['Hard', 'Heavy but useful', 'Steady', 'Lighter', 'Breakthrough'];
+var SES_TEXT = { landed: 'What Landed', phrase: 'Phrase', nextTime: 'Bring Up Next Time' };
+var SES_DID = { y: 'done', p: 'partly', n: 'not yet' };
+var SES_SUGGEST_MAX = 12, SES_SUGGEST_OUT = { fast: 1200, deep: 2000 };
+var SES_RULES = [
+  "You are the ship's computer inside TimothyOS, reading Timothy's private notes from his own counseling sessions. He chose these sessions and asked for topics to bring to his next session. Address him as Captain.",
+  "Use only the notes given. Never invent events, people, feelings or dates. Look for threads that recur, practice he set and how it went, things he flagged to bring up, and things that were opened but not followed up.",
+  "Reflect, don't diagnose: no medical or therapeutic judgments, no advice beyond naming a topic and why it may be worth raising. His counselor leads the session; you only help him arrive prepared.",
+  "Answer with 3 to 5 topics, most useful first, each exactly in this form and separated by a blank line:\nTOPIC: a short title (under 60 characters)\nWHY: one or two plain sentences on why, from the notes\nFROM: the session dates it draws on, as yyyy-mm-dd separated by commas",
+  "Nothing before the first TOPIC or after the last FROM. No headings, emoji, markdown or em dashes."
+].join('\n');
+function sessionsSource_() { return sourceFor_(CONFIG.NOTION_SESSIONS_DATABASE, 'NOTION_SESSIONS_SOURCE'); }
+function sesData_(p) {
+  var raw = plain_(p.Data && p.Data.rich_text), at = raw.indexOf('{');
+  if (at < 0) return {};
+  try { var d = JSON.parse(raw.slice(at)); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch (e) { return {}; }
+}
+function toSession_(pg) {
+  var p = pg.properties || {}, d = sesData_(p), num = function (x) { return x && typeof x.number === 'number' ? x.number : null; };
+  var type = sel_(p.Type) === 'Couples' ? 'couples' : 'solo', names = ((p.Topics || {}).multi_select || []).map(function (o) { return o.name; });
+  var notes = d.notes && typeof d.notes === 'object' ? d.notes : {};
+  return { id: pg.id, url: pg.url || '', type: type, day: day_(p.Date), where: sel_(p.Where) || '', felt: sel_(p.Felt) || '',
+    arriving: num(p.Arriving), leaving: num(p.Leaving), next: day_(p['Next Session']),
+    landed: plain_(p['What Landed'] && p['What Landed'].rich_text), phrase: plain_(p.Phrase && p.Phrase.rich_text), nextTime: plain_(p['Bring Up Next Time'] && p['Bring Up Next Time'].rich_text),
+    topics: names.map(function (n) { return { name: n, note: String(notes[n] || '') }; }),
+    onMind: String(d.onMind || ''), practice: Array.isArray(d.practice) ? d.practice.map(String) : [],
+    carried: Array.isArray(d.carried) ? d.carried.filter(function (c) { return c && c.text; }).map(function (c) { return { text: String(c.text), did: SES_DID[c.did] ? c.did : null }; }) : [],
+    saved: pg.last_edited_time || null };
+}
+/** Every session, newest first. A few a month, so the whole list in one read is small. */
+function sessions_() {
+  var rows = queryAll_(sessionsSource_(), null, 10, [{ property: 'Date', direction: 'descending' }, { timestamp: 'created_time', direction: 'descending' }]);
+  return { ok: true, version: VERSION, sessions: rows.map(toSession_).filter(function (s) { return s.day; }), url: 'https://www.notion.so/' + String(CONFIG.NOTION_SESSIONS_DATABASE).replace(/-/g, '') };
+}
+function sesOwn_(id, ds) {
+  if (!/^[A-Za-z0-9-]{20,40}$/.test(String(id || ''))) return null;
+  var cur = notion_('get', '/pages/' + String(id));
+  if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== String(ds).replace(/-/g, '') || cur.in_trash || cur.archived) return null;
+  return cur;
+}
+/** The session as checked values, or null when anything is out of bounds. */
+function sesClean_(s) {
+  s = s || {};
+  var str = function (v, max) { if (v == null) return ''; if (typeof v !== 'string' || v.length > max) throw 0; return v.trim(); };
+  try {
+    var out = { type: s.type, day: String(s.day || ''), where: s.where == null || s.where === '' ? '' : s.where, felt: s.felt == null || s.felt === '' ? '' : s.felt,
+      next: s.next == null || s.next === '' ? '' : String(s.next), onMind: str(s.onMind, 2000), landed: str(s.landed, 2000), phrase: str(s.phrase, 300), nextTime: str(s.nextTime, 2000) };
+    if (!SES_TYPES[out.type] || !realDay_(out.day) || (out.next && !realDay_(out.next))) return null;
+    if (out.where && SES_WHERE.indexOf(out.where) < 0) return null;
+    if (out.felt && SES_FELT.indexOf(out.felt) < 0) return null;
+    ['arriving', 'leaving'].forEach(function (k) { var v = s[k]; if (v == null || v === '') { out[k] = null; return; } if (!(v === Math.floor(v) && v >= 1 && v <= 5)) throw 0; out[k] = v; });
+    var t = Array.isArray(s.topics) ? s.topics : [];
+    if (t.length > 20) return null;
+    var seen = {};
+    out.topics = t.map(function (x) { var n = str((x || {}).name, 40).replace(/,/g, ' ').replace(/\s+/g, ' '); if (!n || seen[n]) throw 0; seen[n] = 1; return { name: n, note: str(x.note, 2000) }; });
+    var pr = Array.isArray(s.practice) ? s.practice : [];
+    if (pr.length > 12) return null;
+    out.practice = pr.map(function (x) { var v = str(x, 300); if (!v) throw 0; return v; });
+    var ca = Array.isArray(s.carried) ? s.carried : [];
+    if (ca.length > 12) return null;
+    out.carried = ca.map(function (c) { c = c || {}; var v = str(c.text, 300); if (!v || (c.did != null && !SES_DID[c.did])) throw 0; return { text: v, did: c.did || null }; });
+    return out;
+  } catch (x) { return null; }
+}
+function sesTitle_(s) { return SES_TYPES[s.type] + ' · ' + longDay_(s.day); }
+/** The readable copy in the page body. */
+function sesBody_(s) {
+  var out = [], h = function (t) { out.push({ object: 'block', type: 'heading_3', heading_3: { rich_text: logRich_(t) } }); };
+  var p = function (t) { logParas_(t).forEach(function (q) { out.push(logBlock_(q)); }); };
+  var b = function (t) { out.push(logBlock_({ type: 'bulleted_list_item', text: t })); };
+  if (s.onMind) { h('On my mind going in'); p(s.onMind); }
+  if (s.topics.length) { h('Topics'); s.topics.forEach(function (t) { b(t.name + (t.note ? ': ' + t.note : '')); }); }
+  if (s.landed) { h('What landed'); p(s.landed); }
+  if (s.phrase) { h('A phrase to keep'); p(s.phrase); }
+  if (s.carried.length) { h("Last time's practice"); s.carried.forEach(function (c) { b(c.text + (c.did ? ' (' + SES_DID[c.did] + ')' : '')); }); }
+  if (s.practice.length) { h('Practice until next time'); s.practice.forEach(b); }
+  if (s.nextTime) { h('Bring up next time'); p(s.nextTime); }
+  return out.slice(0, 100);
+}
+function sesProps_(s) {
+  var props = { Session: { title: rt_(sesTitle_(s)) }, Type: { select: { name: SES_TYPES[s.type] } }, Date: { date: { start: s.day } },
+    Where: { select: s.where ? { name: s.where } : null }, Felt: { select: s.felt ? { name: s.felt } : null },
+    Arriving: { number: s.arriving }, Leaving: { number: s.leaving }, 'Next Session': { date: s.next ? { start: s.next } : null },
+    Topics: { multi_select: s.topics.map(function (t) { return { name: t.name }; }) } };
+  Object.keys(SES_TEXT).forEach(function (k) { props[SES_TEXT[k]] = { rich_text: s[k] ? rt_(s[k]) : [] }; });
+  var notes = {}; s.topics.forEach(function (t) { if (t.note) notes[t.name] = t.note; });
+  props.Data = { rich_text: rtLong_(JSON.stringify({ v: 1, onMind: s.onMind, notes: notes, practice: s.practice, carried: s.carried })) };
+  return props;
+}
+/** Save a session: new (cid) or changed (id), the whole session each time, so a repeat is harmless. */
+function sessionSave_(raw) {
+  raw = raw || {};
+  var s = sesClean_(raw);
+  if (!s) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var ds = sessionsSource_(), cache = CacheService.getScriptCache(), pg, body = sesBody_(s);
+    if (raw.id) {
+      if (!sesOwn_(raw.id, ds)) return { ok: false, error: 'not_writable' };
+      pg = logNotion_('patch', '/pages/' + String(raw.id), { properties: sesProps_(s) });
+      logBlocks_(pg.id).forEach(function (bk) { logNotion_('delete', '/blocks/' + bk.id); });
+      if (body.length) logNotion_('patch', '/blocks/' + pg.id + '/children', { children: body });
+    } else {
+      if (!/^[A-Za-z0-9-]{8,64}$/.test(String(raw.cid || ''))) return { ok: false, error: 'bad_request' };
+      var prior = cache.get('scid:' + raw.cid);   // only the new page's id is kept, never its text
+      if (prior) pg = sesOwn_(prior, ds);
+      if (pg) return { ok: true, version: VERSION, session: toSession_(pg), duplicate: true };
+      pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: sesProps_(s), children: body });
+      cache.put('scid:' + raw.cid, pg.id, 21600);
+    }
+    return { ok: true, version: VERSION, session: toSession_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** ADD TO NEXT TIME: set one session's Bring Up Next Time to the value given (set-to-value, so retries are safe). */
+function sessionNext_(id, text) {
+  if (typeof text !== 'string' || text.length > 2000) return { ok: false, error: 'bad_request' };
+  var ds = sessionsSource_();
+  if (!sesOwn_(id, ds)) return { ok: false, error: 'not_writable' };
+  var props = {}; props[SES_TEXT.nextTime] = { rich_text: text.trim() ? rt_(text.trim()) : [] };
+  return { ok: true, version: VERSION, session: toSession_(logNotion_('patch', '/pages/' + String(id), { properties: props })) };
+}
+/** A session to Notion's trash (restorable there). */
+function sessionRemove_(id) {
+  var ds = sessionsSource_(), cur = sesOwn_(id, ds);
+  if (!cur) return { ok: false, error: 'not_writable' };
+  logNotion_('patch', '/pages/' + cur.id, { in_trash: true });
+  return { ok: true, version: VERSION, removed: cur.id };
+}
+function sesBlock_(list) {
+  return list.map(function (s) {
+    var lines = ['=== ' + s.day + ' (' + WEEKDAYS[new Date(s.day + 'T12:00:00Z').getUTCDay()] + ')' + (s.where ? ', ' + s.where.toLowerCase() : '')];
+    if (s.arriving) lines.push('Arriving: ' + s.arriving + ' of 5' + (s.leaving ? '. Leaving: ' + s.leaving + ' of 5' : '') + (s.felt ? '. It felt: ' + s.felt.toLowerCase() : ''));
+    if (s.onMind) lines.push('On his mind going in: ' + s.onMind);
+    s.topics.forEach(function (t) { lines.push('Topic, ' + t.name + (t.note ? ': ' + t.note : '')); });
+    if (s.landed) lines.push('What landed: ' + s.landed);
+    if (s.phrase) lines.push('A phrase to keep: ' + s.phrase);
+    s.carried.forEach(function (c) { lines.push("Last time's practice: " + c.text + (c.did ? ' (' + SES_DID[c.did] + ')' : ' (not marked)')); });
+    s.practice.forEach(function (x) { lines.push('Practice set: ' + x); });
+    if (s.nextTime) lines.push('To bring up next time: ' + s.nextTime);
+    return lines.join('\n');
+  }).join('\n\n');
+}
+/** TOPIC / WHY / FROM blocks into [{title, why, dates}]; dates kept only when they are sessions that were sent. */
+function sesParse_(text, days) {
+  var out = [], cur = null, field = null;
+  String(text || '').replace(/\r/g, '').split('\n').forEach(function (line) {
+    var m = line.match(/^\s*(TOPIC|WHY|FROM):\s*(.*)$/);
+    if (m && m[1] === 'TOPIC') { cur = { title: m[2].trim(), why: '', from: '' }; out.push(cur); field = null; return; }
+    if (!cur) return;
+    if (m) { field = m[1] === 'WHY' ? 'why' : 'from'; cur[field] = m[2]; return; }
+    if (field && line.trim()) cur[field] += ' ' + line.trim();
+  });
+  return out.filter(function (t) { return t.title; }).slice(0, 5).map(function (t) {
+    var dates = (t.from.match(/\d{4}-\d{2}-\d{2}/g) || []).filter(function (d, i, a) { return days.indexOf(d) > -1 && a.indexOf(d) === i; });
+    return { title: t.title.slice(0, 80), why: t.why.replace(/\s+/g, ' ').trim().slice(0, 600), dates: dates };
+  });
+}
+/** SUGGEST TOPICS: preview (count, dates, tokens, cost; no Claude call) or send. Only sessions of one type, chosen by id. */
+function sessionSuggest_(body) {
+  if (!aiKey_()) return { ok: false, error: 'ai_not_configured' };
+  var type = body.type, mode = body.mode === 'deep' ? 'deep' : 'fast', ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+  if (!SES_TYPES[type] || !ids.length || ids.length > SES_SUGGEST_MAX || ids.some(function (x) { return !/^[A-Za-z0-9-]{20,40}$/.test(x); })) return { ok: false, error: 'bad_request' };
+  var want = {}; ids.forEach(function (x) { want[x.replace(/-/g, '')] = true; });
+  var list = sessions_().sessions.filter(function (s) { return want[s.id.replace(/-/g, '')] && s.type === type; });
+  if (!list.length) return { ok: false, error: 'bad_request' };
+  list.sort(function (a, b) { return a.day < b.day ? -1 : 1; });
+  var block = (type === 'couples' ? 'COUPLES COUNSELING' : 'SOLO COUNSELING') + ' SESSION NOTES (' + list.length + ', ' + list[0].day + ' to ' + list[list.length - 1].day + ')\n\n' + sesBlock_(list);
+  var inTok = Math.ceil((block.length + SES_RULES.length) / 3.6) + 200;
+  var usd = function (model, out) { var p = aiPrice_(model) || AI_PRICE_OTHER; return Math.round((inTok * p[0] + out * p[1]) / 1e6 * 10000) / 10000; };
+  var info = { count: list.length, dates: list.map(function (s) { return s.day; }), tokens: inTok, usd: { fast: usd(aiFast_(), SES_SUGGEST_OUT.fast), deep: usd(AI.DEEP, SES_SUGGEST_OUT.deep * 2) } };
+  if (body.preview) return { ok: true, version: VERSION, preview: info };
+  var spend = aiSpend_();
+  if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
+  var model = mode === 'deep' ? AI.DEEP : aiFast_();
+  var payload = { model: model, max_tokens: mode === 'deep' ? 8000 : 4000, system: SES_RULES, messages: [{ role: 'user', content: block + '\n\nTASK\nSuggest topics for his next ' + (type === 'couples' ? 'couples' : 'solo') + ' session.' }] };
+  if (model !== 'claude-haiku-4-5') payload.output_config = { effort: mode === 'deep' ? AI.DEEP_EFFORT : AI.FAST_EFFORT };
+  var betas = [];
+  if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+  var res;
+  try { res = claude_(payload, betas); } catch (e) {
+    if (!e.ai) throw e;
+    return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
+  }
+  var served = res.model || model, u = res.usage || {}, cost = aiCost_(served, u);
+  aiAddSpend_(cost);
+  aiLogAdd_({ t: new Date().toISOString(), mode: 'sessions', model: served, steps: 1, in: u.input_tokens || 0, out: u.output_tokens || 0,
+    cw: u.cache_creation_input_tokens || 0, cr: u.cache_read_input_tokens || 0, usd: Math.round(cost * 100000) / 100000, unknown: aiPrice_(served) ? undefined : true });
+  var text = res.stop_reason === 'refusal' ? '' : (res.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('\n\n');
+  var topics = sesParse_(text, info.dates);
+  if (!topics.length) return { ok: false, error: 'ai_error', detail: 'no_topics', spend: aiSpend_() };
+  return { ok: true, version: VERSION, topics: topics, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_(), info: info };
+}
+function sessionsStatus_() {
+  try { var n = sessions_().sessions.length; return 'OK (' + n + (n === 1 ? ' session)' : ' sessions)'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to 🛋️ Session Notes (... > Connections)' : ''); }
 }
 
 // ---- Habits ----------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D56; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D57; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Goo
   │    🗓️ Key Dates
   │    🧭 Weekly Reviews
   │    Replicator Queue, Captain's Log, Habits, Library, 🔮 Tarot, 📖 Tarot Books, 🐝 Apiary,
-  │    📥 Inbox, 🔭 Science Log
+  │    📥 Inbox, 🔭 Science Log, 🛋️ Session Notes
   │    (ids in CONFIG; data source ids looked up once and kept in Script Properties)
   ├─ UrlFetchApp → YNAB API (GET only, YNAB_TOKEN)
   ├─ UrlFetchApp → Claude Messages API (ANTHROPIC_API_KEY): ASK, Log Ask, briefing, summaries, sorting, tarot, Ship's Year
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.50.1**, **bridge 1.34.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.51.0**, **bridge 1.35.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -77,6 +77,11 @@ Current versions: **app 2.50.1**, **bridge 1.34.0** (release checklist step 2 ke
 | POST | `logimport` `pin` `entries[≤10]{date,text}` | new pages (Source Diary import) | days that already have a page skipped, so resending is safe |
 | GET (or POST) | `logsearch` `pin` `q` `whole` | entries using the word, newest first, with snippets (bridge 1.16) | needs `LOG_SEARCH_READY` (setup); reads only the Search Text field |
 | POST | `logindex` `pin` [`run`] | fills Search Text for older entries, newest first; dry run counts | up to 20 s per call, under the script lock |
+| GET (or POST) | `logsessions` `pin` | every session, newest first: `{id, url, type solo\|couples, day, where, felt, arriving, leaving, next, landed, phrase, nextTime, topics[{name, note}], onMind, practice[], carried[{text, did y\|p\|n}]}` | log gate; nothing cached (1.35) |
+| POST | `logsessionsave` `pin` `session{cid\|id, …}` | the whole session: columns, `Data` JSON (notes, practice, carried) and a readable page body, rewritten each save | `sesClean_` bounds; cid keeps only the page id 6 h |
+| POST | `logsessionnext` `pin` `id` `text` | sets one session's Bring Up Next Time (ADD TO NEXT TIME / UNDO) | set-to-value |
+| POST | `logsessionremove` `pin` `id` | moves the page to Notion's trash | only Session Notes pages |
+| POST | `logsessionsuggest` `pin` `type` `ids[≤12]` `mode` `preview` | preview `{count, dates, tokens, usd}` or `topics[{title, why, dates}]` (TOPIC/WHY/FROM lines parsed, dates kept only if sent) | one type only; no tools; spend logged as `sessions` |
 | POST | `ask` `{cid, mode: fast\|deep\|summary\|patterns\|brief, messages[{role,text}], context, ignore[]}` | Claude answers; returns `reply`, `proposals`, `model`, `cost`, `spend` | reads only; proposals are executed by the app after CONFIRM; cached by cid 10 min; stops at the monthly budget |
 | POST | `aicontinue` | carry on past the reminder for the rest of this month (`AI_CONTINUE`) | |
 | POST | `aispendset` `{usd}` | set this month's total to the Console's figure; logged as `matched` | |
@@ -102,7 +107,7 @@ Batched reads: `api()` holds batchable reads for 40 ms and sends them as GET `ba
 
 **Speed** (app 2.12.1, bridge 1.18): a batch is answered one read after another inside one Apps Script run, so `flushBatch()` splits it: `BATCH_LATER` actions (aispend, done, week, reviews, ledger, library) go in a second batch sent at the same time (MAX_PARALLEL 2). Keep screen-critical reads out of `BATCH_LATER`. `tasks_()` fetches its two queries' first pages together via `queryFirstPages_()` (`UrlFetchApp.fetchAll`; falls back to one at a time where fetchAll is missing, as in some tests). `saveTasks()` keeps today's and `plan.day`'s lists first, then the most recently fetched (max 8, nothing older than 3 days), and stores only non-provisional ones; never prune by date order alone (2.12.2: four later days evicted today's list and caused a fetch loop). `state.tasksAsked` blocks an unforced refetch of the same day within 15 s. On a new day `loadTasks()` first fills `state.tasks[day]` with `tasksStandIn()` (latest real list within 3 days, `provisional: true`, focus from each task's Focus Date); a provisional list is always refetched, Plan Day shows UPDATING and re-seeds its picks from the real list unless `plan.touched`. Test: `app_e2e28` (mock_v22 `tslow`).
 
-Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holidays`; with `NOTION_TOKEN`: `tasks`, `dates`, `done`, `reviews`, `reviewlog`, `queue`, `log`, `habits`, `library`, `tarot`, `tarotbooks`, `apiary`; `logpin` once `LOG_PIN` is set and `logcode` when it is a code word (has a `-`); `logsearch` once `LOG_SEARCH_READY`; `ask` and `brief` (1.29) with `ANTHROPIC_API_KEY`; `logask` and `tarotsuggest` with both the Claude and Notion keys; `ledger` with `YNAB_TOKEN`; `voice` with `OPENAI_API_KEY` (1.30); `schema` with `NOTION_TOKEN` (1.31); `year` with `NOTION_TOKEN` and `shipsyear` with `ANTHROPIC_API_KEY` (1.32); `inbox` with `NOTION_TOKEN` and `inboxsort` with `ANTHROPIC_API_KEY` (1.33); `science` always and `sciencelog` with `NOTION_TOKEN` (1.34). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
+Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holidays`; with `NOTION_TOKEN`: `tasks`, `dates`, `done`, `reviews`, `reviewlog`, `queue`, `log`, `habits`, `library`, `tarot`, `tarotbooks`, `apiary`; `logpin` once `LOG_PIN` is set and `logcode` when it is a code word (has a `-`); `logsearch` once `LOG_SEARCH_READY`; `ask` and `brief` (1.29) with `ANTHROPIC_API_KEY`; `logask` and `tarotsuggest` with both the Claude and Notion keys; `ledger` with `YNAB_TOKEN`; `voice` with `OPENAI_API_KEY` (1.30); `schema` with `NOTION_TOKEN` (1.31); `year` with `NOTION_TOKEN` and `shipsyear` with `ANTHROPIC_API_KEY` (1.32); `inbox` with `NOTION_TOKEN` and `inboxsort` with `ANTHROPIC_API_KEY` (1.33); `science` always and `sciencelog` with `NOTION_TOKEN` (1.34); `sessions` with `NOTION_TOKEN` and `sessionsuggest` with both keys (1.35). Every write is idempotent (cid cache for 6 h, or set-to-value), so retries are safe.
 
 ## Rules
 
@@ -276,6 +281,10 @@ A command bar (Timothy's pick from three mockups, D43): `#cmdBtn` in the header,
 **Service worker updates** (2.43.2): `sw.js` no longer calls `skipWaiting()` on install (a new version taking over mid-reload left a header over a black screen or unstyled HTML on the iPad); it installs (`cache: "reload"` requests, past the HTTP cache) and waits. UPDATE READY posts `"skipWaiting"` to the waiting worker (after `reg.update()`, retried once, and waiting for `installed`), reloads on `controllerchange`, 15 s at most. Closing and reopening the app activates it too. Keep it this way; `app_e2e54` publishes two versions to a copy of the app on :8125 and checks each comes up whole. Since 2.50 a navigation answered with an error (a host 500 or 404) falls back to the cached app page instead of showing or caching the error; only same-origin GETs are cached (`app_e2e54` runs a server that can be told to fail).
 
 - `sw.js` caches only the app's own page as the offline copy; other pages on the site pass through.
+
+## LOG → SESSIONS (app 2.51, bridge 1.35, D57)
+
+Timothy's request; he confirmed the mockup and eight postulates 2026-10-28. 🛋️ Session Notes (`NOTION_SESSIONS_DATABASE`, created by Claude with his approval in the Life Hub beside the Captain's Log): Session (title "Solo · Wednesday, October 28, 2026"), Type Solo / Couples, Date, Where, Topics (multi-select, options made on write; commas become spaces), Arriving and Leaving (1 to 5), Felt, What Landed, Phrase, Bring Up Next Time, Next Session, Data (JSON `{v, onMind, notes{topic: text}, practice[], carried[{text, did}]}`). The page body is a readable copy (`sesBody_`), deleted and rewritten on each save; Data is what the app reads. Every action is named `logsession*`, so `doPost`/`doGet` route it to `logAction_` and `logGate_` checks the code (and counts misses) like the journal; nothing is cached except a new page's id under its cid. **App:** `logTab` ("journal" / "sessions", outlives a lock) and the inner module `sess` (CSS `sx-`); everything read lives in `lg.sn`, so `lockLog()` drops it. `sess.tabs()` sits at the top of the open LOG (only with `canSessions()`); the header reads SESSIONS · OPEN / LOCKED. Views in `lg.sn.view`: list (tree `type` > `type+year` > `type+yearQn`, open state in `lg.sn.open`, defaults: types open, the newest year and its newest quarter), one, form, suggest. The draft (`LS_SNDRAFT`, the only session data on the iPad; in `bkDrafts`, never in `BK_KEYS`) is written by `keep()` on every input, from fields with fixed ids (`sxDate`, `sxMind`, `sxNote-i`, `sxLanded`, `sxPhrase`, `sxNextT`, `sxNextD`). A new session copies the type's last practice into `carried` and shows its `nextTime`. SUGGEST TOPICS needs `canSesAsk()` (`sessionsuggest` and `LS_SNAI`); ADD TO NEXT TIME appends "• title" to the latest session's `nextTime` with `logsessionnext` (UNDO removes that line). Topic chip lists per type in `LS_SNTOPICS` (BK_KEYS; defaults `DEF_TOPICS`, invented, generic). Never add sessions to the ASK snapshot, the briefing, the Ship's Year, ASTROMETRICS, REVIEW or COMPUTER's index (COMPUTER has one action that sets `logTab` and opens LOG). Tests: `bridge_sessions.test.js`, `mock_v24` `sesmode` / `stats.ses`, `app_e2e58`.
 
 ## Ask Claude
 

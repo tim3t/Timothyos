@@ -18,7 +18,7 @@ Bridge, the iPad app  (GitHub Pages, free, works offline)
 The Google bridge  (Apps Script, runs as you, in your personal Google account)
   ├─ Google Calendar: Work (read-only, shared to you), Personal, farm and Growth (once linked), US holidays (read-only)
   ├─ Notion: Master Task List, Key Dates, Weekly Reviews, Replicator Queue, Captain's Log,
-  │          Habits, Library, Tarot, Tarot Books, Apiary, Inbox, Science Log
+  │          Habits, Library, Tarot, Tarot Books, Apiary, Inbox, Science Log, Session Notes
   ├─ YNAB (read-only)
   ├─ Claude (ASK, Log Ask, the Morning Briefing, summaries, inbox sorting, tarot suggestions, Ship's Year)
   ├─ OpenAI (optional: the Morning Briefing's AI voice)
@@ -38,7 +38,7 @@ On the NAS, only when you run it:
 
 | Part | Sections |
 |---|---|
-| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) (calendars, holidays, Ask Claude, Ledger, Captain's Log, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
+| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) (calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
 | [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
@@ -143,6 +143,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 🐝 Apiary | APIARY | Read; add; change; move checks and hives to Notion's trash |
 | 📥 Inbox | CAPTURE → NOTE, INBOX | Read; add notes; mark them Sorted or Kept; move to Notion's trash |
 | 🔭 Science Log | SCIENCE, ASTROMETRICS | Read; add events; star them |
+| 🛋️ Session Notes | LOG → SESSIONS | Read and write sessions, behind your authorization code; move to Notion's trash |
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
@@ -221,6 +222,17 @@ ASK uses your Claude API account (prepaid, separate from a Claude Pro plan).
 4. Older entries become searchable while LOG is open, newest first (a bar under the search box shows progress, roughly one to two entries a second). To do it all at once, run **buildLogSearch** in the script editor (about five minutes a run; run again if some are left). In Notion you can hide the Search Text column; it's a plain copy kept for searching.
 
 **Bringing in old entries:** in your diary app choose **Export (Text)** and copy the text. In **LOG**, after your code, tap **IMPORT A DIARY EXPORT** (at the bottom), paste, **CHECK**. It shows the days found, the date range and anything unusual (a day written twice joins one page; text before the first date is left out). **IMPORT** sends three days at a time and shows how many are in Notion so far; keep the app open until it says done. If it stops, paste again and it sends only what's left.
+
+### Session notes (counseling)
+
+Notes from your counseling sessions, in **LOG → SESSIONS**, behind the same authorization code as the journal. One page per session in **🛋️ Session Notes**, a private database in your Life Hub beside 📓 Captain's Log.
+
+1. **Update the Google bridge** to 1.35 or later (Updating the Google bridge), then connect **🛋️ Session Notes** to the integration.
+2. Run **setup**: `Notion session notes: OK (0 sessions)`.
+3. **SYSTEMS → REFRESH NOW**. LOG shows **JOURNAL** and **SESSIONS** once it's open.
+4. Optional: **SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK** for SUGGEST TOPICS (needs Ask Claude). The topic chips for each type are edited there too.
+
+Use the app to change a session: the columns in Notion are yours to read, but the page body is a readable copy that the app writes again each time you save.
 
 ### Tarot books
 
@@ -493,6 +505,15 @@ A plain journal: a calendar of days and a blank page. Each day is one page in **
 4. **Read.** Dates in the answer open that entry (**ASK THE LOG** brings you back). **FOLLOW UP** asks more about the same entries, usually for under 1¢.
 5. **SAVE TO NOTION** keeps an answer as an undated "Claude insight" page in the Captain's Log database; **SHOW SAVED** lists them.
 
+**SESSIONS** (the second tab, once LOG is open): your counseling session notes, solo and couples. Saved to **🛋️ Session Notes** in Notion, one page per session.
+
+- **The list:** SOLO COUNSELING and COUPLES COUNSELING, then year, then quarter, then sessions, newest first; the current year and quarter open. Tap a heading to fold or open it. Each row shows the date, up to three topics, what landed, and how you arrived → left (1 LOW to 5 BRIGHT).
+- **+ SOLO SESSION / + COUPLES SESSION** walks five steps: **SESSION** (date, in person, video or phone, how you're arriving, what's on your mind), **TOPICS** (tap any that came up; each gets a short box; **ADD** for one of your own), **INSIGHT** (what landed, a phrase to keep), **PRACTICE** (how last time's practice went: DONE, PARTLY or NOT YET; what to practise until next time), **WRAP UP** (how you're leaving, how it felt, what to bring up next time, the next session's date). Last time's BRING UP NEXT TIME shows at the start. Only the type and date are needed; tap a chip again to clear it. **SAVE SESSION** writes it to Notion.
+- **Not saved yet:** what you've written stays on this iPad (never in a backup) until Notion has it, through a lock or a closed app; the list shows it with **RESUME** or **DISCARD**.
+- **A session:** everything recorded, **EARLIER / LATER**, **EDIT**, **OPEN IN NOTION** and **DELETE** (two taps; it goes to Notion's trash).
+- **SUGGEST TOPICS** (off until **SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK**): beside each type. Choose **THE LAST 3, 6 or 12** sessions, **PREVIEW** (which sessions, tokens, cost), then **SEND**. Claude (Sonnet, or Opus with **THINK HARDER**) suggests three to five topics for your next session, each with why and the sessions it came from (tap a date to open it). **ADD TO NEXT TIME** writes one into your latest session's BRING UP NEXT TIME, so it's there when you start the next one; **UNDO** takes it out. About 1¢; counted in ASK's monthly total as SESSIONS. Only that type's chosen sessions are sent, never the journal; answers aren't kept and go when LOG locks.
+- **Kept apart:** the ASK button, the Morning Briefing, the Ship's Year, ASTROMETRICS, REVIEW and COMPUTER's search never see session notes. **COMPUTER** ("session", "counseling") only opens the tab, after your code.
+
 Limits, checked by the Google bridge: 62 entries, about 60K tokens and two months per question, so a whole year never goes at once (ask month by month instead). Each request needs your authorization code. Claude gets only the chosen entries, has no tools and can't change anything. Answers aren't kept on the iPad and are forgotten when the log locks. Spending counts toward ASK's monthly reminder and shows as LOG in Systems (never the text).
 
 ### HABITS
@@ -710,6 +731,7 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 | Sort captured notes | **INBOX** (or the Bridge's **INBOX · N** line) |
 | Look up the sky, quakes or birds nearby | **SCIENCE** |
 | Find every Log entry that mentions something | **LOG** → **SEARCH THE LOG** |
+| Write up a counseling session | **LOG** → your code → **SESSIONS** → **+ SOLO SESSION** or **+ COUPLES SESSION** |
 | Update the balances | **LEDGER** → pull down from the top, or **REFRESH** |
 | Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |
 | Hear this morning's briefing | **BRIDGE** → **READ IT TO ME** (or **COMPUTER** → Morning briefing) |
@@ -733,11 +755,11 @@ Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YO
 
 ## Backup, restore and reinstalling
 
-Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, HOLODECK's channels, AUDIO's places, RESSIKAN's settings and the other settings.
+Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, HOLODECK's channels, AUDIO's places, RESSIKAN's settings, the session topic lists and the other settings.
 
 - **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one. Make a fresh one after any big setup change.
 - **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
-- **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
+- **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft, unsaved session notes and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
 - **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, listening places…) before anything changes. **RESTORE** writes those settings, reloads and syncs. Stations show **WAITING** in Systems until each is opened once.
 - **Rehearse it** without touching the installed app: open the app's address in a **Private** tab in Safari, restore there, look around, close the tab. A private tab starts empty and forgets everything when closed. Anything you change in it is real (it's linked to the same Google bridge), so look rather than tap.
 
@@ -771,6 +793,8 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | A station says SETUP | It needs a database connected, a key in Script Properties, or a newer Google bridge: see its part of Setup |
 | Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
 | Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
+| No SESSIONS tab in LOG | Update the Google bridge to 1.35 or later, then **SYSTEMS → REFRESH NOW** |
+| "Session Notes isn't connected" | 🛋️ Session Notes → **•••** → **Connections** → add **TimothyOS bridge**, then **TRY AGAIN** |
 | "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
 | "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
 | **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
@@ -811,6 +835,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **Notion:** the integration sees only the databases you connected (the table under Connect Notion), with only the actions listed there. The bridge checks that every page it changes belongs to the right database. **Removing** a book, a tarot reading or spread, an apiary check or a hive **moves it to Notion's trash** (restorable there). The only real deletion is in LOG: paragraphs you remove from your own entry.
 - **YNAB** is read-only: the bridge only ever reads it.
 - **Captain's Log:** every log request carries your authorization code (in the request address over HTTPS, like the access key, because Google's redirects can drop a POST body), checked by the bridge, with a 15-minute lock after five misses that doubles with each lockout in a row. The code is never stored on the iPad or logged by the app. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, are never in a backup, and never go to the ASK button.
+- **Session notes:** the same code guards every request and counts toward the same lockout. Sessions are never stored on the iPad (only one not yet saved, until Notion has it), are dropped from memory when LOG locks, are never in a backup, and never go to the ASK button, the briefing or any other station. SUGGEST TOPICS sends only the sessions you choose, of one type, after a preview, and only with SHARE SESSIONS WITH ASK on. Deleting moves a page to Notion's trash; saving rewrites the page's readable copy (its body), which is the only other thing the bridge removes.
 - **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes; for the **MORNING BRIEFING**, the same snapshot ASK sends minus tarot and the apiary, once a day (Claude gets no tools for it, so it can only describe). Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
 - **NAS relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.

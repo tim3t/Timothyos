@@ -50,7 +50,7 @@ assert.ok(get({ action: 'ping', key }).capabilities.includes('schema'));
 // the schema action: one row per database
 calls = [];
 const s = get({ action: 'schema', key, fresh: '1' });
-assert.ok(s.ok); assert.strictEqual(s.dbs.length, 12);
+assert.ok(s.ok); assert.strictEqual(s.dbs.length, 13);
 const by = k => s.dbs.find(d => d.key === k);
 assert.deepStrictEqual([by('tasks').missing, by('tasks').wrong], [[], []], 'Master Task List complete (extra columns are fine)');
 assert.deepStrictEqual(by('dates').missing, [{ name: 'Date', type: 'date' }]);

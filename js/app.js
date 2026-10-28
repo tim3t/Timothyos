@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.50.1";
+  var VERSION = "2.51.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -617,7 +617,7 @@
       var ly = state.ledger && state.ledger.ynab, lat = ly && ly.at ? Date.parse(ly.at) : state.ledger ? state.ledger.fetched : 0;
       e.textContent = "FINANCES · YNAB" + (state.ledgerInflight ? " · UPDATING…" : lat ? " · AS OF " + stamp(lat) : ""); t.textContent = "LEDGER";
     }
-    else if (state.screen === "log") { e.textContent = "JOURNAL · " + (logOpen() ? "OPEN" : "LOCKED"); t.textContent = "CAPTAIN'S LOG"; }
+    else if (state.screen === "log") { e.textContent = (logTab === "sessions" && canSessions() ? "SESSIONS · " : "JOURNAL · ") + (logOpen() ? "OPEN" : "LOCKED"); t.textContent = "CAPTAIN'S LOG"; }
     else if (state.screen === "loom") lmHead();
     else if (state.screen === "habits") {
       var hd = Math.round((sod(now) - sod(a)) / 86400000);
@@ -895,8 +895,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.34.0";
-  var BRIDGE_FEATURES = [["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.35.0";
+  var BRIDGE_FEATURES = [["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -3694,7 +3694,7 @@
       var d = new Date(x.t), when = DOW[d.getDay()] + " " + hm(d);
       if (x.mode === "matched") return '<div class="ai-row"><span class="tnum">' + when + "</span><span>MATCHED TO THE CONSOLE</span><span></span><span class=\"tnum\">$" + Number(x.usd).toFixed(2) + "</span></div>";
       var k = function (n) { return n >= 1000 ? (Math.round(n / 100) / 10) + "K" : String(n || 0); };
-      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION", brief: "BRIEFING", year: "SHIP'S YEAR", sort: "INBOX SORTING" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
+      return '<div class="ai-row"><span class="tnum">' + when + "</span><span>" + ({ fast: "QUESTION", deep: "THINK HARDER", summary: "SUMMARY", patterns: "PATTERNS", tarot: "TAROT SUGGESTION", brief: "BRIEFING", year: "SHIP'S YEAR", sort: "INBOX SORTING", sessions: "SESSIONS" }[x.mode] || "ASK") + " · " + modelName(x.model) + (x.unknown ? ' <span class="warntxt">PRICE UNKNOWN</span>' : "") +
         '</span><span class="muted tnum">' + k((x.in || 0) + (x.cw || 0) + (x.cr || 0)) + " in · " + k(x.out) + ' out</span><span class="tnum">' + money(x.usd || 0) + "</span></div>";
     }).join("") + "</div>";
     html += '<small class="muted">Questions and the snapshot of your calendars, tasks and key dates are sent to Anthropic to answer them.</small></section>';
@@ -4234,7 +4234,7 @@
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null, ai: null }; }
+  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null, ai: null, sn: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
   function canLogSearch() { return state.caps.indexOf("logsearch") > -1; }
   function canLogAsk() { return canLog() && state.caps.indexOf("logask") > -1 && !!lsGet(LS_LOGAI); }
@@ -4830,6 +4830,8 @@
         }).join("") + "</div></section></div>";
       return;
     }
+    html += sess.tabs();
+    if (logTab === "sessions" && canSessions()) { $("content").innerHTML = html + sess.html() + "</div>"; return; }
     var today = ymd(new Date()), mo = lg.month, g = sow(mo), cells = "";
     for (var c = 0; c < 42; c++) {
       var dd = addDays(g, c), k2 = ymd(dd), inMo = dd.getMonth() === mo.getMonth();
@@ -4900,8 +4902,384 @@
     return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">" + (logCodeMode() ? "Authorization code set (a code word and four digits)." : "Six-digit PIN set.") + " Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
       '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
       '<small class="muted">Entries open only after the PIN and are never stored on this iPad; leaving LOG, the background, standby or 10 minutes without a touch locks it. ' +
-      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The ASK button never sees the log.</small>" + logAiToggle() + "</section>";
+      (nd ? nd + (nd === 1 ? " day has" : " days have") + " writing waiting to reach Notion; it goes on your next unlock. " : "") + (canLogSearch() ? "SEARCH THE LOG looks through every entry on the bridge; results stay in memory and go when it locks. " : "") + "The ASK button never sees the log.</small>" + logAiToggle() + sess.systems() + "</section>";
   }
+  /* ---------- LOG → SESSIONS: counseling session notes (2.51, bridge 1.35) ----------
+     Timothy confirmed the mockup and eight postulates (2026-10-28). A second tab in LOG behind the same code: what the
+     bridge returns lives in lg.sn and goes when the log locks. The only thing kept on this iPad is a session not yet
+     saved (LS_SNDRAFT), removed once Notion has it, never in a backup. Never sent to the ASK button, the briefing, the
+     Ship's Year, ASTROMETRICS, REVIEW or COMPUTER's search. SUGGEST TOPICS sends only the sessions picked, after a PREVIEW,
+     and only with SHARE SESSIONS WITH ASK on (LS_SNAI). Topic chips per type are kept on this iPad (LS_SNTOPICS). */
+  var LS_SNDRAFT = "tos.sndraft.v1", LS_SNAI = "tos.snai.v1", LS_SNTOPICS = "tos.sntopics.v1";
+  var logTab = "journal";   /* the LOG tab last shown; not sensitive, so it outlives a lock */
+  function canSessions() { return canLog() && state.caps.indexOf("sessions") > -1; }
+  function canSesAsk() { return canSessions() && state.caps.indexOf("sessionsuggest") > -1 && !!lsGet(LS_SNAI); }
+  var sess = (function () {
+    var TYPES = { solo: { name: "SOLO COUNSELING", short: "SOLO", c: "chrome-c" }, couples: { name: "COUPLES COUNSELING", short: "COUPLES", c: "chrome-d" } };
+    var DEF_TOPICS = {
+      solo: ["STRESS + WORK", "ANXIETY", "MOOD", "SELF-WORTH", "BOUNDARIES", "FAMILY OF ORIGIN", "GRIEF + LOSS", "HABITS + HEALTH", "SPIRITUAL LIFE", "GOALS + DIRECTION", "RELATIONSHIPS"],
+      couples: ["COMMUNICATION", "CONFLICT + REPAIR", "TRUST", "CONNECTION + INTIMACY", "ROLES + LOAD", "FINANCES", "EXTENDED FAMILY", "TIME TOGETHER", "FUTURE PLANS"]
+    };
+    var MOODS = ["", "LOW", "HEAVY", "STEADY", "GOOD", "BRIGHT"];
+    var FELT = ["Hard", "Heavy but useful", "Steady", "Lighter", "Breakthrough"], WHERE = ["In person", "Video", "Phone"];
+    var STEPS = ["SESSION", "TOPICS", "INSIGHT", "PRACTICE", "WRAP UP"], QN = ["JAN – MAR", "APR – JUN", "JUL – SEP", "OCT – DEC"];
+    var DID = [["y", "DONE"], ["p", "PARTLY"], ["n", "NOT YET"]];
+    function st() { return lg.sn || (lg.sn = { list: null, url: "", busy: false, err: null, view: "list", sel: null, open: {}, step: 0, saving: false, saveErr: null, del: null, drop: false, sg: null }); }
+    function topics(type) { var t = lsGet(LS_SNTOPICS) || {}; return Array.isArray(t[type]) && t[type].length ? t[type] : DEF_TOPICS[type]; }
+    function draft() { return lsGet(LS_SNDRAFT); }
+    function setDraft(d) { if (d) lsSet(LS_SNDRAFT, d); else lsDel(LS_SNDRAFT); }
+    function mine(type) { return (st().list || []).filter(function (s) { return s.type === type; }); }   /* newest first, as the bridge sends them */
+    function byId(id) { return (st().list || []).filter(function (s) { return s.id === id; })[0] || null; }
+    function txt(t) { return esc(t || "").replace(/\n/g, "<br>"); }
+    function err(e) {
+      if (e && e.code === "notion_not_shared") return "🛋️ Session Notes isn't connected. In Notion: Session Notes → ••• → Connections → add TimothyOS bridge.";
+      return logErrText(e && e.code) || (e && /^ai_/.test(e.code || "") ? describeAi(e) : describe(e));
+    }
+    function dLong(d) { var x = parseYmd(d); return DOW[x.getDay()] + " " + x.getDate() + " " + MON[x.getMonth()] + " " + x.getFullYear(); }
+
+    function load() {
+      var S = st(), pin = lg.pin;
+      if (!pin || S.busy) return;
+      S.busy = true; S.err = null;
+      logRead({ action: "logsessions", pin: pin }).then(function (j) {
+        if (lg.pin !== pin) return;
+        S.list = j.sessions || []; S.url = j.url || "";
+      }).catch(function (e) { if (lg.pin === pin) S.err = err(e); }).then(function () {
+        if (lg.pin !== pin) return;
+        S.busy = false;
+        if (state.screen === "log" && logTab === "sessions") render(true);
+      });
+    }
+    /* A new session of a type carries last time's practice (to mark how it went) and shows what was to be brought up. */
+    function fresh(type) {
+      var last = mine(type)[0];
+      return { cid: newCid(), id: null, type: type, day: ymd(new Date()), where: "", arriving: null, onMind: "", topics: [], landed: "", phrase: "",
+        practice: [], carried: last ? (last.practice || []).map(function (x) { return { text: x, did: null }; }) : [], leaving: null, felt: "", nextTime: "", next: "", step: 0 };
+    }
+    function fromSession(s) {
+      return { cid: null, id: s.id, type: s.type, day: s.day, where: s.where || "", arriving: s.arriving, onMind: s.onMind || "", topics: (s.topics || []).map(function (t) { return { name: t.name, note: t.note || "" }; }),
+        landed: s.landed || "", phrase: s.phrase || "", practice: (s.practice || []).slice(), carried: (s.carried || []).map(function (c) { return { text: c.text, did: c.did || null }; }),
+        leaving: s.leaving, felt: s.felt || "", nextTime: s.nextTime || "", next: s.next || "", step: 0 };
+    }
+    /* What's typed goes into the draft as it's typed (and so survives a lock or a reload). */
+    function keep() {
+      var d = draft(); if (!d) return;
+      var v = function (id) { var e = $(id); return e ? e.value : null; };
+      if (v("sxDate") != null && v("sxDate")) d.day = v("sxDate");
+      if (v("sxMind") != null) d.onMind = v("sxMind");
+      if (v("sxLanded") != null) d.landed = v("sxLanded");
+      if (v("sxPhrase") != null) d.phrase = v("sxPhrase");
+      if (v("sxNextT") != null) d.nextTime = v("sxNextT");
+      if (v("sxNextD") != null) d.next = v("sxNextD");
+      d.topics.forEach(function (t, i) { var n = v("sxNote-" + i); if (n != null) t.note = n; });
+      setDraft(d);
+    }
+
+    /* ---- drawing ---- */
+    function tabs() {
+      if (!canSessions()) return "";
+      return '<div class="sx-tabs" role="tablist"><button type="button" class="chip" role="tab" data-sxtab="journal" aria-selected="' + (logTab !== "sessions") + '" aria-pressed="' + (logTab !== "sessions") + '">JOURNAL</button>' +
+        '<button type="button" class="chip" role="tab" data-sxtab="sessions" aria-selected="' + (logTab === "sessions") + '" aria-pressed="' + (logTab === "sessions") + '">SESSIONS</button>' +
+        (logTab === "sessions" ? '<span class="sx-gap"></span><button type="button" class="chip sm" data-lact="lock">LOCK</button>' : "") + "</div>";
+    }
+    function html() {
+      var S = st();
+      if (S.list === null && !S.busy && !S.err) load();
+      var out = '<div class="sx">';
+      if (S.view === "form" && draft()) out += formHtml();
+      else if (S.view === "one" && byId(S.sel)) out += oneHtml(byId(S.sel));
+      else if (S.view === "suggest" && S.sg) out += suggestHtml();
+      else out += listHtml();
+      return out + "</div>";
+    }
+    function moodHtml(s) {
+      if (!s.arriving && !s.leaving) return "<span></span>";
+      return '<span class="sx-mood" aria-label="Arriving ' + (s.arriving || "not marked") + ", leaving " + (s.leaving || "not marked") + '"><i>' + (s.arriving || "–") + "</i>→<i" + (s.leaving > s.arriving ? ' class="up"' : "") + ">" + (s.leaving || "–") + "</i></span>";
+    }
+    function rowHtml(s) {
+      var d = parseYmd(s.day);
+      return '<button type="button" class="sx-row" style="--c: var(--' + TYPES[s.type].c + ')" data-sx="open" data-id="' + esc(s.id) + '"><span class="sx-d"><b>' + d.getDate() + "</b>" + MON[d.getMonth()] + "<br>" + DOW[d.getDay()] + "</span>" +
+        '<span class="sx-mid"><span class="sx-tags">' + (s.topics || []).slice(0, 3).map(function (t) { return '<span class="sx-tag">' + esc(t.name) + "</span>"; }).join("") + "</span>" +
+        '<span class="sx-take">' + esc(s.landed || s.phrase || (s.topics.length ? "" : "No notes")) + "</span></span>" + moodHtml(s) + "</button>";
+    }
+    function opened(k, dflt) { var o = st().open; return k in o ? o[k] : dflt; }
+    function listHtml() {
+      var S = st(), d = draft(), html = "";
+      html += '<div class="btnrow sx-starts">' + Object.keys(TYPES).map(function (k) { return '<button type="button" class="btn sm" style="background: var(--' + TYPES[k].c + ')" data-sx="new" data-t="' + k + '">+ ' + TYPES[k].short + " SESSION</button>"; }).join("") + "</div>";
+      if (d) html += '<div class="sx-resume"><span class="pill">NOT SAVED</span><span><b>' + TYPES[d.type].short + " · " + dLong(d.day) + "</b>" + (d.id ? " · changes" : "") + " · stopped at " + STEPS[d.step || 0] + "</span>" +
+        '<span class="sx-gap"></span><button type="button" class="btn sm" data-sx="resume">RESUME</button><button type="button" class="btn sm ghost" data-sx="drop">' + (S.drop === true ? "DISCARD IT" : "DISCARD") + "</button></div>";
+      if (S.err && !S.list) return html + '<div class="errtxt">' + esc(S.err) + '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="reload">TRY AGAIN</button></div>';
+      if (!S.list) return html + '<div class="empty">Opening session notes…</div>';
+      if (!S.list.length) return html + '<div class="empty">No sessions yet. Start one above after your next session; it saves to 🛋️ Session Notes in Notion.</div>' + foot();
+      Object.keys(TYPES).forEach(function (type) {
+        var t = TYPES[type], list = mine(type);
+        if (!list.length) return;
+        var open = opened(type, true), last = list[0];
+        html += '<section class="sx-type" style="--c: var(--' + t.c + ')"><div class="sx-thead"><button type="button" class="sx-tog" aria-expanded="' + open + '" data-sx="tog" data-k="' + type + '"><span class="sx-caret">▼</span><span><b>' + t.name + "</b><small>" +
+          list.length + (list.length === 1 ? " SESSION" : " SESSIONS") + " · LAST " + dLong(last.day).slice(4) + (last.next && last.next >= ymd(new Date()) ? " · NEXT " + dLong(last.next).slice(4) : "") + "</small></span></button>" +
+          (canSesAsk() ? '<button type="button" class="btn sm ask" data-sx="suggest" data-t="' + type + '">SUGGEST TOPICS</button>' : "") + "</div>";
+        if (open) {
+          var years = []; list.forEach(function (s) { var y = s.day.slice(0, 4); if (years.indexOf(y) < 0) years.push(y); });
+          years.forEach(function (y, yi) {
+            var ky = type + y, oy = opened(ky, yi === 0), iny = list.filter(function (s) { return s.day.slice(0, 4) === y; });
+            html += '<div class="sx-year"><div class="sx-yhead"><button type="button" class="sx-tog" aria-expanded="' + oy + '" data-sx="tog" data-k="' + ky + '"><span class="sx-caret">▼</span><b>' + y + '</b></button><span class="sx-rule"></span><span class="sx-cnt">' + iny.length + (iny.length === 1 ? " SESSION" : " SESSIONS") + "</span></div>";
+            if (oy) {
+              var first = true;
+              [3, 2, 1, 0].forEach(function (q) {
+                var inq = iny.filter(function (s) { return Math.floor((+s.day.slice(5, 7) - 1) / 3) === q; });
+                if (!inq.length) return;
+                var kq = ky + "Q" + (q + 1), oq = opened(kq, yi === 0 && first); first = false;
+                html += '<div class="sx-q"><button type="button" class="sx-tog sx-qtog" aria-expanded="' + oq + '" data-sx="tog" data-k="' + kq + '"><span class="sx-caret">▼</span><b>Q' + (q + 1) + " · " + QN[q] + '</b><span class="sx-cnt">· ' + inq.length + "</span></button>" +
+                  (oq ? '<div class="sx-rows">' + inq.map(rowHtml).join("") + "</div>" : "") + "</div>";
+              });
+            }
+            html += "</div>";
+          });
+        }
+        html += "</section>";
+      });
+      return html + foot();
+    }
+    function foot() {
+      return '<small class="muted sx-foot">Only saved sessions are listed. Arriving → leaving: how you came in and went out, 1 (LOW) to 5 (BRIGHT).' +
+        (canSessions() && state.caps.indexOf("sessionsuggest") > -1 && !lsGet(LS_SNAI) ? " SUGGEST TOPICS is off: SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK." : "") + "</small>";
+    }
+    function oneHtml(s) {
+      var S = st(), t = TYPES[s.type], list = mine(s.type), i = list.indexOf(s), num = list.length - i;
+      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button><span class="sx-gap"></span>' +
+        '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i + 1] ? list[i + 1].id : "") + '"' + (list[i + 1] ? "" : " disabled") + ">◀ EARLIER</button>" +
+        '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i - 1] ? list[i - 1].id : "") + '"' + (list[i - 1] ? "" : " disabled") + ">LATER ▶</button></div>";
+      html += '<section class="sx-one" style="--c: var(--' + t.c + ')">' + phead(t.short + " · SESSION " + num, dLong(s.day) + (s.where ? " · " + s.where.toUpperCase() : ""), t.c) + '<div class="sx-grid"><dl class="kv">';
+      if (s.arriving) html += "<dt>ARRIVING</dt><dd>" + s.arriving + " · " + MOODS[s.arriving] + "</dd>";
+      if (s.onMind) html += "<dt>ON MY MIND</dt><dd>" + txt(s.onMind) + "</dd>";
+      if (s.leaving) html += "<dt>LEAVING</dt><dd>" + s.leaving + " · " + MOODS[s.leaving] + "</dd>";
+      if (s.felt) html += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
+      if (s.next) html += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
+      html += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
+      if (s.topics.length) html += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
+      if (s.carried.length) html += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
+      if (s.practice.length) html += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
+      if (s.nextTime) html += '<div class="sx-wide"><div class="sx-lab">BRING UP NEXT TIME</div><div>' + txt(s.nextTime) + "</div></div>";
+      html += '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="edit">EDIT</button>' + (s.url ? '<a class="btn sm ghost" href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
+        '<button type="button" class="btn sm ' + (S.del === s.id ? "warn" : "ghost") + '" data-sx="del"' + (S.saving ? " disabled" : "") + ">" + (S.del === s.id ? "DELETE IT" : "DELETE") + "</button></div>" +
+        (S.del === s.id ? '<small class="muted">Moves the page to Notion\'s trash, where it can be restored.</small>' : "") + (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") + "</section>";
+      return html;
+    }
+    function chips(list, cur, act, label) {
+      return '<div class="chips">' + list.map(function (v) { return '<button type="button" class="chip sm" data-sx="' + act + '" data-v="' + esc(v) + '" aria-pressed="' + (String(cur) === String(v)) + '">' + esc(label ? label(v) : String(v).toUpperCase()) + "</button>"; }).join("") + "</div>";
+    }
+    function formHtml() {
+      var S = st(), d = draft(), t = TYPES[d.type], step = d.step || 0, last = mine(d.type).filter(function (s) { return s.id !== d.id; })[0];
+      var html = '<section class="sx-form" style="--c: var(--' + t.c + ')">' + phead((d.id ? "CHANGE " : "NEW ") + t.short + " SESSION", "STEP " + (step + 1) + " OF 5 · KEPT ON THIS IPAD UNTIL SAVED", t.c);
+      html += '<div class="sx-steps">' + STEPS.map(function (n, i) { return '<button type="button" data-sx="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : "") + ">" + (i + 1) + " " + n + "</button>"; }).join("") + "</div>";
+      if (step === 0) {
+        if (!d.id) html += '<div class="sx-field"><div class="sx-lab">TYPE</div>' + chips(Object.keys(TYPES), d.type, "dtype", function (k) { return TYPES[k].short; }) + "</div>";
+        html += '<div class="sx-field sx-date"><label class="sx-lab" for="sxDate">DATE</label><input type="date" id="sxDate" value="' + esc(d.day) + '" max="' + ymd(new Date()) + '"></div>' +
+          '<div class="sx-field"><div class="sx-lab">WHERE</div>' + chips(WHERE, d.where, "dwhere") + "</div>" +
+          '<div class="sx-field"><div class="sx-lab">HOW I\'M ARRIVING</div>' + chips([1, 2, 3, 4, 5], d.arriving, "din", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
+          '<div class="sx-field"><label class="sx-lab" for="sxMind">ON MY MIND GOING IN</label><textarea id="sxMind" rows="2" placeholder="A line or two (optional)">' + esc(d.onMind) + "</textarea></div>" +
+          (!d.id && last && last.nextTime ? '<div class="sx-carry"><b>From ' + dLong(last.day).slice(4) + ", to bring up:</b> " + txt(last.nextTime) + "</div>" : "");
+      } else if (step === 1) {
+        var names = d.topics.map(function (x) { return x.name; }), all = topics(d.type).concat(names.filter(function (n) { return topics(d.type).indexOf(n) < 0; }));
+        html += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
+          '<div class="sx-add"><input type="text" id="sxNewTopic" maxlength="40" placeholder="Another topic" autocomplete="off" aria-label="Another topic"><button type="button" class="btn sm" data-sx="addtopic">ADD</button></div></div>';
+        html += d.topics.length ? d.topics.map(function (x, i) { return '<div class="sx-tin"><label class="sx-lab" for="sxNote-' + i + '">' + esc(x.name) + '</label><textarea id="sxNote-' + i + '" rows="2" placeholder="What came up, in a sentence or two">' + esc(x.note) + "</textarea></div>"; }).join("")
+          : '<div class="empty">Each topic you tap gets its own short box.</div>';
+      } else if (step === 2) {
+        html += '<div class="sx-field"><label class="sx-lab" for="sxLanded">WHAT LANDED</label><textarea id="sxLanded" rows="3" placeholder="The thing you want to remember from today">' + esc(d.landed) + "</textarea></div>" +
+          '<div class="sx-field"><label class="sx-lab" for="sxPhrase">A PHRASE TO KEEP</label><input type="text" id="sxPhrase" maxlength="300" placeholder="Words worth carrying around (optional)" value="' + esc(d.phrase) + '"></div>';
+      } else if (step === 3) {
+        if (d.carried.length) html += '<div class="sx-field"><div class="sx-lab">LAST TIME\'S PRACTICE · HOW DID IT GO?</div>' + d.carried.map(function (c, i) {
+          return '<div class="sx-prac"><span>' + esc(c.text) + '</span><div class="chips">' + DID.map(function (o) { return '<button type="button" class="chip sm" data-sx="dcar" data-i="' + i + '" data-v="' + o[0] + '" aria-pressed="' + (c.did === o[0]) + '">' + o[1] + "</button>"; }).join("") + "</div></div>";
+        }).join("") + "</div>";
+        html += '<div class="sx-field"><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + d.practice.map(function (x, i) { return '<div class="sx-prac"><span>' + esc(x) + '</span><button type="button" class="chip sm" data-sx="dpdel" data-i="' + i + '" aria-label="Remove ' + esc(x) + '">✕</button></div>'; }).join("") +
+          '<div class="sx-add"><input type="text" id="sxPrac" maxlength="300" placeholder="Something to try, notice or do" autocomplete="off" aria-label="Something to practise"><button type="button" class="btn sm" data-sx="dpadd"' + (d.practice.length >= 12 ? " disabled" : "") + ">ADD</button></div></div>";
+      } else {
+        html += '<div class="sx-field"><div class="sx-lab">HOW I\'M LEAVING</div>' + chips([1, 2, 3, 4, 5], d.leaving, "dout", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
+          '<div class="sx-field"><div class="sx-lab">IT FELT</div>' + chips(FELT, d.felt, "dfelt") + "</div>" +
+          '<div class="sx-field"><label class="sx-lab" for="sxNextT">BRING UP NEXT TIME</label><textarea id="sxNextT" rows="2" placeholder="What to start with next session (optional)">' + esc(d.nextTime) + "</textarea></div>" +
+          '<div class="sx-field sx-date"><label class="sx-lab" for="sxNextD">NEXT SESSION</label><input type="date" id="sxNextD" value="' + esc(d.next) + '"></div>';
+      }
+      html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="step" data-v="' + Math.max(0, step - 1) + '"' + (step ? "" : " disabled") + ">◀ BACK</button>" +
+        (step < 4 ? '<button type="button" class="btn sm" data-sx="step" data-v="' + (step + 1) + '">NEXT ▶</button>' : "") +
+        '<button type="button" class="btn sm' + (step === 4 ? "" : " ghost") + (S.saving ? " busy" : "") + '" data-sx="save"' + (S.saving ? " disabled" : "") + ">" + (S.saving ? '<span class="spin" aria-hidden="true"></span>SAVING' : "SAVE SESSION") + "</button>" +
+        '<button type="button" class="btn sm ghost" data-sx="list">CLOSE</button></div>' +
+        (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") +
+        '<small class="muted">Tap a chip again to clear it. Only the type and date are needed. CLOSE keeps this on the iPad to RESUME later.</small></section>';
+      return html;
+    }
+    function suggestHtml() {
+      var S = st(), g = S.sg, t = TYPES[g.type], list = mine(g.type).slice(0, g.n);
+      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button></div><section class="sx-sg" style="--c: var(--' + t.c + ')">' + phead("SUGGEST TOPICS", t.name, t.c);
+      if (!g.topics) {
+        html += '<div class="sx-field"><div class="sx-lab">FROM WHICH SESSIONS</div>' + chips([3, 6, 12], g.n, "sgn", function (n) { return "THE LAST " + n; }) + "</div>" +
+          '<div class="btnrow"><button type="button" class="chip sm" data-sx="sgdeep" aria-pressed="' + g.deep + '">THINK HARDER</button></div>';
+        if (!g.preview) html += '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgpreview"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>CHECKING' : "PREVIEW") + "</button></div>" +
+          '<small class="muted">PREVIEW shows what would go to Claude and the cost. Nothing is sent until SEND.</small>';
+        else {
+          var p = g.preview;
+          html += '<div class="sx-gauge tnum"><span><b>' + p.count + "</b>SESSIONS</span><span><b>" + p.dates.map(function (x) { return dLong(x).slice(4, -5); }).join(", ") + "</b>DATES</span><span><b>~" + p.tokens.toLocaleString("en-US") + "</b>TOKENS</span><span><b>~" + money(g.deep ? p.usd.deep : p.usd.fast) + "</b>" + (g.deep ? "OPUS" : "SONNET") + "</span></div>" +
+            '<div class="sx-carry">Goes to Claude: the notes of these ' + p.count + " " + t.short.toLowerCase() + " sessions only. Never the journal, never the other type. Claude has no tools and can't change anything." + (g.type === "couples" ? " Couples notes can mention your partner." : "") + "</div>" +
+            '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgsend"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>ASKING' : "SEND") + '</button><button type="button" class="btn ghost" data-sx="sgchange"' + (g.busy ? " disabled" : "") + ">CHANGE</button></div>";
+        }
+      } else {
+        var lastS = list[0];
+        html += '<small class="muted">From ' + g.info.count + " sessions · " + modelName(g.model) + " · " + money(g.cost || 0) + " · not kept on this iPad, forgotten when LOG locks</small>";
+        html += g.topics.map(function (x, i) {
+          if (g.gone[i]) return "";
+          var on = !!g.added[i];
+          return '<div class="sx-sugg' + (on ? " on" : "") + '"><b>' + (i + 1) + ". " + esc(x.title) + "</b><div>" + esc(x.why) + "</div>" +
+            (x.dates.length ? '<div class="sx-from"><span class="sx-lab">FROM</span>' + x.dates.map(function (dd) { var s = mine(g.type).filter(function (y) { return y.day === dd; })[0]; return s ? '<button type="button" class="chip sm" data-sx="open" data-id="' + esc(s.id) + '">' + dLong(dd).slice(4) + "</button>" : ""; }).join("") + "</div>" : "") +
+            '<div class="btnrow">' + (on ? '<span class="pill ok">IN BRING UP NEXT TIME</span><button type="button" class="btn sm ghost" data-sx="sgadd" data-i="' + i + '"' + (g.busy ? " disabled" : "") + ">UNDO</button>"
+              : '<button type="button" class="btn sm" data-sx="sgadd" data-i="' + i + '"' + (g.busy || !lastS ? " disabled" : "") + '>ADD TO NEXT TIME</button><button type="button" class="btn sm ghost" data-sx="sgdrop" data-i="' + i + '">DISMISS</button>') + "</div></div>";
+        }).join("");
+        html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="sgchange">ASK AGAIN</button></div>' +
+          '<small class="muted">ADD TO NEXT TIME writes the topic into the ' + (lastS ? dLong(lastS.day).slice(4) : "latest") + " session's BRING UP NEXT TIME in Notion, so it greets you when you start the next one.</small>";
+      }
+      if (g.err) html += '<div class="errtxt">' + esc(g.err) + "</div>";
+      return html + "</section>";
+    }
+
+    /* ---- actions ---- */
+    function save() {
+      keep();
+      var S = st(), d = draft(), pin = lg.pin;
+      if (!d || S.saving || !pin) return;
+      if (!d.day) { S.saveErr = "Pick the date of the session."; render(true); return; }
+      S.saving = true; S.saveErr = null; render(true);
+      var body = { type: d.type, day: d.day, where: d.where || null, arriving: d.arriving, leaving: d.leaving, felt: d.felt || null, next: d.next || null, onMind: d.onMind, landed: d.landed, phrase: d.phrase, nextTime: d.nextTime,
+        topics: d.topics.map(function (x) { return { name: x.name, note: x.note }; }), practice: d.practice, carried: d.carried.map(function (c) { return { text: c.text, did: c.did }; }) };
+      if (d.id) body.id = d.id; else body.cid = d.cid;
+      apiPost({ action: "logsessionsave", pin: pin, session: body }, 60000).then(function (j) {
+        if (lg.pin !== pin) return;
+        setDraft(null);
+        var s = j.session, list = (S.list || []).filter(function (x) { return x.id !== s.id; });
+        list.push(s); list.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
+        S.list = list; S.view = "one"; S.sel = s.id;
+        S.open[s.type] = S.open[s.type + s.day.slice(0, 4)] = S.open[s.type + s.day.slice(0, 4) + "Q" + (Math.floor((+s.day.slice(5, 7) - 1) / 3) + 1)] = true;
+        toast("Session saved to Notion");
+      }).catch(function (e) { if (lg.pin === pin) S.saveErr = err(e) + " Your notes stay on this iPad; try SAVE again."; }).then(function () {
+        if (lg.pin !== pin) return;
+        S.saving = false;
+        if (state.screen === "log" && logTab === "sessions") { render(true); window.scrollTo(0, 0); }
+      });
+    }
+    function remove(s) {
+      var S = st(), pin = lg.pin;
+      S.saving = true; S.saveErr = null; render(true);
+      apiPost({ action: "logsessionremove", pin: pin, id: s.id }).then(function () {
+        if (lg.pin !== pin) return;
+        S.list = S.list.filter(function (x) { return x.id !== s.id; }); S.view = "list"; S.del = null;
+        toast("Moved to Notion's trash");
+      }).catch(function (e) { if (lg.pin === pin) S.saveErr = err(e); }).then(function () { if (lg.pin === pin) { S.saving = false; if (state.screen === "log") render(true); } });
+    }
+    function suggest(preview) {
+      var S = st(), g = S.sg, pin = lg.pin, ids = mine(g.type).slice(0, g.n).map(function (s) { return s.id; });
+      g.busy = true; g.err = null; render(true);
+      apiPost({ action: "logsessionsuggest", pin: pin, type: g.type, ids: ids, preview: preview, mode: g.deep ? "deep" : "fast" }, preview ? 60000 : 150000).then(function (j) {
+        if (lg.pin !== pin || S.sg !== g) return;
+        if (preview) g.preview = j.preview;
+        else { g.topics = j.topics; g.info = j.info; g.model = j.model; g.cost = j.cost; g.added = {}; g.gone = {}; if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); } }
+      }).catch(function (e) { if (S.sg === g) g.err = err(e); }).then(function () { if (S.sg === g) { g.busy = false; if (state.screen === "log") render(true); } });
+    }
+    /* ADD TO NEXT TIME / UNDO: one line per topic in the latest session's Bring Up Next Time ("• title"). */
+    function addNext(i) {
+      var S = st(), g = S.sg, pin = lg.pin, last = mine(g.type)[0], line = "• " + g.topics[i].title;
+      if (!last) return;
+      var lines = (last.nextTime || "").split("\n").filter(function (x) { return x !== line; });
+      if (!g.added[i]) lines.push(line);
+      var text = lines.join("\n").replace(/^\n+|\n+$/g, "");
+      g.busy = true; g.err = null; render(true);
+      apiPost({ action: "logsessionnext", pin: pin, id: last.id, text: text }).then(function (j) {
+        if (lg.pin !== pin || S.sg !== g) return;
+        last.nextTime = j.session.nextTime; g.added[i] = !g.added[i];
+      }).catch(function (e) { if (S.sg === g) g.err = err(e); }).then(function () { if (S.sg === g) { g.busy = false; if (state.screen === "log") render(true); } });
+    }
+    function setTopics(type, list) { var t = lsGet(LS_SNTOPICS) || {}; t[type] = list; lsSet(LS_SNTOPICS, t); }
+    function click(b) {
+      var a = b.dataset.sx, v = b.dataset.v, S = st(), d;
+      /* Systems: the topic lists and the SHARE switch work without the log open */
+      if (a === "ai") { if (v === "1") lsSet(LS_SNAI, true); else lsDel(LS_SNAI); render(true); return; }
+      if (a === "tdel") { var tl = topics(b.dataset.t).slice(); tl.splice(+b.dataset.i, 1); setTopics(b.dataset.t, tl.length ? tl : DEF_TOPICS[b.dataset.t]); render(true); return; }
+      if (a === "tadd") {
+        var inp = $("sxT-" + b.dataset.t), nm = inp ? inp.value.replace(/[,]/g, " ").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 40) : "";
+        if (nm && topics(b.dataset.t).indexOf(nm) < 0) { setTopics(b.dataset.t, topics(b.dataset.t).concat([nm])); if (inp) inp.value = ""; }
+        render(true); return;
+      }
+      if (a === "treset") { setTopics(b.dataset.t, DEF_TOPICS[b.dataset.t].slice()); render(true); return; }
+      if (!logOpen()) return;
+      keep();
+      d = draft();
+      if (a !== "drop" && a !== "new") S.drop = false;
+      if (a !== "del") S.del = null;
+      if (a === "reload") { S.err = null; load(); }
+      else if (a === "tog") { var k = b.dataset.k; S.open[k] = b.getAttribute("aria-expanded") !== "true"; }
+      else if (a === "open") { if (!b.dataset.id) return; S.view = "one"; S.sel = b.dataset.id; S.saveErr = null; window.scrollTo(0, 0); }
+      else if (a === "list") { S.view = "list"; S.saveErr = null; S.sg = null; }
+      else if (a === "new") { if (d && !confirmNew(b)) return; setDraft(fresh(b.dataset.t)); S.view = "form"; S.saveErr = null; window.scrollTo(0, 0); }
+      else if (a === "resume") { S.view = "form"; S.saveErr = null; }
+      else if (a === "drop") { if (S.drop !== true) S.drop = true; else { setDraft(null); S.drop = false; S.view = "list"; } }
+      else if (a === "edit") { var cur = byId(S.sel); if (!cur) return; setDraft(fromSession(cur)); S.view = "form"; S.saveErr = null; window.scrollTo(0, 0); }
+      else if (a === "del") { var s1 = byId(S.sel); if (!s1) return; if (S.del === s1.id) { remove(s1); return; } S.del = s1.id; }
+      else if (a === "save") { save(); return; }
+      else if (a === "suggest") { S.sg = { type: b.dataset.t, n: 3, deep: false, busy: false, preview: null, topics: null, err: null, added: {}, gone: {} }; S.view = "suggest"; window.scrollTo(0, 0); }
+      else if (a === "sgn") { S.sg.n = +v; S.sg.preview = null; }
+      else if (a === "sgdeep") { S.sg.deep = !S.sg.deep; }
+      else if (a === "sgpreview") { suggest(true); return; }
+      else if (a === "sgsend") { suggest(false); return; }
+      else if (a === "sgchange") { S.sg.preview = null; S.sg.topics = null; S.sg.err = null; }
+      else if (a === "sgadd") { addNext(+b.dataset.i); return; }
+      else if (a === "sgdrop") { S.sg.gone[+b.dataset.i] = true; }
+      else if (d) {
+        if (a === "step") { d.step = +v; window.scrollTo(0, 0); }
+        else if (a === "dtype") { var nd = fresh(v); nd.cid = d.cid; nd.day = d.day; nd.onMind = d.onMind; d = nd; }
+        else if (a === "dwhere") d.where = d.where === v ? "" : v;
+        else if (a === "din") d.arriving = d.arriving === +v ? null : +v;
+        else if (a === "dout") d.leaving = d.leaving === +v ? null : +v;
+        else if (a === "dfelt") d.felt = d.felt === v ? "" : v;
+        else if (a === "dtopic") { var at = d.topics.map(function (x) { return x.name; }).indexOf(v); if (at > -1) d.topics.splice(at, 1); else if (d.topics.length < 20) d.topics.push({ name: v, note: "" }); }
+        else if (a === "addtopic") { var nt = ($("sxNewTopic") || {}).value || ""; nt = nt.replace(/[,]/g, " ").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 40); if (nt && d.topics.length < 20 && !d.topics.some(function (x) { return x.name === nt; })) d.topics.push({ name: nt, note: "" }); if ($("sxNewTopic")) $("sxNewTopic").value = ""; }
+        else if (a === "dcar") { var c = d.carried[+b.dataset.i]; c.did = c.did === v ? null : v; }
+        else if (a === "dpadd") { var pv = (($("sxPrac") || {}).value || "").trim().slice(0, 300); if (pv && d.practice.length < 12) d.practice.push(pv); if ($("sxPrac")) $("sxPrac").value = ""; }
+        else if (a === "dpdel") d.practice.splice(+b.dataset.i, 1);
+        setDraft(d);
+      }
+      render(true);
+      if (a === "addtopic" || a === "dpadd") { var f = $(a === "addtopic" ? "sxNewTopic" : "sxPrac"); if (f) f.focus(); }
+    }
+    /* A second + SESSION while one is unsaved: the first tap says so, the second replaces it. */
+    function confirmNew(b) {
+      var S = st();
+      if (S.drop === "new" + b.dataset.t) { S.drop = false; return true; }
+      S.view = "list"; S.drop = "new" + b.dataset.t; toast("A session isn't saved yet. RESUME it, or tap again to start over."); render(true); return false;
+    }
+    function tab(t) {
+      keep();
+      logTab = t === "sessions" && canSessions() ? "sessions" : "journal";
+      if (logTab === "sessions") { var S = st(); if (!S.list && !S.busy) { S.err = null; load(); } }
+      render(true); enterScreen();
+    }
+    /* Systems → CAPTAIN'S LOG: the database, SHARE SESSIONS WITH ASK and the topic lists. */
+    function systems() {
+      var html = '<label class="ov-sub" style="margin-top:14px;display:block">SESSION NOTES</label>';
+      if (!canSessions()) return html + '<small class="muted">Needs the Google bridge updated (README: Updating the Google bridge), then 🛋️ Session Notes connected to the TimothyOS integration in Notion.</small>';
+      html += '<small class="muted">LOG → SESSIONS, behind the same code as the journal. Notes live only in 🛋️ Session Notes in Notion; a session not yet saved waits on this iPad (never in a backup) until it is.</small>';
+      if (state.caps.indexOf("sessionsuggest") > -1) {
+        var on = !!lsGet(LS_SNAI);
+        html += '<div class="btnrow" style="margin-top:10px"><button type="button" class="chip" data-sx="ai" data-v="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-sx="ai" data-v="1" aria-pressed="' + on + '">SHARE SESSIONS WITH ASK</button></div>' +
+          '<small class="muted">' + (on ? "SUGGEST TOPICS sends only the sessions you pick, of one type, after showing what it will send and the cost (about 1¢ with Sonnet). Counted in ASK's monthly total as SESSIONS. Nothing is sent until SEND." : "Off: Claude never reads your session notes.") + "</small>";
+      }
+      Object.keys(TYPES).forEach(function (k) {
+        html += '<div class="ov-sub" style="margin-top:14px">' + TYPES[k].short + ' TOPICS</div><div class="chips sx-tlist">' + topics(k).map(function (n, i) { return '<button type="button" class="chip sm" data-sx="tdel" data-t="' + k + '" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + " ✕</button>"; }).join("") + "</div>" +
+          '<div class="sx-add"><input type="text" id="sxT-' + k + '" maxlength="40" placeholder="A topic to add" autocomplete="off" aria-label="Add a ' + TYPES[k].short.toLowerCase() + ' topic"><button type="button" class="btn sm" data-sx="tadd" data-t="' + k + '">ADD</button><button type="button" class="btn sm ghost" data-sx="treset" data-t="' + k + '">RESET</button></div>';
+      });
+      return html + '<small class="muted">Topic lists are kept on this iPad (and in your backups). A session keeps the topics it was saved with.</small>';
+    }
+    document.addEventListener("input", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx/.test(e.target.id || "") && !/^sx(NewTopic|Prac|T-)/.test(e.target.id)) keep(); });
+    document.addEventListener("change", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx(Date|NextD)$/.test(e.target.id || "")) keep(); });
+    return { tabs: tabs, html: html, click: click, tab: tab, systems: systems, load: load, keep: keep };
+  })();
+
   document.addEventListener("keydown", function (e) {
     if (state.screen !== "log" || logOpen() || !canLog() || sb.on || e.metaKey || e.ctrlKey) return;
     if (/^[0-9]$/.test(e.key)) { e.preventDefault(); logPress(e.key); }
@@ -5497,6 +5875,7 @@
     if (canLog()) {
       if (canLogSearch()) A("Search the log", "LOG · SEARCH THE LOG", "REFLECT", "journal diary find", function () { go("log"); lg.after = "find"; });
       if (canLogAsk()) A("Ask Claude about the log", "LOG · ASK CLAUDE", "REFLECT", "journal diary themes", function () { go("log"); lg.after = "ask"; });
+      if (canSessions()) A("Session notes", "LOG · SESSIONS", "REFLECT", "therapy counseling counselling counselor sessions solo couples", function () { logTab = "sessions"; go("log"); });
     }
     if (canTarot()) {
       A("Record this week's card", "TAROT · THIS WEEK'S CARD", "REFLECT", "cards weekly draw", function () { go("tarot"); if (!cmdClick('[data-trgo="weekly"]') && tr.data) toast("This week's card is already recorded"); });
@@ -11645,7 +12024,7 @@
     "tos.upkeep.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
-    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1"];
+    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];
   var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
   var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
@@ -11662,7 +12041,7 @@
     return n;
   }
   function bkDrafts() {
-    return [["tos.ldraft.v1", "Captain's Log writing"], ["tos.rdraft.v1", "a review draft"], ["tos.tarotdraft.v1", "a new tarot reading"], ["tos.apdraft.v1", "a hive check in progress"]]
+    return [["tos.ldraft.v1", "Captain's Log writing"], ["tos.sndraft.v1", "session notes not yet saved"], ["tos.rdraft.v1", "a review draft"], ["tos.tarotdraft.v1", "a new tarot reading"], ["tos.apdraft.v1", "a hive check in progress"]]
       .filter(function (d) { var v = lsGet(d[0]); return v && (typeof v !== "object" || Object.keys(v).length); }).map(function (d) { return d[1]; });
   }
   function bkMake() {
@@ -11953,6 +12332,8 @@
       queueSend({ action: "queuebought", id: b.dataset.qyes, day: ymd(new Date()) }, qname + " marked bought. Log it in YNAB as usual.");
     }
     else if (b.dataset.qundo) queueSend({ action: "queuebought", id: b.dataset.qundo, day: null }, "Back in the queue.");
+    else if (b.dataset.sxtab) sess.tab(b.dataset.sxtab);
+    else if (b.dataset.sx) sess.click(b);
     else if (b.dataset.lpin) logPress(b.dataset.lpin);
     else if (b.dataset.lday) { if (lg.find) lg.find.view = false; if (lg.ai) lg.ai.view = false; logPick(b.dataset.lday); }
     else if (b.dataset.lascope) { lg.ai.scope = logAiScope(b.dataset.lascope); lg.ai.preview = null; lg.ai.msgs = []; lg.ai.err = null; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }

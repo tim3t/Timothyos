@@ -96,6 +96,70 @@ LOG = {"2026-10-05": "Planted the garlic.\n\nQuiet evening.", "2026-09-14": "A S
 LEDGERCALLS = []; YCACHE = []; YAT = ["2026-10-10T20:00:00-05:00"]
 UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []; LOGASKS = []; INSIGHTS = []
 LOGOTHER = {"2026-10-01"}
+# LOG → SESSIONS (bridge 1.35): invented counseling sessions, behind the same code as the log.
+SES = {"cap": 0, "list": [], "posts": [], "suggests": [], "nexts": [], "fail": "", "n": 0}
+def ses_seed():
+    SES["n"] = 0; SES["posts"].clear(); SES["suggests"].clear(); SES["nexts"].clear(); SES["fail"] = ""
+    def mk(t, d, **k):
+        SES["n"] += 1
+        base = {"id": "ses-" + str(SES["n"]).zfill(28), "url": "https://www.notion.so/ses" + str(SES["n"]), "type": t, "day": d, "where": "", "felt": "", "arriving": None, "leaving": None, "next": None,
+                "landed": "", "phrase": "", "nextTime": "", "topics": [], "onMind": "", "practice": [], "carried": [], "saved": "2026-10-28T12:00:00Z"}
+        base.update(k); return base
+    SES["list"] = [
+        mk("solo", "2026-10-22", where="In person", arriving=2, leaving=3, felt="Heavy but useful", onMind="A loud week at the bench.", topics=[{"name": "STRESS + WORK", "note": "Saying yes before checking the plate."}, {"name": "BOUNDARIES", "note": "Practised a script."}],
+           landed="A fast yes dodges the discomfort of letting someone down.", phrase="Check the plate first.", practice=["Pause one breath before agreeing", "Phone out of the bedroom three nights"], carried=[{"text": "Note one thing done well each evening", "did": "y"}], nextTime="How the pause went.", next="2026-11-05"),
+        mk("solo", "2026-10-08", where="Video", arriving=3, leaving=3, felt="Steady", topics=[{"name": "MOOD", "note": "Flat rather than sad."}], landed="Flat follows weeks of only urgent things.", practice=["Note one thing done well each evening"]),
+        mk("solo", "2026-07-23", arriving=4, leaving=4, topics=[{"name": "GOALS + DIRECTION", "note": ""}], landed="Fewer things, done properly."),
+        mk("solo", "2025-11-20", arriving=3, leaving=4, topics=[{"name": "FAMILY OF ORIGIN", "note": "Holiday plans."}], landed="I can choose how long I stay."),
+        mk("couples", "2026-10-14", where="In person", arriving=3, leaving=4, felt="Lighter", topics=[{"name": "CONFLICT + REPAIR", "note": "The weekend argument."}, {"name": "ROLES + LOAD", "note": "Who tracks the calendar."}],
+           landed="It is about who carries the planning.", practice=["Sunday ten-minute check-in"], nextTime="The holidays.")]
+ses_seed()
+def ses_clean(x):
+    if x.get("type") not in ("solo", "couples") or not str(x.get("day", ""))[:4].isdigit(): return None
+    for k in ("arriving", "leaving"):
+        v = x.get(k)
+        if v is not None and v not in (1, 2, 3, 4, 5): return None
+    if len(x.get("topics") or []) > 20: return None
+    return x
+def sesact(act, b):
+    if SES["fail"] and act != "logsessions": return {"ok": False, "error": SES["fail"]}
+    if act == "logsessions": return {"ok": True, "sessions": sorted(SES["list"], key=lambda s: s["day"], reverse=True), "url": "https://www.notion.so/sessions"}
+    if act == "logsessionsave":
+        x = ses_clean(dict(b.get("session") or {}))
+        if not x: return {"ok": False, "error": "bad_request"}
+        SES["posts"].append(x)
+        keep = {k: x.get(k) for k in ("type", "day", "where", "felt", "arriving", "leaving", "next", "landed", "phrase", "nextTime", "topics", "onMind", "practice", "carried")}
+        for k in ("where", "felt"): keep[k] = keep[k] or ""
+        for k in ("landed", "phrase", "nextTime", "onMind"): keep[k] = keep[k] or ""
+        if x.get("id"):
+            cur = next((s for s in SES["list"] if s["id"] == x["id"]), None)
+            if not cur: return {"ok": False, "error": "not_writable"}
+            cur.update(keep); return {"ok": True, "session": cur}
+        dup = next((s for s in SES["list"] if s.get("cid") == x.get("cid")), None)
+        if dup: return {"ok": True, "session": dup, "duplicate": True}
+        SES["n"] += 1
+        s = {"id": "ses-" + str(SES["n"]).zfill(28), "url": "https://www.notion.so/ses" + str(SES["n"]), "cid": x.get("cid"), "saved": "2026-10-28T13:00:00Z"}; s.update(keep)
+        SES["list"].append(s); return {"ok": True, "session": s}
+    if act == "logsessionnext":
+        cur = next((s for s in SES["list"] if s["id"] == b.get("id")), None)
+        if not cur: return {"ok": False, "error": "not_writable"}
+        cur["nextTime"] = b.get("text", ""); SES["nexts"].append(b.get("text", "")); return {"ok": True, "session": cur}
+    if act == "logsessionremove":
+        cur = next((s for s in SES["list"] if s["id"] == b.get("id")), None)
+        if not cur: return {"ok": False, "error": "not_writable"}
+        SES["list"].remove(cur); return {"ok": True, "removed": cur["id"]}
+    if act == "logsessionsuggest":
+        ids = b.get("ids") or []
+        chosen = sorted([s for s in SES["list"] if s["id"] in ids and s["type"] == b.get("type")], key=lambda s: s["day"])
+        if not chosen or len(ids) > 12: return {"ok": False, "error": "bad_request"}
+        info = {"count": len(chosen), "dates": [s["day"] for s in chosen], "tokens": 700 + 300 * len(chosen), "usd": {"fast": 0.009, "deep": 0.041}}
+        if b.get("preview"): return {"ok": True, "preview": info}
+        SES["suggests"].append({"type": b.get("type"), "ids": ids, "mode": b.get("mode")})
+        newest = chosen[-1]["day"]
+        return {"ok": True, "topics": [{"title": "How the pause went", "why": "You set it as practice and flagged it for next time.", "dates": [newest]},
+                                       {"title": "Energy and what is yours", "why": "Flat weeks follow weeks of only urgent things.", "dates": [chosen[0]["day"]]}],
+                "model": "claude-opus-5-5" if b.get("mode") == "deep" else "claude-sonnet-5-5", "cost": 0.011, "spend": SPEND, "info": info}
+    return {"ok": False, "error": "unknown_action"}
 def logcanon(t):
     # the bridge's 1.19 block rules: blank lines between paragraphs, "• " / "- " lines are list items, one per line
     import re
@@ -127,6 +191,7 @@ def logact(b):
         if LOGFAIL[0] >= 5 and CODE: LOCKS[0] = int(__import__("time").time() * 1000) + 900000
         return {"ok": False, "error": "log_locked" if LOGFAIL[0] >= 5 else "bad_pin", "left": max(0, 5 - LOGFAIL[0]), **({"until": LOCKS[0]} if CODE and LOGFAIL[0] >= 5 else {})}
     LOGFAIL[0] = 0
+    if str(act).startswith("logsession"): return sesact(act, b)
     if act in ("logunlock", "logdates"): return {"ok": True, "dates": sorted(LOG)}
     if act == "logday":
         d = b.get("date"); t = LOG.get(d)
@@ -364,8 +429,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -379,6 +444,11 @@ class H(BaseHTTPRequestHandler):
                 dbs[0]["missing"] = [{"name": "Focus Date", "type": "date"}]
                 dbs[6]["wrong"] = [{"name": "Rating", "want": "number", "got": "rich_text"}]
             body = {"ok": True, "version": VER["v"], "at": "2026-10-23T18:00:00Z", "dbs": dbs}
+        elif q.get("action") == "sesmode":
+            if "cap" in q: SES["cap"] = int(q["cap"])
+            if "fail" in q: SES["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "reset" in q: ses_seed()
+            body = {"ok": True}
         elif q.get("action") == "scimode":
             for k in ("cap", "log", "birds"):
                 if k in q: SCI[k] = int(q[k])
@@ -488,7 +558,7 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
         elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
-        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "logasks": LOGASKS, "ledgercalls": LEDGERCALLS, "insights": [[x["title"], x["text"]] for x in INSIGHTS], "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES, "tarot": TAROT, "tmean": TMEAN, "tspreads": TSPREADS, "tsaves": TSAVES}
+        elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "unindexed": UNINDEXED, "logasks": LOGASKS, "ledgercalls": LEDGERCALLS, "insights": [[x["title"], x["text"]] for x in INSIGHTS], "idxruns": len(IDXRUNS), "batches": BATCHES, "habits": HABITS, "hsets": HSETS, "books": [[b["title"], b["status"], b.get("rating"), b.get("finished")] for b in BOOKS], "bsaves": BSAVES, "tarot": TAROT, "tmean": TMEAN, "tspreads": TSPREADS, "tsaves": TSAVES, "ses": SES}
         else: body = {"ok": False, "error": "unknown_action"}
         return body
     def do_POST(self):
