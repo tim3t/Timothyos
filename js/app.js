@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.49.0";
+  var VERSION = "2.50.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -886,7 +886,7 @@
     if (code === "unauthorized") return ["In Apps Script, run <b>setup</b> and copy the access key from the log.", "Here, tap <b>UNLINK</b> under CONNECTION, then link again with that key."];
     if (code === "notion_not_shared") return ["In Notion, open the Master Task List, tap <b>•••</b> → <b>Connections</b>, and add <b>TimothyOS</b>.", "Come back and tap <b>" + retry + "</b>."];
     if (code === "notion_unauthorized" || code === "notion_not_configured") return ["In Apps Script: <b>Project Settings → Script Properties</b>. Check <b>NOTION_TOKEN</b> is there and current.", "Tap <b>" + retry + "</b>."];
-    if (code === "unknown_action" || /^http_(40[0-3]|405)$/.test(code || "")) return ["The bridge is out of date or its deployment changed. Paste the latest Code.gs, run <b>setup</b>, then <b>Deploy → New version</b> (README: Update the bridge).", "Tap <b>" + retry + "</b>."];
+    if (code === "unknown_action" || /^http_(40[0-3]|405)$/.test(code || "")) return ["The bridge is out of date or its deployment changed. Paste the latest Code.gs, run <b>setup</b>, then <b>Deploy → New version</b> (README: Updating the Google bridge).", "Tap <b>" + retry + "</b>."];
     if (code === "offline") return ["Check the iPad's Wi-Fi.", "Tap <b>" + retry + "</b> once you're back online."];
     return ["Tap <b>" + retry + "</b>. Most of these clear on the next try.", "Still failing? Google or Notion is slow. Wait a few minutes; TimothyOS also retries on its own.", "Failing for an hour or more? Open <b>script.google.com → Executions</b> and look for red errors."];
   }
@@ -1535,7 +1535,7 @@
     loadDates(false);
     var html = '<div class="kdscreen">';
     if (!canDates()) {
-      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs the Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
+      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs the Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</div>";
       return;
     }
     var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
@@ -1739,7 +1739,7 @@
     var data = state.tasks[ymd(new Date())];
     var html = '<section id="sec-notion">' + phead("NOTION", canPlan() ? "MASTER TASK LIST" : "NOT LINKED");
     if (!canPlan()) {
-      html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need a Notion key in its Script Properties. Steps are in the README under <b>Notion link</b>.</span></div>';
+      html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need a Notion key in its Script Properties. Steps are in the README under <b>Connect Notion</b>.</span></div>';
     } else if (state.tasksErr) {
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small class="errtxt">' + esc(state.tasksErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>';
     } else {
@@ -1769,7 +1769,7 @@
         : '<div class="calrow a-farm"><span class="st"></span><span><b>Key Dates</b><small>' + (state.dates ? state.dates.dates.length + " key dates · synced " + esc(stamp(state.dates.fetched)) : "Not loaded yet") +
           '</small></span><span class="pill ok">OK</span></div>';
     } else if (canPlan()) {
-      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs the Google bridge updated. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
+      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canHolidays()) html += '<div class="calrow a-holiday"><span class="st"></span><span><b>Holidays</b><small>' + (state.hols ? (state.hols.calendar ? esc(state.hols.calendar) + " · " + holidayDates().length + " shown in the next 13 months · read-only" : "No holidays calendar found. Subscribe to one in Google Calendar, or set HOLIDAY_CALENDAR_ID.") : "Not loaded yet") +
       '</small></span><span class="pill' + (state.hols && state.hols.calendar ? " ok\">OK" : "\">" + (state.hols ? "NOT FOUND" : "…")) + "</span></div>";
@@ -4359,7 +4359,7 @@
       lg.find.res = { entries: j.entries || [], mentions: j.mentions || 0, left: j.left || 0, more: !!j.more };
     }).catch(function (err) {
       if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
-      lg.find.err = err && err.code === "log_search_not_ready" ? "Search needs one run of setup. Steps are in the README under Captain's Log search." : logErrText(err && err.code) || describe(err);
+      lg.find.err = err && err.code === "log_search_not_ready" ? "Search needs one run of setup. Steps are in the README under Captain's Log." : logErrText(err && err.code) || describe(err);
     }).then(function () {
       if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
       lg.find.busy = false;
@@ -5733,7 +5733,7 @@
   function habitsErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Habits database with the bridge yet. In Notion open 🔁 Habits → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Habits + Library).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Updating the Google bridge).";
     return describe(err);
   }
   function loadHabits(force) {
@@ -5835,7 +5835,7 @@
   }
   function renderHabits() {
     loadHabits(false);
-    if (!canHabits()) { $("content").innerHTML = '<div class="hb">' + phead("HABITS", "SETUP") + stubBox(state.conn ? "Needs the 🔁 Habits database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canHabits()) { $("content").innerHTML = '<div class="hb">' + phead("HABITS", "SETUP") + stubBox(state.conn ? "Needs the 🔁 Habits database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
     var key = ymd(state.anchor), d = hDay(key), today = key === ymd(new Date());
     var html = '<div class="hb"><div class="hb-top"><section>' + phead(today ? "TODAY" : dLabel(state.anchor), habitMeta());
     if (hb.err && !hb.data) html += '<div class="err">' + esc(hb.err.msg) + "</div>";
@@ -5935,7 +5935,7 @@
   function libraryErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Library with the bridge yet. In Notion open 📚 Library → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Habits + Library).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Updating the Google bridge).";
     return describe(err);
   }
   function loadLibrary(force) {
@@ -5960,7 +5960,7 @@
   function bookDays(b) { return b.started && b.finished ? Math.max(1, daysBetween(b.started, b.finished)) : null; }
   function renderLibrary() {
     loadLibrary(false);
-    if (!canLibrary()) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "SETUP") + stubBox(state.conn ? "Needs the 📚 Library database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canLibrary()) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "SETUP") + stubBox(state.conn ? "Needs the 📚 Library database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
     if (!lb.data) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "") + '<div class="empty">' + (lb.err ? esc(lb.err.msg) : "Loading your library from Notion…") + "</div></div>"; return; }
     var all = books(), yr = new Date().getFullYear(), read = all.filter(function (b) { return b.status === "read"; }), sh = shelfNow();
     var thisYear = read.filter(function (b) { return b.finished && +b.finished.slice(0, 4) === yr; }).length;
@@ -6179,7 +6179,7 @@
   /* ---------- Render + navigation ---------- */
   /* ---------- Storage (the NAS) ---------- */
   /* Browses NAS folders and plays audio through a small read-only relay on the NAS (Caddy behind
-     Tailscale; setup in the README under Storage). The relay address and token are typed in Systems
+     Tailscale; setup in the README under NAS relay). The relay address and token are typed in Systems
      and kept on this iPad only, like the access key. Folder listings come as JSON (Accept header);
      audio streams straight from the relay with the token in the address, since an <audio> element
      can't send headers. Where you stopped in each file is kept on this iPad only. */
@@ -6767,7 +6767,7 @@
   }
   function renderStorage() {
     var c = nasConf();
-    if (!c) { $("content").innerHTML = '<div class="nas">' + holo.archBtn() + phead("AUDIO", "SETUP") + '<div class="stubbox"><span class="pill">SETUP</span><span>AUDIO reads the NAS through its relay. Add the relay address and token under <b>NAS RELAY</b> in Systems. Steps are in the README under <b>Storage relay</b>.</span></div>' +
+    if (!c) { $("content").innerHTML = '<div class="nas">' + holo.archBtn() + phead("AUDIO", "SETUP") + '<div class="stubbox"><span class="pill">SETUP</span><span>AUDIO reads the NAS through its relay. Add the relay address and token under <b>NAS RELAY</b> in Systems. Steps are in the README under <b>NAS relay</b>.</span></div>' +
       '<div class="btnrow"><button type="button" class="btn" data-nas="systems">OPEN SYSTEMS</button></div></div>'; return; }
     var v = nas.view, html = '<div class="nas">' + holo.archBtn();
     if (v === "now" && pl.path) html += nowHtml();
@@ -6964,7 +6964,7 @@
   }
 
   /* ---------- Engineering (2.24): Home Assistant controls and upkeep ---------- */
-  /* CONTROLS: devices picked from Home Assistant, reached through the Storage relay's /ha path
+  /* CONTROLS: devices picked from Home Assistant, reached through the NAS relay's /ha path
      (or a direct HTTPS address). The HA token is typed in Systems and kept on this iPad; only the
      devices added here are shown. UPKEEP: recurring maintenance by time (days to years) or by a
      reading (miles, hours), kept on this iPad. Overdue items join the Bridge's CONDITION. */
@@ -7185,7 +7185,7 @@
   function haRoomName(d) { var g = haGroups().filter(function (x) { return x.id === d.g; })[0]; return g ? g.nm : ""; }
   function haKind(d) { var c = devCaps(d); return c.clim ? "climate" : c.sw ? "light" : "sensor"; }
   function haControlsHtml(view) {
-    if (!haConf()) return '<div class="stubbox"><span class="pill">SETUP</span><span>Controls talk to Home Assistant. Add its address and a token under <b>HOME ASSISTANT</b> in Systems. Steps are in the README under <b>Engineering</b>.</span></div>' +
+    if (!haConf()) return '<div class="stubbox"><span class="pill">SETUP</span><span>Controls talk to Home Assistant. Add its address and a token under <b>HOME ASSISTANT</b> in Systems. Steps are in the README under <b>Home Assistant</b>.</span></div>' +
       '<div class="btnrow"><button type="button" class="btn" data-eng="systems">OPEN SYSTEMS</button></div>';
     var devs = haDevices();
     haLoad(false);
@@ -7655,7 +7655,7 @@
   function haSection() {
     var c = haConf(), n = nasConf(), armed = eng.arm === "haforget" && Date.now() - eng.armAt < 4000;
     return '<section id="sec-ha">' + phead("HOME ASSISTANT", c ? (eng.err ? "PROBLEM" : "SET") : "NOT SET") + '<dl class="kv">' +
-      "<dt>ADDRESS</dt><dd>" + (c ? esc(c.url) + (haViaRelay(c.url) ? ' <span class="muted">· through the Storage relay</span>' : "") : '<span class="muted">Not set</span>') + "</dd>" +
+      "<dt>ADDRESS</dt><dd>" + (c ? esc(c.url) + (haViaRelay(c.url) ? ' <span class="muted">· through the NAS relay</span>' : "") : '<span class="muted">Not set</span>') + "</dd>" +
       "<dt>TOKEN</dt><dd>" + (c ? "•••• " + esc(c.token.slice(-4)) : '<span class="muted">Not set</span>') + "</dd>" +
       "<dt>DEVICES</dt><dd>" + haDevices().length + " on ENGINEERING</dd>" +
       '<dt>CHANGE</dt><dd><div class="ov-place"><input type="url" id="haUrl" placeholder="' + (n ? esc(nasBase()) + "/ha" : "https://home-assistant-address") + '" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + (c ? esc(c.url) : "") + '">' +
@@ -7667,7 +7667,7 @@
   }
   function haSave() {
     var url = ($("haUrl").value || "").trim().replace(/\/+$/, ""), tok = ($("haTok").value || "").trim(), cur = haConf(), errEl = $("haErr");
-    if (!/^https:\/\/[^\s]+$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url)) { errEl.textContent = "Use an https address (the Storage relay's address plus /ha works)."; return; }
+    if (!/^https:\/\/[^\s]+$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url)) { errEl.textContent = "Use an https address (the NAS relay's address plus /ha works)."; return; }
     if (!tok && !cur) { errEl.textContent = "Enter the long-lived access token."; return; }
     lsSet(LS_HA, { url: url, token: tok || cur.token });
     eng.err = null; eng.states = {}; eng.at = 0; errEl.textContent = "Testing…";
@@ -7777,7 +7777,7 @@
   function trErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Tarot database with the bridge yet. In Notion open 🔮 Tarot → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Tarot).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Updating the Google bridge).";
     return describe(err);
   }
 
@@ -7918,7 +7918,7 @@
   }
   function renderTarot() {
     loadTarot(false);
-    if (!canTarot()) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "SETUP") + stubBox(state.conn ? "Needs the 🔮 Tarot database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Tarot</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canTarot()) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "SETUP") + stubBox(state.conn ? "Needs the 🔮 Tarot database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
     if (!tr.data) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "") + '<div class="empty">' + (tr.err ? esc(tr.err.msg) : "Loading your readings from Notion…") + "</div></div>"; return; }
     if (tr.view === "reading" && !trOpen()) tr.view = "home";
     var html = '<div class="tr">' + (tr.qErr && Object.keys(tr.q).length ? '<div class="err">' + Object.keys(tr.q).length + " change" + (Object.keys(tr.q).length === 1 ? "" : "s") + " not in Notion yet: " + esc(tr.qErr.msg) + ' <button type="button" class="chip sm" data-trretry="1">RETRY</button></div>' : "");
@@ -8195,7 +8195,7 @@
   function tarotSection() {
     var on = !!lsGet(LS_AITAROT), n = trReadings().length, waiting = Object.keys(tr.q).length;
     var html = "<section>" + phead("TAROT", canTarot() ? (tr.err ? "PROBLEM" : "NOTION") : "SETUP");
-    if (!canTarot()) return html + stubBox("Needs the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Tarot</b>.") + "</section>";
+    if (!canTarot()) return html + stubBox("Needs the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</section>";
     html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>" + trbSystemsRow();
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR READINGS</label><div class="btnrow">' +
@@ -8233,7 +8233,7 @@
   function trbErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share 📖 Tarot Books with the bridge yet. In Notion open it → ••• → Connections → add TimothyOS bridge.";
-    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Tarot books).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Updating the Google bridge).";
     if (code === "tarot_books_no_file") return "The import file isn't in 📖 Tarot Books any more, and no card pages are there yet.";
     if (code === "tarot_books_bad_file") return "The import file in 📖 Tarot Books couldn't be read.";
     if (code === "tarot_books_empty") return "Your books aren't in Notion yet. Systems → TAROT → IMPORT BOOKS.";
@@ -8379,8 +8379,8 @@
   function apErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Apiary database with the bridge yet. In Notion open 🐝 Apiary → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Apiary).";
-    if (code === "bad_request") return "The bridge refused it. Mediums, feeders and excluders need the Google bridge updated (steps in the README under Apiary).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Updating the Google bridge).";
+    if (code === "bad_request") return "The bridge refused it. Mediums, feeders and excluders need the Google bridge updated (steps in the README under Updating the Google bridge).";
     return describe(err);
   }
   function apId(id) { return ap.alias[id] || id; }
@@ -8652,7 +8652,7 @@
   }
   function renderApiary() {
     loadApiary(false);
-    if (!canApiary()) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "SETUP") + stubBox(state.conn ? "Needs the 🐝 Apiary database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Apiary</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canApiary()) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "SETUP") + stubBox(state.conn ? "Needs the 🐝 Apiary database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
     if (!ap.data) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "") + '<div class="empty">' + (ap.err ? esc(ap.err.msg) : "Loading your hives from Notion…") + "</div></div>"; return; }
     if (ap.view === "hiveedit" && !ap.form) ap.view = ap.hive ? "hive" : "yard";
     if (ap.view !== "yard" && ap.view !== "hiveedit" && !apHive(ap.hive)) ap.view = "yard";
@@ -9041,7 +9041,7 @@
   function apiarySection() {
     var on = !!lsGet(LS_AIAPIARY), waiting = Object.keys(ap.q).length;
     var html = "<section>" + phead("APIARY", canApiary() ? (ap.err ? "PROBLEM" : "NOTION") : "SETUP");
-    if (!canApiary()) return html + stubBox("Needs the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Apiary</b>.") + "</section>";
+    if (!canApiary()) return html + stubBox("Needs the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</section>";
     var nh = apHives().length, nc = apChecks().length;
     html += '<div class="calrow"><span class="st" style="background:var(--farm)"></span><span><b>🐝 Apiary</b><small' + (ap.err ? ' class="errtxt">' + esc(ap.err.msg) : ">" + (ap.data ? nh + (nh === 1 ? " hive · " : " hives · ") + nc + (nc === 1 ? " check" : " checks") : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (ap.data && !ap.err ? " ok" : ap.err ? " bad" : "") + '">' + (ap.data && !ap.err ? "OK" : ap.err ? "ERROR" : "WAITING") + "</span></div>";

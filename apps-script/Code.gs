@@ -1,5 +1,6 @@
 /**
- * TimothyOS bridge, v1.10
+ * TimothyOS bridge ("the Google bridge"). Its version is VERSION, below; the app
+ * names what each version adds (BRIDGE_FEATURES in js/app.js).
  *
  * Runs inside your personal Google account as a web app.
  *  - Calendars: reads Work + Personal, plus your farm calendar once linked
@@ -24,10 +25,18 @@
  *    in its page's Search Text field. The ASK button never sees the log; Log Ask
  *    (bridge 1.20) reads only entries Timothy picks in the open LOG, with the PIN,
  *    at most 62 entries and about 60K tokens per question.
- *  - Apiary (bridge 1.26): reads and saves the yard, hives and hive checks in 🐝 Apiary.
- *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY).
- *    Claude only reads; every change it suggests waits for your tap in the app.
- *    A monthly budget pauses it (AI_BUDGET_USD, default $8).
+ *  - Habits and Library (bridge 1.14), Tarot and Tarot Books (1.24, 1.25), Apiary
+ *    (1.26), Inbox (1.33) and the Science Log (1.34): read and save their own
+ *    Notion databases; removing something moves it to Notion's trash.
+ *  - Ask: answers questions with Claude (key in Script Properties: ANTHROPIC_API_KEY),
+ *    and writes the Morning Briefing, summaries, inbox sorting suggestions, tarot
+ *    suggestions and the Ship's Year. Claude only reads; every change it suggests
+ *    waits for your tap in the app. A monthly reminder pauses it (AI_BUDGET_USD,
+ *    default $8).
+ *  - Voice (bridge 1.30): turns the Morning Briefing into speech with OpenAI
+ *    (OPENAI_API_KEY), and nothing else.
+ *  - SCIENCE (bridge 1.34): reads public feeds that need a server (aircraft,
+ *    satellite orbits, notable birds) for a location rounded to about 1 km.
  *    Nothing else in Notion is touched.
  *
  * The work calendar can never be written to. Nothing is ever deleted, except
@@ -2743,7 +2752,7 @@ function aiSpendSet_(usd) {
   aiLogAdd_({ t: new Date().toISOString(), mode: 'matched', usd: Math.round(usd * 10000) / 10000 });
   return { ok: true, version: VERSION, spend: aiSpend_() };
 }
-/** The everyday model: Haiku 5.5 unless Script Property AI_FAST_MODEL picks Haiku 4.5. */
+/** The everyday model: AI.FAST (Sonnet 5.5) unless Script Property AI_FAST_MODEL picks Haiku 5.5 or Haiku 4.5. */
 function aiFast_() {
   var m = String(PropertiesService.getScriptProperties().getProperty('AI_FAST_MODEL') || '').trim();
   return m === 'claude-haiku-4-5' || m === 'claude-haiku-5-5' || m === 'claude-sonnet-5-5' ? m : AI.FAST;

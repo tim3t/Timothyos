@@ -18,16 +18,29 @@ Bridge, the iPad app  (GitHub Pages, free, works offline)
 The Google bridge  (Apps Script, runs as you, in your personal Google account)
   ├─ Google Calendar: Work (read-only, shared to you), Personal, farm and Growth (once linked), US holidays (read-only)
   ├─ Notion: Master Task List, Key Dates, Weekly Reviews, Replicator Queue, Captain's Log,
-  │          Habits, Library, Tarot, Tarot Books, Apiary
+  │          Habits, Library, Tarot, Tarot Books, Apiary, Inbox, Science Log
   ├─ YNAB (read-only)
-  └─ Claude (ASK, Log Ask, summaries, tarot suggestions)
+  ├─ Claude (ASK, Log Ask, the Morning Briefing, summaries, inbox sorting, tarot suggestions, Ship's Year)
+  ├─ OpenAI (optional: the Morning Briefing's AI voice)
+  └─ public feeds for SCIENCE (aircraft, satellites, notable birds)
 
 The app also talks, directly from the iPad:
-  ├─ Open-Meteo (weather) and Open Library (book search): free, no account
-  └─ the Storage relay on your NAS (inside Tailscale): read-only folders, and Home Assistant at /ha
+  ├─ Open-Meteo (weather), Open Library (book search) and SCIENCE's other public feeds: free, no account
+  └─ the NAS relay on your NAS (inside Tailscale): read-only folders for HOLODECK, and Home Assistant at /ha
+
+On the NAS, only when you run it:
+  └─ tools/ia_fetch.py: fills a HOLODECK folder with public access TV from the Internet Archive
 ```
 
-**Costs:** no servers to rent. GitHub Pages and Apps Script are free. Claude is paid from prepaid API credit with three spending limits (see ASK). The Storage relay runs on your own NAS.
+**Costs:** no servers to rent. GitHub Pages and Apps Script are free. Claude is paid from prepaid API credit with three spending limits (see ASK), and the optional AI voice from a small prepaid OpenAI credit. The NAS relay runs on your own NAS.
+
+**Contents**
+
+| Part | Sections |
+|---|---|
+| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) (calendars, holidays, Ask Claude, Ledger, Captain's Log, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
+| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
+| [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
 ---
 
@@ -96,7 +109,7 @@ New features sometimes need a newer Google bridge; the CHANGELOG says so when th
 
 1. In Safari (Request Desktop Website), open **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
 2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code. Save.
-3. Choose **setup** in the function menu, tap **Run**. If Google asks for a new permission, approve it. The last line reads `Bridge version 1.x.y`.
+3. Choose **setup** in the function menu, tap **Run**. If Google asks for a new permission, approve it. Near the end the log reads `Bridge version 1.x.y. Can write to: …`.
 4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
 5. In the app: **SYSTEMS → REFRESH NOW**.
 
@@ -218,13 +231,13 @@ Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot
 
 The text came from the EPUB of Dean's book and a scan of Crispin's, so a few of Crispin's pages may carry small scanning slips (a joined word, a missing apostrophe). Fix them on the page in Notion; the app uses your version (the bridge remembers a card's passages for six hours).
 
-### Storage relay (NAS)
+### NAS relay (HOLODECK and Home Assistant)
 
 A web page can't use SMB (the protocol the Files app uses), so the NAS runs a small **read-only relay**: Caddy serving chosen folders, behind **Tailscale** so it has a trusted HTTPS address and is reachable only from your own devices.
 
 1. **Tailscale admin** (console.tailscale.com): turn on **MagicDNS** and **HTTPS Certificates** (DNS tab), then **Settings → Keys → Generate auth key**.
 2. **Make a relay token:** a strong password from the iPad's Passwords app ("TimothyOS relay").
-3. **UGOS → Docker → Project → Create**, name `timothyos`, storage path `docker/timothyos`, and paste the compose below with the placeholders filled in. UGOS ignores compose `configs:`, which is why the settings travel in environment variables.
+3. **UGOS → Docker → Project → Create**, name `timothyos`, storage path `docker/timothyos`, and paste the compose below with the placeholders filled in (table below it). UGOS ignores compose `configs:`, which is why the settings travel in environment variables.
 4. **Tailscale admin → Machines → timothyos-nas → Disable key expiry**, then delete the auth key from wherever you noted it.
 5. **Check:** in Safari, `https://timothyos-nas.YOUR-TAILNET.ts.net/?k=YOUR-TOKEN` shows a folder list with no certificate warning. Without `?k=` it's a blank page (refused), as it should be.
 
@@ -292,11 +305,72 @@ services:
     restart: unless-stopped
 ```
 
-**Video for HOLODECK:** share a folder of videos the same way, under `/media/Video/`, for example `- PASTE_VIDEO_FOLDER_PATH:/media/Video/CHANNEL NAME:ro` (the name after `/media/Video/` is the channel's name in HOLODECK; one line per channel). Or share one parent folder that holds all your video folders, once, as `- "/PATH/TO/VIDEOS:/media/Video:ro"` in place of the channel lines: new folders there then show up in **+ ADD CHANNEL** with no relay change (the relay can then read everything in that folder, read-only, inside Tailscale). AUDIO leaves the `Video` share to VISUAL.
+| Placeholder | Fill in |
+|---|---|
+| `PASTE_TAILSCALE_AUTH_KEY` | The auth key from step 1. Used only the first time the container starts; after step 4 it can stay or be blanked |
+| `PASTE_RELAY_TOKEN` | The relay token from step 2 |
+| `PASTE_HOME_ASSISTANT_ADDRESS` | Home Assistant's local address, like `http://192.168.x.x:8123`. Leave it as it is until you set up Home Assistant: `/ha` then answers with an error and everything else works |
+| `PASTE_FOLDER_PATH` | A NAS folder to share, as UGOS's File Manager shows its path. The name after `/media/` is the folder's name in AUDIO |
+| `YOUR-TAILNET`, `YOUR-TOKEN` (in the addresses below) | Your tailnet's name (Tailscale admin → DNS) and the relay token |
 
-`HA_URL` and the `/ha` part are for Home Assistant (below); until its address is filled in, `/ha` just answers with an error and Storage works as before. `route` keeps the token check first, so nothing reaches Home Assistant without the relay token. To share another folder, add another `- PATH:/media/NAME:ro` line under the relay's `volumes` and redeploy.
+`route` keeps the token check first, so nothing reaches Home Assistant or a folder without the relay token.
 
-**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → NAS RELAY**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**. `tools/nas-check.html` in this repository is a standalone test page for the relay.
+**Sharing folders:** one `- PATH:/media/NAME:ro` line under the relay's `volumes` per folder, then redeploy the `timothyos` project. Put quotes around a line whose path has spaces: `- "/PATH/TO/Old Radio:/media/Old Radio:ro"`. `:ro` keeps every share read-only.
+- **For AUDIO:** each share is a folder on AUDIO's front page. A new one appears the next time you open AUDIO (or within a minute while it's open).
+- **For VISUAL:** put videos under `/media/Video/`: `- "/PATH/TO/My Show:/media/Video/My Show:ro"`, one line per channel folder. Or share one parent folder that holds all your video folders, once, as `- "/PATH/TO/VIDEOS:/media/Video:ro"` in place of the channel lines: new folders there then show up in **+ ADD CHANNEL** with no relay change (the relay can then read everything in that folder, read-only, inside Tailscale). AUDIO leaves the `Video` share to VISUAL.
+- **Check a share** in Safari: `https://timothyos-nas.YOUR-TAILNET.ts.net/Video/?k=YOUR-TOKEN` lists that folder.
+
+**On the iPad:** install Tailscale and sign in to the same account (VPN On Demand: Always). Then **SYSTEMS → NAS RELAY**: paste the relay address (`https://timothyos-nas.YOUR-TAILNET.ts.net`) and the token, **SAVE AND TEST**.
+
+#### Public access TV from the Internet Archive (optional)
+
+`tools/ia_fetch.py` fills a NAS folder with old public access TV from archive.org, arranged for a NETWORK channel: one folder per show (the series name from the title, "Episode 3" and years dropped), files named `Title [identifier].mp4`, the iPad-friendly H.264 copy of each video. It lists what it would fetch unless given `--go`; it skips what it already has, resumes cut-off downloads, checks each file against the Archive's MD5, gives up at once on a file the Archive refuses (not found, forbidden), pauses between files, and logs every file's source page and license (blank if the item gives none) to `_ia_log.csv`. For personal viewing.
+
+**On the NAS** (a throwaway Python container, nothing installed on the NAS itself):
+
+1. Make the folder beside your other video folders, for example `Public Access`, and note its path (UGOS File Manager → the folder → **Properties**).
+2. **UGOS → Docker → Project → Create**, name `ia-fetch`, and paste, with `/PATH/TO/Public Access` replaced by that path:
+   ```yaml
+   services:
+     ia-fetch:
+       image: python:3.12-slim
+       container_name: ia-fetch
+       restart: "no"
+       volumes:
+         - "/PATH/TO/Public Access:/out"
+       entrypoint: ["sh", "-c"]
+       command:
+         - |
+           set -e
+           pip install -q internetarchive
+           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/ia-fetch-v1/tools/ia_fetch.py', '/tmp/ia_fetch.py')"
+           python -u /tmp/ia_fetch.py --out /out --max-items 50 --exclude "talk radio" "conference"
+   ```
+3. Deploy, then read **Logs**: the list of what it would fetch, with sizes and licenses. Trim with more `--exclude` words, or aim it with `--query`, `--collection` or `--ids` (below).
+4. When the list looks right, add `--go` (and a budget, `--max-gb 50`) to the last line and **Redeploy**. It downloads and stops; redeploy again any time to fetch more (what's there is skipped).
+5. Share the folder with the relay (`- "/PATH/TO/Public Access:/media/Video/Public Access:ro"`, redeploy the `timothyos` project), then **HOLODECK → VISUAL → + ADD CHANNEL → Video → Public Access**, and tap **NETWORK**. You can add the channel while downloads are still going: **LOOK AGAIN** in the channel list picks up what's new.
+
+**What runs on your NAS:** the compose fetches the script from a fixed, tagged version of this repository (`ia-fetch-v1` in the address), so a later change here never changes what your NAS runs until you change that tag. The container sees only the folder mounted at `/out`, talks only to archive.org (and to PyPI to install the `internetarchive` library), never logs in, and holds no keys or tokens.
+
+| Option | Default | What it does |
+|---|---|---|
+| `--query '…'` | public, cable or community access television | Search terms (Internet Archive syntax), e.g. `'"public access" AND subject:cooking'`. The TV News Archive and restricted items are always left out |
+| `--years FROM-TO` or `--years any` | `1980-2009` | Date range |
+| `--collection NAME` | any | Only one collection |
+| `--ids ITEM ITEM` | | Exactly these items (the part after `/details/` in an item's address) instead of a search |
+| `--exclude WORD "A PHRASE"` | none | Leave out items that mention these |
+| `--sort '…'` | `downloads desc` | Search order: most downloaded first |
+| `--group series\|creator\|collection\|none` | `series` | How show folders are named |
+| `--max-items N` | `200` | Items looked at per run |
+| `--max-gb N` | `50` | Stop after this much per run |
+| `--max-file-gb N` | `4` | Skip single files bigger than this |
+| `--max-per-item N` | `25` | Skip items holding more videos than this (conference dumps, whole channels) |
+| `--pause SECONDS` | `2` | Wait between files |
+| `--strict` | off | Only items that state a license (usually public domain or Creative Commons) |
+| `--no-verify` | off | Skip the MD5 check |
+| `--go` | off | Download; without it, only list |
+
+The broad search is mixed: talk shows, conference recordings and adult cable-access programmes turn up next to the gems, which is why it lists first. Quality is what was uploaded: many 80s and 90s tapes only have the Archive's small 320×240 copy.
 
 ### AI voice for the Morning Briefing (OpenAI)
 
@@ -304,7 +378,7 @@ READ IT TO ME in **Nova**, OpenAI's voice, styled "Calm, measured starship compu
 
 1. **OpenAI account** at platform.openai.com: a small prepaid credit (about $5 is plenty), **auto-recharge off**, a low monthly budget on the project.
 2. **A key:** a project (TimothyOS) and a secret API key in it. Script Property `OPENAI_API_KEY`. Never paste it anywhere else.
-3. **Update the Google bridge** to 1.30 and run **setup**: `AI voice (OpenAI): OK (nova, gpt-4o-mini-tts)` (it speaks one short test line, a fraction of a cent).
+3. Run **setup**: `AI voice (OpenAI): OK (nova, gpt-4o-mini-tts)` (it speaks one short test line, a fraction of a cent).
 4. **SYSTEMS → REFRESH NOW.** **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** shows **AI voice: Nova** with **TEST AI VOICE**.
 
 Each briefing's audio is made when it compiles (in the background; OpenAI takes about two minutes for a whole briefing, so on a 06:00 Standby compile it's ready long before you are) and kept on this iPad, so READ IT TO ME starts at once and replays cost nothing. About 1.5¢ a minute of speech: under 1¢ a briefing. The bridge allows 30 voice requests a day.
@@ -313,7 +387,7 @@ Times are spoken in ship's style (08:00 is "oh eight hundred", 21:05 "twenty-one
 
 ### Home Assistant
 
-Reached through the Storage relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
+Reached through the NAS relay's `/ha` path, so it stays inside Tailscale and needs the relay token as well as its own.
 
 1. **A Home Assistant user for TimothyOS** (whoever administers Home Assistant): **Settings → People → Add person**, allow login, *not* an administrator. Note Home Assistant's local address (like `http://192.168.x.x:8123`).
 2. **A token:** log in as that user → profile (bottom left) → **Security → Long-lived access tokens → Create token**. Copy it; it's shown only once.
@@ -348,7 +422,7 @@ The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). One full-
 
 Tap **+** beside a panel title for its details (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open. Balance counts tasks marked ✅ Done; Notion doesn't record the day a task was finished, so the date of its last edit stands in, and only the Life Area and that date leave Notion, never titles.
 
-**Morning Briefing** (needs Google bridge 1.29 and ASK set up)
+**Morning Briefing** (needs ASK set up)
 - **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).
 - **What:** short (about 80 words): the condition and why, today (meetings, the first and last, the longest open stretch, whether priorities are picked), outside (weather, hive check, frost), the week ahead, then one **RECOMMENDED** first action. Finances only with their **SHARE WITH ASK** switch on. Never the Captain's Log, habits, tarot or the apiary.
 - **How it looks:** it prints itself once like a teleprinter, in Courier New (tap the text to finish it at once). The header says when it was compiled, the model (Sonnet) and the cost (about 1 to 2¢).
@@ -487,10 +561,15 @@ HOLODECK opens on **the arch**, as on the ship: **ENTER PROGRAM** with two progr
 
 #### VISUAL
 
-A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**) goes straight in. Each channel is one NAS folder: a folder of videos, or a series with one folder per season. A channel plays **in order** (file names in number order; a series season by season, episode by episode, then its specials and extras), laid end to end from the moment you added it, and starts again from the top when it reaches the end. The clock decides what's on, so **TUNE IN** always joins mid-broadcast, and every channel keeps running whichever one you watch; nothing about your viewing is remembered.
+A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**) goes straight in. Each channel is one NAS folder, played in one of two styles, chosen per channel in the channel list:
+
+- **IN ORDER** (the start): a folder of videos, or a series with one folder per season, played in order (file names in number order; a series season by season, episode by episode, then its specials and extras), laid end to end from the moment you added it, and starting again from the top at the end.
+- **NETWORK:** a folder of show folders, programmed like a TV network: a new lineup each day from 6:00, shows in turn, now and then two episodes of one in a row (details below).
+
+Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcast, and every channel keeps running whichever one you watch; nothing about your viewing is remembered. Your channels, their styles and the look (CRT or CLEAN) are kept on this iPad (and in your backups); measured video lengths only on this iPad.
 
 - **Adding a channel:**
-  1. Share the folder with the relay under `/media/Video/` (Storage relay, above): one more line under the relay's `volumes`, then redeploy the project. Put quotes around a line whose path has spaces: `- "/PATH/TO/My Show:/media/Video/My Show:ro"`.
+  1. Share the folder with the relay under `/media/Video/` (NAS relay, in Part 1): one more line under the relay's `volumes`, then redeploy the project. Put quotes around a line whose path has spaces: `- "/PATH/TO/My Show:/media/Video/My Show:ro"`.
   2. Check it in Safari: `https://timothyos-nas.YOUR-TAILNET.ts.net/Video/?k=YOUR-TOKEN` lists the folder.
   3. **HOLODECK → VISUAL → + ADD CHANNEL → Video →** your folder **→ USE THIS FOLDER** (it says what it found: "12 SEASONS + SPECIALS · 281 EPISODES", or "100 VIDEOS"). The new channel comes on at its beginning. Bridge measures each video's length once (kept on this iPad); a channel can be watched as soon as its first videos are measured, and the rest are measured as it plays.
 - **A series:** one level of folders inside the channel's folder. A folder with a season number in its name ("Season 3", "Show — Season 3", "S03") is a season, played in number order; episodes go by the number in their names ("Episode 7", "S03E07", "3x07"). Folders without a season number (Specials, Extras) follow the last season, then any episode without a number, then videos loose beside the season folders. Bracketed video IDs and "Full Episode" are left out of what's shown.
@@ -505,7 +584,7 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
 - **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order).
-- **Style: IN ORDER or NETWORK** (in the channel list). IN ORDER is everything above. **NETWORK** is for a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
+- **NETWORK in detail** (tap **NETWORK** beside a channel in the channel list; **IN ORDER** switches back). For a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
   - A show at random each time, never the same show twice in a row, except about one pick in four is a block: two episodes of it in a row, in order.
   - Through the day, each show works through a shuffle of its own episodes, so none repeats that day.
@@ -513,58 +592,20 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.
   - A plain folder of videos (no show folders) set to NETWORK is a fresh shuffle every day from 6:00, no repeats that day; videos loose beside show folders join the rotation as one more "show".
   - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
-
-#### Public access TV from the Internet Archive
-
-`tools/ia_fetch.py` fills a NAS folder with old public access TV from archive.org, arranged for a NETWORK channel: one folder per show (the series name from the title, "Episode 3" and years dropped), files named `Title [identifier].mp4`, the iPad-friendly H.264 copy of each video. It lists what it would fetch unless given `--go`; it skips what it already has, resumes cut-off downloads, checks each file against the Archive's MD5, pauses between files, and logs every file's source page and license (blank if the item gives none) to `_ia_log.csv`. Searches by default for public, cable or community access television from 1980 to 2009, leaving out the TV News Archive and restricted items. For personal viewing; `--strict` keeps only items with a license.
-
-**On the NAS** (a throwaway Python container, nothing installed on the NAS itself):
-
-1. Make the folder, for example `/volume1/Media/Public Access`.
-2. **UGOS → Docker → Project → Create**, name `ia-fetch`, and paste:
-   ```yaml
-   services:
-     ia-fetch:
-       image: python:3.12-slim
-       container_name: ia-fetch
-       restart: "no"
-       volumes:
-         - "/volume1/Media/Public Access:/out"
-       entrypoint: ["sh", "-c"]
-       command:
-         - |
-           set -e
-           pip install -q internetarchive
-           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/main/tools/ia_fetch.py', '/tmp/ia_fetch.py')"
-           python -u /tmp/ia_fetch.py --out /out --max-items 50 --exclude "talk radio" "conference"
-   ```
-3. Deploy, then read **Logs**: the list of what it would fetch, with sizes and licenses. Trim with more `--exclude` words, or aim it with `--query`, `--collection` or `--ids` (below).
-4. When the list looks right, add `--go` (and a budget, `--max-gb 50`) to the last line and **Redeploy**. It downloads and stops; redeploy again any time to fetch more (what's there is skipped).
-5. Add the folder to the relay (`- "/volume1/Media/Public Access:/media/Video/Public Access:ro"`, redeploy the `timothyos` project), then **HOLODECK → VISUAL → + ADD CHANNEL → Video → Public Access**, and tap **NETWORK**.
-
-| Option | What it does |
-|---|---|
-| `--query '…'` | Search terms (Internet Archive syntax), e.g. `'"public access" AND subject:cooking'` |
-| `--years 1985-1995` or `--years any` | Date range (default 1980-2009) |
-| `--collection NAME` | Only one collection |
-| `--ids ITEM ITEM` | Exactly these items (the part after `/details/` in an item's address) |
-| `--exclude WORD "A PHRASE"` | Leave out items that mention these |
-| `--group series\|creator\|collection\|none` | How show folders are named (default `series`) |
-| `--max-items 50`, `--max-gb 50`, `--max-file-gb 4`, `--max-per-item 25` | Limits per run |
-| `--strict` | Only items with a public domain or Creative Commons license |
-
-The broad search is mixed: talk shows, conference recordings and adult cable-access programmes turn up next to the gems, which is why it lists first. Quality is what was uploaded: many 80s and 90s tapes only have the Archive's small 320×240 copy.
+- **Public access TV:** `tools/ia_fetch.py` fills a folder with old public access shows from the Internet Archive, arranged for NETWORK (setup under NAS relay, Part 1).
 
 #### AUDIO (was STORAGE)
 
 Folders on the NAS, through the relay, with an audio player for podcasts, music and audiobooks. STORAGE became this program in 2.47; everything it kept (places, speed, hidden folders, track order) carried over, and a STORAGE pin in the bar became HOLODECK. **COMPUTER** ("podcast", "music", "storage") opens it directly, and the floating player's title opens the player.
 
-- **Folders** on the front page sit on a radio band: tap one and the needle swings to it, then the folder opens (the band only moves by tapping). Tap into folders, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. From the arch, AUDIO opens the player while something is playing, and the folders otherwise.
+- **Folders** on the front page are the relay's shares (NAS relay, Part 1), on a radio band: tap one and the needle swings to it, then the folder opens (the band only moves by tapping). A share added on the NAS appears the next time you open AUDIO. Tap into folders, tap an episode to play. **CONTINUE LISTENING** offers anything stopped part way. From the arch, AUDIO opens the player while something is playing, and the folders otherwise.
 - **The player:** the place in each file, speed and "play the next one" are kept **on this iPad** (and in your backups). While something plays, a small pill on every other screen pauses or opens it; **›** minimizes it to a play button, **✕** stops it and puts it away (the place is kept). **MARK PLAYED** and **START OVER** are on the full player; the lock screen and headphone controls work too.
 - **Playing on in the background:** with **PLAY THE NEXT ONE** on, the next file is read into the iPad's memory during the last 90 seconds of the current one (files up to 150 MB) and starts a moment before the end. iPadOS keeps a home-screen web app awake in the background only while it's making sound, and this hand-off happens while it still is, so the next track no longer waits for you to come back to Bridge. A file over 150 MB, or one that couldn't be read in time, is fetched from the NAS at the end as before, and may still wait if iPadOS has already paused Bridge. Most dependable: Bridge left open on screen, or in Split View or Slide Over beside the other app.
 - **Artwork:** a `cover.jpg` (or folder, front, album, artwork, poster; .jpg, .png or .webp) in a folder gives it art. MP3 titles, show names and artwork come from the files' own tags as they play.
 - **Lengths:** each track shows its length, read from a few kilobytes of each MP3, M4A/M4B, FLAC or WAV when a folder opens and remembered on this iPad. Other formats (OGG, Opus, AAC) show their length once played. Documents show their size.
 - **TRACK #** (folders with MP3s) orders by disc and track number from the files' tags. The line under the sort chips says how many files have a number; files without one go last. Retagged files are read again by themselves; **READ TAGS AGAIN** re-reads the whole folder. Each folder remembers its own sort.
+- **Search this folder** (the box above the list) narrows the folder you're in by name; **ALL / UNPLAYED / IN PROGRESS** filter its audio files; **A TO Z / NEWEST** (and TRACK #) sort it.
+- **SLEEP** on the full player: 15 MIN, 30 MIN, 1 HOUR or END OF EPISODE pauses playback (the chip counts down). Standby then takes over as usual (see VISUAL).
 - **HIDE FOLDER** keeps a folder out of AUDIO on this iPad; **SYSTEMS → NAS RELAY** lists hidden folders with UNHIDE.
 
 ### ENGINEERING
@@ -634,11 +675,11 @@ The ship's computer: questions about your days, tasks and dates, answered by Cla
 
 ### STANDBY
 
-Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen.
+Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). It never starts on its own on HOLODECK or while the HOLODECK TV is on air, until a sleep timer there has run out. A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen.
 
 ### SYSTEMS
 
-Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there. It holds the connection and **REFRESH NOW**, **NEEDS YOU** cards for anything broken (with the steps for that exact problem), **BACKUP AND RESTORE**, recent requests, calendars (with **IGNORED EVENTS** and **BREAKS**), each database's status with its **SHARE WITH ASK** switch where there is one, Storage, Home Assistant, Balance targets, Standby and the version you're on.
+Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there. It holds the connection and **REFRESH NOW**, **NEEDS YOU** cards for anything broken (with the steps for that exact problem), **BACKUP AND RESTORE**, recent requests, calendars (with **IGNORED EVENTS** and **BREAKS**), each database's status with its **SHARE WITH ASK** switch where there is one, the NAS relay, Home Assistant, Balance targets, Standby and the version you're on.
 
 **Ignored events:** booking blocks (a weekend out-of-office, say) can be left out of every view and total: tap the event → **IGNORE THIS TITLE**, or edit the list under CALENDARS. Kept on this iPad; your calendars aren't changed.
 
@@ -665,6 +706,9 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 | Finish a priority | Tap it on Today. It's marked ✅ Done in Notion. Tap again to reopen |
 | Record habits | **HABITS**, or the strip on the Bridge |
 | Log a hive check | **APIARY** → the hive → **+ NEW CHECK** |
+| Watch TV or listen to a podcast | **HOLODECK** → **VISUAL** (**TUNE IN**) or **AUDIO** (tap a folder, then an episode) |
+| Sort captured notes | **INBOX** (or the Bridge's **INBOX · N** line) |
+| Look up the sky, quakes or birds nearby | **SCIENCE** |
 | Find every Log entry that mentions something | **LOG** → **SEARCH THE LOG** |
 | Update the balances | **LEDGER** → pull down from the top, or **REFRESH** |
 | Ask about your days | **ASK**. Type or dictate; tap **CONFIRM** on any change you want |
@@ -689,12 +733,12 @@ Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YO
 
 ## Backup, restore and reinstalling
 
-Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, podcast places and the other settings.
+Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, HOLODECK's channels, AUDIO's places, RESSIKAN's settings and the other settings.
 
 - **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one. Make a fresh one after any big setup change.
 - **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
 - **Not in a backup:** data from Notion and Google (it comes back on the next sync), the Captain's Log draft and other unsaved drafts, and saves still on their way. While any save is waiting, **MAKE BACKUP** waits too; drafts that won't be included are named.
-- **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, podcast places…) before anything changes. **RESTORE** writes those settings, reloads and syncs. Stations show **WAITING** in Systems until each is opened once.
+- **Restore:** on a fresh install the link screen has **OR RESTORE THIS IPAD**; on a linked app it's under **SYSTEMS → BACKUP AND RESTORE**. Choose the file, type the passphrase, **OPEN BACKUP**: the app shows what the file holds (links, devices, rooms, upkeep items, listening places…) before anything changes. **RESTORE** writes those settings, reloads and syncs. Stations show **WAITING** in Systems until each is opened once.
 - **Rehearse it** without touching the installed app: open the app's address in a **Private** tab in Safari, restore there, look around, close the tab. A private tab starts empty and forgets everything when closed. Anything you change in it is real (it's linked to the same Google bridge), so look rather than tap.
 
 **Reinstalling (or renaming) the app:** iPadOS reads an app's name only when it's added to the home screen, and removing the icon erases everything the app kept on this iPad, so:
@@ -706,42 +750,58 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 
 ## Troubleshooting
 
+**Linking and the connection**
+
 | Symptom | Fix |
 |---|---|
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
-| "Couldn't reach the script" | The URL must end in `/exec`; the deployment's access must be **Anyone** |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
-| Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
-| **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
-| ASTROMETRICS says **TASKS and QUEUE need bridge 1.32**, or SHIP'S YEAR says it needs 1.32 | Update the Google bridge (Updating the Google bridge), then **RESCAN** |
-| SCIENCE says it needs bridge 1.34, or a location | Update the Google bridge; set **Location** in **SYSTEMS → BRIDGE** |
-| SCIENCE shows no aircraft | Coverage depends on volunteers' receivers near you; the source is named under the scope. If it says it couldn't read the feed, it tries again on its own |
-| SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
-| **Google bridge out of date** in Condition, or "The bridge refused it" | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** |
-| Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
-| Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
-| A station says SETUP | It needs a database connected, a key in Script Properties, or a newer Google bridge: see its part of Setup |
-| "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
-| "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
+| "Couldn't reach the script", or OFFLINE flickers | The URL must end in `/exec` and the deployment's access must be **Anyone**. Then **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
-| READ IT TO ME uses Moira, not Nova | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why (no `OPENAI_API_KEY` or bridge older than 1.30, AI voice turned off, OpenAI refused the key or is out of credit). **TEST AI VOICE** checks it, and the **VOICE LOG** below it shows each step. A new briefing (REFRESH) tries Nova again |
-| No Morning Briefing on the Bridge | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why: it needs Google bridge 1.29, or it's turned off. Before 06:00 there's only yesterday's |
-| The briefing says **NOT COMPILED** | The reason is underneath. **COMPILE NOW** tries again; it also tries on its own a few minutes later |
 | A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
 | A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
-| Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add `YNAB_PLAN_ID`, run setup, deploy a new version |
-| LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB, replace `YNAB_TOKEN`, run setup |
+| The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
+
+**The Google bridge, calendars and Notion**
+
+| Symptom | Fix |
+|---|---|
+| Changes to `Code.gs` have no effect | Deploy a **new version** (Updating the Google bridge, step 4) |
+| **Google bridge out of date** in Condition, "The bridge refused it", or a station or feature says it needs bridge 1.x | **SYSTEMS → NEEDS YOU** names the version needed and the steps (Updating the Google bridge). Usually the new version wasn't deployed (step 4). Then **CHECK AGAIN** (in ASTROMETRICS, **RESCAN**) |
+| A station says SETUP | It needs a database connected, a key in Script Properties, or a newer Google bridge: see its part of Setup |
+| Work calendar **NOT FOUND** | Accept the share invite (Handshake 1, step 5); check `WORK_CALENDAR_ID` |
+| Work meetings all say **Busy** | Your employer allows only free/busy sharing, or the events are private |
+| "isn't connected to the TimothyOS integration" (any database) | That database → **•••** → **Connections** → add **TimothyOS bridge**, then **REFRESH NOW** |
+| "Notion rejected the bridge's key" | Re-copy the secret into `NOTION_TOKEN` in Script Properties |
+| **A Notion column changed** in Condition | Someone renamed, deleted or retyped a column. **SYSTEMS → NEEDS YOU** names it: rename it back (or change the type back) in Notion, then **CHECK AGAIN**. Renamed on purpose? Ask Claude to update the code |
+| Setup says `LOG_PIN NOT VALID` | The value isn't one of the six code words and four digits (or six digits) |
+
+**Claude, the Morning Briefing and the AI voice**
+
+| Symptom | Fix |
+|---|---|
+| No Morning Briefing on the Bridge | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why: ASK isn't set up, or it's turned off. Before 06:00 there's only yesterday's |
+| The briefing says **NOT COMPILED** | The reason is underneath. **COMPILE NOW** tries again; it also tries on its own a few minutes later |
+| READ IT TO ME uses Moira, not Nova | **SYSTEMS → ASK CLAUDE → MORNING BRIEFING** says why (no `OPENAI_API_KEY`, AI voice turned off, OpenAI refused the key or is out of credit). **TEST AI VOICE** checks it, and the **VOICE LOG** below it shows each step. A new briefing (REFRESH) tries Nova again |
 | "Ask paused at this month's reminder" | **CONTINUE THIS MONTH** carries on to the Console limit, or wait for the 1st |
 | "Claude Console credit is used up" | Add credit at platform.claude.com (keep auto-reload off) |
-| Setup says `LOG_PIN NOT VALID` | The value isn't one of the six code words and four digits (or six digits) |
-| "Couldn't reach the script" or OFFLINE flickers | **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
+
+**Stations**
+
+| Symptom | Fix |
+|---|---|
 | Environment says SETUP | **SYSTEMS → BRIDGE → LOCATION** |
 | "Weather didn't load" | Open-Meteo didn't answer. It retries on its own; the rest of the Bridge is unaffected |
-| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Check Tailscale and the relay (does AUDIO open?). Grey with MEASURING: wait for the first lengths. Videos that never play: convert them to MP4 (HOLODECK, above) |
-| RESSIKAN is silent though SOUND is on | Update to 2.44.1 or later. If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
-| Music stops at the end of a track while Bridge is in the background | Update to 2.43.1 or later (the next file is now read ahead). Over 150 MB, or a slow NAS link, can still stall: keep Bridge in Split View or Slide Over, or open it to carry on |
-| HOLODECK or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in Systems; `tools/nas-check.html` tests the relay on its own |
-| The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
+| Setup says `Ledger (YNAB): PROBLEM: ynab_not_found` | The log lists your plans as `name -> id`. Add `YNAB_PLAN_ID`, run setup, deploy a new version |
+| LEDGER says YNAB didn't accept the token | Make a new Personal Access Token in YNAB, replace `YNAB_TOKEN`, run setup |
+| SCIENCE asks for a location | Set **Location** in **SYSTEMS → BRIDGE** |
+| SCIENCE shows no aircraft | Coverage depends on volunteers' receivers near you; the source is named under the scope. If it says it couldn't read the feed, it tries again on its own |
+| SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
+| HOLODECK or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in **SYSTEMS → NAS RELAY** (**SAVE AND TEST**), and that the address with `?k=` opens in Safari (NAS relay, step 5) |
+| A folder shared on the NAS doesn't show in AUDIO or + ADD CHANNEL | Redeploy the `timothyos` project after adding its line, check it in Safari (NAS relay, Sharing folders), then open AUDIO again. Video channels must be under `/media/Video/` |
+| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Grey with MEASURING: wait for the first lengths. Videos that never play: convert them to MP4 (HOLODECK → VISUAL, What plays) |
+| Music stops at the end of a track while Bridge is in the background | Files over 150 MB, or a slow NAS link, can stall the hand-off: keep Bridge in Split View or Slide Over, or open it to carry on |
+| RESSIKAN is silent though SOUND is on | If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
 
 ## Security model
 
@@ -752,11 +812,12 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **YNAB** is read-only: the bridge only ever reads it.
 - **Captain's Log:** every log request carries your authorization code (in the request address over HTTPS, like the access key, because Google's redirects can drop a POST body), checked by the bridge, with a 15-minute lock after five misses that doubles with each lockout in a row. The code is never stored on the iPad or logged by the app. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, are never in a backup, and never go to the ASK button.
 - **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes; for the **MORNING BRIEFING**, the same snapshot ASK sends minus tarot and the apiary, once a day (Claude gets no tools for it, so it can only describe). Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.
-- **Storage relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
+- **NAS relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
-- **HOLODECK** streams from your NAS through the relay only; your channels (folders and names) and the video lengths stay on this iPad.
+- **HOLODECK** streams from your NAS through the relay only; your channels (folders and names) and the video lengths stay on this iPad (channels also in your backups).
+- **`tools/ia_fetch.py`** runs only on your NAS, only when you start it, from a fixed tagged version; it talks to archive.org alone and holds no keys.
 - **RESSIKAN** makes all its sound on the iPad; nothing it plays or records leaves it unless you save a take to Files.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
 - **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Landmarks: the rounded location goes once to OpenStreetMap (Overpass) to suggest them, and a place you search for goes to Open-Meteo's place search; the landmarks themselves stay on this iPad and never reach the bridge, Notion or the Science Log. Nothing else leaves; the bridge never stores the location.
@@ -765,7 +826,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 
 New versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it: it reads **LOADING UPDATE…** while the new version finishes downloading, then reloads into it (a few seconds at most). Closing and reopening the app also brings a downloaded update in. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
 
-**Releasing (for whoever edits the code):** run `python3 tools/bump_version.py X.Y.Z` before every push; it sets the version everywhere, which is what makes iPads fetch the new files and show the banner. `tests/run.sh` must print `ALL PASSED` first (CLAUDE.md has the checklist).
+Releasing a new version is described in **CLAUDE.md → Release checklist**.
 
 ## Project layout
 
@@ -780,12 +841,12 @@ version.json             current version (the app checks it for updates)
 icons/, fonts/           app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs      the Google bridge
 tools/bump_version.py    sets the version everywhere before a release
-tools/nas-check.html     standalone test page for the Storage relay
+tools/ia_fetch.py        public access TV from the Internet Archive, run on the NAS (NAS relay, Part 1)
 tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,
                          then the real app in a headless browser against simulated bridges and a simulated NAS
                          (about 5 minutes, in lanes)
 CHANGELOG.md             what changed in each version
-CLAUDE.md                working notes for Claude: architecture, rules, release checklist, roadmap
+CLAUDE.md                working notes for Claude: architecture, rules, testing, release checklist, roadmap
 docs/DESIGN.md           decisions log and the original design
 ```
 

@@ -70,7 +70,7 @@ python3 mock_v21.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.14: + Habits, Libr
 python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search      :8103
 python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.23: + Growth, holidays :8104
 python3 mock_v24.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.24/1.25: + Tarot, books :8105
-python3 mock_relay.py 8110 >/dev/null 2>&1 & pids+=($!)   # Storage relay (NAS), one per lane that uses it: 8110
+python3 mock_relay.py 8110 >/dev/null 2>&1 & pids+=($!)   # NAS relay, one per lane that uses it: 8110
 python3 mock_relay.py 8111 >/dev/null 2>&1 & pids+=($!)   #                                                8111
 python3 mock_relay.py 8112 >/dev/null 2>&1 & pids+=($!)   #                                                8112
 # Wait until every server answers (the relays make their sample audio with ffmpeg first).

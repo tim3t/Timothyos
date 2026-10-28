@@ -1,4 +1,4 @@
-// ENGINEERING (2.24, controls 2.25): Home Assistant through the Storage relay's /ha path (simulated on :8110) and
+// ENGINEERING (2.24, controls 2.25): Home Assistant through the NAS relay's /ha path (simulated on :8110) and
 // UPKEEP kept on the iPad. Not set up: points to Systems. HOME ASSISTANT in Systems: USE THE NAS
 // RELAY, a wrong token refused, the right one tested. CONTROLS starts empty; + ADD DEVICE searches
 // Home Assistant, then a card style and an iPad-only group (new groups made on the way); a switch toggles;
@@ -56,7 +56,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await p.fill('#haTok', 'ha-test-token'); await p.click('[data-act="hasave"]');
   await p.waitForFunction(() => /Home Assistant connected/.test(document.getElementById('toast').textContent), null, { timeout: 5000 });
   const sec = await txt(p, '#sec-ha');
-  assert.ok(sec.includes('•••• oken') && sec.includes('through the Storage relay') && !sec.includes('ha-test-token'), sec);
+  assert.ok(sec.includes('•••• oken') && sec.includes('through the NAS relay') && !sec.includes('ha-test-token'), sec);
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.ha.v1'))), { url: R + '/ha', token: 'ha-test-token' });
 
   // ---- CONTROLS starts empty; ADD DEVICE lists switches, lights and sensors, searchable

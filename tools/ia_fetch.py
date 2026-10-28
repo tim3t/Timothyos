@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ia_fetch.py: download old public access TV from the Internet Archive into HOLODECK-ready folders.
 
-For Timothy's own viewing. Runs on the NAS in a throwaway Python container (README → HOLODECK → Public access TV).
+For Timothy's own viewing. Runs on the NAS in a throwaway Python container (README → NAS relay → Public access TV).
 It uses the Archive's own search and download addresses through its official `internetarchive` library, one file at
 a time with a pause between, and never logs in.
 
@@ -12,6 +12,8 @@ What it does:
   - saves it as  OUT/<show>/<title> [identifier].mp4  (one folder per show, so a NETWORK channel works at once),
     via a .part file (HOLODECK ignores those) that is resumed if interrupted and checked against the Archive's MD5;
   - skips what it already has, and stops at the size limits;
+  - retries a dropped connection up to five times (resuming), but gives up on a file at once when the Archive
+    refuses it (404 not found, 403 forbidden, and so on);
   - writes OUT/_ia_log.csv: when, identifier, file, size, the item's license (blank if none), its page, the folder.
 
 It only lists what it would fetch unless --go is given.
@@ -20,7 +22,7 @@ It only lists what it would fetch unless --go is given.
   python3 ia_fetch.py --out /out --go --max-gb 50      # fetch it, at most 50 GB this run
   python3 ia_fetch.py --out /out --query '"public access" AND subject:cooking' --go
   python3 ia_fetch.py --out /out --ids some-item another-item --go
-  python3 ia_fetch.py --selftest                       # offline checks of the picking and naming
+  python3 ia_fetch.py --selftest                       # offline checks of the picking, naming and downloading
 """
 import argparse, csv, hashlib, os, re, sys, time
 from urllib.parse import quote
@@ -113,6 +115,10 @@ def md5(path):
     return h.hexdigest()
 
 
+class GiveUp(Exception):
+    """A file that won't come however often it's asked for (404, 403, 410…)."""
+
+
 def fetch(session, ident, f, dest, verify):
     url = "https://archive.org/download/%s/%s" % (quote(ident), quote(f["name"]))
     part = dest + ".part"
@@ -126,6 +132,8 @@ def fetch(session, ident, f, dest, verify):
             with session.get(url, headers=hdr, stream=True, timeout=60) as r:
                 if r.status_code == 416:   # already whole
                     break
+                if 400 <= r.status_code < 500 and r.status_code not in (408, 429):   # gone or refused: trying again won't help
+                    raise GiveUp("HTTP %d" % r.status_code)
                 r.raise_for_status()
                 mode = "ab" if have and r.status_code == 206 else "wb"
                 if mode == "wb":
@@ -135,6 +143,8 @@ def fetch(session, ident, f, dest, verify):
                         fh.write(chunk)
                         have += len(chunk)
             break
+        except GiveUp:
+            raise
         except Exception as e:   # the network or the Archive hiccuped: wait and resume from where it got to
             wait = 2 ** attempt * 5
             print("    retry in %ds (%s)" % (wait, e), flush=True)
@@ -168,7 +178,7 @@ def main(argv=None):
     ap.add_argument("--ids", nargs="*", help="these item identifiers instead of a search")
     ap.add_argument("--group", choices=["series", "creator", "collection", "none"], default="series", help="show folders by")
     ap.add_argument("--exclude", nargs="*", default=[], help="leave out items matching any of these words or phrases")
-    ap.add_argument("--strict", action="store_true", help="only items with a license (public domain or Creative Commons)")
+    ap.add_argument("--strict", action="store_true", help="only items that state a license (usually public domain or Creative Commons)")
     ap.add_argument("--max-items", type=int, default=200)
     ap.add_argument("--max-gb", type=float, default=50.0, help="stop after this much this run")
     ap.add_argument("--max-file-gb", type=float, default=4.0, help="skip single files bigger than this")
@@ -247,6 +257,57 @@ def main(argv=None):
     return 0
 
 
+def fetch_selftest():
+    """fetch() with a stand-in for the Archive: a fresh download, a resume (206 appended), a server that ignores the
+    resume (200 rewritten), already whole (416), a checksum that doesn't match, and a 404 given up on without waiting."""
+    import tempfile, hashlib as hl
+    body = b"0123456789" * 50
+
+    class Resp:
+        def __init__(self, code, data): self.status_code, self.data = code, data
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def raise_for_status(self):
+            if self.status_code >= 400: raise IOError("HTTP %d" % self.status_code)
+        def iter_content(self, n): return [self.data[i:i + n] for i in range(0, len(self.data), n)] or []
+
+    class Session:
+        def __init__(self, mode): self.mode, self.calls = mode, []
+        def get(self, url, headers=None, stream=True, timeout=60):
+            rng = (headers or {}).get("Range"); self.calls.append(rng)
+            if self.mode == "404": return Resp(404, b"")
+            if self.mode == "416": return Resp(416, b"")
+            if rng and self.mode == "honour": return Resp(206, body[int(rng[6:-1]):])
+            return Resp(200, body)
+
+    slept = []; real_sleep = time.sleep; time.sleep = lambda s: slept.append(s)
+    try:
+        d = tempfile.mkdtemp(); f = {"name": "x.mp4", "md5": hl.md5(body).hexdigest()}; dest = os.path.join(d, "show", "x.mp4")
+        fetch(Session("honour"), "id", f, dest, True)
+        assert open(dest, "rb").read() == body and not os.path.exists(dest + ".part"), "fresh download"
+        os.remove(dest); open(dest + ".part", "wb").write(body[:123]); s = Session("honour")
+        fetch(s, "id", f, dest, True)
+        assert s.calls == ["bytes=123-"] and open(dest, "rb").read() == body, "resumed from 123 and appended"
+        os.remove(dest); open(dest + ".part", "wb").write(b"garbage"); s = Session("ignore")
+        fetch(s, "id", f, dest, True)
+        assert open(dest, "rb").read() == body, "a server that ignores Range: written afresh, not appended"
+        os.remove(dest); open(dest + ".part", "wb").write(body)
+        fetch(Session("416"), "id", f, dest, True)
+        assert open(dest, "rb").read() == body, "416: the .part was already whole"
+        os.remove(dest)
+        try:
+            fetch(Session("honour"), "id", {"name": "x.mp4", "md5": "0" * 32}, dest, True); raise AssertionError("bad checksum accepted")
+        except RuntimeError as e:
+            assert "checksum" in str(e) and not os.path.exists(dest + ".part") and not os.path.exists(dest), "bad checksum: removed"
+        s = Session("404")
+        try:
+            fetch(s, "id", f, dest, True); raise AssertionError("404 not raised")
+        except GiveUp:
+            assert len(s.calls) == 1 and not slept, "a 404 is given up on at once, no retries, no waiting"
+    finally:
+        time.sleep = real_sleep
+
+
 def selftest():
     files = [
         {"name": "show.mpeg", "format": "MPEG2", "size": "9"},
@@ -271,6 +332,7 @@ def selftest():
         assert series_of(t) == want, (t, series_of(t))
     assert show_of({"title": "Night Owl Theatre episode 5", "creator": "Channel 7 Access"}, "series") == "Night Owl Theatre"
     assert show_of({"title": "Episode 4", "creator": "Channel 7 Access"}, "series") == "Channel 7 Access"
+    fetch_selftest()
     print("ia_fetch selftest: ok")
     return 0
 

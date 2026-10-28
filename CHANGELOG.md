@@ -1,8 +1,25 @@
 # Changelog
 
+A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
+
+## 2.50.0 · 2026-10-28
+A clean-up release after a review of the documentation and the tests. Nothing to do on the Google bridge.
+- **Fixed: a NETWORK channel could show the same episode twice in a day** when it came up as the second half of a two-episode block. Each show now works through all its episodes before any repeats, blocks included.
+- **Offline copy kept safe:** if GitHub Pages answers with an error page (it happens during their outages), Bridge opens its saved copy instead of the error, and an error page is never saved over it.
+- **Backups:** the AI voice on/off switch is now in a backup. **MAKE BACKUP** also waits while INBOX notes or SCIENCE events are still on their way to Notion (it already did for other saves).
+- **Clearer setup hints:** messages that named old Google bridge versions ("Needs bridge 1.3 and …") now say what's needed, and every "Steps are in the README under …" names a section that exists. "Storage relay" is now **NAS relay** everywhere.
+- **HOLODECK:** the one-time conversion of 2.45's single channel is gone (everyone has been on channels since 2.46); a missing current channel falls back to channel 1.
+- **README:** a contents list; all NAS setup in one place (**NAS relay**: the compose with every placeholder explained, sharing folders for AUDIO and VISUAL, public access TV); AUDIO's search box and sleep timer; Standby's HOLODECK exception; VISUAL's two styles up front; troubleshooting grouped by area, with duplicates merged; HOLODECK and the downloader in the security model. Release steps moved to CLAUDE.md.
+- **`tools/ia_fetch.py`:** gives up at once on a file the Archive refuses (not found, forbidden) instead of retrying five times; the README compose now fetches the tagged version `ia-fetch-v1`, so a later change here never changes what runs on your NAS. To switch, change `main` to `ia-fetch-v1` in your `ia-fetch` project's address and redeploy (the old address keeps working).
+- **Removed:** `tools/nas-check.html`, the WebDAV test page from before the relay.
+- **Tests:** the bridge and most browser tests now check their results instead of printing them; new tests for NETWORK scheduling, the backup key list, version and file agreement, the offline copy against a failing server, the relay failing mid-broadcast, AUDIO's sleep timer handing over to Standby, and the Captain's Log locking after 10 idle minutes. Test data uses invented names only.
+
 ## 2.49.0 · 2026-10-28
 - **HOLODECK keeps Standby away.** Standby no longer starts on HOLODECK (the arch, VISUAL or AUDIO) or while its TV is on air, so a show or an episode isn't covered by the clock. Once a sleep timer has run out, Standby takes over as usual, so falling asleep in front of the TV ends on the dim night clock rather than a lit screen.
 - **VISUAL sleep timer,** like AUDIO's: **SLEEP** under the TV with 15 MIN, 30 MIN, 1 HOUR, 2 HOURS or END OF THIS SHOW. It keeps time on other screens and in Picture in Picture, counts down on the chip, and turning the TV off by hand clears it.
+
+## Tools · 2026-10-27
+- **`tools/ia_fetch.py`**, a downloader for old public access TV from the Internet Archive, arranged for a HOLODECK NETWORK channel (one folder per show, the copy an iPad plays, resumed downloads checked against the Archive's MD5, a log of each file's source and license). It lists what it would fetch until you add `--go`. Runs on the NAS in a throwaway Python container; setup in the README under NAS relay → Public access TV.
 
 ## 2.48.3 · 2026-10-27
 - **Fixed: a folder newly shared through the NAS relay didn't appear in HOLODECK → AUDIO** until Bridge was closed and reopened. AUDIO read the NAS's top-level folders once a session; it now reads them again each time you enter AUDIO from the arch, and after a minute on its front page.
@@ -85,7 +102,7 @@
 ## 2.42.1 · 2026-10-25
 - **SCIENCE → SPACE WEATHER:** the Kp chart's current bar no longer turns into a wide green band across the screen. It shared a style name with the Today timeline's now line; renamed, with a test that every bar stays inside its chart.
 
-## 2.42.0 · 2026-10-25 (bridge 1.34)
+## 2.42.0 · 2026-10-25 (needs bridge 1.34)
 - **SCIENCE,** a new station and the hub of a new **SCIENCE** group (ALL STATIONS, or COMPUTER: "aircraft", "iss", "aurora", "quake", "moon"). Free public feeds about the sky and your surroundings, from your location rounded to about 1 km (as for the weather). It opens on **SKY TRAFFIC**; the **SENSOR SWEEP** tiles switch departments.
   - **SKY TRAFFIC:** aircraft within 50 km on a scope, pointing where they fly, every 10 seconds while open (community ADS-B receivers through the Google bridge). Low ones (under 5,000 ft) in amber, military in orange. The list adds the airline and route (adsbdb); tap one for its card: type, operator, route, height, speed, heading, squawk, with **TRACK LIVE** and **PHOTOS**.
   - **SPACE STATIONS + SATELLITES:** the ISS now (height, speed, sunlit or in shadow) and its next visible pass here, then the visible passes of the ISS, Tiangong and Hubble for five days: when, where it rises, how high, where it sets. Worked out on the iPad from CelesTrak's orbits; only passes in a dark sky with the station in sunlight are listed. While one is overhead, the scope shows where to look.
@@ -107,7 +124,7 @@
 ## 2.41.1 · 2026-10-24
 - **REVIEW → WHERE DID I HOLD MY BEARING?** is now a line for each of your bearings (SYSTEMS → BRIDGE → Bearings). It saves to Notion as one paragraph, each line starting with its bearing ("Bearing: what you wrote"); blank lines are left out. A paragraph saved before, or written another way in Notion, still opens as one box, so nothing is lost. Without bearings set, it stays one box.
 
-## 2.41.0 · 2026-10-24 (bridge 1.33)
+## 2.41.0 · 2026-10-24 (needs bridge 1.33)
 - **CAPTURE → NOTE:** a thought to sort later. One box (type or dictate), no area or day; it saves to the new **📥 Inbox** in Notion, and waits on the iPad when offline like other captures.
 - **INBOX** (ALL STATIONS → TIME, COMPUTER, or the Bridge's line): the waiting notes, oldest first, and a **KEPT** tab.
   - Each note sorts into a **TASK** (Life Area, priority, due date), **KEY DATE**, **EVENT** or the Replicator **QUEUE** through a form filled in from the note, or **KEEP** holds it as it is. A sorted note is marked Sorted with what it became and leaves the list; Notion keeps it as the record.
@@ -121,7 +138,7 @@
 ## 2.40.1 · 2026-10-24
 - **Times spoken in ship's style.** Nova (and Moira) now hear 08:00 as "oh eight hundred" and 21:05 as "twenty-one oh five" (Nova had read 08:00 as "8 OK"). °F, ¢, %, lb and the · separators are spoken as words too. The printed briefing and Ship's Year are unchanged. Today's briefing audio is made again with the new reading the next time it's needed (under 1¢).
 
-## 2.40.0 · 2026-10-23 (bridge 1.32)
+## 2.40.0 · 2026-10-23 (needs bridge 1.32)
 - **ASTROMETRICS,** a new station (ALL STATIONS → REFLECT, or COMPUTER: "year"): the year at a glance.
   - **SENSOR SWEEP:** tasks done, hours planned, books finished, Log days, honey (or tarot readings) and reviews. Tap one for its sector.
   - **STAR CHART:** every station's year as a row of weeks, brighter for busier. Each row is shaded against its own busiest week (✦), hatched before its first record that year, with key dates above and a TODAY line. Tap a week for its numbers.
@@ -132,7 +149,7 @@
 - **UPKEEP** now keeps each day an item is marked done (for ASTROMETRICS; earlier ones only have their last date).
 - **Bridge 1.32** (update the Google bridge): a read-only `year` action (tasks marked Done in a year by Life Area and day, no titles; Replicator Queue items bought, day and cost) and the Ship's Year writing mode. Without it, ASTROMETRICS leaves out TASKS and QUEUE and says so.
 
-## 2.39.0 · 2026-10-23 (bridge 1.31)
+## 2.39.0 · 2026-10-23 (needs bridge 1.31)
 - **Notion column check.** The bridge compares each connected database's columns with the ones Bridge uses (name and type). When one is renamed, deleted or changed type, the Bridge's Condition shows **A Notion column changed** (YELLOW) naming it, and **SYSTEMS → NEEDS YOU** has the steps (rename it back or change its type, or tell Claude if it was on purpose) and **CHECK AGAIN**. **SYSTEMS → NOTION** has a **Columns** row and **CHECK NOTION COLUMNS**. Checked at most every six hours; extra columns are fine; a database that isn't connected is reported as such, not as missing columns.
 - **Bridge 1.31** (update the Google bridge): a read-only `schema` action, cached six hours; setup's log adds **Notion columns: OK** or names the problem.
 
@@ -146,7 +163,7 @@
 ## 2.37.1 · 2026-10-23
 - **Voice log** under **SYSTEMS → ASK CLAUDE → MORNING BRIEFING**: each step of asking for and playing Nova (the bridge's answer, its time and size, whether the iPad can and did play it, any refusal), so a silent failure can be read. For the case where Nova was never heard.
 
-## 2.37.0 · 2026-10-23 (bridge 1.30)
+## 2.37.0 · 2026-10-23 (needs bridge 1.30)
 - **The Morning Briefing in Nova,** OpenAI's AI voice, styled as a calm, measured starship computer with a slight South African accent. The audio is made when the briefing compiles and kept on the iPad, so READ IT TO ME starts at once (each paragraph still lights up) and replays are free. Under 1¢ a briefing.
   - Tapped before it's ready: **PREPARING VOICE…**, then it plays.
   - Without the key, turned off, or if OpenAI can't: **Moira**, the best of the iPad's own voices, reads it.
@@ -163,7 +180,7 @@
 - **Morning Briefing, shorter:** about 80 words, one or two sentences a paragraph. Yesterday's habits, tarot and the apiary are left out (even when shared with ASK).
 - **Read aloud in Isha (Premium),** the iPad voice you downloaded; the iPad's default voice if it isn't there.
 
-## 2.36.0 · 2026-10-23 (bridge 1.29)
+## 2.36.0 · 2026-10-23 (needs bridge 1.29)
 - **Morning Briefing on the Bridge.** The first time Bridge is in front after 06:00 (at 06:00 itself if it stood by overnight), the ship's computer writes this morning's report: the condition and why, today, outside, the week ahead, yesterday's habits, and one recommended first action. Sonnet, about 1 to 2¢ a day.
   - It prints itself once like a teleprinter, in Courier New; a tap finishes it.
   - **READ IT TO ME** reads it aloud in the iPad's own voice, lighting up each paragraph.
@@ -197,7 +214,7 @@
 ## Tests · 2026-10-22 (app and bridge unchanged)
 - **The test suite runs in about 5 minutes instead of 12.** Browser tests now run in lanes, three at a time. Tests that share a simulated bridge stay in one lane in their original order, so none of them sees another lane's saves or counters; the simulated NAS runs once per lane that needs it. The motion test, which times animations frame by frame, still runs alone. Every test and check is unchanged, and each result now shows its time.
 
-## 2.32.0 · 2026-10-21 (bridge 1.28)
+## 2.32.0 · 2026-10-21 (needs bridge 1.28)
 - **APIARY: TRUE UP STACK.** On a hive, under its stack: set the hive as it really stands when you changed something at the hive but didn't log it.
   - **+ DEEP, + MEDIUM, + SUPER, + EXCLUDER, + FEEDER.** Each lands where it sits on a hive (feeder on top, then supers, the queen excluder, mediums, deeps). One feeder and one excluder at most.
   - **Tap a piece** (on the stack or in the list) to set its frame count (8, 9 or 10; supers default to 9, deeps and mediums to 10), frames drawn (or filled, for a super), capped % for supers and mediums, the feeder's syrup (empty, low, full), move it **▲ UP / ▼ DOWN**, or **REMOVE** it (two taps).
@@ -216,7 +233,7 @@
 ## 2.31.1 · 2026-10-21
 - **Fixed: a meeting with "Lunch" in its name counted as a break.** A break now needs the event's whole title to be one of your BREAKS (capitals, extra spaces and a trailing full stop don't matter, and an "Out of office —" in front is still fine). "Lunch" and "Out of office — Lunch" stay breaks; a monthly team lunch meeting counts as Work again. A longer title can be added to the list if you want it treated as a break.
 
-## 2.31.0 · 2026-10-21 (bridge 1.26)
+## 2.31.0 · 2026-10-21 (needs bridge 1.26)
 - **New station: APIARY.** Your hive log, built from the zooming mockup:
   - **The yard** shows each hive as its own box stack (supers, deeps, frames drawn), with its queen, last check and any open issue, plus hive-check weather, honey this year and mite checks.
   - **Tap a hive** for its stack (tap a box for what it held), NEXT TIME, every check and ABOUT THIS HIVE.
@@ -248,12 +265,12 @@
 ## 2.29.2 · 2026-10-20
 - **Fixed: giant letters in empty spread positions.** The position names (PAST, PRESENT, CHALLENGE…) on cards not yet picked were sized against the whole screen instead of the card, so they overflowed and the Celtic Cross was unreadable. They're now sized to the card, sit at its foot where a filled card shows its name (clear of the number and of the crossing card), and the crossing card's label reads level across it.
 
-## 2.29.1 · 2026-10-19 (bridge 1.25.1)
+## 2.29.1 · 2026-10-19 (needs bridge 1.25.1)
 - **Fixed: the cursor jumping out of a tarot note and the last few letters disappearing.** Two causes: the note boxes had no stable identity, so any redraw (a save landing, a sync) dropped the keyboard; and a save arriving from Notion could briefly put back the older text from before your last few keys. Every text box now keeps its place, cursor and text through a redraw, and what you're typing always wins over a copy coming back from Notion. A new reading keeps your typing as it gets its Notion id. Text typed in one reading can no longer appear in another's box.
 - **Typing is saved when you leave the app** (home screen, app switch, lock), not only after the 1.2 s pause. MY MEANING too.
 - **Fixed: red "Lock timeout" and TIMEOUT errors on saves while the books were importing.** Each IMPORT BOOKS step held the bridge's lock for most of a minute, so saves queued behind it timed out. The import no longer takes the lock, and a save that does meet a busy bridge now answers BUSY and is retried quietly (a few seconds apart) instead of showing an error.
 
-## 2.29.0 · 2026-10-19 (bridge 1.25)
+## 2.29.0 · 2026-10-19 (needs bridge 1.25)
 - **Your tarot books, beside every card.** Liz Dean's *The Ultimate Guide to Tarot* and Jessa Crispin's *The Creative Tarot* now live in **📖 Tarot Books**, a private Notion database (one page per card per book, yours to read and edit). Set up once with **IMPORT BOOKS** in Systems.
   - **BOOKS** under each card in a reading opens a drawer with both books, a tab each; reversed cards lead with Dean's reversed meaning. Closed until you ask.
   - **SUGGEST A MEANING HERE** and **SUGGEST A READING FROM MY BOOKS** ask Claude, only when tapped, using only your two books, your own meaning, the question and your notes. The answer waits marked **NOT SAVED** until **ADD** (into your note or WHAT IT SAYS) or **DISMISS**. About 1¢ a card.
@@ -274,7 +291,7 @@
 ## 2.26.1 · 2026-10-19
 - **Text boxes grow with their text, everywhere.** Tarot notes and readings, Review answers, Library notes, the Systems lists, Engineering and the rest now size themselves to what's written as you type (and shrink back), so nothing hides behind a scroll. The Ask box grows up to 40% of the screen, then scrolls inside. The Captain's Log editor keeps its own sizing.
 
-## 2.26.0 · 2026-10-19 (bridge 1.24)
+## 2.26.0 · 2026-10-19 (needs bridge 1.24)
 - **TAROT, a new station** (REFLECT), saved to a new **🔮 Tarot** database in Notion.
   - **This week's card** (Monday to Sunday) with its keywords, your own meaning and a note for the week. Also on the **Bridge** (a TAROT panel) and in that week's **Review**.
   - **Readings in any spread:** one card, Past · Present · Future, Situation · Action · Outcome, Five-card cross, Horseshoe, Celtic Cross (laid out with the crossing card), **FREE** for any number, and **MY SPREADS** you build on a grid. Record the cards you drew position by position (with REVERSED), or **DRAW HERE**.
@@ -309,12 +326,12 @@
 ## 2.22.0 · 2026-10-14
 - **Finished events look finished.** On Today, Week and the Bridge's day strip, every event that ended before the now line is dimmed, and on Today and Week it gets a ✓ before its title. Events still running or still to come look as before. The change happens on its own as the day goes on.
 
-## 2.21.0 · 2026-10-14 (bridge 1.23)
+## 2.21.0 · 2026-10-14 (needs bridge 1.23)
 - **Holidays beside Key Dates.** Google's US Holidays calendar is read (bridge 1.23, read-only) and shown as HOLIDAY on the Bridge's KEY DATES panel (at most one of its three), the DATES screen with a new HOLIDAYS filter, and the ◆ markers on Today, Week and Month. Moving holidays are always right because the dates come from Google.
 - **Never counted:** holidays aren't calendar events here, so they add nothing to hours, meetings or BALANCE. Nothing is written to Notion.
 - **HIDE THIS HOLIDAY** on a holiday's card adds it to IGNORED EVENTS. Systems shows which holidays calendar is linked.
 
-## 2.20.0 · 2026-10-13 (bridge 1.22)
+## 2.20.0 · 2026-10-13 (needs bridge 1.22)
 - **HOBBIES is now GROWTH** everywhere: Today, Week, the Bridge, BALANCE, Capture, Key Dates filters and Systems. Tasks in Notion's growth Life Area count here, as before.
 - **A Growth calendar can be linked** (bridge 1.22, Script Property `GROWTH_CALENDAR_ID`). Once linked, Growth works like the farm calendar: shown on Today, Week, Month and Horizon, its hours count in BALANCE against the Growth minimum and in Review, and CAPTURE and ASK can add to it. Steps are in the README under Growth calendar.
 
@@ -368,12 +385,12 @@
   - **IMPORT** is a quiet link at the bottom (it's rarely needed).
   - Writing tools (**• LIST**, **+ BEARINGS**, **OPEN IN NOTION**) sit in a slim bar above the page; **SAVE** stands alone below it.
 
-## 2.15.1 · 2026-10-10 (bridge 1.21.0)
+## 2.15.1 · 2026-10-10 (needs bridge 1.21.0)
 - **LEDGER shows current figures.** Opening LEDGER now asks YNAB itself whenever the iPad's copy is more than a minute old. Before, the bridge kept its own copy of YNAB for 10 minutes and the iPad didn't ask again for 5, so you often saw an older balance.
 - **Pull down to refresh** at the top of LEDGER (only there): pull, let go at RELEASE TO REFRESH, and it asks YNAB at once. **REFRESH** beside OPEN YNAB does the same.
 - **The header says when YNAB was asked** ("AS OF 20:05"), and UPDATING… while it's asking.
 
-## 2.15.0 · 2026-10-10 (bridge 1.20.0)
+## 2.15.0 · 2026-10-10 (needs bridge 1.20.0)
 - **Ask Claude about the Captain's Log.** Off until you turn on SYSTEMS → CAPTAIN'S LOG → **SHARE LOG WITH ASK**. In the open LOG, **ASK CLAUDE** works on the month on the calendar, that month with the one before, or the entries a search found (**ASK ABOUT THESE**). Ready-made questions: KEY MOMENTS, THEMES, LIFTED · DRAINED, ONE PHRASE, WHAT CHANGED; or your own. THINK HARDER uses Opus.
 - **PREVIEW before anything is sent:** how many entries, the dates, about how many tokens and the cost, with a note above about 25K tokens. **SEND** only then.
 - **Answers you can follow:** dates in the answer open the entry, and follow-ups reuse the same entries (usually under 1¢).
@@ -387,7 +404,7 @@
 ## 2.14.1 · 2026-10-09
 - **No seam when you tap BRIDGE.** The tap's light-up brightened the corner alone, so for a moment you could see where it meets the top bar. The corner, its inner curve and the bar now light up together, as one piece.
 
-## 2.14.0 · 2026-10-09 (bridge 1.19.0)
+## 2.14.0 · 2026-10-09 (needs bridge 1.19.0)
 - **Bulleted lists in the Captain's Log and REVIEW.** Type **- ** at the start of a line and it becomes **• **. Return starts the next bullet; Return on an empty bullet ends the list. **• LIST** (beside SAVE in the LOG, and beside each REVIEW question) turns the current line, or the lines you've selected, into bullets and back, without hiding the keyboard. Undo works as usual.
 - **In Notion, LOG bullets are real list items** (bridge 1.19), so a page reads as a proper list there too, and lists made in Notion now open and edit in the LOG. When an entry is reopened, a list sits a blank line apart from the paragraphs around it. REVIEW answers keep their bullets as lines of text in the week's Notion page.
 - **Editing an entry rewrites only what changed.** Before, every paragraph after the first change was rewritten too.
@@ -398,17 +415,17 @@
 ## 2.12.2 · 2026-10-09
 - **Fixed: Plan Day stuck on "Loading your Master Task List…".** The iPad keeps task lists for a few days, and it kept the four latest dates. Once lists for later days were stored (from looking ahead on TODAY, say), today's list was dropped the moment it arrived, so Plan Day went back to loading while the app fetched it again and again. It now always keeps today's list and the day you're planning, then the most recently fetched (up to eight, nothing older than three days). A safety net also stops any repeat fetch of the same day within 15 seconds unless you ask for it.
 
-## 2.12.1 · 2026-10-09 (bridge 1.18.0)
+## 2.12.1 · 2026-10-09 (needs bridge 1.18.0)
 - **Plan Day and Priorities open at once on a new morning.** Each day used to start with no task list until the bridge answered. Now they show the most recent list straight away (marked **UPDATING**), with today's picks taken from each task's Focus Date, and swap in the fresh list when it arrives. Picks you change in the meantime are kept.
 - **The task list no longer waits behind everything else.** The bridge answers a combined request one item at a time, so the startup request had grown long as modules were added. It's now two requests sent together: what's on screen first (calendars, tasks, key dates, habits), and the rest (balance, reviews, ledger, library, Ask's spend) alongside.
 - **Bridge 1.18:** the task list's two Notion lookups (today's picks and every open task) run at the same time instead of one after the other.
 
-## 2.12.0 · 2026-10-09 (bridge 1.17.0)
+## 2.12.0 · 2026-10-09 (needs bridge 1.17.0)
 - **Authorization codes for the LOG.** Like a Starfleet override ("Riker, Alpha 6-9-3"): the LOG's lock panel now shows six code words (ALPHA, BETA, GAMMA, DELTA, THETA, OMEGA) above the keypad. Tap your word, then four digits. Once chosen, your word shows only as a filled slot, never by name. ⌫ takes back the digits, then the word. With a keyboard: a, b, g, d, t or o, then the digits.
 - **Set it in the bridge:** Script Property `LOG_PIN` becomes your word and four digits, for example `OMEGA-0000` (spaces, no separator or the Greek letter itself work too). A six-digit PIN still works until you change it.
 - **Longer lockouts in a row.** Five wrong tries still lock the LOG for 15 minutes; each lockout straight after another now lasts twice as long (up to a day), and the panel says until when. Getting it right resets this. A word and four digits has fewer combinations than six digits, so this keeps guessing impractical.
 
-## 2.11.0 · 2026-10-09 (bridge 1.16.0)
+## 2.11.0 · 2026-10-09 (needs bridge 1.16.0)
 - **SEARCH THE LOG.** Under the calendar in LOG: type a word or phrase and tap **FIND** (or Return). Every entry that uses it is listed newest first, grouped by year, with the date, how many times it appears and the words around it highlighted. Capitals don't matter; a phrase matches across line breaks.
 - **EXACT WORD** (on to start) finds "homework" but not "homeworks". Turn it off to include longer words that start or end with what you typed.
 - **Open a result** and the entry shows with **RESULTS** to go back, **NEWER** and **OLDER** to step through the matches, and the lines where your words appear. The calendar follows along.
@@ -426,7 +443,7 @@
 - **A tab on the right edge** (▲ 1 NEEDS YOU) appears once the card is scrolled away and brings you straight back to it.
 - **Fixed?** The card turns green, says whether anything else remains on the Bridge, and offers **BACK TO BRIDGE**. If a try doesn't work, it says so and points to the next step.
 
-## 2.9.0 · 2026-10-08 (bridge 1.15.0)
+## 2.9.0 · 2026-10-08 (needs bridge 1.15.0)
 - **Ask now uses Sonnet; THINK HARDER uses Opus.** Questions go to Sonnet 5.5 at low effort (about 1 to 2¢ each), THINK HARDER to Opus 5.5 (about three times that), weekly summaries stay on Sonnet. Haiku is no longer used; `AI_FAST_MODEL` = `claude-haiku-5-5` brings it back.
 - **A reminder at $8, a ceiling at $10.** At $8 Ask pauses and offers **CONTINUE THIS MONTH**; one tap carries on until the Claude Console's own $10 limit stops it. The meter in SYSTEMS runs to $10 with a mark at the reminder.
 - **A spend count closer to the Console.** Costs are worked out at each model's current list price, including dated model names; a model with no known price is flagged instead of guessed high.
@@ -452,7 +469,7 @@
 - **REVIEW no longer scrolls sideways.** The week numbers under HABITS PER WEEK (ALL REVIEWS) borrowed the Week screen's width and pushed the page wider than the screen.
 - **Replicator Queue, by price.** A new item lands just above the first item that costs more, instead of at the bottom; items with no price yet still go last. The order you set with the arrows is kept as it is. When the queue is out of price order, **PRICE ORDER** sorts it lowest to highest in one tap.
 
-## 2.7.0 · 2026-10-08 (bridge 1.14.0)
+## 2.7.0 · 2026-10-08 (needs bridge 1.14.0)
 - **Stations.** The bar now holds the seven stations you pin. The block below them is **ALL STATIONS**: every screen in three groups (TIME, REFLECT, RESOURCES), with AUDIO and MEALS waiting under STANDBY. **EDIT PINS** there swaps what sits in the bar; it changes as you tap and is kept on this iPad. While you're on a screen that isn't pinned, ALL STATIONS lights up and names it. Starts with TODAY, WEEK, LOOM, REVIEW, LOG, HABITS, LIBRARY (MONTH, DATES and LEDGER are one tap further in).
 - **HABITS** (new): meditated, evening walk, water in 1 L bottles (half-bottle steps; goal 3 L, change it under the tiles) and the debit card (DID NOT SWIPE or SWIPED). One tap each; the day saves to a new 🔁 Habits database in Notion a moment later, and taps made offline wait on the iPad until they land. Streaks (now, best, 30-day rate) and a 12-week grid; tap a square or use the arrows for an earlier day. A day you don't touch stays blank, never counted as a miss.
 - **On the Bridge:** HABITS · TODAY under NOW / NEXT, the same four in one tap each.
@@ -468,18 +485,18 @@
 ## 2.5.6 · 2026-10-08
 - **Tidier side panel:** the empty block at the foot of the left panel is now the same height as the screen buttons above it; the SYSTEMS block takes up the rest of the space.
 
-## 2.5.5 · 2026-10-08 (bridge 1.13.0)
+## 2.5.5 · 2026-10-08 (needs bridge 1.13.0)
 - **REFRESH NOW shows it's working:** a turning ring and REFRESHING… until every request it started (and any retries) has finished, then SYNCED ✓ for a moment.
 - **Fewer of Google's lost answers:** reads asked for at the same moment, such as on returning to the app, now travel together as one request (shown as SYNC in Systems), so Google runs one execution instead of five. Google's servers sometimes run a request and then lose the answer (HTTP 404); five requests at once made that far more likely. Each read still answers on its own. An older bridge gets them one at a time as before.
 - **Recent requests tells retries from failures:** a failed attempt that was tried again is marked RETRIED in amber; only red lines are real failures, and the header counts them separately.
 
-## 2.5.4 · 2026-10-08 (bridge 1.12.0)
+## 2.5.4 · 2026-10-08 (needs bridge 1.12.0)
 - **Ask runs on Claude Haiku 5.5** for everyday questions, at low effort: newer, better at following instructions and using the app's tools, with a 1M-token window, at about a tenth of Haiku 4.5's price ($0.10 / $0.50 per million tokens, against $1 / $5). THINK HARDER and summaries stay on Sonnet 5.5.
 - The bridge counts Haiku 5.5 at its own price in the monthly budget, leaves room for its brief thinking (answers up to 4,000 tokens), and sends none of the settings it rejects.
 - **compareModels** in the script editor asks five everyday questions of Haiku 4.5 and Haiku 5.5 (low and medium effort) with your real calendar and tasks, and logs answers, time and cost side by side. Nothing is changed; proposals are only listed.
 - **Switch back any time:** Script Property `AI_FAST_MODEL` = `claude-haiku-4-5`.
 
-## 2.5.3 · 2026-10-08 (bridge 1.11.0)
+## 2.5.3 · 2026-10-08 (needs bridge 1.11.0)
 - **Steadier LOG.** Opening the log, reading a day and the list of written days now travel as plain GET requests (the access key and PIN in the address), the same way every calendar sync does. POST requests could lose their details on a Google redirect, which the bridge reported as "The access key doesn't match".
 - The bridge now tells apart a request that arrived **without** its key (`no_key`), a moment when Google's settings store didn't answer (`key_unreadable`), and a genuinely **wrong** key (`unauthorized`). The app retries the first two on its own, everywhere in the app; only a wrong key shows the access key message.
 - Opening the log is faster: the list of written days is kept by the bridge for 6 hours and updated in place when you write a new day, instead of being re-read from Notion after every save.
@@ -504,17 +521,17 @@
   - **Never sent to Ask.**
 - The Bridge panel for the daily intent and bearing is now titled **INTENT + BEARING**, so it isn't confused with the journal.
 
-## 2.4.3 · 2026-10-08
+## 2.4.3 · 2026-10-07
 - Standby: when nothing is left on today's calendar it reads **Clear for the rest of the day**, with tomorrow's first item in small print below. Tomorrow's items take the main line only after midnight.
 - Tests: the sync-recovery check now waits for the app's retry (30 s, then 60 s) instead of checking at a fixed moment; under load it occasionally checked too early.
 
-## 2.4.2 · 2026-10-08
+## 2.4.2 · 2026-10-07
 - **Calmer standby:** one centered column, one typeface and three sizes (the clock, the event title, small spaced capitals). The date and weather share one line under the clock; a short rule; next up as time and countdown, the title on one line, then what follows; condition and key date on one quiet line. The calendar color is a small dot, like the condition. Same information, less clutter.
 
-## 2.4.1 · 2026-10-08
+## 2.4.1 · 2026-10-07
 - Fix: text typed into a form could vanish when a sync landed mid-entry. The screen redraws when fresh data arrives, and it kept only the field in use: adding "New glasses" with a price, then tapping the note field, cleared the item and price. Everything typed since the last redraw now survives in every field on every screen. A field you haven't touched still shows fresh data, and the Replicator Queue form clears once the item is added.
 
-## 2.4.0 · 2026-10-08
+## 2.4.0 · 2026-10-07
 - **Standby:** after 15 minutes without a touch, the screen fades to a dim clock with the date, weather (high and low), **Next up** with a countdown and what follows, the condition and the next key date. Amber and dimmer from 22:00 to 06:00. Tap anywhere to wake; that tap only wakes the screen. Content drifts a few pixels each minute so nothing burns into an OLED screen.
   - **STANDBY** at the right end of the top bar starts it any time, like a screensaver.
   - **SYSTEMS → STANDBY:** Off, 5, 15 or 30 minutes; STANDBY NOW; and whether iPadOS is keeping the screen on.
@@ -523,7 +540,7 @@
 ## 2.3.2 · 2026-10-07
 - The **SYSTEMS** button is gone from the left panel. Tap the **SYNCED** status in the bottom-left corner to open Systems; it lights up while Systems is open. More room in the panel for future screens.
 
-## 2.3.1 · 2026-10-07 (bridge 1.9.2)
+## 2.3.1 · 2026-10-07 (needs bridge 1.9.2)
 - The Replicator Queue's fund category is found even with an emoji or symbols in its YNAB name: "🪽 Discretionary" matches "Discretionary". Systems shows the name without the emoji, like other labels.
 
 ## Bridge 1.9.1 · 2026-10-07 (app unchanged)

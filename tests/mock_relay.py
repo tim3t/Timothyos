@@ -1,4 +1,4 @@
-"""Simulated Storage relay (Caddy behind Tailscale on the NAS) on :8110 (or the port given as the first argument).
+"""Simulated NAS relay (Caddy behind Tailscale on the NAS) on :8110 (or the port given as the first argument).
 Read-only, token by Bearer header or ?k=, CORS for the test origin, JSON folder listings
 (Accept: application/json, like Caddy's file_server browse), byte ranges for audio.
 Files are generated silence; names are invented.
