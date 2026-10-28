@@ -5,7 +5,8 @@
 // ☆ stars one in Notion; the other departments; ASTROMETRICS' SCIENCE row and starred events on its key-date line;
 // Systems' SCIENCE section turns the line off; COMPUTER finds it. Landmarks (2.43): suggested once from OpenStreetMap
 // (a few, spread out), muted under the aircraft, "near" wording, a toggle, and the list edited in Systems; kept only
-// on the iPad, never sent to the bridge. Invented aircraft, events and places throughout.
+// on the iPad, never sent to the bridge. An eBird key added later shows in NATURE within minutes (2.50.1). Invented
+// aircraft, events and places throughout.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
@@ -243,14 +244,28 @@ const hits = {};
   assert.ok(!toBridge.some(x => /Testburg|Riverton|River Town|Juniper|Water Tower|scilm/.test(x)), 'never sent to the bridge');
   assert.ok(!(await stats()).events.some(e => /Testburg|Riverton|River Town/.test(e.title + e.detail)), 'never in the Science Log');
 
+  // ---- an eBird key added while Bridge is open (2.50.1): NATURE asks again after 5 minutes, not 12 hours
+  await mode('birds=1');
+  await p.click('#allBtn'); await p.click('[data-station="science"]'); await p.click('[data-scitab="nature"]'); await p.waitForSelector('.sci-panel .stubbox');
+  await new Promise(r => setTimeout(r, 800));
+  assert.ok((await txt(p, '.sci-panel')).includes('EBIRD_API_KEY'), 'within 5 minutes the cached answer stands');
+  await p.clock.setFixedTime(new Date(NOW + 6 * 60000));
+  await p.click('[data-scitab="night"]'); await p.click('[data-scitab="nature"]');
+  await p.waitForFunction(() => /Snow Bunting/.test(document.querySelector('.sci-panel').textContent), null, { timeout: 10000 });
+  const nb = await txt(p, '.sci-panel');
+  assert.ok(nb.includes('NOTABLE BIRDS Snow Bunting Test Lake dam · 3 18 km NNW') && !nb.includes('EBIRD_API_KEY'), nb);
+  await until(async () => (await stats()).events.some(e => e.kind === 'bird' && /Snow Bunting reported 18 km NNW/.test(e.title)));
+  await p.click('#status'); await p.waitForSelector('#sec-science');
+  assert.ok((await txt(p, '#sec-science')).includes('Key set: notable birds on.'));
+
   // ---- COMPUTER
   await p.click('#cmdBtn'); await p.fill('#cmdText', 'iss');
   const found2 = await txt(p, '#cmdList');
   assert.ok(found2.includes('When is the ISS overhead?'), found2);
   await p.keyboard.press('Escape');
 
-  await mode('cap=0&log=0&fail=0');
+  await mode('cap=0&log=0&fail=0&birds=0');
   console.log('errors', errs);
   await b.close();
   if (errs.length) process.exit(1);
-})().catch(async e => { await mode('cap=0&log=0&fail=0').catch(() => {}); console.error(e); process.exit(1); });
+})().catch(async e => { await mode('cap=0&log=0&fail=0&birds=0').catch(() => {}); console.error(e); process.exit(1); });

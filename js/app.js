@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.50.0";
+  var VERSION = "2.50.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -9131,7 +9131,11 @@
   function sciLoad(all) {
     var pl = sciPlace(); if (!pl || !state.conn || !canScience()) return;
     var t = sc.tab, M = 60000, q = "&latitude=" + pl.lat + "&longitude=" + pl.lon, here = state.screen === "science";   /* away from the station: a light, slow read */
-    sciRun("feeds", 12 * 60 * M, function () { return api({ action: "sciencefeeds", lat: pl.lat, lon: pl.lon }); });
+    /* orbits and band conditions change slowly (12 h), but eBird's notable birds are worth an hourly look while SCIENCE is
+       open (the bridge keeps them an hour), and NATURE without birds asks again every 5 minutes, so a key just added to
+       Script Properties shows up the next time NATURE is opened rather than up to 12 hours later (2.50.1) */
+    var fd = sciV("feeds") || {}, fMin = !here ? 12 * 60 : fd.ebird ? 60 : t === "nature" ? 5 : 12 * 60;
+    sciRun("feeds", fMin * M, function () { return api({ action: "sciencefeeds", lat: pl.lat, lon: pl.lon }); });
     sciRun("kpf", (here ? 30 : 180) * M, function () { return sciGet("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"); });
     sciRun("quakes", (here ? 15 : 60) * M, function () {
       var since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);

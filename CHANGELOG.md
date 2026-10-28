@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.50.1 · 2026-10-28
+- **SCIENCE → NATURE picks up an eBird key within minutes.** Bridge asked the Google bridge for the slow feeds (orbits, band conditions and eBird's notable birds) only every 12 hours, so an `EBIRD_API_KEY` added to Script Properties could take until the next day to show, and birds then updated twice a day. Now NATURE asks again after 5 minutes while it has no birds, and once the key is on, notable birds are refreshed hourly while SCIENCE is open (the bridge keeps them an hour). Nothing to do on the Google bridge.
+
 ## 2.50.0 · 2026-10-28
 A clean-up release after a review of the documentation and the tests. Nothing to do on the Google bridge.
 - **Fixed: a NETWORK channel could show the same episode twice in a day** when it came up as the second half of a two-episode block. Each show now works through all its episodes before any repeats, blocks included.
