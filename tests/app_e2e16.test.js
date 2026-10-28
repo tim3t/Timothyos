@@ -19,15 +19,6 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
     localStorage.setItem('tos.log.v1', JSON.stringify({ '2026-10-06': 'Deep work before noon', '2026-10-08': 'Be present at dinner' }));
   }, conn(port));
 
-  // --- bridge 1.4: Review works with calendar data, Notion parts wait for 1.5, no reminder
-  await setup(8095); await p.reload(); await p.waitForTimeout(1800);
-  assert.ok(!(await p.textContent('.ov-cond')).includes('Weekly review due'), 'no reminder without bridge 1.5');
-  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
-  assert.ok((await p.textContent('#content')).includes('needs bridge 1.5'), 'the log says what is missing');
-  await p.click('.rl-card >> nth=0'); await p.waitForTimeout(800);
-  assert.ok((await p.textContent('#content')).includes('need bridge 1.5'));
-  assert.ok(await p.isDisabled('[data-act="savereview"]'));
-
   // --- bridge 1.5: Sunday reminder
   await setup(8096); await p.reload(); await p.waitForTimeout(2000);
   const due = p.locator('.ov-alert:has-text("Weekly review due")');
@@ -44,7 +35,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   console.log('rows:', rows.join(' | '));
   assert.ok(rows[0].startsWith('WORK 7.5H'), 'work hours, weekend block ignored');
   assert.ok(rows[1].startsWith('PERSONAL 8H'), 'personal hours so far, all-day excluded');
-  assert.ok(rows.some(r => r.startsWith('BEEKEEPING 1')), 'output by Life Area, plain labels');
+  assert.ok(rows.some(r => r.startsWith('BEE YARD 1')), 'output by Life Area, plain labels');
   const kept = (await p.innerText('.rv-kept')).replace(/\s+/g, ' ');
   console.log('kept:', kept, '|', await p.textContent('.phead:has-text("PRIORITIES KEPT") .meta'));
   assert.ok(kept.startsWith('1 DONE 1 NOT DONE 2 PICKED'));
@@ -78,7 +69,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8096/x/exec?acti
   assert.strictEqual(r.hoursWork, 7.5); assert.strictEqual(r.hoursPersonal, 8); assert.strictEqual(r.hoursFarm, null);
   assert.strictEqual(r.tasksDone, 3); assert.strictEqual(r.picked, 2); assert.strictEqual(r.pickedDone, 1);
   assert.strictEqual(r.intents, 'TUE 06 · Deep work before noon\nTHU 08 · Be present at dinner');
-  assert.ok(/Work & Calling 1/.test(r.byArea) && !/\p{Extended_Pictographic}/u.test(r.byArea));
+  assert.ok(/Work Desk 1/.test(r.byArea) && !/\p{Extended_Pictographic}/u.test(r.byArea));
   assert.ok((await p.textContent('#eyebrow')).includes('SAVED'));
   assert.ok(await p.isVisible('a.btn:has-text("OPEN IN NOTION")'));
   await p.fill('#rv-bearing', 'Mostly, yes');

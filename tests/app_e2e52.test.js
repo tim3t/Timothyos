@@ -51,7 +51,7 @@ const note = async n => (await stats()).notes.find(x => x.id === id(n));
   await p.waitForSelector('.ib-prop', { timeout: 8000 });
   const st = await stats();
   assert.ok(st.ctx.startsWith('TODAY: SATURDAY 24 October 2026 (2026-10-24).') || st.ctx.startsWith('TODAY: Saturday 24 October 2026 (2026-10-24).'), st.ctx.slice(0, 60));
-  assert.ok(st.ctx.includes('LIFE AREAS: ') && st.ctx.includes('🏡 Home & Property') && st.ctx.includes('KEY DATE TYPES: ⏰ Deadline') && st.ctx.includes('CALENDARS HE CAN ADD TO: personal, farm, growth'), st.ctx);
+  assert.ok(st.ctx.includes('LIFE AREAS: ') && st.ctx.includes('🏡 House Upkeep') && st.ctx.includes('KEY DATE TYPES: ⏰ Deadline') && st.ctx.includes('CALENDARS HE CAN ADD TO: personal, farm, growth'), st.ctx);
   assert.ok(st.ctx.includes(id(1) + ': Get a quote for the north fence before winter') && st.ctx.includes('Ask the feed store about winter patties and the price of syrup'));
   assert.ok(!st.ctx.includes('Book idea'), 'kept notes are not sent');
   assert.strictEqual(await p.$$eval('.ib-prop', e => e.length), 4, 'four cards; the invented id is ignored');
@@ -62,13 +62,13 @@ const note = async n => (await stats()).notes.find(x => x.id === id(n));
   // CHANGE: the task form, filled in; High instead of Medium
   await p.click('[data-ibchange="' + id(1) + '"]');
   assert.strictEqual(await p.inputValue('#ibf-title'), 'Get a quote for the north fence');
-  assert.strictEqual(await p.inputValue('#ibf-life'), '🏡 Home & Property');
+  assert.strictEqual(await p.inputValue('#ibf-life'), '🏡 House Upkeep');
   assert.strictEqual(await p.inputValue('#ibf-due'), '2026-11-06');
   assert.strictEqual(await p.getAttribute('[data-ibpri="🟡 Medium"]', 'aria-pressed'), 'true');
   await p.click('[data-ibpri="🔴 High"]');
   await p.click('[data-ibsave="' + id(1) + '"]');
   await until(async () => (await stats()).tasks.some(t => t[0] === 'Get a quote for the north fence'));
-  assert.deepStrictEqual((await stats()).tasks.find(t => t[0] === 'Get a quote for the north fence'), ['Get a quote for the north fence', '🏡 Home & Property', '🔴 High', '2026-11-06']);
+  assert.deepStrictEqual((await stats()).tasks.find(t => t[0] === 'Get a quote for the north fence'), ['Get a quote for the north fence', '🏡 House Upkeep', '🔴 High', '2026-11-06']);
   await until(async () => (await note(1)).status === 'sorted');
   assert.strictEqual((await note(1)).as, 'task');
 

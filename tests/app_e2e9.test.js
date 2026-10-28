@@ -1,4 +1,7 @@
+// PLAN DAY (Notion tasks): the sheet's groups, picking up to three, adding a new task, saving sets the Focus Date in
+// Notion, checking a priority off marks it Done and back, a rejected change reverts with the reason, Systems' line, phone.
 const { chromium } = require('playwright');
+const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
 const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?action=stats&key=' + K)).json());
 (async () => {
@@ -7,49 +10,51 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   await p.goto('http://localhost:8080/');
-  // bridge 1.1 (no tasks): plan disabled
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8092/macros/s/test/exec', key: 'k'.repeat(64) })); });
-  await p.reload(); await p.waitForTimeout(1200);
-  console.log('bridge 1.1: plan disabled', await p.isDisabled('#planBtn'), '| label', (await p.textContent('#planBtn')).trim(), '| panel:', (await p.textContent('.rcol')).includes('Needs the Notion link'));
-  // bridge 1.2
   await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1500);
-  console.log('bridge 1.2: plan enabled', !(await p.isDisabled('#planBtn')), '| priorities rows', await p.locator('.prio').count(), '| meta', await p.textContent('.rcol .phead:has(h2:text("PRIORITIES")) .meta').catch(() => '-'));
+  const txt = async sel => (await p.textContent(sel)).replace(/\s+/g, ' ').trim();
+  const today = async () => (await stats()).tasks.filter(t => t[2] === '2026-10-06').map(t => t[0] + '/' + t[1]).sort();
+  assert.ok(!(await p.isDisabled('#planBtn')), 'PLAN DAY on');
+  assert.strictEqual(await p.locator('.prio').count(), 1);
   await p.screenshot({ path: D + 'plan-today-before.png' });
   await p.click('#planBtn'); await p.waitForTimeout(800);
-  console.log('dayline:', await p.textContent('.dayline'));
-  console.log('groups:', (await p.locator('.pgroup').allTextContents()).join(' | '));
-  console.log('count:', await p.textContent('#planCount'));
+  assert.strictEqual(await txt('.dayline'), '5 EVENTS · FIRST 08:30 STANDUP · LONGEST OPEN STRETCH 09:00 TO 13:00');
+  assert.deepStrictEqual(await p.locator('.pgroup').allTextContents(), ['PICKED FOR THIS DAY', 'CARRIED OVER', 'OVERDUE', 'DUE IN THE NEXT 7 DAYS', 'ADD A NEW TASK FOR THIS DAY']);
+  assert.strictEqual(await txt('#planCount'), '0 OF 3 PICKED');
   await p.screenshot({ path: D + 'plan-sheet.png' });
   await p.click('.cand:has-text("Order spring bulbs")'); await p.click('.cand:has-text("Sugar syrup for Hive 2")'); await p.click('.cand:has-text("Send Q4 deck draft")');
-  console.log('after 3 picks:', await p.textContent('#planCount'));
+  assert.strictEqual(await txt('#planCount'), '3 OF 3 PICKED');
   await p.click('.cand:has-text("Book furnace service")'); await p.waitForTimeout(200);
-  console.log('4th pick blocked toast:', await p.textContent('#toast'), '|', await p.textContent('#planCount'));
-  await p.click('[data-showall]'); console.log('show all rows:', await p.locator('.cand').count());
+  assert.strictEqual(await txt('#toast'), 'Three is the limit. Unpick one first.'); assert.strictEqual(await txt('#planCount'), '3 OF 3 PICKED');
+  await p.click('[data-showall]'); assert.strictEqual(await p.locator('.cand').count(), 8, 'SHOW ALL lists every open task');
   await p.fill('#planNew', 'Call the vet'); await p.click('#planAdd'); await p.waitForTimeout(400);
-  console.log('add at limit -> toast:', await p.textContent('#toast'));
+  assert.strictEqual(await txt('#toast'), 'Three is the limit. Unpick one first.', 'adding counts toward the three');
   await p.click('.cand:has-text("Send Q4 deck draft")');
-  await p.fill('#planNew', 'Call the vet'); await p.selectOption('#planArea', '👨‍👩‍👧‍👦 Family'); await p.selectOption('#planPri', '🟡 Medium'); await p.click('#planAdd'); await p.waitForTimeout(600);
-  console.log('added new -> count', await p.textContent('#planCount'));
+  await p.fill('#planNew', 'Call the vet'); await p.selectOption('#planArea', '👨‍👩‍👧‍👦 Kin'); await p.selectOption('#planPri', '🟡 Medium'); await p.click('#planAdd'); await p.waitForTimeout(600);
+  assert.strictEqual(await txt('#planCount'), '3 OF 3 PICKED');
   await p.click('#planSave'); await p.waitForTimeout(1500);
-  console.log('save toast:', await p.textContent('#toast'), '| sheet hidden', await p.isHidden('#planScrim'));
-  console.log('notion now:', JSON.stringify((await stats()).tasks.filter(t => t[2] === '2026-10-06')));
+  assert.strictEqual(await txt('#toast'), '3 priorities set for TUE 06 OCT'); assert.ok(await p.isHidden('#planScrim'));
+  assert.deepStrictEqual(await today(), ['Call the vet/⬜ To Do', 'Order spring bulbs/⬜ To Do', 'Renew registration/✅ Done', 'Sugar syrup for Hive 2/⬜ To Do'], 'Focus Dates set in Notion; the unpicked one cleared');
   await p.waitForTimeout(500);
-  console.log('priorities rows:', await p.locator('.prio').count(), '|', (await p.locator('.prio b').allTextContents()).join(', '));
+  assert.deepStrictEqual(await p.locator('.prio b').allTextContents(), ['Order spring bulbs', 'Sugar syrup for Hive 2', 'Call the vet', 'Renew registration']);
   await p.click('.prio:has-text("Sugar syrup")'); await p.waitForTimeout(600);
-  console.log('check-off toast:', await p.textContent('#toast'), '| notion status:', JSON.stringify((await stats()).tasks.find(t => t[0].startsWith('Sugar'))));
+  assert.strictEqual(await txt('#toast'), 'Done. Marked Done in Notion.');
+  assert.strictEqual((await stats()).tasks.find(t => t[0].startsWith('Sugar'))[1], '✅ Done');
   await p.screenshot({ path: D + 'plan-today-after.png' });
   await p.click('.prio:has-text("Sugar syrup")'); await p.waitForTimeout(600);
-  console.log('reopen ->', JSON.stringify((await stats()).tasks.find(t => t[0].startsWith('Sugar'))));
+  assert.strictEqual((await stats()).tasks.find(t => t[0].startsWith('Sugar'))[1], '⬜ To Do', 'a second tap reopens it');
   // failure path: status rejected
   await p.route('**/127.0.0.1:8093/**', r => r.request().method() === 'POST' ? r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: '{"ok":false,"error":"notion_unauthorized"}' }) : r.continue());
   await p.click('.prio:has-text("Order spring")'); await p.waitForTimeout(500);
-  console.log('failure toast:', await p.textContent('#toast'), '| reverted done?', await p.locator('.prio.done:has-text("Order spring")').count());
+  assert.strictEqual(await txt('#toast'), "Not changed: Notion rejected the bridge's key. Check NOTION_TOKEN in Script Properties.");
+  assert.strictEqual(await p.locator('.prio.done:has-text("Order spring")').count(), 0, 'reverted on the screen');
+  assert.strictEqual((await stats()).tasks.find(t => t[0].startsWith('Order spring'))[1], '⬜ To Do', 'unchanged in Notion');
   await p.unroute('**/127.0.0.1:8093/**');
   await p.click('#status'); await p.waitForTimeout(300);
-  console.log('systems notion:', await p.locator('.calrow:has-text("Master Task List") small').first().textContent());
+  assert.ok(/^8 open tasks · 4 picked for today · synced \d\d:\d\d$/.test((await p.locator('.calrow:has-text("Master Task List") small').first().textContent()).trim()));
   await p.setViewportSize({ width: 400, height: 860 }); await p.click('[data-screen="today"]'); await p.waitForTimeout(300); await p.click('#planBtn'); await p.waitForTimeout(500);
   await p.screenshot({ path: D + 'plan-phone.png' });
-  console.log('phone scrollWidth', await p.evaluate(() => document.documentElement.scrollWidth));
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= 400), 'no sideways scroll');
   console.log('errors', errs); await b.close();
-})();
+  if (errs.length) process.exit(1);
+})().catch(e => { console.error(e); process.exit(1); });

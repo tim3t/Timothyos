@@ -222,7 +222,7 @@
   - **Tap a hive** for its stack (tap a box for what it held), NEXT TIME, every check and ABOUT THIS HIVE.
   - **+ NEW CHECK** in five short steps: queen and brood, frame counts per box (the stack follows as you count or add a box), stores and feed, mites (load worked out) and pests, then what you did, honey pulled, notes and next time. **REMIND ME IN 7 DAYS** adds a task. After saving, it offers the other hive next.
   - **Edit or delete a check, add or edit a hive, keep a yard list.** Saves wait on the iPad when there's no signal.
-- **New Notion database 🐝 Apiary** (under 🐝 Beekeeping), with your hives and every check from the Hive Inspections log already in it. The original pages are unchanged.
+- **New Notion database 🐝 Apiary** (under your beekeeping page), with your hives and every check from your earlier hive log already in it. The original pages are unchanged.
 - **Ask:** Systems → APIARY → SHARE WITH ASK (off by default).
 - **Bridge 1.26:** reads and saves the Apiary (apiary, apiarysave, apiaryremove). Deploy it, then connect 🐝 Apiary to the integration (README, Apiary).
 
@@ -315,7 +315,7 @@
 - **HIDE THIS HOLIDAY** on a holiday's card adds it to IGNORED EVENTS. Systems shows which holidays calendar is linked.
 
 ## 2.20.0 · 2026-10-13 (bridge 1.22)
-- **HOBBIES is now GROWTH** everywhere: Today, Week, the Bridge, BALANCE, Capture, Key Dates filters and Systems. Tasks in Notion's Personal Growth Life Area count here, as before.
+- **HOBBIES is now GROWTH** everywhere: Today, Week, the Bridge, BALANCE, Capture, Key Dates filters and Systems. Tasks in Notion's growth Life Area count here, as before.
 - **A Growth calendar can be linked** (bridge 1.22, Script Property `GROWTH_CALENDAR_ID`). Once linked, Growth works like the farm calendar: shown on Today, Week, Month and Horizon, its hours count in BALANCE against the Growth minimum and in Review, and CAPTURE and ASK can add to it. Steps are in the README under Growth calendar.
 
 ## 2.19.0 · 2026-10-13
@@ -615,7 +615,7 @@
 
 ## 1.7.2 · 2026-10-06
 - No emoji in the interface. Buttons read PLAN DAY, ASK, CAPTURE, SAVE, UPDATE READY; the day arrows are drawn shapes.
-- Notion labels show as plain text (High, Work & Calling, Deadline). Notion itself is unchanged, and the app still sends the original values back.
+- Notion labels show as plain text (High, Work, Deadline). Notion itself is unchanged, and the app still sends the original values back.
 - Plain marks remain where they carry meaning: ◆ key dates, ▲ ▼ ✕ on condition items, ✓ on checkboxes.
 
 ## 1.7.1 · 2026-10-06

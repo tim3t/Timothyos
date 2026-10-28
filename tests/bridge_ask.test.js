@@ -6,7 +6,7 @@ const props = { NOTION_TOKEN: 'ntn_test' }, cache = {};
 const DS = 'ds-1111', DB = '6c4a440d571e49e0b4076c18d5712c1f', DS2 = 'ds-2222', DB2 = '8184db37aacb4d96943b2067558b92ab';
 const task = { id: 'a'.repeat(32), url: 'u', last_edited_time: '2026-10-05T15:00:00.000Z', parent: { type: 'data_source_id', data_source_id: DS }, properties: {
   Task: { title: [{ plain_text: 'Order spring bulbs' }] }, Status: { select: { name: '⬜ To Do' } }, Priority: { select: { name: '🔴 High' } },
-  'Life Area': { select: { name: '🌿 SkyGarden Farm' } }, 'Due Date': { date: { start: '2026-10-04' } }, 'Focus Date': { date: null } } };
+  'Life Area': { select: { name: '🌿 Hollow Oak Farm' } }, 'Due Date': { date: { start: '2026-10-04' } }, 'Focus Date': { date: null } } };
 let script = [], sent = [], anthropicHeaders = [];
 function fetchMock(url, opts) {
   const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
@@ -48,7 +48,7 @@ assert.ok(get({ action: 'ping', key }).capabilities.includes('ask'));
 const usage = { input_tokens: 3000, output_tokens: 200, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 script = [
   { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-1' }, { type: 'text', text: 'Checking.' }, { type: 'tool_use', id: 'tu1', name: 'get_tasks', input: { day: '2026-10-06' } }] },
-  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: '🌿 SkyGarden Farm', focus_day: '2026-10-06' } },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: '🌿 Hollow Oak Farm', focus_day: '2026-10-06' } },
     { type: 'tool_use', id: 'tu3', name: 'propose_set_focus', input: { task_id: 'a'.repeat(32), task_title: 'Order spring bulbs', day: '2026-10-06' } }] },
   { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-3' }, { type: 'text', text: 'Order spring bulbs first, Captain. It is overdue. I proposed picking it and adding a call to the co-op.' }] }
 ];

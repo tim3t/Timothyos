@@ -180,7 +180,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   assert.strictEqual(await p.locator('.br, .br-fold').count(), 1);
   await mode('cap=0');
   await p.click('#status'); await p.click('#refreshBtn'); await p.waitForTimeout(1500);
-  assert.ok((await txt(p, '#content')).includes('Needs bridge 1.29'));
+  assert.ok((await txt(p, '#content')).includes('Needs the Google bridge updated'));
   await bridge(p);
   assert.strictEqual(await p.locator('.br, .br-fold').count(), 0, 'an older bridge: no panel on the Bridge');
   await mode('cap=1');

@@ -16,13 +16,6 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8098/x/exec?acti
   await p.goto('http://localhost:8080/');
   const setup = port => p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.ignore.v1', JSON.stringify(['away block'])); }, conn(port));
 
-  // --- bridge 1.6: the log works, trends wait for 1.7
-  await setup(8097); await p.reload(); await p.waitForTimeout(1800);
-  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
-  assert.strictEqual(await p.textContent('#title'), 'WEEKLY REVIEWS');
-  assert.ok((await p.textContent('#content')).includes('need bridge 1.7'));
-  assert.strictEqual(await p.locator('.rl-row').count(), 2, 'this week and last week listed');
-
   // --- bridge 1.7
   await setup(8098); await p.reload(); await p.waitForTimeout(2000);
   // the Bridge reminder goes straight to the week

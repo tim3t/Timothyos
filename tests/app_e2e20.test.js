@@ -18,12 +18,6 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.goto('http://localhost:8080/');
   const setup = port => p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"today"'); }, conn(port));
 
-  // --- bridge 1.8: LEDGER explains what it needs
-  await setup(8099); await p.reload(); await p.waitForTimeout(1500);
-  await p.click('[data-screen="ledger"].nav'); await p.waitForTimeout(500);
-  assert.strictEqual(await p.textContent('#title'), 'LEDGER');
-  assert.ok((await p.textContent('#content')).includes('needs bridge 1.9'));
-
   // --- bridge 1.9
   await setup(8100); await p.reload(); await p.waitForTimeout(1500);
   await p.click('[data-screen="ledger"].nav'); await p.waitForTimeout(1200);

@@ -44,27 +44,27 @@ import uuid
 def T(title, status, pri, area, due=None, focus=None):
     return {"id": uuid.uuid4().hex, "url": "", "title": title, "status": status, "priority": pri, "area": area, "due": due, "focus": focus}
 TASKS = [
-  T("Order spring bulbs", "⬜ To Do", "🔴 High", "🌿 SkyGarden Farm", "2026-10-04", "2026-10-05"),
-  T("Send Q4 deck draft", "🔄 In Progress", "🟡 Medium", "🎯 Work & Calling", "2026-10-08"),
-  T("Sugar syrup for Hive 2", "⬜ To Do", "🔴 High", "🐝 Beekeeping", "2026-10-06"),
-  T("Book furnace service", "⬜ To Do", "🟢 Low", "🏡 Home & Property", "2026-10-02"),
-  T("Renew passport", "🚫 Blocked", "🟡 Medium", "🏡 Home & Property"),
-  T("Read chapter 4", "⬜ To Do", "🟢 Low", "🌱 Personal Growth"),
-  T("Renew registration", "✅ Done", "🟢 Low", "🏡 Home & Property", "2026-10-01", "2026-10-06"),
-  T("Plan Saturday market display", "⬜ To Do", None, "🌿 SkyGarden Farm", "2026-10-20"),
+  T("Order spring bulbs", "⬜ To Do", "🔴 High", "🌿 Hollow Oak Farm", "2026-10-04", "2026-10-05"),
+  T("Send Q4 deck draft", "🔄 In Progress", "🟡 Medium", "🎯 Work Desk", "2026-10-08"),
+  T("Sugar syrup for Hive 2", "⬜ To Do", "🔴 High", "🐝 Bee Yard", "2026-10-06"),
+  T("Book furnace service", "⬜ To Do", "🟢 Low", "🏡 House Upkeep", "2026-10-02"),
+  T("Renew passport", "🚫 Blocked", "🟡 Medium", "🏡 House Upkeep"),
+  T("Read chapter 4", "⬜ To Do", "🟢 Low", "🌱 Growth Lab"),
+  T("Renew registration", "✅ Done", "🟢 Low", "🏡 House Upkeep", "2026-10-01", "2026-10-06"),
+  T("Plan Saturday market display", "⬜ To Do", None, "🌿 Hollow Oak Farm", "2026-10-20"),
 ]
-AREAS = ["💰 Money", "👨‍👩‍👧‍👦 Family", "🌱 Personal Growth", "🌿 SkyGarden Farm", "🐝 Beekeeping", "🙏 Faith & Spirit", "🏥 Health", "🎯 Work & Calling", "🏡 Home & Property"]
+AREAS = ["💰 Finances", "👨‍👩‍👧‍👦 Kin", "🌱 Growth Lab", "🌿 Hollow Oak Farm", "🐝 Bee Yard", "🙏 Quiet Hours", "🏥 Health", "🎯 Work Desk", "🏡 House Upkeep"]
 PRIS = ["🔴 High", "🟡 Medium", "🟢 Low"]
 TCIDS = {}
 def KDt(title, start, end=None, area=None, typ=None, yearly=False, notes=""):
     return {"id": uuid.uuid4().hex, "url": "https://www.notion.so/" + uuid.uuid4().hex, "title": title, "start": start, "end": end, "area": area, "type": typ, "yearly": yearly, "notes": notes}
 KDATES = [
-  KDt("First frost risk", "2026-10-12", None, "🌿 SkyGarden Farm", "⏰ Deadline", False, "Cover the dahlias the night before"),
-  KDt("Mom's birthday", "1958-10-20", None, "👨‍👩‍👧‍👦 Family", "🎂 Birthday", True),
-  KDt("Garlic planting window", "2026-10-01", "2026-10-25", "🌿 SkyGarden Farm", "🌦️ Window"),
-  KDt("Q4 roadmap due", "2026-10-30", None, "🎯 Work & Calling", "⏰ Deadline"),
-  KDt("Mite treatment", "2026-11-15", None, "🐝 Beekeeping", "🔔 Reminder"),
-  KDt("Old past thing", "2026-09-01", None, "🏡 Home & Property", "📍 Event"),
+  KDt("First frost risk", "2026-10-12", None, "🌿 Hollow Oak Farm", "⏰ Deadline", False, "Cover the dahlias the night before"),
+  KDt("Mom's birthday", "1958-10-20", None, "👨‍👩‍👧‍👦 Kin", "🎂 Birthday", True),
+  KDt("Garlic planting window", "2026-10-01", "2026-10-25", "🌿 Hollow Oak Farm", "🌦️ Window"),
+  KDt("Q4 roadmap due", "2026-10-30", None, "🎯 Work Desk", "⏰ Deadline"),
+  KDt("Mite treatment", "2026-11-15", None, "🐝 Bee Yard", "🔔 Reminder"),
+  KDt("Old past thing", "2026-09-01", None, "🏡 House Upkeep", "📍 Event"),
 ]
 KTYPES = ["⏰ Deadline", "🌦️ Window", "🎂 Birthday", "💍 Anniversary", "📍 Event", "🔔 Reminder"]
 DCIDS = {}
@@ -75,10 +75,10 @@ def R(week, title, hw, hp, done, picked, kept, well, drained, focus, bearing, by
             "hoursWork": hw, "hoursPersonal": hp, "hoursFarm": None, "hoursHobbies": None, "tasksDone": done, "picked": picked, "pickedDone": kept}
 # saved history (sample data): weeks 39, 38, 37 and 35 saved, 36 skipped; 40 (last week) is due, 41 in progress
 REVIEWS = {
-  "2026-09-21": R("2026-09-21", "Week 39 · 21 to 27 Sep", 36, 8, 7, 5, 4, "Shipped the deck two days early", "Evening calls", "Hive winter prep", "Kept mornings for deep work", "Work & Calling 4 · Beekeeping 2 · Home & Property 1"),
-  "2026-09-14": R("2026-09-14", "Week 38 · 14 to 20 Sep", 41, 6, 5, 6, 3, "The launch held", "Back-to-back meetings", "Protect two evenings", "Said no to one extra call", "Work & Calling 3 · Health 2"),
-  "2026-09-07": R("2026-09-07", "Week 37 · 07 to 13 Sep", 38, 10, 9, 5, 5, "Every pick done", "Late nights", "Launch prep", "Walked every morning", "Work & Calling 5 · Beekeeping 3 · Health 1"),
-  "2026-08-24": R("2026-08-24", "Week 35 · 24 to 30 Aug", 33, 7, 4, 6, 2, "Honey harvest", "Evening calls again", "Fewer picks, finished", "", "Beekeeping 3 · Work & Calling 1"),
+  "2026-09-21": R("2026-09-21", "Week 39 · 21 to 27 Sep", 36, 8, 7, 5, 4, "Shipped the deck two days early", "Evening calls", "Hive winter prep", "Kept mornings for deep work", "Work Desk 4 · Bee Yard 2 · House Upkeep 1"),
+  "2026-09-14": R("2026-09-14", "Week 38 · 14 to 20 Sep", 41, 6, 5, 6, 3, "The launch held", "Back-to-back meetings", "Protect two evenings", "Said no to one extra call", "Work Desk 3 · Health 2"),
+  "2026-09-07": R("2026-09-07", "Week 37 · 07 to 13 Sep", 38, 10, 9, 5, 5, "Every pick done", "Late nights", "Launch prep", "Walked every morning", "Work Desk 5 · Bee Yard 3 · Health 1"),
+  "2026-08-24": R("2026-08-24", "Week 35 · 24 to 30 Aug", 33, 7, 4, 6, 2, "Honey harvest", "Evening calls again", "Fewer picks, finished", "", "Bee Yard 3 · Work Desk 1"),
 }
 QUEUE = [
   {"id": "q1", "title": "New glasses", "cost": 280, "priority": 10, "note": "Prescription changed in August", "link": "", "bought": None, "created": "2026-10-01"},
@@ -212,7 +212,7 @@ YNAB = {"month": "2026-10-01", "months": MONTHS,
   "cats": [c("g", "Groceries", "Everyday", [0, 0, 590, 600, 580, 610, 620, 600, 640, 570, 590, 604], 214),
            c("f", "Fuel", "Everyday", [0, 0, 240, 250, 230, 236, 240, 250, 220, 210, 230, 220], 74),
            c("e", "Electric", "Bills", [0, 0, 200, 210, 190, 170, 160, 180, 190, 170, 160, 175], 0),
-           c("b", "Bee Supplies", "SkyGarden", [0, 0, 60, 80, 200, 220, 140, 90, 120, 80, 95, 110], 38),
+           c("b", "Bee Supplies", "Hollow Oak", [0, 0, 60, 80, 200, 220, 140, 90, 120, 80, 95, 110], 38),
            c("d", "Discretionary", "Fun", [0, 0, 40, 30, 20, 60, 50, 40, 30, 20, 25, 35], 0),
            c("h", "Household", "Everyday", [0, 0, 90, 95, 100, 88, 92, 97, 85, 90, 88, 86], 23),
            c("m", "Medical", "Health", [0, 0, 0, 120, 0, 60, 0, 75, 0, 60, 0, 60], 15),
@@ -225,14 +225,14 @@ def qrows():
     return {"items": w, "bought": b}
 RLISTS = []; ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8}
 WEEKDONE = {"2026-10-05": [
-  {"id": "w1", "title": "Send Q4 deck draft", "area": "🎯 Work & Calling", "status": "✅ Done", "at": "2026-10-07T18:00:00Z"},
-  {"id": "w2", "title": "Inspect Hive 1", "area": "🐝 Beekeeping", "status": "✅ Done", "at": "2026-10-09T18:00:00Z"},
-  {"id": "w3", "title": "Renew registration", "area": "🏡 Home & Property", "status": "✅ Done", "at": "2026-10-06T15:00:00Z"}]}
+  {"id": "w1", "title": "Send Q4 deck draft", "area": "🎯 Work Desk", "status": "✅ Done", "at": "2026-10-07T18:00:00Z"},
+  {"id": "w2", "title": "Inspect Hive 1", "area": "🐝 Bee Yard", "status": "✅ Done", "at": "2026-10-09T18:00:00Z"},
+  {"id": "w3", "title": "Renew registration", "area": "🏡 House Upkeep", "status": "✅ Done", "at": "2026-10-06T15:00:00Z"}]}
 # finished tasks (area + last edit only, like the real bridge): Farm has been quiet for 12 days, Growth for 40
 DONE = [
-  {"area": "🎯 Work & Calling", "at": "2026-10-05T20:00:00Z"}, {"area": "🎯 Work & Calling", "at": "2026-10-02T15:00:00Z"},
-  {"area": "🎯 Work & Calling", "at": "2026-09-29T15:00:00Z"}, {"area": "🏡 Home & Property", "at": "2026-10-04T15:00:00Z"},
-  {"area": "🏥 Health", "at": "2026-10-01T15:00:00Z"}, {"area": "🌿 SkyGarden Farm", "at": "2026-09-24T15:00:00Z"},
+  {"area": "🎯 Work Desk", "at": "2026-10-05T20:00:00Z"}, {"area": "🎯 Work Desk", "at": "2026-10-02T15:00:00Z"},
+  {"area": "🎯 Work Desk", "at": "2026-09-29T15:00:00Z"}, {"area": "🏡 House Upkeep", "at": "2026-10-04T15:00:00Z"},
+  {"area": "🏥 Health", "at": "2026-10-01T15:00:00Z"}, {"area": "🌿 Hollow Oak Farm", "at": "2026-09-24T15:00:00Z"},
 ]
 
 HABITS = {}
@@ -251,7 +251,7 @@ BOOKS = [
 BCIDS = {}; BSAVES = []
 SEEN = {}
 POSTS = []
-CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "personal@example.com"}, {"area": "farm", "ok": True, "name": "Hilltop"}, {"area": "hobby", "ok": True, "name": "Growth"}]
+CALS = [{"area": "work", "ok": True, "name": "Work Calendar"}, {"area": "personal", "ok": True, "name": "personal@example.com"}, {"area": "farm", "ok": True, "name": "Hilltop"}, {"area": "hobby", "ok": True, "name": "Growth"}]
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):
@@ -352,12 +352,12 @@ class H(BaseHTTPRequestHandler):
                     elif "remind" in last.lower():
                         reply = "Proposed a reminder for Thursday at 15:00."; props.append({"kind": "add_event", "input": {"title": "Call the vet", "date": "2026-10-08", "start_time": "15:00", "minutes": 15}})
                     elif "task" in last.lower():
-                        reply = "Proposed a new task."; props.append({"kind": "add_task", "input": {"title": "Order hive frames", "life_area": "🐝 Beekeeping", "priority": "🟡 Medium"}})
+                        reply = "Proposed a new task."; props.append({"kind": "add_task", "input": {"title": "Order hive frames", "life_area": "🐝 Bee Yard", "priority": "🟡 Medium"}})
                     elif "pick" in last.lower():
                         t = next(t for t in TASKS if t["title"] == "Book furnace service")
                         reply = "Proposed picking it for today."; props.append({"kind": "set_focus", "input": {"task_id": t["id"], "task_title": t["title"], "day": "2026-10-06"}})
                     elif "date" in last.lower():
-                        reply = "Proposed a key date."; props.append({"kind": "add_key_date", "input": {"title": "Seed order deadline", "start": "2026-11-02", "life_area": "🌿 SkyGarden Farm", "type": "⏰ Deadline"}})
+                        reply = "Proposed a key date."; props.append({"kind": "add_key_date", "input": {"title": "Seed order deadline", "start": "2026-11-02", "life_area": "🌿 Hollow Oak Farm", "type": "⏰ Deadline"}})
                     elif "review" in last.lower():
                         reply = "Drafted your review."; props.append({"kind": "review_draft", "input": {"week_start": "2026-10-05", "went_well": "Shipped the deck", "next_focus": "Hive winter prep"}})
                     else: reply = "Order spring bulbs first, Captain. It is two days overdue and High priority."

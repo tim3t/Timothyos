@@ -45,8 +45,8 @@ const loaded = p => p.waitForFunction(() => !document.querySelector('.as-cell.wa
   assert.strictEqual(await txt(p, '#eyebrow'), 'ASTROMETRICS · THE YEAR SO FAR');
   const rows0 = await p.$$eval('.as-rowlab:not(.kd)', els => els.map(e => e.textContent.trim()));
   assert.deepStrictEqual(rows0, ['CALENDAR', 'HABITS', 'LOG', 'REVIEW', 'LIBRARY', 'TAROT', 'APIARY', 'UPKEEP'], rows0.join(','));
-  assert.ok((await txt(p, '.as-foot')).includes('TASKS and QUEUE need bridge 1.32'));
-  assert.ok((await txt(p, '.as-fold')).includes('Needs the Google bridge updated to 1.32'));
+  assert.ok((await txt(p, '.as-foot')).includes('TASKS and QUEUE need the Google bridge updated'));
+  assert.ok((await txt(p, '.as-fold')).includes('Needs the Google bridge updated'));
   errs.push(...p.errs); await p.context().close();
 
   // ---- bridge 1.32

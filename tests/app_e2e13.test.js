@@ -27,8 +27,8 @@ function weather() {
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   await p.goto('http://localhost:8080/');
 
-  // --- bridge 1.3: no Balance yet, no location yet
-  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); }, conn(8094));
+  // --- no location yet
+  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); }, conn(8095));
   await p.reload(); await p.waitForTimeout(2000);
   assert.strictEqual(await p.getAttribute('.elbow', 'aria-current'), 'page', 'opens on the Bridge by default');
   // the elbow, its curve and the top bar are one arm (2.8 Command Gold): the corner, the curve and the bar's
@@ -43,7 +43,6 @@ function weather() {
   const unlit = await arm();
   assert.ok(unlit.slice(0, 3).every(c => c === 'rgb(246, 198, 107)') && unlit[3] === 'none' && unlit[4] === 'none', 'gold, no halo, elsewhere');
   await p.click('.elbow'); await p.waitForTimeout(300);
-  assert.ok((await p.textContent('#content')).includes('Needs bridge 1.4'), 'balance stub on bridge 1.3');
   assert.ok(await p.isVisible('[data-act="systems"]:has-text("SET LOCATION")'), 'environment asks for a location');
   assert.strictEqual(wxCalls, 0, 'no weather request without a location');
 

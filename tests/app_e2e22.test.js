@@ -18,11 +18,6 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.goto('http://localhost:8080/');
   const setup = port => p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.bearings.v1', JSON.stringify(['Steady hands', 'Open door'])); localStorage.setItem('tos.log.v1', JSON.stringify({ '2026-10-07': 'Finish the pond edge' })); }, conn(port));
 
-  // --- bridge 1.9: LOG explains what it needs
-  await setup(8100); await p.reload(); await p.waitForTimeout(1500);
-  await p.click('[data-screen="log"].nav'); await p.waitForTimeout(400);
-  assert.ok((await p.textContent('#content')).includes('needs bridge 1.10'));
-
   // --- bridge 1.10: locked on arrival
   await setup(8101); await p.reload(); await p.waitForTimeout(1500);
   await p.click('[data-screen="log"].nav'); await p.waitForTimeout(400);

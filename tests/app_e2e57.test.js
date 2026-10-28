@@ -1,6 +1,7 @@
 // HOLODECK and Standby (2.49): Standby never starts on HOLODECK (the arch, VISUAL, AUDIO) or while its TV is on air, and
 // still does elsewhere. VISUAL's sleep timer: 15 MIN turns the TV off on the clock, and Standby then takes over (a night
-// in front of the TV ends on the clock); END OF THIS SHOW turns it off when the video ends. Simulated relay (WebM videos).
+// in front of the TV ends on the clock); END OF THIS SHOW turns it off when the video ends.
+// AUDIO's timer hands over to Standby too, and the Captain's Log locks itself after 10 idle minutes. Simulated relay (WebM videos).
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
@@ -13,6 +14,7 @@ const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.cl
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.install({ time: new Date('2026-10-28T21:00:00-05:00') });
+  await fetch(R + '/__reset');
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.standby.v1', '5'); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
@@ -76,6 +78,39 @@ const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.cl
   await p.click('.hd-tune'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
   await p.click('[data-hdsleep="30"]'); await p.click('[data-hd="tune"]');
   assert.strictEqual(await p.getAttribute('[data-hdsleep="off"]', 'aria-pressed'), 'true');
+
+  // ---- AUDIO's sleep timer: the episode pauses on time, then Standby takes over (2.49 hand-over)
+  await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');
+  await p.click('[data-hdprog="audio"]'); await p.clock.runFor(1000); await p.waitForSelector('.nas-share');
+  await p.click('.nas-share >> text=PODCASTS'); for (let i = 0; i < 4; i++) { await p.clock.runFor(200); await p.waitForTimeout(150); }
+  await p.waitForSelector('.nas-row >> text=Show A'); await p.click('.nas-row >> text=Show A'); await p.waitForSelector('[data-nasplay]');
+  await p.click('[data-nasplay="/Podcasts/Show A/ep 1.wav"]');
+  await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a && !a.paused && a.currentTime > 0.2; }, null, { timeout: 10000 });
+  await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="audio"]');
+  for (let i = 0; i < 4; i++) { await p.clock.runFor(200); await p.waitForTimeout(150); }
+  await p.waitForSelector('[data-nassleep="15"]'); await p.click('[data-nassleep="15"]');
+  await idle(p, 9 * 60000);
+  assert.ok(await p.isHidden('#standby'), 'no Standby in AUDIO while the timer runs');
+  await idle(p, 7 * 60000); await p.waitForTimeout(800);   /* the pause lands on the next time update */
+  assert.ok(await p.evaluate(() => document.getElementById('nasAudio').paused), 'paused at 15 minutes');
+  await idle(p, 60000);
+  assert.ok(await p.isVisible('#standby'), 'then Standby takes over in AUDIO too');
+  await p.mouse.click(600, 400); await p.clock.runFor(2000); await p.waitForTimeout(400);
+
+  // ---- the Captain's Log locks itself after 10 minutes without a touch (Standby off, so this is the log's own rule)
+  await p.evaluate(() => localStorage.setItem('tos.standby.v1', '0'));
+  await p.click('#allBtn'); await p.click('[data-station="log"]'); await p.waitForSelector('.cl-key');
+  assert.strictEqual(await txt(p, '#eyebrow'), 'JOURNAL · LOCKED');
+  await p.keyboard.type('135790');
+  for (let i = 0; i < 10 && (await txt(p, '#eyebrow')) !== 'JOURNAL · OPEN'; i++) { await p.clock.runFor(300); await p.waitForTimeout(200); }
+  assert.strictEqual(await txt(p, '#eyebrow'), 'JOURNAL · OPEN');
+  await idle(p, 9 * 60000);
+  assert.strictEqual(await txt(p, '#eyebrow'), 'JOURNAL · OPEN', 'still open at 9 minutes');
+  await idle(p, 90000);
+  assert.strictEqual(await txt(p, '#eyebrow'), 'JOURNAL · LOCKED', 'locked by 10 and a half');
+  assert.strictEqual(await p.locator('.cl-key').count(), 11, 'the PIN pad is back');
+  assert.strictEqual(await p.$('.cl-cal'), null, 'no journal left on screen');
+  assert.ok(await p.isHidden('#standby'));
 
   // ---- phone width
   await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);

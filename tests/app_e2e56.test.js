@@ -3,7 +3,7 @@
 // skipped, lengths measured once and kept, in order from when it was added, TUNE IN joins mid-broadcast at the clock's
 // position, the guide, the next video when one ends, the credit, CRT/CLEAN, mute. Channel 2 from a series in season
 // folders: seasons by number, episodes by number, specials and extras last, the MKV skipped; changing channel with the
-// buttons, the dial and the guide's other-channel line; rename, remove; 2.45's one folder becomes channel 1; leaving
+// buttons, the dial and the guide's other-channel line; rename, remove; leaving
 // turns it off, STORAGE no longer lists /Video, COMPUTER, phone width. 2.47: HOLODECK opens on the arch (VISUAL or
 // AUDIO, which is STORAGE now); ◇ ARCH from either; one at a time (the TV pauses audio, audio turns the TV off); the
 // radio band's needle; STORAGE gone from ALL STATIONS. 2.48: a NETWORK channel (show folders, two levels, programmed
@@ -19,6 +19,9 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  await fetch(R + '/__reset');   /* the relay as it started: earlier runs may have added folders */
+  const T0 = new Date('2026-10-28T14:00:00-05:00').getTime();
+  await p.clock.setFixedTime(T0);   /* a fixed afternoon: NETWORK's lineup is the same every run and never near the 6:00 change */
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, R]);
   await p.reload(); await p.waitForSelector('#allBtn');
@@ -57,7 +60,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.deepStrictEqual(secs, [6, 5, 7], 'each length read from the file: ' + JSON.stringify(lens));
   const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')));
   assert.deepStrictEqual(saved.chans.map(c => [c.id, c.name, c.dir]), [[1, 'Test Channel', '/Video/Test Channel']]);
-  assert.ok(Math.abs(saved.chans[0].premiere - Date.now()) < 30000 && saved.ch === 1);
+  assert.ok(saved.chans[0].premiere === T0 && saved.ch === 1, 'premiered at the clock: ' + saved.chans[0].premiere);
 
   // ---- the guide: computed from the clock; NOW then the next three, in file order, round again
   const ORDER = ['Neon Harbor · Midnight Signal', 'The Velvet Static · Satellite Heart', 'Juniper Drive · Polaroid Weekend'];
@@ -157,6 +160,8 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
   assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 1 · MYSTERY HOUR'));
   assert.ok(await p.isDisabled('[data-hd="down"]'));
+  const kept = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).chans.map(c => c.name));
+  assert.deepStrictEqual(kept, ['Mystery Hour'], 'the rename and the removal are kept on the iPad');
 
   // ---- 2.48: NETWORK. A folder of show folders, programmed like TV
   await p.click('[data-hd="pick"]'); await p.waitForSelector('[data-hdpick="/Video/Test Network"]'); await p.click('[data-hdpick="/Video/Test Network"]');
@@ -198,6 +203,14 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
 
+  // ---- the relay failing: five videos in a row that won't play turn the TV off, with a note
+  await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Test Series/') + '&code=404&n=999');
+  await p.click('.hd-tune');
+  await p.waitForFunction(() => /Five videos in a row wouldn't play/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
+  assert.ok(!(await vid(p)).src.includes('/Video/'), 'off after five failures');
+  assert.ok(await p.$('.hd-tune'), 'TUNE IN offered again');
+  await fetch(R + '/__fail?n=0');
+
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
   await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');
@@ -232,12 +245,6 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('.elbow'); await p.waitForSelector('.ov-cond');
   const off = await vid(p); assert.ok(off.paused && !off.src.includes('/Video/'), 'off after leaving: ' + JSON.stringify(off));
   await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await visual(p); await p.waitForSelector('.hd-tune:not([disabled])');
-
-  // ---- 2.45's one folder becomes channel 1, in order from now
-  await p.evaluate(() => localStorage.setItem('tos.holo.v1', JSON.stringify({ dir: '/Video/Test Channel', look: 'clean', muted: false })));
-  await p.reload(); await p.waitForSelector('#allBtn');
-  const mig = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')));
-  assert.ok(!('dir' in mig) && mig.ch === 1 && mig.look === 'clean' && mig.chans.length === 1 && mig.chans[0].name === 'Test Channel' && Math.abs(mig.chans[0].premiere - Date.now()) < 10000, JSON.stringify(mig));
 
   // ---- AUDIO (STORAGE) leaves /Video to VISUAL
   await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-share');

@@ -169,7 +169,7 @@ The bridge also keeps its own working values there (spend counters, the log's lo
 
 ### Farm and Growth calendars
 
-Two extra Google calendars in the same personal account: **farm** (farm and bee work, amber, labelled with the calendar's own name) and **Growth** (personal growth and hobbies, coral, labelled GROWTH). Once linked, each sits beside Work and Personal everywhere (Today, Week, Month, Horizon, Balance, Review hours), and **CAPTURE** and **ASK** can add to it. Work stays read-only. Tasks in Notion's farm and beekeeping Life Areas count toward the farm; Personal Growth toward GROWTH.
+Two extra Google calendars in the same personal account: **farm** (farm and bee work, amber, labelled with the calendar's own name) and **Growth** (personal growth and hobbies, coral, labelled GROWTH). Once linked, each sits beside Work and Personal everywhere (Today, Week, Month, Horizon, Balance, Review hours), and **CAPTURE** and **ASK** can add to it. Work stays read-only. Tasks in a Notion Life Area whose name mentions Farm or Bee count toward the farm; Growth, Creative or Hobby toward GROWTH; Work toward work.
 
 1. **Create the calendar:** **calendar.google.com** → **Other calendars +** → **Create new calendar** → a name (**Growth** for the second), your time zone, **Create calendar**.
 2. **Copy its ID:** **Settings** → the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
@@ -509,7 +509,7 @@ A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**)
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
   - A show at random each time, never the same show twice in a row, except about one pick in four is a block: two episodes of it in a row, in order.
   - Through the day, each show works through a shuffle of its own episodes, so none repeats that day.
-  - The show's name comes from its folder (`angry_beavers` → Angry Beavers); the guide reads "Angry Beavers · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
+  - The show's name comes from its folder (`night_owl_theatre` → Night Owl Theatre); the guide reads "Night Owl Theatre · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
   - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.
   - A plain folder of videos (no show folders) set to NETWORK is a fresh shuffle every day from 6:00, no repeats that day; videos loose beside show folders join the rotation as one more "show".
   - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
@@ -579,7 +579,7 @@ Two tabs. **CONTROLS** shows only the Home Assistant devices you add; **UPKEEP**
 
 ### APIARY
 
-Your hive log, in **🐝 Apiary** in Notion (under 🐝 Beekeeping): one Yard page, one page per hive and one per check, each check linked to its hive. It opens on **the yard**, each hive drawn as its own box stack (honey supers on top, deeps below, the frames drawn lit up); tap a hive to zoom in, tap a check to zoom in again.
+Your hive log, in **🐝 Apiary** in Notion (under your beekeeping page): one Yard page, one page per hive and one per check, each check linked to its hive. It opens on **the yard**, each hive drawn as its own box stack (honey supers on top, deeps below, the frames drawn lit up); tap a hive to zoom in, tap a check to zoom in again.
 
 - **The yard:** the top line shows **HIVE CHECK GO / HOLD** (the Bridge's hive weather, when a location is set), honey this year and the year's mite checks (the lowest hive's count out of 4). **THIS YEAR** opens honey per hive, mite checks per hive and **the yard list** (supplies, winter prep: tap to tick, ✕ to remove, type and ADD).
 - **A hive:** its stack large (tap a box for what it held at the last check), **NEXT TIME** from the last check, every check newest first, and **ABOUT THIS HIVE** with **EDIT HIVE** (name, queen, start date, source, foundation, equipment, place, notes, paint).

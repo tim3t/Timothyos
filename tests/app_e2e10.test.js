@@ -1,4 +1,7 @@
+// Transient failures (Google's 404 page) are retried, not shown: loading recovers, a capture whose first POST fails is
+// saved once, a check-off goes through, and RECENT REQUESTS calls them RETRIED, not failed.
 const { chromium } = require('playwright');
+const assert = require('assert');
 const K = 'k'.repeat(64);
 const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?action=stats&key=' + K)).json());
 (async () => {
@@ -17,20 +20,25 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   });
   await p.goto('http://localhost:8080/');
   await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.start.v1', '"today"'); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8093/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  const retry0 = (await stats()).created.filter(t => t === 'Retry test event').length;
   await p.reload(); await p.waitForTimeout(6000);
-  console.log('after transient 404s -> status:', (await p.textContent('#status')).trim(), '| priorities rows:', await p.locator('.prio').count(), '| error shown:', await p.locator('.rcol .err').count(), '| hits', JSON.stringify(hits));
+  assert.ok((await p.textContent('#status')).trim().startsWith('SYNCED'), 'recovered: ' + await p.textContent('#status'));
+  assert.ok(await p.locator('.prio').count() >= 1, 'priorities loaded after two failures'); assert.strictEqual(await p.locator('.rcol .err').count(), 0, 'no error shown');
+  assert.strictEqual(hits.tasks, 3, 'two failures, then the third worked: ' + JSON.stringify(hits));
   await p.click('#capBtn'); await p.fill('#capText', 'Retry test event'); await p.click('#capSave'); await p.waitForTimeout(3000);
   const st = await stats();
-  console.log('capture with 404 on first POST -> toast:', await p.textContent('#toast'), '| created on server:', st.created.filter(t => t === 'Retry test event').length, '| queue', await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1')).length));
+  assert.ok((await p.textContent('#toast')).startsWith('Saved to Personal'), await p.textContent('#toast'));
+  assert.strictEqual(st.created.filter(t => t === 'Retry test event').length, retry0 + 1, 'saved once despite the failed first attempt');
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.queue.v1') || '[]').length), 0);
   await p.click('.prio >> nth=0'); await p.waitForTimeout(3000);
-  console.log('check-off with 404 on first POST -> toast:', await p.textContent('#toast'));
+  assert.strictEqual(await p.textContent('#toast'), 'Done. Marked Done in Notion.', 'the check-off went through on the retry');
   // the log calls a failed attempt that was tried again RETRIED (amber), not a failure
   const nl = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.netlog.v1')));
   const t404 = nl.filter(n => n.a === 'tasks' && /http_404/.test(n.r));
   require('assert').ok(t404.length >= 2 && t404.every(n => n.retried), 'retried 404s marked');
   await p.click('#status'); await p.waitForTimeout(500);
   const head = (await p.textContent('.sys')).replace(/\s+/g, ' ');
-  console.log('requests header:', head.match(/RECENT REQUESTS[^T]*/)[0]);
   require('assert').ok(/NONE FAILED · \d+ RETRIED/.test(head), 'nothing counted as failed when retries succeeded');
   console.log('errors', errs); await b.close();
-})();
+  if (errs.length) process.exit(1);
+})().catch(e => { console.error(e); process.exit(1); });

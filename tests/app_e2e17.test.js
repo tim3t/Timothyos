@@ -65,7 +65,7 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8097/x/exec?acti
 
   await p.fill('#askText', 'Add a task to order hive frames'); await p.click('#askSend'); await p.waitForTimeout(1200);
   const tcard = p.locator('.prop').last();
-  assert.ok((await tcard.innerText()).includes('Beekeeping · Medium'), 'plain labels on cards');
+  assert.ok((await tcard.innerText()).includes('Bee Yard · Medium'), 'plain labels on cards');
   await tcard.locator('[data-pcancel]').click();
   assert.ok((await tcard.innerText()).includes('CANCELLED'));
   s = await stats(); assert.ok(!s.tasks.some(t => t[0] === 'Order hive frames'), 'cancelled task never added');

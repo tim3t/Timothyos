@@ -89,7 +89,6 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
   await p.mouse.move(dr.x + dr.width * .4, dr.y + dr.height * .4); await p.mouse.down(); await p.mouse.move(dr.x + dr.width * .5, dr.y + dr.height * .7, { steps: 8 }); await p.mouse.up();
   await p.click('[data-rssleep="15"]');
   assert.strictEqual(await txt(p, '[data-rsread="drift"]'), 'SLEEPS IN 15 MIN');
-  await p.click('[data-rsact="beat"]').catch(() => {});   // (the beat button lives on FIELD)
   await p.click('[data-rscard="field"]'); await p.click('[data-rsact="beat"]');
   assert.strictEqual(await txt(p, '#eyebrow'), 'REFLECT · RESSIKAN · FIELD');
 

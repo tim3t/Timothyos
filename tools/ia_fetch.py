@@ -18,7 +18,7 @@ It only lists what it would fetch unless --go is given.
 
   python3 ia_fetch.py --out /out                       # list what the default search would fetch
   python3 ia_fetch.py --out /out --go --max-gb 50      # fetch it, at most 50 GB this run
-  python3 ia_fetch.py --out /out --query 'title:"wayne\\'s world"' --go
+  python3 ia_fetch.py --out /out --query '"public access" AND subject:cooking' --go
   python3 ia_fetch.py --out /out --ids some-item another-item --go
   python3 ia_fetch.py --selftest                       # offline checks of the picking and naming
 """
@@ -60,7 +60,7 @@ SERIES_TAIL = re.compile(r"\s*[-–—:,#(]*\s*\b(?:episode|ep\.?|part|pt\.?|sho
 
 
 def series_of(title):
-    """'The Hypnotic Eye Episode 3' → 'The Hypnotic Eye'; '' if nothing is left."""
+    """'Night Owl Theatre Episode 3' → 'Night Owl Theatre'; '' if nothing is left."""
     return clean(SERIES_TAIL.sub("", first(title) or ""), 60) if SERIES_TAIL.sub("", first(title) or "").strip(" -–—:,") else ""
 
 
@@ -266,11 +266,11 @@ def selftest():
     assert target("/out", {"identifier": "z"}, {"name": "a.mp4"}, 1, "none") == "/out/z [z].mp4"
     q = build_query(DEFAULT_QUERY, (1980, 2009), None, ["talk radio", ""])
     assert "mediatype:movies" in q and "-collection:tvarchive" in q and "year:[1980 TO 2009]" in q and 'NOT ("talk radio")' in q and 'NOT ("")' not in q, q
-    for t, want in [("The Hypnotic Eye Episode 3", "The Hypnotic Eye"), ("Night Owl Show - Part 2", "Night Owl Show"), ("Kids Korner #14", "Kids Korner"),
+    for t, want in [("Night Owl Theatre Episode 3", "Night Owl Theatre"), ("Night Owl Show - Part 2", "Night Owl Show"), ("Kids Korner #14", "Kids Korner"),
                     ("Cable Cooking (1987)", "Cable Cooking"), ("Episode 4", ""), ("Bowling for Seniors", "Bowling for Seniors")]:
         assert series_of(t) == want, (t, series_of(t))
-    assert show_of({"title": "The Hypnotic Eye episode 5", "creator": "Joe Riley"}, "series") == "The Hypnotic Eye"
-    assert show_of({"title": "Episode 4", "creator": "Joe Riley"}, "series") == "Joe Riley"
+    assert show_of({"title": "Night Owl Theatre episode 5", "creator": "Channel 7 Access"}, "series") == "Night Owl Theatre"
+    assert show_of({"title": "Episode 4", "creator": "Channel 7 Access"}, "series") == "Channel 7 Access"
     print("ia_fetch selftest: ok")
     return 0
 

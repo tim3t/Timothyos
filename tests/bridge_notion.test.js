@@ -1,14 +1,14 @@
 const fs = require('fs'); const vm = require('vm');
 const props = {}; const cache = {};
 const DS = 'ds-1111', DB = '6c4a440d571e49e0b4076c18d5712c1f', DS2 = 'ds-2222', DB2 = '8184db37aacb4d96943b2067558b92ab';
-const dpages = [{ id: 'f'.repeat(32), url: 'u', parent: { type: 'data_source_id', data_source_id: 'ds-2222' }, properties: { Name: { title: [{ plain_text: 'First frost risk' }] }, Date: { date: { start: '2026-10-12', end: null } }, 'Life Area': { select: { name: '🌿 SkyGarden Farm' } }, Type: { select: { name: '⏰ Deadline' } }, 'Repeats Yearly': { checkbox: false }, Notes: { rich_text: [] } } }];
+const dpages = [{ id: 'f'.repeat(32), url: 'u', parent: { type: 'data_source_id', data_source_id: 'ds-2222' }, properties: { Name: { title: [{ plain_text: 'First frost risk' }] }, Date: { date: { start: '2026-10-12', end: null } }, 'Life Area': { select: { name: '🌿 Hollow Oak Farm' } }, Type: { select: { name: '⏰ Deadline' } }, 'Repeats Yearly': { checkbox: false }, Notes: { rich_text: [] } } }];
 const mk = (id, title, status, priority, area, due, focus, parent = DS, edited = '2026-10-05T15:00:00.000Z') => ({ id, url: 'https://notion.so/' + id, last_edited_time: edited, parent: { type: 'data_source_id', data_source_id: parent }, properties: {
   Task: { title: [{ plain_text: title }] }, Status: { select: status ? { name: status } : null }, Priority: { select: priority ? { name: priority } : null },
   'Life Area': { select: area ? { name: area } : null }, 'Due Date': { date: due ? { start: due } : null }, 'Focus Date': { date: focus ? { start: focus } : null } } });
 const pages = [
-  mk('a'.repeat(32), 'Order spring bulbs', '⬜ To Do', '🔴 High', '🌿 SkyGarden Farm', '2026-10-04', '2026-10-05'),
-  mk('b'.repeat(32), 'Send Q4 deck', '🔄 In Progress', '🟡 Medium', '🎯 Work & Calling', '2026-10-08', null),
-  mk('c'.repeat(32), 'Renew registration', '✅ Done', '🟢 Low', '🏡 Home & Property', '2026-10-01', '2026-10-06'),
+  mk('a'.repeat(32), 'Order spring bulbs', '⬜ To Do', '🔴 High', '🌿 Hollow Oak Farm', '2026-10-04', '2026-10-05'),
+  mk('b'.repeat(32), 'Send Q4 deck', '🔄 In Progress', '🟡 Medium', '🎯 Work Desk', '2026-10-08', null),
+  mk('c'.repeat(32), 'Renew registration', '✅ Done', '🟢 Low', '🏡 House Upkeep', '2026-10-01', '2026-10-06'),
 ];
 const DB3 = '459bcacdc38d4bad9f58b4579fa9f4fd', DS3 = 'ds-3333', rpages = [];
 let reviewsShared = true;
@@ -33,10 +33,10 @@ function notionMock(url, opts) {
   if (m === 'post' && path === '/pages' && JSON.parse(opts.payload).parent.data_source_id === DS3) { const pg = { id: 'r'.repeat(31) + rpages.length, url: 'u', last_edited_time: '2026-10-11T20:00:00.000Z', parent: { data_source_id: DS3 }, properties: stored(JSON.parse(opts.payload).properties) }; rpages.push(pg); return res(200, pg); }
   const rm = path.match(/^\/pages\/(r+\d+)$/);
   if (rm && m === 'patch') { const pg = rpages.find(p => p.id === rm[1]); Object.assign(pg.properties, stored(JSON.parse(opts.payload).properties)); return res(200, pg); }
-  if (m === 'get' && path === '/data_sources/' + DS2) return res(200, { title: [{ plain_text: '🗓️ Key Dates' }], properties: { 'Life Area': { select: { options: [{ name: '🌿 SkyGarden Farm' }, { name: '👨‍👩‍👧‍👦 Family' }] } }, Type: { select: { options: [{ name: '⏰ Deadline' }, { name: '🎂 Birthday' }, { name: '🌦️ Window' }] } } } });
+  if (m === 'get' && path === '/data_sources/' + DS2) return res(200, { title: [{ plain_text: '🗓️ Key Dates' }], properties: { 'Life Area': { select: { options: [{ name: '🌿 Hollow Oak Farm' }, { name: '👨‍👩‍👧‍👦 Kin' }] } }, Type: { select: { options: [{ name: '⏰ Deadline' }, { name: '🎂 Birthday' }, { name: '🌦️ Window' }] } } } });
   if (m === 'post' && path === '/data_sources/' + DS2 + '/query') return res(200, { results: dpages, has_more: false });
   if (m === 'post' && path === '/pages' && JSON.parse(opts.payload).parent.data_source_id === DS2) { const pr = JSON.parse(opts.payload).properties; const pg = { id: 'g'.repeat(31) + dpages.length, url: 'u', parent: { data_source_id: DS2 }, properties: Object.assign({ Notes: { rich_text: (pr.Notes || {}).rich_text || [] } }, pr, { Name: { title: [{ plain_text: pr.Name.title[0].text.content }] } }) }; if (pr.Notes) pg.properties.Notes = { rich_text: [{ plain_text: pr.Notes.rich_text[0].text.content }] }; dpages.push(pg); return res(200, pg); }
-  if (m === 'get' && path === '/data_sources/' + DS) return res(200, { title: [{ plain_text: '🎯 Master Task List' }], properties: { 'Life Area': { select: { options: [{ name: '🌿 SkyGarden Farm' }, { name: '🎯 Work & Calling' }, { name: '🏡 Home & Property' }] } } } });
+  if (m === 'get' && path === '/data_sources/' + DS) return res(200, { title: [{ plain_text: '🎯 Master Task List' }], properties: { 'Life Area': { select: { options: [{ name: '🌿 Hollow Oak Farm' }, { name: '🎯 Work Desk' }, { name: '🏡 House Upkeep' }] } } } });
   if (m === 'post' && path === '/data_sources/' + DS + '/query') {
     const f = JSON.parse(opts.payload).filter; let r = pages;
     if (f.property === 'Focus Date') r = pages.filter(p => (p.properties['Focus Date'].date || {}).start === f.date.equals);
@@ -73,23 +73,29 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 const get = p => JSON.parse(ctx.doGet({ parameter: p }).text);
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
+const A = require('assert');
 console.log('setup without token:'); ctx.setup(); const key = props.ACCESS_KEY;
-console.log('caps without token:', JSON.stringify(get({ action: 'ping', key }).capabilities));
-console.log('tasks without token:', JSON.stringify(get({ action: 'tasks', key, day: '2026-10-06' })));
-props.NOTION_TOKEN = 'ntn_wrong'; console.log('bad token ping notion:', JSON.stringify(get({ action: 'ping', key }).notion));
+A.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science'], 'no Notion token: no Notion capabilities');
+A.strictEqual(get({ action: 'tasks', key, day: '2026-10-06' }).error, 'notion_not_configured');
+props.NOTION_TOKEN = 'ntn_wrong'; A.strictEqual(get({ action: 'ping', key }).notion.error, 'notion_unauthorized', 'a wrong token is reported, not hidden');
 props.NOTION_TOKEN = 'ntn_test'; console.log('setup with token:'); ctx.setup();
 const t = get({ action: 'tasks', key, day: '2026-10-06' });
 console.log('tasks: focus', t.focus.map(x => x.title), '| open', t.open.map(x => x.title + '/' + x.focus), '| areas', t.areas.length, '| caps', JSON.stringify(get({ action: 'ping', key }).capabilities));
-console.log('no key:', JSON.stringify(post({ action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' })));
-console.log('focus a:', JSON.stringify(post({ key, action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' })).slice(0, 140));
-console.log('focus foreign page:', JSON.stringify(post({ key, action: 'focus', id: 'd'.repeat(32), day: '2026-10-06' })));
-console.log('status bad value:', JSON.stringify(post({ key, action: 'status', id: 'a'.repeat(32), status: 'Deleted' })));
-console.log('status done:', JSON.stringify(post({ key, action: 'status', id: 'a'.repeat(32), status: '✅ Done' }).task.status));
-console.log('unfocus:', JSON.stringify(post({ key, action: 'focus', id: 'a'.repeat(32), day: null }).task.focus));
-const add = { cid: 'task-0000-0001', title: 'Sugar syrup, Hive 2', area: '🌿 SkyGarden Farm', priority: '🔴 High', day: '2026-10-06' };
-console.log('add task:', JSON.stringify(post({ key, action: 'addtask', task: add }).task));
-console.log('add again same cid -> duplicate:', post({ key, action: 'addtask', task: add }).duplicate, '| pages now', pages.length);
-console.log('add bad area:', JSON.stringify(post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0002', area: '💣 Nope' }) })));
+A.strictEqual(post({ action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' }).error, 'no_key', 'a write without the key is refused');
+const fa = post({ key, action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' }); A.ok(fa.ok && fa.task.focus === '2026-10-06', JSON.stringify(fa));
+const nPatch = () => calls.filter(c => /^patch /i.test(c)).length, p0 = nPatch();
+A.strictEqual(post({ key, action: 'focus', id: 'd'.repeat(32), day: '2026-10-06' }).error, 'not_writable', 'a page outside the task database is never written');
+A.strictEqual(post({ key, action: 'status', id: 'a'.repeat(32), status: 'Deleted' }).error, 'bad_request', 'only known statuses');
+A.strictEqual(nPatch(), p0, 'refused writes send nothing to Notion');
+A.strictEqual(post({ key, action: 'status', id: 'a'.repeat(32), status: '✅ Done' }).task.status, '✅ Done');
+A.strictEqual(post({ key, action: 'focus', id: 'a'.repeat(32), day: null }).task.focus, null, 'unfocus clears the Focus Date');
+const add = { cid: 'task-0000-0001', title: 'Sugar syrup, Hive 2', area: '🌿 Hollow Oak Farm', priority: '🔴 High', day: '2026-10-06' };
+const added = post({ key, action: 'addtask', task: add }).task, nPages = pages.length;
+A.ok(added && added.title === 'Sugar syrup, Hive 2' && added.area === '🌿 Hollow Oak Farm' && added.focus === '2026-10-06', JSON.stringify(added));
+const again = post({ key, action: 'addtask', task: add });
+A.ok(again.duplicate === true && pages.length === nPages, 'the same capture id twice makes one task: ' + JSON.stringify(again));
+A.strictEqual(post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0002', area: '💣 Nope' }) }).error, 'bad_request', 'only known Life Areas');
+A.strictEqual(pages.length, nPages, 'no page for a refused task');
 // 1.33: a due date (INBOX sorting), checked like the focus day
 const withDue = post({ key, action: 'addtask', task: Object.assign({}, add, { cid: 'task-0000-0003', due: '2026-11-06', day: null }) });
 require('assert').ok(withDue.ok && withDue.task.due === '2026-11-06', JSON.stringify(withDue));
@@ -108,14 +114,17 @@ console.log('--- key dates ---');
 const ping = get({ action: 'ping', key });
 console.log('caps', JSON.stringify(ping.capabilities), '| dates status', JSON.stringify(ping.notion.dates));
 console.log('dates:', JSON.stringify(get({ action: 'dates', key }).dates.map(d => [d.title, d.start, d.end, d.area, d.type, d.yearly])));
-const kd = { cid: 'date-0000-0001', title: "Mom's birthday", start: '2026-11-08', area: '👨‍👩‍👧‍👦 Family', type: '🎂 Birthday', yearly: true, notes: 'Call in the morning' };
-console.log('add birthday:', JSON.stringify(post({ key, action: 'adddate', date: kd }).date));
-console.log('resend -> duplicate', post({ key, action: 'adddate', date: kd }).duplicate, '| count', dpages.length);
-console.log('window:', JSON.stringify(post({ key, action: 'adddate', date: { cid: 'date-0000-0002', title: 'Hardening-off window', start: '2027-03-15', end: '2027-04-05', type: '🌦️ Window' } }).date));
-console.log('end before start:', JSON.stringify(post({ key, action: 'adddate', date: { cid: 'date-0000-0003', title: 'x', start: '2026-10-10', end: '2026-10-01' } })));
-console.log('bad type:', JSON.stringify(post({ key, action: 'adddate', date: { cid: 'date-0000-0004', title: 'x', start: '2026-10-10', type: 'Nope' } })));
-console.log('no key:', JSON.stringify(post({ action: 'adddate', date: kd })));
-console.log('after adds:', get({ action: 'dates', key }).dates.length);
+const kd = { cid: 'date-0000-0001', title: "Mom's birthday", start: '2026-11-08', area: '👨‍👩‍👧‍👦 Kin', type: '🎂 Birthday', yearly: true, notes: 'Call in the morning' };
+const bd = post({ key, action: 'adddate', date: kd }).date, nD = dpages.length;
+A.ok(bd && bd.yearly === true && bd.type === '🎂 Birthday' && bd.notes === 'Call in the morning', JSON.stringify(bd));
+const bd2 = post({ key, action: 'adddate', date: kd });
+A.ok(bd2.duplicate === true && dpages.length === nD, 'the same capture id twice makes one date');
+const win = post({ key, action: 'adddate', date: { cid: 'date-0000-0002', title: 'Hardening-off window', start: '2027-03-15', end: '2027-04-05', type: '🌦️ Window' } }).date;
+A.ok(win && win.start === '2027-03-15' && win.end === '2027-04-05', JSON.stringify(win));
+A.strictEqual(post({ key, action: 'adddate', date: { cid: 'date-0000-0003', title: 'x', start: '2026-10-10', end: '2026-10-01' } }).error, 'bad_time', 'end before start is refused');
+A.strictEqual(post({ key, action: 'adddate', date: { cid: 'date-0000-0004', title: 'x', start: '2026-10-10', type: 'Nope' } }).error, 'bad_request', 'only known types');
+A.strictEqual(post({ action: 'adddate', date: kd }).error, 'no_key');
+A.strictEqual(get({ action: 'dates', key }).dates.length, 3, 'one existing date plus the birthday and the window');
 
 const assertB = require('assert');
 // several reads in one request: each answers on its own, a bad one doesn't stop the rest
@@ -126,10 +135,17 @@ assertB.strictEqual(bt.results[2].error, 'bad_request', 'only everyday reads'); 
 assertB.strictEqual(get({ action: 'batch', key, calls: 'not json' }).error, 'bad_request');
 assertB.strictEqual(get({ action: 'batch', key, calls: JSON.stringify(new Array(9).fill({ action: 'dates' })) }).error, 'bad_request');
 assertB.strictEqual(get({ action: 'batch', calls: '[]' }).error, 'no_key');
+// refusals (2.50): the Captain's Log and every write stay out of a batch; a write sent as GET does nothing
+const lb = get({ action: 'batch', key, calls: JSON.stringify([{ action: 'logday', day: '2026-10-06' }, { action: 'logunlock', pin: '0000' }, { action: 'logsave', day: '2026-10-06' }, { action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' }, { action: 'addtask', task: {} }]) });
+assertB.ok(lb.ok && lb.results.every(r => r.error === 'bad_request'), 'no log reads or writes through batch: ' + JSON.stringify(lb.results));
+const pG = calls.filter(c => /^(patch|post) /.test(c)).length;
+assertB.strictEqual(get({ action: 'focus', key, id: 'a'.repeat(32), day: '2026-10-06' }).error, 'unknown_action', 'a write sent as GET is refused');
+assertB.strictEqual(get({ action: 'addtask', key, task: '{}' }).error, 'unknown_action');
+assertB.strictEqual(calls.filter(c => /^(patch|post) /.test(c)).length, pG, 'and nothing was written to Notion');
 console.log('--- balance (done) ---');
 const assert = require('assert');
 const RealDate = Date; ctx.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : ['2026-10-06T12:00:00Z'])); } static now() { return new RealDate('2026-10-06T12:00:00Z').getTime(); } };
-pages.push(mk('h'.repeat(32), 'Old finished thing', '✅ Done', null, '🌿 SkyGarden Farm', null, null, DS, '2026-08-01T12:00:00.000Z'));
+pages.push(mk('h'.repeat(32), 'Old finished thing', '✅ Done', null, '🌿 Hollow Oak Farm', null, null, DS, '2026-08-01T12:00:00.000Z'));
 const dn = get({ action: 'done', key, days: '30' });
 console.log('done:', JSON.stringify(dn));
 assert.strictEqual(dn.ok, true);
@@ -140,8 +156,8 @@ assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'crea
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
 
 console.log('--- weekly review ---');
-pages.push(mk('i'.repeat(32), 'Picked and finished', '✅ Done', '🔴 High', '🎯 Work & Calling', null, '2026-10-07', DS, '2026-10-07T18:00:00.000Z'));
-pages.push(mk('j'.repeat(32), 'Picked, slipped', '⬜ To Do', '🟡 Medium', '🌿 SkyGarden Farm', null, '2026-10-09', DS, '2026-10-01T18:00:00.000Z'));
+pages.push(mk('i'.repeat(32), 'Picked and finished', '✅ Done', '🔴 High', '🎯 Work Desk', null, '2026-10-07', DS, '2026-10-07T18:00:00.000Z'));
+pages.push(mk('j'.repeat(32), 'Picked, slipped', '⬜ To Do', '🟡 Medium', '🌿 Hollow Oak Farm', null, '2026-10-09', DS, '2026-10-01T18:00:00.000Z'));
 pages.push(mk('k'.repeat(32), 'Done Sunday night, local time', '✅ Done', null, '🏥 Health', null, null, DS, '2026-10-12T03:30:00.000Z'));
 pages.push(mk('l'.repeat(32), 'Done next Monday', '✅ Done', null, '🏥 Health', null, null, DS, '2026-10-12T06:00:00.000Z'));
 const W = { action: 'week', key, week: '2026-10-05', from: '2026-10-05T00:00:00-05:00', to: '2026-10-12T00:00:00-05:00' };
@@ -153,7 +169,7 @@ assert.ok(!wk.done.some(t => t.title === 'Done next Monday'));
 assert.deepStrictEqual(wk.picked.map(t => t.title).sort(), ['Picked and finished', 'Picked, slipped', 'Renew registration', 'Sugar syrup, Hive 2']);
 assert.strictEqual(wk.review, null);
 assert.strictEqual(get(Object.assign({}, W, { from: 'yesterday' })).error, 'bad_request');
-const R = { week: '2026-10-05', title: 'Week 41 · 05 to 11 Oct', wentWell: 'Shipped the deck', drained: 'Too many evening calls', nextFocus: 'Hive winter prep', bearing: '', intents: 'MON One line\nTUE Another', byArea: 'Work & Calling 2 · Health 1', hoursWork: 31.25, hoursPersonal: 6, hoursFarm: null, hoursHobbies: null, tasksDone: 3, picked: 2, pickedDone: 1 };
+const R = { week: '2026-10-05', title: 'Week 41 · 05 to 11 Oct', wentWell: 'Shipped the deck', drained: 'Too many evening calls', nextFocus: 'Hive winter prep', bearing: '', intents: 'MON One line\nTUE Another', byArea: 'Work Desk 2 · Health 1', hoursWork: 31.25, hoursPersonal: 6, hoursFarm: null, hoursHobbies: null, tasksDone: 3, picked: 2, pickedDone: 1 };
 const s1 = post({ key, action: 'savereview', review: R });
 console.log('save:', JSON.stringify(s1).slice(0, 200));
 assert.ok(s1.ok && s1.created);
@@ -174,3 +190,11 @@ const ns = get(W);
 console.log('reviews not connected -> week still works:', ns.ok, ns.reviewsError, '| save:', post({ key, action: 'savereview', review: R }).error);
 assert.ok(ns.ok && ns.reviewsError === 'notion_not_shared');
 console.log('setup log with reviews:'); reviewsShared = true; ctx.setup();
+
+// rotateKey (2.50 check): a new key works at once and the old one is refused, for reads and writes
+const oldKey = props.ACCESS_KEY; ctx.rotateKey();
+assert.ok(props.ACCESS_KEY && props.ACCESS_KEY !== oldKey, 'a new key');
+assert.strictEqual(get({ action: 'ping', key: oldKey }).error, 'unauthorized', 'the old key no longer reads');
+assert.strictEqual(post({ key: oldKey, action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' }).error, 'unauthorized', 'or writes');
+assert.ok(get({ action: 'ping', key: props.ACCESS_KEY }).ok, 'the new key does');
+console.log('refusal checks passed');

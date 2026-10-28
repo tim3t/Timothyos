@@ -46,7 +46,7 @@
     personal: { name: "PERSONAL", unit: "ITEMS" },
     farm: { name: "FARM + BEES", unit: "ITEMS" },   /* named after its calendar once linked (bridge 1.8) */
     hobby: { name: "GROWTH", unit: "ITEMS" },
-    break: { name: "BREAK", unit: "" }   /* Breaks list (2.23): shown, never counted; not a Life Area */   /* Personal Growth and hobbies; Notion's Personal Growth Life Area lands here (taskArea) */
+    break: { name: "BREAK", unit: "" }   /* Breaks list (2.23): shown, never counted; not a Life Area */   /* growth and hobbies; a Notion Life Area named for growth lands here (taskArea) */
   };
   var LIVE = ["work", "personal"];         /* calendars in use; setAreas() adds farm once the bridge reports it */
   var STANDBY_AREAS = ["farm", "hobby"];
@@ -98,7 +98,7 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  /* Notion labels carry emoji ("🔴 High", "🎯 Work & Calling"). Show them as plain text;
+  /* Notion labels carry emoji ("🔴 High", "🎯 Work"). Show them as plain text;
      the original value is still what gets sent back to Notion. */
   var EMOJI = /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{25A0}-\u{27BF}\u{2B00}-\u{2BFF}\u{3030}\u{303D}\u{3297}\u{3299}\u{00A9}\u{00AE}\u{203C}\u{2049}\u{2122}\u{2139}\u{FE0F}\u{200D}\u{20E3}]/gu;
   function bare(s) { return String(s == null ? "" : s).replace(EMOJI, "").replace(/\s+/g, " ").trim(); }
@@ -1279,7 +1279,7 @@
     var html = '<section id="sec-capture">' + phead("CAPTURE", canCreate() ? "SAVES TO PERSONAL" : "BRIDGE UPDATE NEEDED");
     if (!canCreate()) {
       html += '<div class="stubbox"><span class="pill">UPDATE</span><span>Your bridge is version ' + esc(state.bridgeVersion || "1.0") +
-        ". Capture needs bridge 1.1: paste the latest Code.gs, run <b>setup</b>, then deploy a new version. Steps are in the README.</span></div>";
+        ". Capture needs the Google bridge updated: paste the latest Code.gs, run <b>setup</b>, then deploy a new version. Steps are in the README.</span></div>";
     }
     if (!state.queue.length) html += '<div class="empty">Nothing waiting. Every capture has been saved.</div>';
     state.queue.forEach(function (q) {
@@ -1519,7 +1519,7 @@
       '<span class="pill tnum' + (soon(o, ref) ? " soon" : "") + '">' + countdown(o, ref) + "</span></button>";
   }
   function keyDatesPanel(day) {
-    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs bridge 1.3 and the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
+    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
     if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
     var list = occurrences(day, ymd(addDays(parseYmd(day), 30)));
     var html = phead("KEY DATES", "NEXT 30 DAYS");
@@ -1535,7 +1535,7 @@
     loadDates(false);
     var html = '<div class="kdscreen">';
     if (!canDates()) {
-      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs bridge 1.3 and the Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
+      $("content").innerHTML = html + phead("KEY DATES", "SETUP") + stubBox("Needs the Key Dates database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Key Dates</b>.") + "</div>";
       return;
     }
     var today = ymd(new Date()), end = ymd(addDays(new Date(), 365)), f = state.kdFilter;
@@ -1684,7 +1684,7 @@
 
   function prioritiesPanel(day, isToday, extra) {
     if (!canPlan()) {
-      return phead("PRIORITIES", "") + stubBox(state.conn ? "Needs the Notion link: bridge 1.2 and a Notion key. Steps are in the README." : "Link calendars first.");
+      return phead("PRIORITIES", "") + stubBox(state.conn ? "Needs the Notion link: a Notion key in the Google bridge. Steps are in the README." : "Link calendars first.");
     }
     var data = state.tasks[day], past = day < ymd(new Date());
     if (!data) {
@@ -1739,7 +1739,7 @@
     var data = state.tasks[ymd(new Date())];
     var html = '<section id="sec-notion">' + phead("NOTION", canPlan() ? "MASTER TASK LIST" : "NOT LINKED");
     if (!canPlan()) {
-      html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need bridge 1.2 and a Notion key in its Script Properties. Steps are in the README under <b>Notion link</b>.</span></div>';
+      html += '<div class="stubbox"><span class="pill">SETUP</span><span>Plan Day and Priorities need a Notion key in its Script Properties. Steps are in the README under <b>Notion link</b>.</span></div>';
     } else if (state.tasksErr) {
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small class="errtxt">' + esc(state.tasksErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>';
     } else {
@@ -1753,7 +1753,7 @@
         : '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small>' + (state.done ? state.done.done.length + " tasks finished in the last 30 days · synced " + esc(stamp(state.done.fetched)) : "Not loaded yet") +
           '</small></span><span class="pill ok">OK</span></div>';
     } else if (canPlan()) {
-      html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs bridge 1.4. Steps are in the README under Bridge 1.4.</small></span><span class="pill">SETUP</span></div>';
+      html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canReviews()) {
       var lw = state.weeks[ymd(sow(new Date()))] || state.weeks[ymd(addDays(sow(new Date()), -7))];
@@ -1761,7 +1761,7 @@
         ? '<div class="calrow a-personal"><span class="st"></span><span><b>Weekly Reviews</b><small class="errtxt">' + (lw.reviewsError === "notion_not_shared" ? "Not connected. In Notion: Weekly Reviews → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: lw.reviewsError }))) + '</small></span><span class="pill bad">SETUP</span></div>'
         : '<div class="calrow a-personal"><span class="st"></span><span><b>Weekly Reviews</b><small>' + Object.keys(savedWeeks).length + " saved from this iPad · open REVIEW to write this week's</small></span><span class=\"pill ok\">OK</span></div>";
     } else if (canPlan()) {
-      html += '<div class="calrow a-personal" style="opacity:.6"><span class="st"></span><span><b>Weekly Reviews</b><small>Needs bridge 1.5. Steps are in the README under Bridge 1.5.</small></span><span class="pill">SETUP</span></div>';
+      html += '<div class="calrow a-personal" style="opacity:.6"><span class="st"></span><span><b>Weekly Reviews</b><small>Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canDates()) {
       html += state.datesErr
@@ -1769,14 +1769,14 @@
         : '<div class="calrow a-farm"><span class="st"></span><span><b>Key Dates</b><small>' + (state.dates ? state.dates.dates.length + " key dates · synced " + esc(stamp(state.dates.fetched)) : "Not loaded yet") +
           '</small></span><span class="pill ok">OK</span></div>';
     } else if (canPlan()) {
-      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs bridge 1.3. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
+      html += '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Key Dates</b><small>Needs the Google bridge updated. Steps are in the README under Key Dates.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canHolidays()) html += '<div class="calrow a-holiday"><span class="st"></span><span><b>Holidays</b><small>' + (state.hols ? (state.hols.calendar ? esc(state.hols.calendar) + " · " + holidayDates().length + " shown in the next 13 months · read-only" : "No holidays calendar found. Subscribe to one in Google Calendar, or set HOLIDAY_CALENDAR_ID.") : "Not loaded yet") +
       '</small></span><span class="pill' + (state.hols && state.hols.calendar ? " ok\">OK" : "\">" + (state.hols ? "NOT FOUND" : "…")) + "</span></div>";
     if (canPlan()) {
       var sp = schemaProblems(), conn = sch.d ? sch.d.dbs.filter(function (d) { return !d.error; }).length : 0;
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Columns</b><small' + (sp.length ? ' class="errtxt">' + schemaText(sp).map(esc).join("<br>") :
-        ">" + (!canSchema() ? "The column check needs bridge 1.31." : sch.err && !sch.d ? esc(sch.err) : sch.d ? "Every connected database (" + conn + ") has the columns the bridge uses · checked " + esc(stamp(sch.d.fetched)) : "Checking…")) +
+        ">" + (!canSchema() ? "The column check needs the Google bridge updated." : sch.err && !sch.d ? esc(sch.err) : sch.d ? "Every connected database (" + conn + ") has the columns the bridge uses · checked " + esc(stamp(sch.d.fetched)) : "Checking…")) +
         '</small></span><span class="pill' + (sp.length ? ' warn">CHANGED' : canSchema() && sch.d ? ' ok">OK' : '">…') + "</span></div>" +
         (canSchema() ? '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn sm ghost" data-act="schemacheck">CHECK NOTION COLUMNS</button></div>' : "");
     }
@@ -2180,7 +2180,7 @@
 
   /* --- key dates: the next three --- */
   function kdNextPanel(today) {
-    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs bridge 1.3 and the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
+    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
     if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
     var nh = 0, list = occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (o) { return o.e >= today && (!o.d.holiday || nh++ < 1); }).slice(0, 3);   /* at most one holiday among the three */
     var html = phead("KEY DATES", "NEXT UP", null, moreBtn("kd", "key dates"));
@@ -2309,7 +2309,7 @@
   function balTargets() { var t = lsGet(LS_BALT) || {}, o = {}; Object.keys(BAL_DEF).forEach(function (k) { o[k] = typeof t[k] === "number" && t[k] >= 0 ? t[k] : BAL_DEF[k]; }); return o; }
   function balancePanel(now, today, list) {
     var html = phead("BALANCE · LAST 7 DAYS", "", "personal", moreBtn("bal", "balance"));
-    if (!canBalance()) return html + stubBox(state.conn ? "Needs bridge 1.4. Steps are in the README under <b>Bridge 1.4</b>." : "Link calendars first.");
+    if (!canBalance()) return html + stubBox(state.conn ? "Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>." : "Link calendars first.");
     if (!state.done) return html + '<div class="empty">' + (state.doneErr ? esc(state.doneErr.msg) : "Loading finished tasks…") + "</div>";
     var since = addDays(sod(now), -6), sinceY = ymd(since), stats = {}, tg = balTargets(), cal = hasData(bridgeRange());
     BAL_AREAS.forEach(function (a) { stats[a] = { days: [false, false, false, false, false, false, false], last: null, hrs: 0 }; });
@@ -2966,7 +2966,7 @@
 
     /* output + priorities kept (bridge 1.5) */
     if (!canReviews()) {
-      html += "<section>" + phead("OUTPUT", "") + stubBox(state.conn ? "Finished tasks, priorities kept and saving reviews need bridge 1.5. Steps are in the README under <b>Bridge 1.5</b>." : "Link calendars first.") + "</section>";
+      html += "<section>" + phead("OUTPUT", "") + stubBox(state.conn ? "Finished tasks, priorities kept and saving reviews need the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>." : "Link calendars first.") + "</section>";
     } else if (!w) {
       html += "<section>" + phead("OUTPUT", "") + '<div class="empty">' + (state.weekErr && state.weekErr.wk === wk ? esc(state.weekErr.msg) : "Loading the week from Notion…") + "</div></section>";
     } else {
@@ -3033,7 +3033,7 @@
     });
     var bad = w && w.reviewsError, sumV = draft.summary !== undefined ? draft.summary : saved ? saved.summary || "" : "";
     html += '<div class="rv-lab"><label class="ov-sub" for="rv-summary">CLAUDE SUMMARY</label>' + bulChip("rv-summary") + '</div><textarea id="rv-summary" data-rv="summary" rows="5" maxlength="4000" placeholder="' +
-      (canAsk() ? "Tap WRITE SUMMARY for a short summary of the week. Edit it as you like." : "Needs Ask Claude (bridge 1.6). You can also write your own.") + '">' + esc(sumV) + "</textarea>";
+      (canAsk() ? "Tap WRITE SUMMARY for a short summary of the week. Edit it as you like." : "Needs Ask Claude. You can also write your own.") + '">' + esc(sumV) + "</textarea>";
     html += '<div class="btnrow" style="margin-top:14px"><button type="button" class="btn ask" data-act="writesummary"' + (!canAsk() || state.summaryBusy || navigator.onLine === false ? " disabled" : "") + ">" +
       (state.summaryBusy ? "WRITING…" : "WRITE SUMMARY") + (canAsk() ? "<small>CLAUDE · ABOUT 5¢</small>" : "<small>SETUP</small>") + "</button>" +
       '<button type="button" class="btn capture" data-act="savereview"' + (!canReviews() || state.reviewSaving || navigator.onLine === false || bad ? " disabled" : "") + ">" +
@@ -3237,14 +3237,14 @@
     };
     html += "<section>" + phead("UP NEXT", "DUE SUNDAY 14:00 TO TUESDAY NIGHT") + '<div class="rl-up">' +
       (stillDue ? card(due, "due") : "") + (stillDue && ymd(due) === ymd(cur) ? "" : card(cur, reviewSaved(ymd(cur)) ? "saved" : "cur")) + "</div>";
-    if (!canReviews()) html += stubBox(state.conn ? "Saving reviews needs bridge 1.5. Steps are in the README under <b>Bridge 1.5</b>." : "Link calendars first.");
+    if (!canReviews()) html += stubBox(state.conn ? "Saving reviews needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>." : "Link calendars first.");
     html += "</section>";
 
     /* trends */
     var win = all.slice(0, 12).reverse(), savedW = win.filter(function (x) { return x.r; });
     var meta = "LAST " + win.length + (win.length === 1 ? " WEEK" : " WEEKS");
     if (!canReviews()) { /* nothing to show yet */ }
-    else if (!canReviewLog()) html += "<section>" + phead("TRENDS", "", "chrome-a") + stubBox("Trends and the full list of reviews need bridge 1.7. Steps are in the README under <b>Bridge 1.7</b>.") + "</section>";
+    else if (!canReviewLog()) html += "<section>" + phead("TRENDS", "", "chrome-a") + stubBox("Trends and the full list of reviews need the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.") + "</section>";
     else if (state.rlogErr && !state.rlog) html += "<section>" + phead("TRENDS", "", "chrome-a") + '<div class="err">' + rlogErrText() + "</div></section>";
     else if (!state.rlog) html += "<section>" + phead("TRENDS", "", "chrome-a") + '<div class="empty">Loading your saved reviews from Notion…</div></section>';
     else if (!savedW.length) html += "<section>" + phead("TRENDS", meta, "chrome-a") + '<div class="empty">Trends appear here once you\'ve saved a review.</div></section>';
@@ -3680,11 +3680,11 @@
   }
   function aiSection() {
     var s = state.aiSpend, html = "<section>" + phead("ASK CLAUDE", canAsk() ? "ON" : "OFF");
-    if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs bridge 1.6 and ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
+    if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
     var cap = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / cap * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / cap * 100)) : 80;
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
-      "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs bridge 1.29: update the Google bridge (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
+      "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs the Google bridge updated (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
         '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine()) + "</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
       '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
@@ -3818,7 +3818,7 @@
   function renderLedger() {
     var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="ptr" id="ptr" aria-live="polite"></div>';
     if (!canLedger() && !canQueue()) {
-      $("content").innerHTML = html + "<section>" + phead("LEDGER", "") + stubBox(state.conn ? "The Ledger needs bridge 1.9. Steps are in the README under <b>Ledger</b>." : "Link calendars first.") + "</section></div>";
+      $("content").innerHTML = html + "<section>" + phead("LEDGER", "") + stubBox(state.conn ? "The Ledger needs the Google bridge updated. Steps are in the README under <b>Ledger</b>." : "Link calendars first.") + "</section></div>";
       return;
     }
     if (!L) {
@@ -3882,7 +3882,7 @@
 
     /* replicator queue */
     html += "<section>" + phead("REPLICATOR QUEUE", L.queue ? L.queue.items.length + (L.queue.items.length === 1 ? " ITEM" : " ITEMS") + " · TOP OF THE QUEUE IS FUNDED FIRST" : "", "chrome-d");
-    if (!canQueue()) html += stubBox("Needs the Notion link (bridge 1.9). Steps are in the README under <b>Ledger</b>.");
+    if (!canQueue()) html += stubBox("Needs the Notion link. Steps are in the README under <b>Ledger</b>.");
     else if (!L.queue) html += '<div class="err">' + (L.queueError === "notion_not_shared" ? "The Replicator Queue isn't connected to the TimothyOS integration. In Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: L.queueError }))) + "</div>";
     else {
       var fund = y && y.fund, left = fund ? fund.balance : 0, busy = state.queueBusy || navigator.onLine === false;
@@ -4015,7 +4015,7 @@
   }
   function ledgerSection() {
     var L = state.ledger, html = "<section>" + phead("LEDGER", canLedger() ? "YNAB READ-ONLY" : "SETUP");
-    if (!canLedger() && !canQueue()) return html + stubBox("Needs bridge 1.9. Steps are in the README under <b>Ledger</b>.") + "</section>";
+    if (!canLedger() && !canQueue()) return html + stubBox("Needs the Google bridge updated. Steps are in the README under <b>Ledger</b>.") + "</section>";
     var y = L && L.ynab;
     html += '<div class="calrow"><span class="st" style="background:var(--chrome-b)"></span><span><b>YNAB</b><small' + (L && L.ynabError ? ' class="errtxt">' + ynabErrText(L.ynabError) : ">" + (y ? y.checking.length + " checking · " + y.savings.length + " savings · " + y.loans.length + " loans · fund category " + (y.fund ? '"' + esc(bare(y.fund.name).trim() || y.fund.name) + '" found' : '"' + esc(y.fundName) + '" not found') : canLedger() ? "Not loaded yet" : "Add YNAB_TOKEN in Script Properties")) + "</small></span>" +
       '<span class="pill' + (y ? " ok" : L && L.ynabError ? " bad" : "") + '">' + (y ? "OK" : L && L.ynabError ? "ERROR" : canLedger() ? "WAITING" : "SETUP") + "</span></div>";
@@ -4359,7 +4359,7 @@
       lg.find.res = { entries: j.entries || [], mentions: j.mentions || 0, left: j.left || 0, more: !!j.more };
     }).catch(function (err) {
       if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
-      lg.find.err = err && err.code === "log_search_not_ready" ? "Search needs bridge 1.16 and one run of setup. Steps are in the README under Captain's Log search." : logErrText(err && err.code) || describe(err);
+      lg.find.err = err && err.code === "log_search_not_ready" ? "Search needs one run of setup. Steps are in the README under Captain's Log search." : logErrText(err && err.code) || describe(err);
     }).then(function () {
       if (lg.pin !== pin || !lg.find || lg.find.q !== q) return;
       lg.find.busy = false;
@@ -4810,7 +4810,7 @@
   }
   function renderLog() {
     var html = '<div class="cl">';
-    if (!canLog()) { $("content").innerHTML = html + "<section>" + phead("CAPTAIN'S LOG", "") + stubBox("The log needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section></div>"; return; }
+    if (!canLog()) { $("content").innerHTML = html + "<section>" + phead("CAPTAIN'S LOG", "") + stubBox("The log needs the Google bridge updated. Steps are in the README under <b>Captain's Log</b>.") + "</section></div>"; return; }
     if (!logOpen()) {
       var coded = logCodeMode(), need = logNeed(), dots = "";
       /* the code word shows only as a filled slot, never by name: the panel can be overlooked */
@@ -4895,7 +4895,7 @@
   }
   function logSection() {
     var html = "<section>" + phead("CAPTAIN'S LOG", canLog() ? "PIN-LOCKED" : "SETUP");
-    if (!canLog()) return html + stubBox("Needs bridge 1.10. Steps are in the README under <b>Captain's Log</b>.") + "</section>";
+    if (!canLog()) return html + stubBox("Needs the Google bridge updated. Steps are in the README under <b>Captain's Log</b>.") + "</section>";
     var pinSet = state.caps.indexOf("logpin") > -1, nd = Object.keys(logDrafts).length;
     return html + '<div class="calrow"><span class="st" style="background:var(--chrome-c)"></span><span><b>PIN</b><small' + (pinSet ? ">" + (logCodeMode() ? "Authorization code set (a code word and four digits)." : "Six-digit PIN set.") + " Change it any time: LOG_PIN in the bridge's Script Properties." : ' class="errtxt">' + logErrText("log_pin_not_set")) + "</small></span>" +
       '<span class="pill' + (pinSet ? " ok" : " bad") + '">' + (pinSet ? "OK" : "SETUP") + "</span></div>" +
@@ -5733,7 +5733,7 @@
   function habitsErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Habits database with the bridge yet. In Notion open 🔁 Habits → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.14 (steps in the README under Habits + Library).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Habits + Library).";
     return describe(err);
   }
   function loadHabits(force) {
@@ -5835,7 +5835,7 @@
   }
   function renderHabits() {
     loadHabits(false);
-    if (!canHabits()) { $("content").innerHTML = '<div class="hb">' + phead("HABITS", "SETUP") + stubBox(state.conn ? "Needs bridge 1.14 and the 🔁 Habits database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canHabits()) { $("content").innerHTML = '<div class="hb">' + phead("HABITS", "SETUP") + stubBox(state.conn ? "Needs the 🔁 Habits database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
     var key = ymd(state.anchor), d = hDay(key), today = key === ymd(new Date());
     var html = '<div class="hb"><div class="hb-top"><section>' + phead(today ? "TODAY" : dLabel(state.anchor), habitMeta());
     if (hb.err && !hb.data) html += '<div class="err">' + esc(hb.err.msg) + "</div>";
@@ -5935,7 +5935,7 @@
   function libraryErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Library with the bridge yet. In Notion open 📚 Library → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.14 (steps in the README under Habits + Library).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Habits + Library).";
     return describe(err);
   }
   function loadLibrary(force) {
@@ -5960,7 +5960,7 @@
   function bookDays(b) { return b.started && b.finished ? Math.max(1, daysBetween(b.started, b.finished)) : null; }
   function renderLibrary() {
     loadLibrary(false);
-    if (!canLibrary()) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "SETUP") + stubBox(state.conn ? "Needs bridge 1.14 and the 📚 Library database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canLibrary()) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "SETUP") + stubBox(state.conn ? "Needs the 📚 Library database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Habits + Library</b>." : "Link calendars first.") + "</div>"; return; }
     if (!lb.data) { $("content").innerHTML = '<div class="lb">' + phead("LIBRARY", "") + '<div class="empty">' + (lb.err ? esc(lb.err.msg) : "Loading your library from Notion…") + "</div></div>"; return; }
     var all = books(), yr = new Date().getFullYear(), read = all.filter(function (b) { return b.status === "read"; }), sh = shelfNow();
     var thisYear = read.filter(function (b) { return b.finished && +b.finished.slice(0, 4) === yr; }).length;
@@ -7777,7 +7777,7 @@
   function trErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Tarot database with the bridge yet. In Notion open 🔮 Tarot → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.24 (steps in the README under Tarot).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Tarot).";
     return describe(err);
   }
 
@@ -7918,7 +7918,7 @@
   }
   function renderTarot() {
     loadTarot(false);
-    if (!canTarot()) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "SETUP") + stubBox(state.conn ? "Needs bridge 1.24 and the 🔮 Tarot database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Tarot</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canTarot()) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "SETUP") + stubBox(state.conn ? "Needs the 🔮 Tarot database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Tarot</b>." : "Link calendars first.") + "</div>"; return; }
     if (!tr.data) { $("content").innerHTML = '<div class="tr">' + phead("TAROT", "") + '<div class="empty">' + (tr.err ? esc(tr.err.msg) : "Loading your readings from Notion…") + "</div></div>"; return; }
     if (tr.view === "reading" && !trOpen()) tr.view = "home";
     var html = '<div class="tr">' + (tr.qErr && Object.keys(tr.q).length ? '<div class="err">' + Object.keys(tr.q).length + " change" + (Object.keys(tr.q).length === 1 ? "" : "s") + " not in Notion yet: " + esc(tr.qErr.msg) + ' <button type="button" class="chip sm" data-trretry="1">RETRY</button></div>' : "");
@@ -8195,7 +8195,7 @@
   function tarotSection() {
     var on = !!lsGet(LS_AITAROT), n = trReadings().length, waiting = Object.keys(tr.q).length;
     var html = "<section>" + phead("TAROT", canTarot() ? (tr.err ? "PROBLEM" : "NOTION") : "SETUP");
-    if (!canTarot()) return html + stubBox("Needs bridge 1.24 and the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Tarot</b>.") + "</section>";
+    if (!canTarot()) return html + stubBox("Needs the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Tarot</b>.") + "</section>";
     html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>" + trbSystemsRow();
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR READINGS</label><div class="btnrow">' +
@@ -8233,7 +8233,7 @@
   function trbErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share 📖 Tarot Books with the bridge yet. In Notion open it → ••• → Connections → add TimothyOS bridge.";
-    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.25 (steps in the README under Tarot books).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Tarot books).";
     if (code === "tarot_books_no_file") return "The import file isn't in 📖 Tarot Books any more, and no card pages are there yet.";
     if (code === "tarot_books_bad_file") return "The import file in 📖 Tarot Books couldn't be read.";
     if (code === "tarot_books_empty") return "Your books aren't in Notion yet. Systems → TAROT → IMPORT BOOKS.";
@@ -8379,8 +8379,8 @@
   function apErrText(err) {
     var code = err && (err.code || err.message);
     if (code === "notion_not_shared") return "Notion won't share the Apiary database with the bridge yet. In Notion open 🐝 Apiary → ••• → Connections → add TimothyOS bridge, then REFRESH.";
-    if (code === "unknown_action") return "The bridge is out of date. Deploy bridge 1.26 (steps in the README under Apiary).";
-    if (code === "bad_request") return "The bridge refused it. Mediums, feeders and excluders need bridge 1.28 (steps in the README under Apiary).";
+    if (code === "unknown_action") return "The bridge is out of date. Update the Google bridge (steps in the README under Apiary).";
+    if (code === "bad_request") return "The bridge refused it. Mediums, feeders and excluders need the Google bridge updated (steps in the README under Apiary).";
     return describe(err);
   }
   function apId(id) { return ap.alias[id] || id; }
@@ -8652,7 +8652,7 @@
   }
   function renderApiary() {
     loadApiary(false);
-    if (!canApiary()) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "SETUP") + stubBox(state.conn ? "Needs bridge 1.26 and the 🐝 Apiary database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Apiary</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canApiary()) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "SETUP") + stubBox(state.conn ? "Needs the 🐝 Apiary database connected to the TimothyOS integration in Notion. Steps are in the README under <b>Apiary</b>." : "Link calendars first.") + "</div>"; return; }
     if (!ap.data) { $("content").innerHTML = '<div class="ap">' + phead("APIARY", "") + '<div class="empty">' + (ap.err ? esc(ap.err.msg) : "Loading your hives from Notion…") + "</div></div>"; return; }
     if (ap.view === "hiveedit" && !ap.form) ap.view = ap.hive ? "hive" : "yard";
     if (ap.view !== "yard" && ap.view !== "hiveedit" && !apHive(ap.hive)) ap.view = "yard";
@@ -9041,7 +9041,7 @@
   function apiarySection() {
     var on = !!lsGet(LS_AIAPIARY), waiting = Object.keys(ap.q).length;
     var html = "<section>" + phead("APIARY", canApiary() ? (ap.err ? "PROBLEM" : "NOTION") : "SETUP");
-    if (!canApiary()) return html + stubBox("Needs bridge 1.26 and the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Apiary</b>.") + "</section>";
+    if (!canApiary()) return html + stubBox("Needs the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Apiary</b>.") + "</section>";
     var nh = apHives().length, nc = apChecks().length;
     html += '<div class="calrow"><span class="st" style="background:var(--farm)"></span><span><b>🐝 Apiary</b><small' + (ap.err ? ' class="errtxt">' + esc(ap.err.msg) : ">" + (ap.data ? nh + (nh === 1 ? " hive · " : " hives · ") + nc + (nc === 1 ? " check" : " checks") : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (ap.data && !ap.err ? " ok" : ap.err ? " bad" : "") + '">' + (ap.data && !ap.err ? "OK" : ap.err ? "ERROR" : "WAITING") + "</span></div>";
@@ -9552,7 +9552,7 @@
     return { e: "SCIENCE · " + SCI_DEPTS[sc.tab][0] + (sc.tab === "sky" && n != null ? " · " + n + " AIRCRAFT IN RANGE" : ""), t: "SENSORS" };
   }
   function renderScience() {
-    if (!canScience()) { $("content").innerHTML = '<div class="sci">' + phead("SCIENCE", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated to 1.34 (README: Updating the Google bridge)." : "Link calendars first.") + "</div>"; return; }
+    if (!canScience()) { $("content").innerHTML = '<div class="sci">' + phead("SCIENCE", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated (README: Updating the Google bridge)." : "Link calendars first.") + "</div>"; return; }
     if (!sciPlace()) { $("content").innerHTML = '<div class="sci">' + phead("SCIENCE", "SETUP") + stubBox("Set your location in <b>SYSTEMS → BRIDGE</b> (it's rounded to about 1 km, as for the weather). Every SCIENCE feed works from it.") + "</div>"; return; }
     sciLoad(true);
     sciStart();
@@ -9790,7 +9790,7 @@
   function scienceSection() {
     if (!state.conn) return "";
     var html = '<section id="sec-science">' + phead("SCIENCE", canScience() ? (sciPlace() ? "FREE PUBLIC FEEDS" : "NEEDS A LOCATION") : "SETUP", "personal");
-    if (!canScience()) return html + stubBox("SCIENCE needs the Google bridge updated to 1.34.") + "</section>";
+    if (!canScience()) return html + stubBox("SCIENCE needs the Google bridge updated.") + "</section>";
     var off = !!lsGet(LS_SCILINEOFF), pend = sc.q.add.length + Object.keys(sc.q.star).length, f = sciV("feeds") || {};
     html += '<div class="calrow"><span class="st" style="--c: var(--personal)"></span><span><b>Bridge line</b><small>' + (off ? "Off." : "One line under Condition on days with something worth knowing (a bright ISS pass tonight, an aurora chance, a nearby quake). Never a Condition item.") + '</small></span><button type="button" class="chip sm" data-act="sciline">' + (off ? "TURN ON" : "TURN OFF") + "</button></div>";
     html += '<div class="calrow"><span class="st" style="--c: var(--chrome-c)"></span><span><b>Science Log</b><small>' + (canSciLog() ? sc.log.length + " events on this iPad (30 days)" + (pend ? "; " + pend + " waiting to reach Notion" : "; all in Notion") + "." : "Needs the Notion key on the bridge.") + "</small></span><span></span></div>";
@@ -9824,10 +9824,7 @@
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
     var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
-    var moved = "dir" in cfg;   /* 2.45's one folder is channel 1, premiered afresh, in order */
-    if (moved) { if (cfg.dir && !cfg.chans.length) cfg.chans = [{ id: 1, name: folderName(cfg.dir), dir: cfg.dir, premiere: Date.now() }]; delete cfg.dir; cfg.ch = 0; }
-    if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; moved = true; }
-    if (moved) save();
+    if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; save(); }   /* the channel shown was removed: the first one */
     function save() { lsSet(LS_HOLO, cfg); }
     function chById(id) { return cfg.chans.filter(function (c) { return c.id === id; })[0] || null; }
     function cur() { return chById(cfg.ch); }
@@ -9873,7 +9870,7 @@
     }
     /* ---- NETWORK: a folder of show folders ---- */
     function net(c) { return !!c && c.style === "network"; }
-    function showName(n) {   /* "angry_beavers" → "Angry Beavers"; a name with capitals is kept as it is */
+    function showName(n) {   /* "night_owl_theatre" → "Night Owl Theatre"; a name with capitals is kept as it is */
       n = n.replace(/_+/g, " ").replace(/\s+/g, " ").trim(); if (/[A-Z]/.test(n)) return n;
       return n.split(" ").map(function (w, i) { return i && /^(and|of|the|a|an|in|on|to|for|vs)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
     }
@@ -9895,13 +9892,19 @@
     function dayStart(ms) { var d = new Date(ms), s = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6); if (s.getTime() > ms) s.setDate(s.getDate() - 1); return s.getTime(); }   /* the broadcast day starts at 6:00 */
     function picks(c, s, ds) {   /* the day's running order, from the date alone */
       var key = c.dir + "|" + ymd(new Date(ds)) + "|" + s.play.length; if (PK[key]) return PK[key];
-      var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {};
+      var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {}, used = {};
       var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hash(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptr[k] = 0; } return ord[k]; };
+      var take = function (k) {   /* the show's next episode in today's shuffle that hasn't aired today (2.50: a block's second episode counts too); all aired: round again */
+        var o = order(k), n = o.length, u = used[k] || (used[k] = {}), c = 0;
+        if (Object.keys(u).length >= n) u = used[k] = {};
+        while (u[o[ptr[k] % n]] && c++ < n) ptr[k]++;
+        var i = o[ptr[k]++ % n]; u[i] = 1; return i;
+      };
       out.more = function () {   /* the lineup grows as far as the day needs: the same picks every time, from the date */
         for (var m = out.length + 120; out.length < m && sh.length;) {
           var k = Math.floor(r() * sh.length); if (sh.length > 1 && k === last) k = (last + 1 + Math.floor(r() * (sh.length - 1))) % sh.length;   /* never the same show twice in a row… */
-          var o = order(k), n = o.length, i = o[ptr[k]++ % n];
-          if (n > 1 && r() < .25) { var j = i + 1 < n ? i + 1 : i - 1; out.push(sh[k].items[Math.min(i, j)], sh[k].items[Math.max(i, j)]); }   /* …except as a block: two in a row, in order */
+          var i = take(k), n = sh[k].items.length;
+          if (n > 1 && r() < .25) { var j = i + 1 < n ? i + 1 : i - 1; if (!used[k][j]) { used[k][j] = 1; out.push(sh[k].items[Math.min(i, j)], sh[k].items[Math.max(i, j)]); } else out.push(sh[k].items[i]); }   /* …except as a block: two in a row, in order */
           else out.push(sh[k].items[i]);
           last = k;
         }
@@ -10778,7 +10781,7 @@
   }
   function renderInbox() {
     loadInbox(false); loadDates(false); if (canPlan()) loadTasks(ymd(new Date()), false);
-    if (!canInbox()) { $("content").innerHTML = '<div class="ib">' + phead("INBOX", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated to 1.33 and the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections). Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
+    if (!canInbox()) { $("content").innerHTML = '<div class="ib">' + phead("INBOX", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated and the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections). Steps are in the README under <b>Connect Notion</b>." : "Link calendars first.") + "</div>"; return; }
     var w = ibWaiting(), qd = ibQueued(), k = ibKept(), list = ib.tab === "kept" ? k : w, html = '<div class="ib">';
     html += '<div class="ib-tools"><div class="ib-tabs"><button type="button" class="chip" data-ibtab="waiting" aria-pressed="' + (ib.tab === "waiting") + '" style="--c: var(--chrome-c)">WAITING <span class="tnum">' + (w.length + qd.length) + "</span></button>" +
       '<button type="button" class="chip" data-ibtab="kept" aria-pressed="' + (ib.tab === "kept") + '">KEPT <span class="tnum">' + k.length + "</span></button></div>" +
@@ -10957,7 +10960,7 @@
   function inboxSection() {
     if (!state.conn) return "";
     var html = '<section id="sec-inbox">' + phead("INBOX", canInbox() ? (ib.data ? ibCount() + " WAITING · " + ibKept().length + " KEPT" : "NOTION") : "SETUP", "chrome-c");
-    if (!canInbox()) return html + stubBox("CAPTURE → NOTE and the INBOX need the Google bridge updated to 1.33, then the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections).") + "</section>";
+    if (!canInbox()) return html + stubBox("CAPTURE → NOTE and the INBOX need the Google bridge updated, then the 📥 Inbox database connected to the TimothyOS integration in Notion (••• → Connections).") + "</section>";
     var marks = Object.keys(ib.q).length, qd = ibQueued().length;
     html += '<div class="calrow"><span class="st" style="--c: var(--chrome-c)"></span><span><b>Notes</b><small>' + (ib.err ? esc(ib.err.msg) : ib.data ? "Read " + esc(stamp(ib.data.fetched)) + "." : "Not read yet.") +
       (qd ? " " + qd + (qd === 1 ? " note" : " notes") + " waiting on this iPad to save." : "") + (marks ? " " + marks + (marks === 1 ? " sorting mark" : " sorting marks") + " waiting to reach Notion." : "") + "</small></span>" +
@@ -11415,7 +11418,7 @@
     var parts = ["cal", "year", "habits", "review", "library", "tarot", "apiary"], busy = asPending(y), yd = asYd(y);
     var ats = Object.keys(yd).map(function (k) { return yd[k] && yd[k].at; }).filter(Boolean), at = ats.length ? Math.min.apply(null, ats) : 0;
     var errs = parts.map(function (p) { return as.err[y + ":" + p]; }).filter(Boolean).map(function (e) { return e.msg; });
-    var need = canYear() ? "" : "TASKS and QUEUE need bridge 1.32. ";
+    var need = canYear() ? "" : "TASKS and QUEUE need the Google bridge updated. ";
     return '<div class="as-foot"><small class="muted">' + (busy ? "Reading " + y + " from the bridge…" : at ? "Read " + esc(stamp(at)) + "." : "") + " " + need +
       (errs.length ? '<span class="warntxt">' + esc(errs[0]) + "</span>" : "") + "</small>" +
       '<button type="button" class="chip sm" data-as="rescan"' + (busy ? " disabled" : "") + ">RESCAN</button></div>";
@@ -11447,7 +11450,7 @@
   function shipPanel(y) {
     if (!state.conn || !canAsk()) return "";
     var s = shipFor(y), cur = y === new Date().getFullYear();
-    if (!canShipsYear()) return '<div class="as-fold"><b>SHIP\'S YEAR</b><span>Needs the Google bridge updated to 1.32 (Ask Claude is already on).</span></div>';
+    if (!canShipsYear()) return '<div class="as-fold"><b>SHIP\'S YEAR</b><span>Needs the Google bridge updated (Ask Claude is already on).</span></div>';
     if (as.shipBusy) return '<section class="br as-ship" aria-busy="true">' + phead("SHIP'S YEAR", "COMPILING · SONNET", "chrome-a") + '<div class="br-comp">Reading the counts for ' + y + "…<br><b>› Sonnet writing the Ship's Year…</b></div><div class=\"br-sweep\"><i></i></div></section>";
     if (!s || as.fold[y]) return '<button type="button" class="as-fold" data-ship="' + (s ? "open" : "now") + '"><b>SHIP\'S YEAR</b><span>' +
       (s ? esc(s.paras[0].text) : as.shipErr ? esc(as.shipErr) : cur ? "Compiles at 06:00 on 31 December. Tap for the year so far, now." : "Tap to compile " + y + ".") + '</span><span class="btn sm" aria-hidden="true">' + (s ? "OPEN" : "COMPILE") + "</span></button>";
@@ -11638,7 +11641,7 @@
     "tos.upkeep.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
-    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1"];
+    "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1"];
   var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
   var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
@@ -11651,7 +11654,7 @@
   /* Saves still on their way to Notion or Google (they'd be lost with the app). */
   function bkPending() {
     var n = 0;
-    ["tos.queue.v1", "tos.habitq.v1", "tos.tarotq.v1", "tos.apiaryq.v1"].forEach(function (k) { var v = lsGet(k); n += Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : 0; });
+    ["tos.queue.v1", "tos.habitq.v1", "tos.tarotq.v1", "tos.apiaryq.v1", "tos.inboxq.v1", "tos.sciq.v1"].forEach(function (k) { var v = lsGet(k); n += Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : 0; });
     return n;
   }
   function bkDrafts() {

@@ -32,33 +32,33 @@ import uuid
 def T(title, status, pri, area, due=None, focus=None):
     return {"id": uuid.uuid4().hex, "url": "", "title": title, "status": status, "priority": pri, "area": area, "due": due, "focus": focus}
 TASKS = [
-  T("Order spring bulbs", "⬜ To Do", "🔴 High", "🌿 SkyGarden Farm", "2026-10-04", "2026-10-05"),
-  T("Send Q4 deck draft", "🔄 In Progress", "🟡 Medium", "🎯 Work & Calling", "2026-10-08"),
-  T("Sugar syrup for Hive 2", "⬜ To Do", "🔴 High", "🐝 Beekeeping", "2026-10-06"),
-  T("Book furnace service", "⬜ To Do", "🟢 Low", "🏡 Home & Property", "2026-10-02"),
-  T("Renew passport", "🚫 Blocked", "🟡 Medium", "🏡 Home & Property"),
-  T("Read chapter 4", "⬜ To Do", "🟢 Low", "🌱 Personal Growth"),
-  T("Renew registration", "✅ Done", "🟢 Low", "🏡 Home & Property", "2026-10-01", "2026-10-06"),
-  T("Plan Saturday market display", "⬜ To Do", None, "🌿 SkyGarden Farm", "2026-10-20"),
+  T("Order spring bulbs", "⬜ To Do", "🔴 High", "🌿 Hollow Oak Farm", "2026-10-04", "2026-10-05"),
+  T("Send Q4 deck draft", "🔄 In Progress", "🟡 Medium", "🎯 Work Desk", "2026-10-08"),
+  T("Sugar syrup for Hive 2", "⬜ To Do", "🔴 High", "🐝 Bee Yard", "2026-10-06"),
+  T("Book furnace service", "⬜ To Do", "🟢 Low", "🏡 House Upkeep", "2026-10-02"),
+  T("Renew passport", "🚫 Blocked", "🟡 Medium", "🏡 House Upkeep"),
+  T("Read chapter 4", "⬜ To Do", "🟢 Low", "🌱 Growth Lab"),
+  T("Renew registration", "✅ Done", "🟢 Low", "🏡 House Upkeep", "2026-10-01", "2026-10-06"),
+  T("Plan Saturday market display", "⬜ To Do", None, "🌿 Hollow Oak Farm", "2026-10-20"),
 ]
-AREAS = ["💰 Money", "👨‍👩‍👧‍👦 Family", "🌱 Personal Growth", "🌿 SkyGarden Farm", "🐝 Beekeeping", "🙏 Faith & Spirit", "🏥 Health", "🎯 Work & Calling", "🏡 Home & Property"]
+AREAS = ["💰 Finances", "👨‍👩‍👧‍👦 Kin", "🌱 Growth Lab", "🌿 Hollow Oak Farm", "🐝 Bee Yard", "🙏 Quiet Hours", "🏥 Health", "🎯 Work Desk", "🏡 House Upkeep"]
 PRIS = ["🔴 High", "🟡 Medium", "🟢 Low"]
 TCIDS = {}
 def KDt(title, start, end=None, area=None, typ=None, yearly=False, notes=""):
     return {"id": uuid.uuid4().hex, "url": "https://www.notion.so/" + uuid.uuid4().hex, "title": title, "start": start, "end": end, "area": area, "type": typ, "yearly": yearly, "notes": notes}
 KDATES = [
-  KDt("First frost risk", "2026-10-12", None, "🌿 SkyGarden Farm", "⏰ Deadline", False, "Cover the dahlias the night before"),
-  KDt("Mom's birthday", "1958-10-20", None, "👨‍👩‍👧‍👦 Family", "🎂 Birthday", True),
-  KDt("Garlic planting window", "2026-10-01", "2026-10-25", "🌿 SkyGarden Farm", "🌦️ Window"),
-  KDt("Q4 roadmap due", "2026-10-30", None, "🎯 Work & Calling", "⏰ Deadline"),
-  KDt("Mite treatment", "2026-11-15", None, "🐝 Beekeeping", "🔔 Reminder"),
-  KDt("Old past thing", "2026-09-01", None, "🏡 Home & Property", "📍 Event"),
+  KDt("First frost risk", "2026-10-12", None, "🌿 Hollow Oak Farm", "⏰ Deadline", False, "Cover the dahlias the night before"),
+  KDt("Mom's birthday", "1958-10-20", None, "👨‍👩‍👧‍👦 Kin", "🎂 Birthday", True),
+  KDt("Garlic planting window", "2026-10-01", "2026-10-25", "🌿 Hollow Oak Farm", "🌦️ Window"),
+  KDt("Q4 roadmap due", "2026-10-30", None, "🎯 Work Desk", "⏰ Deadline"),
+  KDt("Mite treatment", "2026-11-15", None, "🐝 Bee Yard", "🔔 Reminder"),
+  KDt("Old past thing", "2026-09-01", None, "🏡 House Upkeep", "📍 Event"),
 ]
 KTYPES = ["⏰ Deadline", "🌦️ Window", "🎂 Birthday", "💍 Anniversary", "📍 Event", "🔔 Reminder"]
 DCIDS = {}
 SEEN = {}
 POSTS = []
-CALS = [{"area": "work", "ok": True, "name": "Timothy (Work)"}, {"area": "personal", "ok": True, "name": "personal@example.com"}]
+CALS = [{"area": "work", "ok": True, "name": "Work Calendar"}, {"area": "personal", "ok": True, "name": "personal@example.com"}]
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self):

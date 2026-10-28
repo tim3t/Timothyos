@@ -13,7 +13,9 @@ const publish = v => {   // the test server dates files to the second: move them
   execFileSync('python3', [path.join(DIR, 'tools/bump_version.py'), v]);
   stamp += 60; for (const f of ['sw.js', 'index.html', 'version.json', 'js/app.js', 'css/app.css']) fs.utimesSync(path.join(DIR, f), stamp, stamp);
 };
-const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], { cwd: DIR, stdio: 'ignore' });
+// a static server that answers 500 to everything while a file named __fail exists (a hosting hiccup, 2.50)
+const SRV = "import http.server, os\nclass H(http.server.SimpleHTTPRequestHandler):\n    def log_message(self, *a): pass\n    def do_GET(self):\n        if os.path.exists('__fail'): self.send_response(500); self.send_header('Content-Length', '5'); self.end_headers(); self.wfile.write(b'oops!'); return\n        return super().do_GET()\nhttp.server.ThreadingHTTPServer(('127.0.0.1', %d), H).serve_forever()\n";
+const server = spawn('python3', ['-c', SRV.replace('%d', String(PORT))], { cwd: DIR, stdio: 'ignore', detached: true });
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn().catch(() => null); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
 const whole = p => p.evaluate(() => ({
   bar: document.querySelector('.topbar span').textContent,
@@ -55,7 +57,21 @@ const whole = p => p.evaluate(() => ({
     assert.ok(await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !r.waiting && !r.installing)), 'nothing left waiting');
   }
 
+  // ---- offline (2.50): the app opens from its saved copy; a hosting error never replaces that copy
+  await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(800);
+  w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn && w.css, 'opens offline: ' + JSON.stringify(w));
+  await ctx.setOffline(false);
+  fs.writeFileSync(path.join(DIR, '__fail'), '1');   // the host answers 500 to everything
+  await p.reload(); await p.waitForTimeout(800);
+  w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn && w.css, 'a 500 from the host shows the saved app: ' + JSON.stringify(w));
+  fs.rmSync(path.join(DIR, '__fail'));
+  await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(800);
+  w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn, 'the saved copy is still the app, not the error page: ' + JSON.stringify(w));
+  await ctx.setOffline(false);
+  const cached = await p.evaluate(() => caches.keys().then(ks => Promise.all(ks.map(k => caches.open(k).then(c => c.keys())))).then(rs => [].concat(...rs).map(r => r.url)));
+  assert.ok(cached.length && cached.every(u => u.startsWith(URL0)), 'nothing from another site is cached (the bridge, with its key in the address, never is): ' + cached.filter(u => !u.startsWith(URL0)));
+
   console.log('errors', errs);
-  await b.close(); server.kill(); fs.rmSync(DIR, { recursive: true, force: true });
+  await b.close(); try { process.kill(-server.pid); } catch (e) { server.kill(); } fs.rmSync(DIR, { recursive: true, force: true });
   if (errs.length) process.exit(1);
-})().catch(e => { server.kill(); fs.rmSync(DIR, { recursive: true, force: true }); console.error(e); process.exit(1); });
+})().catch(e => { try { process.kill(-server.pid); } catch (x) { server.kill(); } fs.rmSync(DIR, { recursive: true, force: true }); console.error(e); process.exit(1); });

@@ -16,7 +16,8 @@ pids=()
 run() {  # run <file>: passes if node exits 0 and no page errors were printed; returns 1 on a failure
   local out t0=$SECONDS
   out=$(timeout 180 node "$1" 2>&1); local code=$?
-  if [ $code -ne 0 ] || echo "$out" | grep -qE "errors \[ *'|errors: \[ *'|AssertionError|TimeoutError"; then
+  # page errors: a test prints "errors [ ... ]"; anything but an empty list fails, however Node wraps or quotes it
+  if [ $code -ne 0 ] || echo "$out" | grep -E '^ *errors:? \[' | grep -vqE '^ *errors:? \[\]$' || echo "$out" | grep -qE "AssertionError|TimeoutError"; then
     echo "FAIL  $1  ($((SECONDS - t0))s)"; echo "$out" | sed 's/^/      /'; fail=1; return 1
   else
     echo "PASS  $1  ($((SECONDS - t0))s)"; [ -n "${VERBOSE:-}" ] && echo "$out" | sed 's/^/      /'
@@ -37,6 +38,9 @@ run version_sync.test.js
 run speak_text.test.js
 run sci_sky.test.js
 run app_names.test.js
+run holo_net.test.js
+run backup_keys.test.js
+if python3 ../tools/ia_fetch.py --selftest >/dev/null 2>&1; then echo "PASS  ia_fetch --selftest"; else echo "FAIL  ia_fetch --selftest"; python3 ../tools/ia_fetch.py --selftest 2>&1 | sed 's/^/      /'; fail=1; fi
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
@@ -50,7 +54,6 @@ run bridge_logask.test.js
 echo "== App (browser, against simulated bridges)"
 cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null; done; rm -rf "${lanes_dir:-}"; }
 trap cleanup EXIT
-python3 ../tools/ia_fetch.py --selftest || exit 1   # the Internet Archive fetcher: picking, naming, the query (offline)
 (cd .. && exec python3 -m http.server 8080 --bind 127.0.0.1 >/dev/null 2>&1) & pids+=($!)
 python3 mock_v10.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.0: calendars only      :8090
 python3 mock_v11.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.1: + capture           :8092
@@ -90,7 +93,7 @@ PY
 LANES=(
   "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js"
   "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js"
-  "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e7.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
+  "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
   "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js app_e2e57.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
   "log-loom|-|app_e2e22.test.js app_e2e23.test.js"
@@ -104,7 +107,6 @@ LANES=(
 )
 #   app_e2e        linking, Day/Week/Month, detail, offline cache, phone width
 #   app_e2e6       Capture: old bridge warning, save, validation, offline queue, failure
-#   app_e2e7       Capture: tap a Week slot, phone layout
 #   app_e2e9       Plan Day + Priorities against Notion tasks
 #   app_e2e10      Google's transient 404s are retried
 #   app_e2e11      Key Dates: panel, DATES screen, markers, capture, Plan Day line

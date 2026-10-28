@@ -56,6 +56,8 @@ self.addEventListener("fetch", function (event) {
     var shell = new URL("./", self.registration.scope).pathname, isApp = url.pathname === shell || url.pathname === shell + "index.html";
     if (!isApp) return;
     event.respondWith(fetch(req.url, { cache: "no-cache", credentials: "same-origin" }).then(function (res) {
+      /* 2.50: only a good answer replaces the saved copy; an error page (a hosting hiccup) falls back to it instead */
+      if (!res.ok) return caches.match("./").then(function (hit) { return hit || res; });
       var copy = res.clone();
       caches.open(SHELL).then(function (c) { c.put("./", copy); });
       return res;
