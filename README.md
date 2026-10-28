@@ -343,14 +343,14 @@ services:
          - |
            set -e
            pip install -q internetarchive
-           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/ia-fetch-v1/tools/ia_fetch.py', '/tmp/ia_fetch.py')"
+           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/d0127c8218cf4086dc30393323235d95f2c2897a/tools/ia_fetch.py', '/tmp/ia_fetch.py')"
            python -u /tmp/ia_fetch.py --out /out --max-items 50 --exclude "talk radio" "conference"
    ```
 3. Deploy, then read **Logs**: the list of what it would fetch, with sizes and licenses. Trim with more `--exclude` words, or aim it with `--query`, `--collection` or `--ids` (below).
 4. When the list looks right, add `--go` (and a budget, `--max-gb 50`) to the last line and **Redeploy**. It downloads and stops; redeploy again any time to fetch more (what's there is skipped).
 5. Share the folder with the relay (`- "/PATH/TO/Public Access:/media/Video/Public Access:ro"`, redeploy the `timothyos` project), then **HOLODECK → VISUAL → + ADD CHANNEL → Video → Public Access**, and tap **NETWORK**. You can add the channel while downloads are still going: **LOOK AGAIN** in the channel list picks up what's new.
 
-**What runs on your NAS:** the compose fetches the script from a fixed, tagged version of this repository (`ia-fetch-v1` in the address), so a later change here never changes what your NAS runs until you change that tag. The container sees only the folder mounted at `/out`, talks only to archive.org (and to PyPI to install the `internetarchive` library), never logs in, and holds no keys or tokens.
+**What runs on your NAS:** the compose fetches the script as it was at one fixed commit of this repository (the long code in the address), so a later change here never changes what your NAS runs until you change that code. The container sees only the folder mounted at `/out`, talks only to archive.org (and to PyPI to install the `internetarchive` library), never logs in, and holds no keys or tokens.
 
 | Option | Default | What it does |
 |---|---|---|
@@ -817,7 +817,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
 - **HOLODECK** streams from your NAS through the relay only; your channels (folders and names) and the video lengths stay on this iPad (channels also in your backups).
-- **`tools/ia_fetch.py`** runs only on your NAS, only when you start it, from a fixed tagged version; it talks to archive.org alone and holds no keys.
+- **`tools/ia_fetch.py`** runs only on your NAS, only when you start it, from one fixed commit; it talks to archive.org alone and holds no keys.
 - **RESSIKAN** makes all its sound on the iPad; nothing it plays or records leaves it unless you save a take to Files.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
 - **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Landmarks: the rounded location goes once to OpenStreetMap (Overpass) to suggest them, and a place you search for goes to Open-Meteo's place search; the landmarks themselves stay on this iPad and never reach the bridge, Notion or the Science Log. Nothing else leaves; the bridge never stores the location.
