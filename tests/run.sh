@@ -91,7 +91,7 @@ LANES=(
   "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js"
   "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e7.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
-  "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js"
+  "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js app_e2e57.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
   "log-loom|-|app_e2e22.test.js app_e2e23.test.js"
   "stations|-|app_e2e24.test.js app_e2e25.test.js"
@@ -132,6 +132,7 @@ LANES=(
 #   app_e2e33      HOLODECK → AUDIO (was STORAGE; entered through the arch): relay setup, folders, player, resume on this iPad, pill, filters, read-ahead hand-off
 #   app_e2e55      RESSIKAN: sound on, beat ring, synth, hold, drift, record to Files, quiet on leaving, settings kept
 #   app_e2e56      HOLODECK: channels from /Video (flat; a series in seasons), in order, skipped files, lengths, guide, tune in mid-stream, next video, CH ▲▼/dial/guide switching, rename, remove, 2.45 migration, leave = off, 2.47 arch (VISUAL/AUDIO, ◇ ARCH), one at a time, radio band, 2.48 NETWORK style (show folders, UP NEXT)
+#   app_e2e57      HOLODECK and Standby: none on the arch, AUDIO or while on air; VISUAL sleep timer (minutes, end of show), then Standby
 #   app_e2e54      UPDATE READY: real service worker, two versions published to a copy on :8125, each comes up whole
 #   app_e2e34      GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row

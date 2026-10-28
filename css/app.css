@@ -2556,6 +2556,9 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-upnext[hidden] { display: grid !important; opacity: 0; transform: translateX(16px); }
 @media (prefers-reduced-motion: reduce) { .hd-upnext { transition: none; } }
 .hd-style { display: inline-flex; gap: 6px; margin-right: 6px; }
+/* 2.49: VISUAL's sleep timer */
+.hd-sleepbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hd-lab { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--dim); margin-right: 4px; }
 /* 2.46: channels and the dial */
 .hd-set { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 16px; align-items: stretch; }
 .hd-set > * { min-width: 0; }

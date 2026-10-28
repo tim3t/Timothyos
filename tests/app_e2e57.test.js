@@ -1,0 +1,87 @@
+// HOLODECK and Standby (2.49): Standby never starts on HOLODECK (the arch, VISUAL, AUDIO) or while its TV is on air, and
+// still does elsewhere. VISUAL's sleep timer: 15 MIN turns the TV off on the clock, and Standby then takes over (a night
+// in front of the TV ends on the clock); END OF THIS SHOW turns it off when the video ends. Simulated relay (WebM videos).
+const { chromium } = require('playwright');
+const assert = require('assert');
+const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
+const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
+const src = p => p.evaluate(() => { const v = document.getElementById('hdVideo'); return v ? v.getAttribute('src') || '' : ''; });
+const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.clock.runFor(30000); await p.waitForTimeout(20); } };
+
+(async () => {
+  const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
+  const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  await p.clock.install({ time: new Date('2026-10-28T21:00:00-05:00') });
+  await p.goto('http://localhost:8080/');
+  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
+    localStorage.setItem('tos.standby.v1', '5'); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() }], ch: 1, look: 'clean', muted: true })); }, [K, R]);
+  await p.reload();
+  for (let i = 0; i < 10; i++) { await p.waitForTimeout(150); await p.clock.runFor(500); }
+  await p.waitForSelector('[data-screen="holodeck"].nav');
+
+  // ---- on the arch and in AUDIO: no Standby, however long
+  await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch');
+  await idle(p, 7 * 60000);
+  assert.ok(await p.isHidden('#standby'), 'not on the arch');
+  await p.click('[data-hdprog="audio"]'); await p.clock.runFor(1000); await p.waitForSelector('.nas-band');
+  await idle(p, 7 * 60000);
+  assert.ok(await p.isHidden('#standby'), 'not in AUDIO');
+
+  // ---- elsewhere it still comes on
+  await p.click('[data-screen="today"].nav'); await p.waitForTimeout(200);
+  await idle(p, 6 * 60000);
+  assert.ok(await p.isVisible('#standby'), 'Standby on TODAY after 5 minutes');
+  await p.mouse.click(600, 400); await p.clock.runFor(2000); await p.waitForTimeout(400);
+  assert.ok(await p.isHidden('#standby'));
+
+  // ---- VISUAL: on air, no Standby; SLEEP 15 MIN turns the TV off, then Standby takes over
+  await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
+  for (let i = 0; i < 6; i++) { await p.clock.runFor(200); await p.waitForTimeout(100); }
+  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 });
+  assert.strictEqual(await txt(p, '.hd-sleepbar'), 'SLEEP OFF 15 MIN 30 MIN 1 HOUR 2 HOURS END OF THIS SHOW');
+  await p.click('.hd-tune');
+  await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
+  await p.click('[data-hdsleep="15"]');
+  assert.strictEqual(await p.getAttribute('[data-hdsleep="15"]', 'aria-pressed'), 'true');
+  assert.strictEqual(await txt(p, '[data-hdsleep="15"]'), '15 MIN · 15 LEFT');
+  assert.ok((await txt(p, '#toast')).includes('The TV goes off in 15 minutes'));
+  await idle(p, 9 * 60000);
+  assert.ok(await p.isHidden('#standby'), 'no Standby while the TV is on');
+  assert.ok((await src(p)).includes('/Video/'), 'still on air at 9 minutes');
+  assert.ok(/^15 MIN · [67] LEFT$/.test(await txt(p, '[data-hdsleep="15"]')), 'counting down: ' + await txt(p, '[data-hdsleep="15"]'));   /* refreshed each second, so 6 or 7 at exactly 9:00 */
+  await idle(p, 7 * 60000);
+  assert.ok(!(await src(p)).includes('/Video/'), 'off at 15 minutes');
+  assert.strictEqual(await p.getAttribute('[data-hdsleep="off"]', 'aria-pressed'), 'true', 'the timer is spent');
+  await idle(p, 60000);
+  assert.ok(await p.isVisible('#standby'), 'after the sleep timer, Standby takes over (no touch for 5 minutes)');
+  await p.screenshot({ path: D + 'holodeck-sleep.png' });
+  await p.mouse.click(600, 400); await p.clock.runFor(2000); await p.waitForTimeout(400);
+
+  // ---- a touch holds HOLODECK awake again
+  await idle(p, 7 * 60000);
+  assert.ok(await p.isHidden('#standby'), 'back to held once touched');
+
+  // ---- END OF THIS SHOW: off when the video ends
+  await p.click('.hd-tune');
+  await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
+  await p.click('[data-hdsleep="end"]');
+  assert.ok((await txt(p, '#toast')).includes('The TV goes off at the end of this show'));
+  await p.waitForFunction(() => !(document.getElementById('hdVideo').getAttribute('src') || '').length, null, { timeout: 15000 });
+  assert.ok((await txt(p, '#toast')).includes('Sleep timer: the TV went off at the end of the show'));
+  assert.ok(await p.$('.hd-tune'), 'off: TUNE IN shows again');
+
+  // ---- turning it off by hand clears a timer
+  await p.click('.hd-tune'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
+  await p.click('[data-hdsleep="30"]'); await p.click('[data-hd="tune"]');
+  assert.strictEqual(await p.getAttribute('[data-hdsleep="off"]', 'aria-pressed'), 'true');
+
+  // ---- phone width
+  await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(300);
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= 390), 'no sideways scroll');
+
+  console.log('errors', errs);
+  await b.close();
+  if (errs.length) process.exit(1);
+})().catch(e => { console.error(e); process.exit(1); });

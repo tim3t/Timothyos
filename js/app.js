@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.48.3";
+  var VERSION = "2.49.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4096,9 +4096,9 @@
      on (iPadOS releases that whenever the app is closed; it's asked for again on
      return). The first tap only wakes the screen. Night look from 22:00 to 06:00. */
   var STANDBY_CHOICES = [0, 5, 15, 30];
-  var sb = { on: false, last: Date.now(), clock: null, drift: null, step: 0, wake: null, wakeState: "off", fade: 0 };
+  var sb = { on: false, last: Date.now(), clock: null, drift: null, step: 0, wake: null, wakeState: "off", fade: 0, slept: false };
   function standbyMins() { var v = lsGet(LS_STANDBY); return STANDBY_CHOICES.indexOf(v) > -1 ? v : 15; }
-  function noteTouch() { sb.last = Date.now(); }
+  function noteTouch() { sb.last = Date.now(); sb.slept = false; }
   ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (t) { document.addEventListener(t, noteTouch, { capture: true, passive: true }); });
   function holdAwake() {
     if (sb.wake || document.hidden || standbyMins() === 0) return;
@@ -4115,10 +4115,14 @@
   function typing() { var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
   function checkIdle() {
     var mins = standbyMins();
-    if (sb.on || !mins || !state.conn || document.hidden || typing()) return;
+    if (sb.on || !mins || !state.conn || document.hidden || typing() || holoHold()) return;
     if (Date.now() - sb.last >= mins * 60000) enterStandby();
   }
   setInterval(checkIdle, 15000);
+  /* 2.49 (Timothy): no Standby on HOLODECK (the arch, VISUAL or AUDIO) or while its TV is on air, so a show or an episode
+     isn't covered by the clock. Once a sleep timer has run out (sb.slept, until the next touch) Standby takes over as
+     usual, so a night in front of the TV ends on the dim night clock, not a lit screen. */
+  function holoHold() { return !sb.slept && (state.screen === "holodeck" || state.screen === "storage" || holo.onAir()); }
 
   function standbyHtml(now) {
     /* One centered column, one typeface, three sizes: the clock, the event title, and small
@@ -6595,7 +6599,7 @@
     a.addEventListener("seeked", function () { markPlay(false); });
     a.addEventListener("ended", function () {
       markPlay(true);
-      if (nas.sleep === "end") { nas.sleep = null; paintPlayer(); toast("Sleep timer: stopped at the end of the episode"); return; }
+      if (nas.sleep === "end") { nas.sleep = null; sb.slept = true; paintPlayer(); toast("Sleep timer: stopped at the end of the episode"); return; }
       if (autoNext()) toNext(); else paintPlayer();
     });
     a.addEventListener("error", function () { if (pl.path) toast(nas.ok === false ? "Can't reach the NAS to play this" : "This file won't play on the iPad"); paintPlayer(); });
@@ -6672,7 +6676,7 @@
     return i < 0 ? [] : pl.list.slice(i + 1).map(function (p) { return { path: p }; });
   }
   function sleepCheck() {
-    if (typeof nas.sleep === "number" && Date.now() >= nas.sleepAt && pl.el && !pl.el.paused) { pl.el.pause(); nas.sleep = null; toast("Sleep timer: paused"); paintPlayer(); }
+    if (typeof nas.sleep === "number" && Date.now() >= nas.sleepAt && pl.el && !pl.el.paused) { pl.el.pause(); nas.sleep = null; sb.slept = true; toast("Sleep timer: paused"); paintPlayer(); }
   }
   function setSleep(v) {
     nas.sleep = v === "off" ? null : v === "end" ? "end" : +v;
@@ -9818,7 +9822,7 @@
     var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false }, lsGet(LS_HOLO) || {});
     var lens = lsGet(LS_HOLOLEN) || {};
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { lv: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var moved = "dir" in cfg;   /* 2.45's one folder is channel 1, premiered afresh, in order */
     if (moved) { if (cfg.dir && !cfg.chans.length) cfg.chans = [{ id: 1, name: folderName(cfg.dir), dir: cfg.dir, premiere: Date.now() }]; delete cfg.dir; cfg.ch = 0; }
@@ -9980,7 +9984,7 @@
       if (X.v) return X.v;
       var k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k;
       var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
-      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; var n = next(X.cur); if (n) start(n, false); else resume(); });
+      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () {
         if (!X.on || !X.cur || !v.getAttribute("src")) return;
         if (++X.fails > 4) { off(); X.note = "Five videos in a row wouldn't play. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }
@@ -10101,6 +10105,29 @@
       if (calm() || state.screen !== "holodeck") { go2(); return; }
       X.fade = 1; render(); setTimeout(go2, 380);
     }
+    /* ---- the sleep timer (2.49), as AUDIO's: minutes, or the end of what's on ---- */
+    var SLEEPS = [["off", "OFF"], ["15", "15 MIN"], ["30", "30 MIN"], ["60", "1 HOUR"], ["120", "2 HOURS"], ["end", "END OF THIS SHOW"]];
+    function setSleep(v) {
+      clearInterval(X.sleepT); X.sleepT = 0;
+      X.sleep = v === "off" ? null : v === "end" ? "end" : +v;
+      X.sleepAt = typeof X.sleep === "number" ? Date.now() + X.sleep * 60000 : 0;
+      if (typeof X.sleep === "number") X.sleepT = setInterval(sleepCheck, 5000);   /* keeps time on other screens and in Picture in Picture too */
+      if (X.sleep) toast(X.sleep === "end" ? "The TV goes off at the end of this show" : "The TV goes off in " + (X.sleep >= 60 ? X.sleep / 60 + (X.sleep === 60 ? " hour" : " hours") : X.sleep + " minutes"));
+    }
+    function sleepCheck() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
+    function sleepOff(msg) {
+      clearInterval(X.sleepT); X.sleepT = 0; X.sleep = null;
+      if (!X.on) return;
+      off(); sb.slept = true; toast(msg);   /* Standby may take over now (see holoHold) */
+      if (state.screen === "holodeck") render();
+    }
+    function sleepLeft() { return Math.max(1, Math.ceil((X.sleepAt - Date.now()) / 60000)); }
+    function sleepBar() {
+      return '<div class="hd-sleepbar" role="group" aria-label="Sleep timer"><span class="hd-lab">SLEEP</span>' + SLEEPS.map(function (o) {
+        var on = o[0] === "off" ? !X.sleep : String(X.sleep) === o[0];
+        return '<button type="button" class="chip sm" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<span>· <span id="hdSleepLeft">' + sleepLeft() + "</span> LEFT</span>" : "") + "</button>";
+      }).join("") + "</div>";
+    }
     function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
     function render() {
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
@@ -10114,7 +10141,7 @@
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
         '<button type="button" class="chip sm" data-hd="pip"' + (X.on ? "" : " disabled") + '>PICTURE IN PICTURE</button><button type="button" class="chip sm" data-hd="full"' + (X.on ? "" : " disabled") + '>FULL SCREEN</button><span class="hd-gap"></span>' +
         '<button type="button" class="chip sm" data-hdlook="crt" aria-pressed="' + (cfg.look === "crt") + '">CRT</button><button type="button" class="chip sm" data-hdlook="clean" aria-pressed="' + (cfg.look === "clean") + '">CLEAN</button></div>' +
-        (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + dial() + "</div>";
+        sleepBar() + (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + dial() + "</div>";
       var rows = cfg.chans.map(function (x, i) {
         var on = x.id === cfg.ch, arm = X.rm === x.id;
         return '<div class="hd-chan" aria-current="' + on + '"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><b>' + esc(x.name) + '</b><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
@@ -10181,6 +10208,7 @@
       var ready = !!at(cur(), Date.now()), tb = $("hdTune"), ts = $("hdTuneSub"), pw = $("hdPower");
       if (tb) tb.disabled = !ready; if (ts) ts.textContent = tuneSub(); if (pw && !X.on) pw.disabled = !ready;
       cfg.chans.forEach(function (x) { var e = $("hdInfo" + x.id), h = chanInfo(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
+      var sl = $("hdSleepLeft"); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft();
     }
     function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tick(); status(); } }
     function noise() {   /* the static, drawn for half a second */
@@ -10191,7 +10219,8 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined) return false;
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined) return false;
+      if (d.hdsleep) { setSleep(d.hdsleep); render(); return true; }
       if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
         var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
         sc.style = sp[1]; save(); load(sc, true);
@@ -10200,7 +10229,7 @@
       }
       if (d.hdprog) { if (!X.fade) enter(d.hdprog); return true; }
       if (d.hdgo) { leave(); arch(); render(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
-      if (d.hd === "tune") { if (X.on) off(); else tune(); render(); }
+      if (d.hd === "tune") { if (X.on) { off(); setSleep("off"); } else tune(); render(); }   /* turning it off by hand clears the sleep timer */
       else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
       else if (d.hdch !== undefined) switchTo(+d.hdch);
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
@@ -10229,7 +10258,7 @@
       if (document.hidden || !X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });
-    return { render: render, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet };
+    return { render: render, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
   })();
   function renderHolodeck() { holo.render(); }
 

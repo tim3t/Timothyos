@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.49.0 · 2026-10-28
+- **HOLODECK keeps Standby away.** Standby no longer starts on HOLODECK (the arch, VISUAL or AUDIO) or while its TV is on air, so a show or an episode isn't covered by the clock. Once a sleep timer has run out, Standby takes over as usual, so falling asleep in front of the TV ends on the dim night clock rather than a lit screen.
+- **VISUAL sleep timer,** like AUDIO's: **SLEEP** under the TV with 15 MIN, 30 MIN, 1 HOUR, 2 HOURS or END OF THIS SHOW. It keeps time on other screens and in Picture in Picture, counts down on the chip, and turning the TV off by hand clears it.
+
 ## 2.48.3 · 2026-10-27
 - **Fixed: a folder newly shared through the NAS relay didn't appear in HOLODECK → AUDIO** until Bridge was closed and reopened. AUDIO read the NAS's top-level folders once a session; it now reads them again each time you enter AUDIO from the arch, and after a minute on its front page.
 
