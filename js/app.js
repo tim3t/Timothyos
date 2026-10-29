@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.51.2";
+  var VERSION = "2.51.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -6585,7 +6585,7 @@
   var nas = { view: "home", dir: lsGet(LS_NASDIR) || "/", lists: {}, err: null, inflight: {}, q: "", filter: "all", sort: "name", ok: null, sleep: null, sleepAt: 0, armClear: 0, armWhat: "" };
   var plays = lsGet(LS_PLAYS) || {};
   var nasPref = Object.assign({ speed: 1, auto: true }, lsGet(LS_NASPREF) || {});
-  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false, artBig: null, artSmall: null, pre: null, blob: null };
+  var pl = { path: null, list: [], el: null, lastSave: 0, ready: false, artBig: null, artSmall: null, pre: null, blob: null, scrub: null, scrubDraw: false };
   function nasHidden() { return lsGet(LS_NASHIDE) || []; }
   function isHidden(path) { return nasHidden().indexOf(path) > -1; }
   function nasConf() { var c = lsGet(LS_NAS); return c && c.url && c.token ? c : null; }
@@ -7067,7 +7067,7 @@
   /* The bar under Storage, the full player, and the small pill on every other screen. */
   function scrubHtml(id) {
     var a = pl.el, d = a && isFinite(a.duration) ? a.duration : (playOf(pl.path) || {}).d || 0, t = a ? a.currentTime : 0;
-    return '<div class="nas-scrub"><span class="tnum" data-np="t">' + mmss(t) + '</span><input type="range" id="' + id + '" min="0" max="' + Math.max(1, Math.round(d)) + '" step="1" value="' + Math.round(t) + '" aria-label="Position"' + (d ? "" : " disabled") + '><span class="tnum" data-np="left">−' + mmss(Math.max(0, d - t)) + "</span></div>";
+    return '<div class="nas-scrub"><span class="tnum" data-np="t">' + mmss(t) + '</span><input type="range" id="' + id + '" min="0" max="' + Math.max(1, Math.round(d)) + '" step="1" value="' + Math.round(t) + '" style="--fill: ' + (d ? (t / d * 100).toFixed(2) : 0) + '%" aria-label="Position"' + (d ? "" : " disabled") + '><span class="tnum" data-np="left">−' + mmss(Math.max(0, d - t)) + "</span></div>";
   }
   function controlsHtml(big) {
     var paused = !pl.el || pl.el.paused;
@@ -7086,12 +7086,14 @@
       var d = isFinite(a.duration) ? a.duration : 0;
       document.querySelectorAll(".nas-scrub").forEach(function (s) {
         var r = s.querySelector("input");
-        if (r && document.activeElement !== r) { if (d) { r.max = Math.round(d); r.disabled = false; } r.value = Math.round(a.currentTime); }
+        if (r && pl.scrub && pl.scrub.id === r.id) return;   /* a finger is on it: leave the thumb and the clock where the finger put them */
+        if (r && document.activeElement !== r) { if (d) { r.max = Math.round(d); r.disabled = false; } r.value = Math.round(a.currentTime); r.style.setProperty("--fill", (d ? a.currentTime / d * 100 : 0).toFixed(2) + "%"); }
         var t = s.querySelector('[data-np="t"]'), l = s.querySelector('[data-np="left"]');
         if (t) t.textContent = mmss(a.currentTime); if (l) l.textContent = "−" + mmss(Math.max(0, d - a.currentTime));
       });
       miniPaint(true); return;
     }
+    if (pl.scrub) { pl.scrubDraw = true; miniPaint(); return; }   /* redraw once the finger lifts, not under it */
     if (state.screen === "storage") render(true);
     miniPaint();
   }
@@ -7291,10 +7293,29 @@
     return { e: "HOLODECK · AUDIO · " + (nas.ok === false ? (nas.err && nas.err.code === "unauthorized" ? "TOKEN REFUSED" : "NAS UNREACHABLE") : v === "browse" ? (nas.dir.split("/").filter(Boolean).slice(0, -1).join(" ▸ ").toUpperCase() || "NAS") : v === "now" ? "NOW PLAYING" : "NAS"),
       t: v === "browse" ? baseName(nas.dir).toUpperCase() : "HOLODECK" };
   }
-  /* Seeking with the slider: applied when you let go, so the time doesn't jump around under your finger. */
-  document.addEventListener("change", function (e) { if ((e.target.id === "nasSeek" || e.target.id === "nasSeekBig") && pl.el) { pl.el.currentTime = +e.target.value; markPlay(false); } });
+  /* Seeking with the slider: applied when you let go, so the time doesn't jump around under your finger. Holding it
+     (2.51.3): iPadOS never focuses a touched slider, so the playing time used to pull the thumb and the clock back under
+     the finger four times a second, and letting go seeked to wherever they'd been pulled (often where it started). Now a
+     held slider is marked (pl.scrub) from the first touch to the lift: nothing repaints it or redraws the player, the
+     clock follows the finger, and the lift seeks to where the finger left it. */
+  function scrubbing(t) { return t && (t.id === "nasSeek" || t.id === "nasSeekBig") ? t : null; }
+  function scrubTo(v) { if (pl.el && isFinite(v) && Math.abs(pl.el.currentTime - v) > 0.5) { pl.el.currentTime = v; markPlay(false); } }
+  function scrubEnd() {
+    var s = pl.scrub; if (!s) return;
+    pl.scrub = null;
+    var r = $(s.id); scrubTo(r ? +r.value : s.v);
+    if (pl.scrubDraw) { pl.scrubDraw = false; paintPlayer(); }
+  }
+  document.addEventListener("pointerdown", function (e) { var r = scrubbing(e.target); if (r && !r.disabled) pl.scrub = { id: r.id, v: +r.value }; }, true);
+  ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach(function (k) { document.addEventListener(k, function () { if (pl.scrub) setTimeout(scrubEnd, 0); }, true); });   /* after the slider's own last input */
+  document.addEventListener("change", function (e) { if (scrubbing(e.target)) scrubTo(+e.target.value); });
   document.addEventListener("input", function (e) {
-    if ((e.target.id === "nasSeek" || e.target.id === "nasSeekBig") && pl.el) { var s = e.target.closest(".nas-scrub"), d = +e.target.max; s.querySelector('[data-np="t"]').textContent = mmss(+e.target.value); s.querySelector('[data-np="left"]').textContent = "−" + mmss(d - e.target.value); }
+    if (scrubbing(e.target) && pl.el) {
+      var s = e.target.closest(".nas-scrub"), d = +e.target.max, v = +e.target.value;
+      if (pl.scrub && pl.scrub.id === e.target.id) pl.scrub.v = v;
+      s.querySelector('[data-np="t"]').textContent = mmss(v); s.querySelector('[data-np="left"]').textContent = "−" + mmss(d - v);
+      e.target.style.setProperty("--fill", (d ? v / d * 100 : 0).toFixed(2) + "%");
+    }
     if (e.target.id === "nasQ") { nas.q = e.target.value; render(true); }
   });
   window.addEventListener("pagehide", function () { markPlay(false); });
@@ -12207,6 +12228,7 @@
        fill in a form), not just the field in use. A field you haven't touched shows fresh data. */
     /* Writing in the log: a background redraw would cost the keyboard its place. Leave the page alone. */
     if (keepScroll && state.screen === "log" && active && /^clText-/.test(active.id)) { setAreas(); renderHeader(); renderStatus(); return; }
+    if (keepScroll && state.screen === "storage" && pl.scrub) { setAreas(); renderHeader(); renderStatus(); return; }   /* a finger is on the scrubber: a background redraw would take it away */
     var typed = {};
     $("content").querySelectorAll("input[id], textarea[id]").forEach(function (f) {
       if ((f.tagName === "TEXTAREA" || /^(text|search|url|tel|email|number|)$/.test(f.type)) && f.value !== f.defaultValue) typed[f.id] = f.value;

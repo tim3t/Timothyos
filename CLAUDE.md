@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.51.2**, **bridge 1.35.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.51.3**, **bridge 1.35.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -272,6 +272,7 @@ A command bar (Timothy's pick from three mockups, D43): `#cmdBtn` in the header,
 - TRACK # (2.18): `parseId3()` also takes TRCK/TPOS ("3/12" → 3). `scanFolder()` reads the first 64 KB of each untagged MP3 (four at a time, `nas.scan` progress), `saveTag()` marks read files with `s: 1`. Sorts are per folder in `LS_NASSORT`; `sorterFor()` is shared by browsing and CONTINUE LISTENING's up-next order. Tags past 64 KB (after a big APIC) fall back to the filename.
 - Hidden folders: `LS_NASHIDE` (paths), filtered at render (`isHidden()`), unhidden in Systems. iPad only.
 - AUDIO (standby) was folded into STORAGE (2.16), and STORAGE became HOLODECK's AUDIO program (2.47). Test: `app_e2e33` against `tests/mock_relay.py` (:8110).
+- **Scrubbing** (2.51.3): iPadOS never focuses a touched range, so `paintPlayer(true)`'s `activeElement` check didn't protect a held slider and every `timeupdate` reset its value and clock (reproduced with CDP touch events in `app_e2e60`, also with focus refused as on the iPad). `pl.scrub` (`{id, v}`) is set on `pointerdown` and cleared on pointerup/cancel or touchend/cancel (a tick later, after the last `input`), which seeks with `scrubTo()`; while it's set the slider and its clock aren't repainted, `paintPlayer()` defers its redraw (`pl.scrubDraw`) and `render(true)` on the storage screen only refreshes the header. The CSS slider (`--fill`, 28 px thumb, `touch-action: none`) replaced `accent-color`. Live audio while dragging was considered and left out: each seek is a new Range request to the NAS.
 - **STORAGE background play** (2.43.1): iPadOS suspends a home-screen web app in the background once it stops making sound, so a network load at a track's end could stall until Bridge was reopened. `preNext()` (from `timeupdate`) reads the next file into a blob in the last `PRE_SECS` (90 s, ≤ `PRE_MAX` 150 MB by Content-Length) as `pl.pre`; `timeupdate` hands off with `toNext()` at ≤ `PRE_HANDOFF` (0.4 s) left while still playing; `ended` stays the fallback. `playPath` uses the blob (`pl.blob`, revoked on the next change) or the relay URL; `preDrop` aborts and revokes. Gated by `autoNext()` (PLAY THE NEXT ONE on, sleep timer not at end of episode). Can't be reproduced in headless Chromium; e2e33 checks the read-ahead order and that no `ended` was waited on.
 
 ## RESSIKAN (2.44)

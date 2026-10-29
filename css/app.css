@@ -1584,7 +1584,13 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 .nas-new { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--personal); margin-right: 8px; vertical-align: 1px; }
 .pill.nas-on { background: var(--personal); color: var(--ink); }
 .nas-scrub { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; font-family: var(--display); font-size: 14px; color: var(--dim); }
-.nas-scrub input[type="range"] { width: 100%; accent-color: var(--personal); min-height: 32px; }
+.nas-scrub input[type="range"] { width: 100%; min-height: 44px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; touch-action: none; cursor: pointer; }
+/* 2.51.3: a thumb a finger can find (28 px) on a 44 px tall strip; the played part filled from --fill. touch-action: none
+   keeps a slightly diagonal drag on the slider instead of handing it to the page's scroll (which cancelled the drag). */
+.nas-scrub input[type="range"]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: linear-gradient(to right, var(--personal) var(--fill, 0%), var(--line) var(--fill, 0%)); }
+.nas-scrub input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; margin-top: -10px; border-radius: 50%; background: var(--fg); border: 4px solid var(--personal); box-shadow: 0 1px 4px rgba(0, 0, 0, .5); }
+.nas-scrub input[type="range"]:disabled { cursor: default; opacity: .4; }
+.nas-scrub input[type="range"]:focus-visible { outline: 3px solid var(--fg); outline-offset: 4px; }
 .nas-ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .nas-ctl .chip { min-width: 56px; padding: 0 12px; }
 .nas-play { width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--personal); color: var(--ink); font-size: 22px; display: grid; place-items: center; flex: none; }
