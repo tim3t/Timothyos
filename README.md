@@ -612,7 +612,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - The show's name comes from its folder (`night_owl_theatre` → Night Owl Theatre); the guide reads "Night Owl Theatre · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
   - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.
   - A plain folder of videos (no show folders) set to NETWORK is a fresh shuffle every day from 6:00, no repeats that day; videos loose beside show folders join the rotation as one more "show".
-  - Leftovers from a downloader (`.part`, or `.f247`-style streams that were never joined) are ignored; only finished MP4/M4V/MOV files play.
+  - Leftovers from a downloader are ignored: `.part` files, and yt-dlp's unjoined pieces (`….f247`, `….f136.mp4`, `….temp.mp4`) from a run that was stopped. Only finished MP4/M4V/MOV files play.
 - **Public access TV:** `tools/ia_fetch.py` fills a folder with old public access shows from the Internet Archive, arranged for NETWORK (setup under NAS relay, Part 1).
 
 #### AUDIO (was STORAGE)

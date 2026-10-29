@@ -135,6 +135,10 @@ def videos():
     out[nw + "third_show/A Night Out [Cc4Dd5Ee6Ff].webm"] = v2
     out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].webm"] = v1
     out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].f247"] = (b"video only", "2026-10-01T10:00:00Z")
+    # 2.51.4: what a stopped yt-dlp run leaves behind: a video-only stream and a merge in progress, both named .mp4
+    out[nw + "third_show/004 - A Late Show [Kk1Ll2Mm3Nn].f136.mp4"] = (b"video only stream", "2026-10-01T10:00:00Z")
+    out["/Video/Test Channel/05 - Unjoined [Oo4Pp5Qq6Rr].f136.mp4"] = (b"video only stream", "2026-10-01T10:00:00Z")
+    out["/Video/Test Channel/05 - Unjoined [Oo4Pp5Qq6Rr].temp.mp4"] = (b"half merged", "2026-10-01T10:00:00Z")
     # 2.51.1: videos with a playable name that no browser can decode; the folder shows only after /__mkdir?d=/Video/Broken Rips
     out["/Video/Broken Rips/Episode 1.webm"] = (b"\x00not a video at all" * 64, "2026-10-01T10:00:00Z")
     out["/Video/Broken Rips/Episode 2.webm"] = (b"\x01still not a video" * 64, "2026-10-01T10:00:00Z")

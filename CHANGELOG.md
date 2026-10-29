@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.51.4 · 2026-10-29
+- **HOLODECK ignores what a stopped yt-dlp run leaves behind.** A video-only piece such as `004 - Title [id].f136.mp4`, or a half-merged `….temp.mp4`, used to count as an episode (one that would play without sound). Now only finished files are part of a channel.
+
 ## 2.51.3 · 2026-10-29
 - **Fixed: dragging HOLODECK → AUDIO's slider fought your finger.** iPadOS doesn't treat a touched slider as in use, so the playing time pulled the thumb and the clock back four times a second while you dragged, and letting go often jumped to the wrong place. Now the thumb and the clock follow your finger the whole time you hold it, and letting go plays from exactly there.
 - **An easier slider to grab:** a larger thumb on a taller strip, with the played part filled in. A slightly diagonal drag no longer gets taken over by the page scrolling.

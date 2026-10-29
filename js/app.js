@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.51.3";
+  var VERSION = "2.51.4";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10228,6 +10228,7 @@
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
     var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
+    var PARTIAL = /\.(f\d+|temp)\.[a-z0-9]+$/i;   /* yt-dlp's pieces of an unfinished download ("….f136.mp4" is video without sound, "….temp.mp4" a merge in progress): never episodes (2.51.4) */
     if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; save(); }   /* the channel shown was removed: the first one */
     function save() { lsSet(LS_HOLO, cfg); }
     function chById(id) { return cfg.chans.filter(function (c) { return c.id === id; })[0] || null; }
@@ -10250,7 +10251,7 @@
     function epOf(n) { n = n.replace(/\[[^\]]*\]/g, ""); var m = /\bepisode\s*(\d+)/i.exec(n) || /\bS\d{1,2}\s*E(\d{1,3})\b/i.exec(n) || /\b\d{1,2}x(\d{1,3})\b/.exec(n) || /\bep\.?\s*(\d+)/i.exec(n); return m ? +m[1] : null; }
     function nat(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); }
     function arrange(root, kids) {   /* seasons by number, episodes by number; then other folders (specials), episodes without a number, loose files beside the seasons */
-      var vid = function (x) { return !x.dir && VIDEO.test(x.name); }, seas = [], others = [], extras = [], items;
+      var vid = function (x) { return !x.dir && VIDEO.test(x.name) && !PARTIAL.test(x.name); }, seas = [], others = [], extras = [], items;
       kids.forEach(function (k) {
         var fs = k.items.filter(vid), n = seasonOf(k.d.name); if (!fs.length) return;
         if (n == null) { others.push({ name: k.d.name, fs: fs.sort(nat) }); return; }
