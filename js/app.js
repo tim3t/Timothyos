@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.51.1";
+  var VERSION = "2.51.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -3715,7 +3715,8 @@
   /* Checking, savings and loans, age of money and average spend come from YNAB
      through the bridge (bridge 1.9, YNAB_TOKEN); nothing here can change YNAB.
      The Replicator Queue is a Notion list of things to buy once the Discretionary
-     category can cover them, funded top-down in priority order. */
+     category can cover them. Each item is measured against the whole balance on its own (2.51.2, Timothy's choice),
+     so every one the balance covers reads FUNDS READY and he picks which to buy; the order is his preference only. */
   var LEDGER_FRESH_MS = 60 * 1000;   /* opening LEDGER asks again after a minute (2.15.1; was 5) */
   var LEDGER_RANGES = [3, 6, 12];
   function canLedger() { return state.caps.indexOf("ledger") > -1; }
@@ -3885,16 +3886,15 @@
     if (!canQueue()) html += stubBox("Needs the Notion link. Steps are in the README under <b>Ledger</b>.");
     else if (!L.queue) html += '<div class="err">' + (L.queueError === "notion_not_shared" ? "The Replicator Queue isn't connected to the TimothyOS integration. In Notion: Replicator Queue → ••• → Connections → add TimothyOS bridge." : esc(describeTasks({ code: L.queueError }))) + "</div>";
     else {
-      var fund = y && y.fund, left = fund ? fund.balance : 0, busy = state.queueBusy || navigator.onLine === false;
+      var fund = y && y.fund, bal = fund ? Math.max(0, fund.balance) : 0, busy = state.queueBusy || navigator.onLine === false;
       html += '<div class="lg-fund"><span class="st"></span><span><span class="ov-sub">REPLICATOR RATIONS · YNAB CATEGORY "' + esc(((y && y.fundName) || "Discretionary").toUpperCase()) + '"</span><br>' +
         (fund ? '<b class="tnum">' + usd(fund.balance) + '</b> <span class="muted lg-note">available</span>' : '<span class="muted lg-note">' + (y ? 'No category called "' + esc(y.fundName) + '" in YNAB yet. Create it and the bars below fill from it.' : "Shows once YNAB is connected.") + "</span>") +
-        '</span><span class="muted lg-note lg-fundhint">Bars fill down the queue<br>in priority order</span></div><div class="lg-queue">';
+        '</span><span class="muted lg-note lg-fundhint">Each bar: the whole balance<br>against that item alone</span></div><div class="lg-queue">';
       if (!L.queue.items.length) html += '<div class="empty">The queue is empty. Add something below so you don\'t forget it.</div>';
       var inPrice = priceSorted(L.queue.items).every(function (x, i) { return x === L.queue.items[i]; });
       if (L.queue.items.length > 1 && !inPrice) html += '<div class="lg-sortrow"><span class="muted lg-note">Your own order. New items still land by price.</span><button type="button" class="btn ghost sm" data-qprice="1"' + (busy ? " disabled" : "") + ">PRICE ORDER</button></div>";
       L.queue.items.forEach(function (w, i) {
-        var cost = typeof w.cost === "number" ? w.cost : 0, got = fund && cost ? Math.min(cost, Math.max(0, left)) : 0;
-        left -= cost;
+        var cost = typeof w.cost === "number" ? w.cost : 0, got = fund && cost ? Math.min(cost, bal) : 0;
         var ready = fund && cost && got >= cost - 0.005;
         var status = !cost ? '<span class="pill">NO PRICE YET</span>' : !fund ? "" : ready ? '<span class="pill ok">FUNDS READY</span>' : '<span class="pill' + (got > 0 ? " warn" : "") + '">' + usd(cost - got) + " TO GO</span>";
         html += '<div class="lg-witem" data-qid="' + esc(w.id) + '"><span class="rank tnum">' + (i + 1) + '</span><span class="tx"><b>' + esc(w.title) + "</b>" +

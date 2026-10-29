@@ -209,7 +209,7 @@ ASK uses your Claude API account (prepaid, separate from a Claude Pro plan).
 
 ### Ledger (YNAB)
 
-1. **In YNAB:** create a category named **Discretionary** (any group). Its available balance funds the Replicator Queue, top item first.
+1. **In YNAB:** create a category named **Discretionary** (any group). Its available balance is what the Replicator Queue measures each item against.
 2. **Token:** app.ynab.com → **Account Settings** → **Developer Settings** → **New Token**. Script Property `YNAB_TOKEN`. Treat it like your YNAB password.
 3. Connect **🛸 Replicator Queue** to the integration (Connect Notion).
 4. Run **setup**: `Ledger (YNAB): OK. … Fund category "Discretionary": found` and `Notion replicator queue: OK`. If it says `ynab_not_found`, the log lists your plans as `name -> id`; add `YNAB_PLAN_ID`.
@@ -566,7 +566,7 @@ Your finances from YNAB at a glance. YNAB stays where you budget: the Google bri
 
 - **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
 - **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages; **+** shows the smaller ones. Card payments, hidden and internal categories are left out.
-- **Replicator Queue:** things to buy once **Discretionary** can cover them. **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
+- **Replicator Queue:** things to buy once **Discretionary** can cover them. Each item's bar and **FUNDS READY** / **$… TO GO** compare the whole Discretionary balance with that item alone, so every item the balance covers shows ready and you choose which to buy (buying one lowers the balance for the rest after YNAB records it). **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
 - **Freshness:** opening LEDGER asks YNAB itself when the iPad's copy is over a minute old; **pull down** or **REFRESH** for the latest (**AS OF** shows when). Otherwise the bridge asks YNAB at most every 10 minutes and keeps past months for 6 hours, far below YNAB's limit of 200 requests an hour.
 
 ### LIBRARY

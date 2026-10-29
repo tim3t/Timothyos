@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.51.2 · 2026-10-29
+- **LEDGER → Replicator Queue: every item measured against the whole Discretionary balance.** Bars used to fill top-down, the first item taking its share before the next saw anything. Now each bar and **FUNDS READY** / **$… TO GO** compares the whole balance with that item alone, so every item the balance covers shows ready and you pick which to buy. The order stays as your preference.
+
 ## 2.51.1 · 2026-10-29
 - **Fixed: HOLODECK could say "MEASURING 25 OF 25 VIDEOS…" for ever.** When no video in a channel could be read, the count reached the end and TUNE IN stayed grey with no explanation. It now says why: **THE IPAD CAN'T PLAY THESE VIDEOS** (the files hold video the iPad can't decode: convert them to MP4 with H.264) or **COULDN'T READ THESE VIDEOS FROM THE NAS** (a slow or dropped connection). The channel list counts them as unreadable.
 - **Unreadable videos get another chance.** A video that timed out or dropped is measured again after 10 minutes, and **LOOK AGAIN** measures every unreadable one afresh; before, one bad read marked a video unplayable for good. Videos marked that way before this update are measured again once. Each video now has 45 seconds to answer, not 20, for large files over Tailscale.

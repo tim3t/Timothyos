@@ -1,6 +1,6 @@
 // Ledger (bridge 1.9): checking, age of money, savings and loans from YNAB (read-only),
 // average spend for 3, 6 and 12 months with this month so far, and the Replicator Queue
-// (funded top-down from the Discretionary category; reorder, add, bought, undo).
+// (each item measured against the whole Discretionary balance on its own, 2.51.2; reorder, add, bought, undo).
 // Finances stay out of Ask unless turned on in Systems.
 const { chromium } = require('playwright');
 const assert = require('assert');
@@ -54,13 +54,13 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   let q = await items(); console.log('queue:', q.join(' | '));
   assert.ok((await txt(p, '.lg-fund')).includes('REPLICATOR RATIONS · YNAB CATEGORY "DISCRETIONARY" $340 available'));
   assert.ok(q[0].startsWith('1 New glasses') && q[0].includes('FUNDS READY'));
-  assert.ok(q[1].startsWith('2 Honey extractor') && q[1].includes('$390 TO GO'));
+  assert.ok(q[1].startsWith('2 Honey extractor') && q[1].includes('$110 TO GO'), 'the whole $340 against $450, not what the glasses leave');
   assert.ok(q[2].includes('NO PRICE YET'));
   await p.click('[data-qid="q2"] [data-qmove="-1"]'); await p.waitForTimeout(800);
   let s = await stats(); console.log('order after move:', JSON.stringify(s.queue));
   assert.deepStrictEqual(s.queue.filter(x => !x[2]).sort((a, c) => a[1] - c[1]).map(x => x[0]), ['Honey extractor', 'New glasses', 'Rain barrels']);
   q = await items();
-  assert.ok(q[0].includes('Honey extractor') && q[0].includes('$110 TO GO') && q[1].includes('$280 TO GO'), 'funding follows the new order');
+  assert.ok(q[0].includes('Honey extractor') && q[0].includes('$110 TO GO') && q[1].includes('New glasses') && q[1].includes('FUNDS READY'), 'the order never changes what an item shows');
   assert.strictEqual(await p.evaluate(() => document.activeElement.getAttribute('aria-label')), 'Move Honey extractor down', 'focus stays on the moved item (up is disabled at the top)');
 
   // regression (2.4.1): a redraw while filling the form kept only the field in use
