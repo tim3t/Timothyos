@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.51.1 · 2026-10-29
+- **Fixed: HOLODECK could say "MEASURING 25 OF 25 VIDEOS…" for ever.** When no video in a channel could be read, the count reached the end and TUNE IN stayed grey with no explanation. It now says why: **THE IPAD CAN'T PLAY THESE VIDEOS** (the files hold video the iPad can't decode: convert them to MP4 with H.264) or **COULDN'T READ THESE VIDEOS FROM THE NAS** (a slow or dropped connection). The channel list counts them as unreadable.
+- **Unreadable videos get another chance.** A video that timed out or dropped is measured again after 10 minutes, and **LOOK AGAIN** measures every unreadable one afresh; before, one bad read marked a video unplayable for good. Videos marked that way before this update are measured again once. Each video now has 45 seconds to answer, not 20, for large files over Tailscale.
+
 ## 2.51.0 · 2026-10-28 (needs bridge 1.35)
 - **LOG → SESSIONS: counseling session notes.** Once LOG is open, a second tab beside **JOURNAL**, behind the same authorization code. Saved to the new **🛋️ Session Notes** database in Notion, one page per session (connect it to the TimothyOS integration).
   - **The list:** SOLO COUNSELING and COUPLES COUNSELING, then year, then quarter, then sessions, newest open. Each row shows the date, topics, what landed, and arriving → leaving.

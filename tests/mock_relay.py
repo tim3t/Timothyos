@@ -135,6 +135,9 @@ def videos():
     out[nw + "third_show/A Night Out [Cc4Dd5Ee6Ff].webm"] = v2
     out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].webm"] = v1
     out[nw + "third_show/The Big Game [Gg7Hh8Ii9Jj].f247"] = (b"video only", "2026-10-01T10:00:00Z")
+    # 2.51.1: videos with a playable name that no browser can decode; the folder shows only after /__mkdir?d=/Video/Broken Rips
+    out["/Video/Broken Rips/Episode 1.webm"] = (b"\x00not a video at all" * 64, "2026-10-01T10:00:00Z")
+    out["/Video/Broken Rips/Episode 2.webm"] = (b"\x01still not a video" * 64, "2026-10-01T10:00:00Z")
     return out
 FILES.update(videos())
 

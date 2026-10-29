@@ -604,7 +604,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - Anything else: convert once: `ffmpeg -i "in.avi" -c:v libx264 -crf 20 -preset slow -c:a aac -b:a 160k -movflags +faststart "out.mp4"`
   - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
-- **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order).
+- **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order), and measures again any video that couldn't be read. The channel list counts videos that couldn't be read as **unreadable**.
 - **NETWORK in detail** (tap **NETWORK** beside a channel in the channel list; **IN ORDER** switches back). For a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
   - A show at random each time, never the same show twice in a row, except about one pick in four is a block: two episodes of it in a row, in order.
@@ -823,7 +823,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
 | HOLODECK or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in **SYSTEMS → NAS RELAY** (**SAVE AND TEST**), and that the address with `?k=` opens in Safari (NAS relay, step 5) |
 | A folder shared on the NAS doesn't show in AUDIO or + ADD CHANNEL | Redeploy the `timothyos` project after adding its line, check it in Safari (NAS relay, Sharing folders), then open AUDIO again. Video channels must be under `/media/Video/` |
-| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Grey with MEASURING: wait for the first lengths. Videos that never play: convert them to MP4 (HOLODECK → VISUAL, What plays) |
+| HOLODECK says a video wouldn't play, or TUNE IN stays grey | Grey with MEASURING: wait for the first lengths (a few seconds a video). **THE IPAD CAN'T PLAY THESE VIDEOS**: the files are named .mp4 (or similar) but hold video the iPad can't decode; convert them to MP4 with H.264 (HOLODECK → VISUAL, What plays), then **LOOK AGAIN**. **COULDN'T READ THESE VIDEOS FROM THE NAS**: a slow or dropped connection; it tries again on its own every 10 minutes, or tap **LOOK AGAIN** |
 | Music stops at the end of a track while Bridge is in the background | Files over 150 MB, or a slow NAS link, can stall the hand-off: keep Bridge in Split View or Slide Over, or open it to carry on |
 | RESSIKAN is silent though SOUND is on | If it says **IPADOS PAUSED THE SOUND**, tap SOUND ON (or any surface) to start again; something else on the iPad took the sound. Check the volume and, on older iPadOS, the silent setting |
 
