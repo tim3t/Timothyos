@@ -15,7 +15,7 @@ What it does:
     would skip them anyway);
   - never changes or deletes the originals (HOLODECK already skips them for their length);
   - keeps OUT/_split_done.txt (name and size of each file done), so a later run splits only new downloads. A file
-    interrupted halfway is done again from the start.
+    interrupted halfway, or one that gave no singles, is tried again next time.
 
 It only lists the cuts it would make unless --go is given.
 
@@ -219,8 +219,9 @@ def main(argv=None):
                 cut(path, s, e, os.path.join(out, "%s - %02d.mp4" % (stem, i)))
         except RuntimeError as err:
             print("   !! stopped on this file: %s" % err); total["failed"] += 1; continue
-        with open(os.path.join(out, DONE), "a", encoding="utf-8") as f:
-            f.write("%s\t%s\t%d\n" % (n, size, len(keep)))
+        if keep:   # one that gave nothing isn't marked done, so a run with other settings tries it again
+            with open(os.path.join(out, DONE), "a", encoding="utf-8") as f:
+                f.write("%s\t%s\t%d\n" % (n, size, len(keep)))
         total["pieces"] += len(keep)
     print("\n%s%s · left out: %d too short, %d still over %s (no cut found) · %d failed"
           % (pl(total["files"], "compilation"), " · %s written" % pl(total["pieces"], "single") if a.go else "", total["short"], total["long"], mmss(a.max), total["failed"]))
@@ -285,6 +286,10 @@ def selftest():
     before = os.path.getmtime(os.path.join(out, got[0]))
     assert main(["--src", src, "--go"]) == 0 and os.path.getmtime(os.path.join(out, got[0])) == before, "done once, never again"
     assert os.path.exists(comp), "the original stays"
+    flat = os.path.join(src, "No Gaps.mp4")
+    r = run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=96x64:r=10:d=200", "-f", "lavfi", "-i", "sine=frequency=440:duration=200", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", flat])
+    assert r.returncode == 0, r.stderr
+    assert main(["--src", src, "--go"]) == 0 and "No Gaps.mp4" not in open(os.path.join(out, DONE)).read(), "nothing kept: not marked done"
     assert compare([(comp, duration(comp))], argparse.Namespace(gap=.1, noise=-45.0, dark=.10, picture=.98, min=5.0, max=180.0)) == 0
     print("real cut OK")
     return 0
