@@ -142,6 +142,12 @@ def videos():
     # 2.51.1: videos with a playable name that no browser can decode; the folder shows only after /__mkdir?d=/Video/Broken Rips
     out["/Video/Broken Rips/Episode 1.webm"] = (b"\x00not a video at all" * 64, "2026-10-01T10:00:00Z")
     out["/Video/Broken Rips/Episode 2.webm"] = (b"\x01still not a video" * 64, "2026-10-01T10:00:00Z")
+    # 2.52: a folder of commercials, three short and one over 3 minutes; it shows only after /__mkdir?d=/Video/Commercials
+    for name, secs, src, br in [("Fizzy Pop - Taste the Sparkle.webm", 2, "smptebars=s=160x120:r=10", "40k"), ("Moon Mops - Clean Like Never Before.webm", 3, "testsrc=s=160x120:r=10", "40k"),
+                                ("Pocket Rocket Toys.webm", 4, "rgbtestsrc=s=160x120:r=10", "40k"), ("Long Infomercial.webm", 185, "testsrc=s=64x48:r=1", "8k")]:
+        f = os.path.join(d, "ad.webm")
+        subprocess.run(["ffmpeg", *q, "-f", "lavfi", "-t", str(secs), "-i", src, "-f", "lavfi", "-t", str(secs), "-i", "sine=frequency=660:sample_rate=48000", "-c:v", "libvpx-vp9", "-b:v", br, "-deadline", "realtime", "-c:a", "libopus", "-b:a", "8k", "-shortest", f], check=True)
+        out["/Video/Commercials/" + name] = (open(f, "rb").read(), "2026-10-01T10:00:00Z")
     return out
 FILES.update(videos())
 

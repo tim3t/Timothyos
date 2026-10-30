@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.52.0 · 2026-10-30
+- **HOLODECK: commercial breaks.** Choose one folder of commercials under VISUAL's channel list (**COMMERCIALS → CHOOSE FOLDER**), then turn on **BREAKS** for any channel, IN ORDER or NETWORK. One or two commercials play between episodes, or about every 12 minutes on a channel of short videos. Each channel goes through every commercial before any repeats; anything over 3 minutes is skipped. During a break the guide shows one **COMMERCIAL BREAK** row with its length, and there's no credit or UP NEXT. Like the rest of the broadcast, the breaks come from the clock, so every channel keeps its own breaks whichever one you watch. Settings stay on this iPad and in backups.
+
 ## 2.51.5 · 2026-10-30
 - **Fixed: panels could open as a thin sliver under the top bar** (PLAN DAY, and any other panel), with nothing reachable. It happened after using the app switcher or the lock screen while audio was playing: the audio keeps Bridge running in the background, iPadOS briefly reported a tiny screen, and Bridge kept that size. Panels now size themselves to the keyboard only while you're typing, use the whole screen otherwise, and measure again when you come back to the app and as a panel opens.
 

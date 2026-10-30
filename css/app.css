@@ -2562,6 +2562,12 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-upnext[hidden] { display: grid !important; opacity: 0; transform: translateX(16px); }
 @media (prefers-reduced-motion: reduce) { .hd-upnext { transition: none; } }
 .hd-style { display: inline-flex; gap: 6px; margin-right: 6px; }
+/* 2.52: commercial breaks: the one Commercials folder, and a break's row in the guide */
+.hd-ads { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 12px; }
+.hd-adsi { min-width: 0; display: grid; gap: 2px; }
+.hd-adsi b { font-weight: 600; overflow-wrap: anywhere; }
+.hd-adsi small { font-size: 14px; overflow-wrap: anywhere; }
+.hd-slot.hd-brk b { color: var(--dim); letter-spacing: .08em; }
 /* 2.49: VISUAL's sleep timer */
 .hd-sleepbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .hd-lab { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--dim); margin-right: 4px; }

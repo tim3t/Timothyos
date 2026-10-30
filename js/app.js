@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.51.5";
+  var VERSION = "2.52.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10234,10 +10234,10 @@
      real lengths come in (once, kept). UP NEXT shows in an episode's last seconds. */
   var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1";
   var holo = (function () {
-    var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false }, lsGet(LS_HOLO) || {});
+    var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false, ads: "" }, lsGet(LS_HOLO) || {});   /* ads: the one Commercials folder (2.52); each channel's breaks: c.breaks */
     var lens = lsGet(LS_HOLOLEN) || {};
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var PARTIAL = /\.(f\d+|temp)\.[a-z0-9]+$/i;   /* yt-dlp's pieces of an unfinished download ("….f136.mp4" is video without sound, "….temp.mp4" a merge in progress): never episodes (2.51.4) */
     if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; save(); }   /* the channel shown was removed: the first one */
@@ -10344,12 +10344,89 @@
       return s.est[show];
     }
     function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lenOf(it); }   /* null: measured and unreadable, skipped */
-    function netAt(c, s, ms) {
-      var ds = dayStart(ms), list = picks(c, s, ds), t = ds;
+    function netAt(c, s, ms) {   /* with BREAKS (2.52): the day's commercials are a shuffle of their own, from the date */
+      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hash(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
+      if (E === false) return null;
       for (var i = 0; ; i++) {
         if (i >= list.length) { if (list.length > 30000 || !s.shows.length) return null; list.more(); if (i >= list.length) return null; }
         var d = netLen(s, list[i]); if (d == null) continue; if (ms < t + d * 1000) return { c: c, it: list[i], pos: (ms - t) / 1000, dur: d, startMs: t }; t += d * 1000;
+        if (E && brkDue(d, acc += d)) { var b = brkAt(E, seed, j++, p, t), a = inBreak(c, b, ms); if (a) return a; p = b.p; acc = 0; t += b.d * 1000; }
       }
+    }
+
+    /* ---- commercial breaks (2.52): one Commercials folder for every channel, BREAKS on or off per channel ---- */
+    /* A break of 1 or 2 commercials after each episode, or about every 12 minutes on a channel of short videos. Each
+       channel deals the commercials like a deck, so none repeats until all have aired. Picks are seeded, so the breaks
+       are computed from the clock like everything else. Over 3 minutes is skipped; an unmeasured one counts as 30 s. */
+    var A = { play: null, dir: "", at: 0, busy: false, err: "", v: -1, ok: [] }, BK = {}, PM = {}, AD_MAX = 180, AD_GUESS = 30;
+    function adLen(it) { if (unknown(it)) return AD_GUESS; var d = lenOf(it); return d && d <= AD_MAX ? d : null; }   /* null: too long, or unreadable */
+    function adPool() { if (!A.play) return []; if (A.v !== X.lv) { A.v = X.lv; A.ok = A.play.filter(function (it) { return adLen(it) != null; }); } return A.ok; }
+    function breaks(c) {   /* the commercials this channel's breaks draw from; null: no breaks; false: wait, the folder is being read */
+      if (!c || !c.breaks || !cfg.ads) return null;
+      if (A.dir !== cfg.ads || !A.play) return A.dir === cfg.ads && A.err ? null : false;   /* can't reach them: the channel runs without */
+      var E = adPool(); return E.length ? E : null;
+    }
+    function loadAds(force) {   /* the Commercials folder and one level of folders inside it */
+      var dir = cfg.ads; if (!dir || !nasConf()) return;
+      if (A.dir !== dir) A = { play: null, dir: dir, at: 0, busy: false, err: "", v: -1, ok: [] };
+      var a = A; if (a.busy || (!force && a.at && Date.now() - a.at < (a.play ? 10 * 60000 : 30000))) return;
+      a.busy = true; a.err = "";
+      nasList(dir, true).then(function (l) { return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) { return arrange(l.items, kids); }); })
+        .then(function (r) { a.play = r.play.map(function (it) { return { f: it.f, ad: true }; }); a.skip = r.skip; a.v = -1; BK = {}; probe(); }, function (e) { a.err = nasErrText(e); })
+        .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) render(); });
+    }
+    function mixInt(x) { x = (x ^ x >>> 16) >>> 0; x = Math.imul(x, 0x7feb352d) >>> 0; x = (x ^ x >>> 15) >>> 0; x = Math.imul(x, 0x846ca68b) >>> 0; return (x ^ x >>> 16) >>> 0; }
+    function shuffleOf(seed, q, n) { var r = rng(mixInt((seed + Math.imul(q + 1, 0x9e3779b1)) >>> 0)), a = []; for (var i = 0; i < n; i++) a.push(i); for (i = n - 1; i > 0; i--) { var k = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[k]; a[k] = t; } return a; }
+    function deckAt(seed, q, n) {   /* the q-th time through the commercials; it never opens with the one the last time ended on */
+      var key = seed + "|" + q + "|" + n; if (PM[key]) return PM[key];
+      var a = shuffleOf(seed, q, n), z = q > 0 && n > 1 ? shuffleOf(seed, q - 1, n)[n - 1] : -1; if (a[0] === z) { a[0] = a[1]; a[1] = z; }
+      if (Object.keys(PM).length > 40) PM = {};
+      return (PM[key] = a);
+    }
+    function brkDue(d, acc) { return d >= 480 || acc >= 720; }   /* after an episode; short videos: once 12 minutes have played */
+    function brkAt(E, seed, j, p, t) {   /* break j, dealt from deck position p, starting at t (ms) */
+      var n = E.length > 1 ? 1 + (mixInt((seed + j) >>> 0) & 1) : 1, ads = [], d = 0;
+      for (var i = 0; i < n; i++, p++) { var it = E[deckAt(seed, Math.floor(p / E.length), E.length)[p % E.length]], l = adLen(it); ads.push({ it: it, d: l }); d += l; }
+      return { ads: ads, d: d, p: p, startMs: t };
+    }
+    function inBreak(c, b, ms) {   /* the commercial on at ms, or null once the break is over */
+      for (var i = 0, t = b.startMs; i < b.ads.length; t += b.ads[i].d * 1000, i++) if (ms < t + b.ads[i].d * 1000) return { c: c, it: b.ads[i].it, pos: (ms - t) / 1000, dur: b.ads[i].d, startMs: t, brk: { startMs: b.startMs, dur: b.d } };
+      return null;
+    }
+    function roundAt(c, s, E, seed, st, ms) {   /* IN ORDER with breaks: one time through the order from st; its breaks come after the same episodes each time */
+      var t = st.t, j = st.j, p = st.p, acc = 0;
+      for (var i = 0; i < s.play.length; i++) {
+        var it = s.play[i]; if (unknown(it)) return { wait: true }; var d = lenOf(it); if (d == null) continue;
+        if (ms < t + d * 1000) return { seg: { c: c, it: it, pos: (ms - t) / 1000, dur: d, startMs: t } }; t += d * 1000;
+        if (brkDue(d, acc += d)) { var b = brkAt(E, seed, j++, p, t), a = inBreak(c, b, ms); if (a) return { seg: a }; p = b.p; acc = 0; t += b.d * 1000; }
+      }
+      return { end: { t: t, j: j, p: p } };
+    }
+    function orderAt(c, s, ms, E) {   /* each round's length differs with its commercials, so where each began is kept, from the premiere on */
+      var seed = hash(c.dir + "|ads|" + E.length), key = [seed, X.lv, c.premiere, s.at, s.play.length].join("|"), R = BK[c.id];
+      if (!R || R.key !== key) R = BK[c.id] = { key: key, r: [{ t: c.premiere, j: 0, p: 0 }] };
+      ms = Math.max(ms, c.premiere);
+      var k = R.r.length - 1; while (k > 0 && R.r[k].t > ms) k--;
+      for (;;) {
+        var w = roundAt(c, s, E, seed, R.r[k], ms); if (w.seg) return w.seg; if (w.wait || w.end.t === R.r[k].t) return null;
+        if (k === R.r.length - 1) R.r.push(w.end); k++;
+      }
+    }
+    function brkInfo(c) {
+      if (!c.breaks) return ""; if (!cfg.ads) return " · breaks on, no commercials folder yet";
+      if (A.dir === cfg.ads && A.err) return " · breaks off: can't reach the commercials"; if (A.dir !== cfg.ads || !A.play) return " · reading the commercials…";
+      return adPool().length ? " · commercial breaks" : " · breaks off: no commercials of 3 minutes or less";
+    }
+    function adsInfo() {   /* the Commercials folder's line: kept up to date as they're measured */
+      if (A.dir !== cfg.ads || (!A.play && !A.err)) return "Reading the folder…";
+      if (!A.play) return esc(A.err);
+      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(unreadable).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
+        (m < n ? " · measuring " + m + " of " + n : " · " + ok + " can air") + " · breaks on " + on + (on === 1 ? " channel" : " channels");
+    }
+    function adsRow() {   /* under the channels: the one Commercials folder */
+      return '<div class="hd-ads"><span class="hd-lab">COMMERCIALS</span><span class="hd-adsi">' + (cfg.ads ? "<b>" + esc(cfg.ads) + '</b><small id="hdAdsInfo">' + adsInfo() + "</small>" : '<b>No folder yet</b><small class="muted">Choose a folder of commercials, then turn on BREAKS for a channel.</small>') +
+        '</span><span class="hd-acts"><button type="button" class="chip sm" data-hd="adpick" aria-expanded="' + (X.pick && X.pickFor === "ads") + '">' + (cfg.ads ? "CHANGE FOLDER" : "CHOOSE FOLDER") + "</button>" + (cfg.ads ? '<button type="button" class="chip sm" data-hd="adclear">CLEAR</button>' : "") + "</span></div>";
     }
     function want(c, wide) {   /* the next length to measure: today's lineup first (NETWORK), or the running order (IN ORDER) */
       var s = c && F[c.dir]; if (!s || !s.play) return null;
@@ -10359,7 +10436,7 @@
     function probe() {   /* each new file's length, one at a time, from its header only: this channel first */
       if (X.probing) return;
       var list = [cur()].concat(cfg.chans), it = null;
-      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); });
+      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide && A.play && A.dir === cfg.ads) it = A.play.filter(unknown)[0] || null; });   /* the commercials after the channels' lineups (2.52) */
       if (!it) { paint(); return; }
       X.probing = true;
       var f = it.f, v = document.createElement("video"), done = false, fin = function (s, why) { if (done) return; done = true; clearTimeout(t); lens[f.path] = s > 0 ? { s: s, z: f.size } : { s: -1, z: f.size, why: why, at: Date.now() }; X.lv++; v.removeAttribute("src"); v.load(); X.probing = false;
@@ -10378,14 +10455,18 @@
     function at(c, ms) {
       var s = c && F[c.dir]; if (!s || !s.play) return null;
       if (s.shows) return net(c) ? netAt(c, s, ms) : null;   /* read for the other style: wait for the reread */
+      var E = breaks(c); if (E === false) return null; if (E) return orderAt(c, s, ms, E);
       var sec = Math.max(0, (ms - c.premiere) / 1000), w = walk(s.play, sec);
       if (w.left != null) { var L = sec - w.left; if (L <= 0) return null; w = walk(s.play, sec % L); }   /* round again from the top */
       return w.it ? { c: c, it: w.it, pos: w.pos, dur: w.dur, startMs: ms - w.pos * 1000 } : null;
     }
     function after(c) { return at(c.c, c.startMs + c.dur * 1000 + 20); }
+    function endMs(c) { return c.brk ? c.brk.startMs + c.brk.dur * 1000 : c.startMs + c.dur * 1000; }   /* a commercial: the end of its whole break */
+    function pastBreak(c) { return at(c.c, endMs(c) + 20); }
     function next(c) { var n = after(c); return n && n.it === c.it ? after(n) : n; }   /* a length that settled mid-episode never replays it */
     function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
     function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
+      if (it.ad) return { a: "COMMERCIAL BREAK", t: "", ad: true };
       var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
       if (it.show) {   /* NETWORK: the show, then the season and episode and whatever title the name has (a loose video, show "", reads as a music video) */
         var sn = it.show.toLowerCase(), bits = n.replace(/\.f\d+$/i, "").replace(/\b(?:season|series)\s*\d+\s*,?\s*(?:episode|ep\.?)\s*\d+|\bS\d{1,2}\s*E\d{1,3}\b|\b(?:episode|ep\.?)\s*\d+/i, "|").replace(/\s+[-–—]\s+/g, "|").split("|")
@@ -10465,10 +10546,10 @@
       if (s.shows) {
         var named = s.shows.filter(function (x) { return x.name; }), lz = s.shows.filter(function (x) { return !x.name; })[0], ne = named.reduce(function (t, x) { return t + x.items.length; }, 0);
         return (named.length ? named.length + (named.length === 1 ? " show · " : " shows · ") + ne + (ne === 1 ? " episode" : " episodes") : "") + (lz ? (named.length ? " + " : "") + lz.items.length + (lz.items.length === 1 ? " video" : " videos") : "") + (!named.length && !lz ? "0 shows · 0 episodes" : "") +
-          (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · network · a new " + (named.length ? "lineup" : "shuffle") + " every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "");
+          (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · network · a new " + (named.length ? "lineup" : "shuffle") + " every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "") + brkInfo(c);
       }
       var nb = s.play.filter(unreadable).length;
-      return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + (nb ? ' · <span class="pill warn">' + nb + " unreadable</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : nb === n ? "nothing playable yet" : "measuring " + m + " of " + n) +
+      return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + (nb ? ' · <span class="pill warn">' + nb + " unreadable</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : nb === n ? "nothing playable yet" : "measuring " + m + " of " + n) + brkInfo(c) +
         " · on air since " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + hm(d);
     }
     function tuneSub() {
@@ -10477,6 +10558,7 @@
       if (!c) return "ADD A CHANNEL BELOW";
       if (!s || !s.play) return s && s.err ? "CAN'T REACH THE FOLDER" : "READING THE FOLDER…";
       if (!s.play.length) return "NO VIDEOS HERE THE IPAD CAN PLAY";
+      if (breaks(c) === false) return "READING THE COMMERCIALS…";
       var bad = s.play.filter(unreadable);
       if (bad.length === s.play.length) {   /* every one measured and none readable: say why rather than "measuring" for ever */
         var fmt = bad.filter(function (it) { return lens[it.f.path].why === "format"; }).length;
@@ -10510,7 +10592,7 @@
     function archBtn() { return '<div class="hd-archrow"><button type="button" class="chip hd-archb" data-hdgo="arch">◇ ARCH</button></div>'; }
     function archHtml() {
       var now = Date.now(), lines = [], pn = !!pl.path && !pl.closed, ks, root = nasConf() && nas.lists["/"];
-      cfg.chans.forEach(function (x) { if (nasConf()) load(x, false); });
+      cfg.chans.forEach(function (x) { if (nasConf()) load(x, false); }); loadAds(false);
       if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) render(); }, function () { /* the line says so */ });
       var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + num(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
       if (X.on && pip()) vis = '<span><em>ON AIR</em><b>In Picture in Picture · CH ' + num(cur()) + "</b></span>" + vis;
@@ -10566,7 +10648,7 @@
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
       var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
-      cfg.chans.forEach(function (x) { load(x, false); });
+      cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
       var tv = '<div class="hd-set"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
         (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
@@ -10577,12 +10659,12 @@
         var on = x.id === cfg.ch, arm = X.rm === x.id;
         return '<div class="hd-chan" aria-current="' + on + '"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><b>' + esc(x.name) + '</b><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
           (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") + "</span>" +
-          '<span class="hd-acts"><span class="hd-style" role="group" aria-label="Style">' + [["order", "IN ORDER"], ["network", "NETWORK"]].map(function (st) { return '<button type="button" class="chip sm" data-hdstyle="' + x.id + "|" + st[0] + '" aria-pressed="' + ((x.style || "order") === st[0]) + '">' + st[1] + "</button>"; }).join("") + "</span>" + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
+          '<span class="hd-acts"><span class="hd-style" role="group" aria-label="Style">' + [["order", "IN ORDER"], ["network", "NETWORK"]].map(function (st) { return '<button type="button" class="chip sm" data-hdstyle="' + x.id + "|" + st[0] + '" aria-pressed="' + ((x.style || "order") === st[0]) + '">' + st[1] + "</button>"; }).join("") + "</span>" + '<button type="button" class="chip sm" data-hdbrk="' + x.id + '" aria-pressed="' + !!x.breaks + '"' + (cfg.ads ? "" : " disabled") + ">BREAKS</button>" + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
           '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div>";
       }).join("");
       var src = (rows ? '<div class="hd-chans">' + rows + "</div>" : '<p class="muted">Choose the folder for channel 1: a folder of videos, or a series with one folder per season.</p>') +
         (s && s.skip && s.skip.length ? '<p class="muted">The iPad can\'t play ' + esc(kinds(s.skip).replace(/\d+ /g, "")) + " files, so the channel skips them. README → HOLODECK has a one-time fix on the NAS.</p>" : "") +
-        '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick ? picker() : "");
+        '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick && X.pickFor !== "ads" ? picker() : "") + adsRow() + (X.pick && X.pickFor === "ads" ? picker() : "");
       X.oth = "";
       $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", c ? "CHANNEL " + k + " · " + esc(c.name.toUpperCase()) : "HOLODECK", "ALWAYS ON AIR · EVERY CHANNEL KEEPS RUNNING", tv) +
         '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER OR NETWORK", src) + "</div></div>";
@@ -10605,22 +10687,27 @@
     function picker() {
       var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
       if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
-      var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
+      var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = X.pickFor === "ads" ? null : cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
+      if (X.pickFor === "ads" && n) return pickBox(crumbs, l, dirs, X.pickDir === cfg.ads ? '<p class="muted">These are the commercials.</p>' : '<button type="button" class="btn" data-hd="useads">USE FOR COMMERCIALS · ' + n + (n === 1 ? " VIDEO" : " VIDEOS") + '</button><p class="muted">Any over 3 minutes are skipped.</p>');
       var act = used ? '<p class="muted">This folder is channel ' + num(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
         '<p class="muted">' + (pi && pi.err ? "Couldn't read the folders inside. Go up a level and back in to try again." : pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
-      return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>";
+      return pickBox(crumbs, l, dirs, act);
     }
+    function pickBox(crumbs, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
     function guide() {
       var ch = cur(), c = X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()); if (!c) return '<div class="empty">' + (ch ? "The guide fills in once the first lengths are measured." : "Add a channel first.") + "</div>";
-      var out = [c], n = c; for (var i = 0; i < 3; i++) { n = n && after(n); if (n) out.push(n); }
+      var out = [c], n = c; for (var i = 0; i < 3; i++) { n = n && (n.brk ? pastBreak(n) : after(n)); if (n) out.push(n); }   /* a break is one row, however many commercials */
       var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
-      return out.map(function (u, k) { return '<div class="hd-slot' + (k ? "" : " hd-now") + '"><span class="t">' + (k ? hm(new Date(u.startMs)) : "NOW") + "</span><span><b>" + esc(line(label(u.it))) + "</b><small>" + (k ? mmss(u.dur) : mmss(pos) + " of " + mmss(u.dur) + " · " + mmss(u.dur - pos) + " left") + "</small>" + (k ? "" : '<span class="hd-prog"><i style="width:' + Math.min(100, pos / u.dur * 100).toFixed(1) + '%"></i></span>') + "</span></div>"; }).join("");
+      return out.map(function (u, k) {
+        var st = u.brk ? u.brk.startMs : u.startMs, dur = u.brk ? u.brk.dur : u.dur, p = u.brk ? (u.startMs - u.brk.startMs) / 1000 + pos : pos;
+        return '<div class="hd-slot' + (k ? "" : " hd-now") + (u.brk ? " hd-brk" : "") + '"><span class="t">' + (k ? hm(new Date(st)) : "NOW") + "</span><span><b>" + esc(line(label(u.it))) + "</b><small>" + (k ? mmss(dur) : mmss(p) + " of " + mmss(dur) + " · " + mmss(dur - p) + " left") + "</small>" + (k ? "" : '<span class="hd-prog"><i style="width:' + Math.min(100, p / dur * 100).toFixed(1) + '%"></i></span>') + "</span></div>";
+      }).join("");
     }
     function others() {   /* one line per other channel; it changes only when their programme does, so a tap always lands */
       var now = Date.now();
       return cfg.chans.filter(function (x) { return x.id !== cfg.ch; }).map(function (x) {
         var o = at(x, now), s = F[x.dir];
-        return '<button type="button" class="hd-other" data-hdch="' + x.id + '"><span class="t">CH ' + num(x) + "</span><span><b>" + esc(o ? line(label(o.it)) : x.name) + "</b><small>" + esc(x.name) + " · " + (o ? "until " + hm(new Date(o.startMs + o.dur * 1000)) : s && s.err ? "can't reach the folder" : "measuring…") + " · tap to switch</small></span></button>";
+        return '<button type="button" class="hd-other" data-hdch="' + x.id + '"><span class="t">CH ' + num(x) + "</span><span><b>" + esc(o ? line(label(o.it)) : x.name) + "</b><small>" + esc(x.name) + " · " + (o ? "until " + hm(new Date(endMs(o))) : s && s.err ? "can't reach the folder" : "measuring…") + " · tap to switch</small></span></button>";
       }).join("");
     }
     function tick() {
@@ -10629,9 +10716,10 @@
       var o = $("hdOthers"), h = others(); if (o && h !== X.oth) { o.innerHTML = h; X.oth = h; }
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
-      if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }
+      if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
       var u = $("hdUpNext");   /* NETWORK: UP NEXT in an episode's last 15 seconds, like a network bumper */
-      if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && left < 15 && left > .3 ? after(X.cur) : null;
+      if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && !X.cur.it.ad && left < 15 && left > .3 ? after(X.cur) : null;
+        if (nx && nx.brk) nx = pastBreak(nx);   /* before a break: what's on after it */
         if (nx) { var b = u.querySelector("b"), nm = !nx.it.show ? line(label(nx.it)).toUpperCase() : nx.it.show === X.cur.it.show ? "MORE " + nx.it.show.toUpperCase() : nx.it.show.toUpperCase(); if (b.textContent !== nm) b.textContent = nm; }
         u.hidden = !nx; }
     }
@@ -10639,6 +10727,7 @@
       var ready = !!at(cur(), Date.now()), tb = $("hdTune"), ts = $("hdTuneSub"), pw = $("hdPower");
       if (tb) tb.disabled = !ready; if (ts) ts.textContent = tuneSub(); if (pw && !X.on) pw.disabled = !ready;
       cfg.chans.forEach(function (x) { var e = $("hdInfo" + x.id), h = chanInfo(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
+      var ai = $("hdAdsInfo"); if (ai) { var ah = adsInfo(); if (ai.innerHTML !== ah) ai.innerHTML = ah; }
       var sl = $("hdSleepLeft"); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft();
     }
     function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tick(); status(); } }
@@ -10650,12 +10739,18 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined) return false;
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined) return false;
       if (d.hdsleep) { setSleep(d.hdsleep); render(); return true; }
       if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
         var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
         sc.style = sp[1]; save(); load(sc, true);
         if (X.on && sc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
+        render(); return true;
+      }
+      if (d.hdbrk) {   /* BREAKS on or off: that channel's schedule is dealt afresh from now */
+        var bc = chById(+d.hdbrk); if (!bc) return true;
+        bc.breaks = !bc.breaks; save(); delete BK[bc.id]; loadAds(false);
+        if (X.on && bc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
         render(); return true;
       }
       if (d.hdprog) { if (!X.fade) enter(d.hdprog); return true; }
@@ -10666,11 +10761,17 @@
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
       else if (d.hd === "pip" && X.v) { var v = X.v; if (pip()) { if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {}); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("inline"); } else if (v.requestPictureInPicture) v.requestPictureInPicture().catch(function () { toast("Picture in Picture isn't available here"); }); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("picture-in-picture"); }
       else if (d.hd === "full" && X.v) { var s = $("hdScreen"); if (X.v.webkitEnterFullscreen) X.v.webkitEnterFullscreen(); else if (s && s.requestFullscreen) s.requestFullscreen().catch(function () {}); }
-      else if (d.hd === "pick") { X.pick = !cur() || !X.pick; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
+      else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
+      else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } render(); }
+      else if (d.hd === "useads" || d.hd === "adclear") {   /* the one Commercials folder: every channel with BREAKS draws from it */
+        cfg.ads = d.hd === "useads" ? X.pickDir : ""; X.pick = false; X.pickFor = ""; save(); BK = {}; loadAds(true);
+        if (X.on && (cur() || {}).breaks) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
+        render();
+      }
       else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
-        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; save(); switchTo(id);
+        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; save(); switchTo(id);
       }
       else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
       else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
@@ -10680,7 +10781,7 @@
         if (was) { if (cfg.chans.length) switchTo(cfg.chans[0].id); else { cfg.ch = 0; save(); off(); } }
         render();
       }
-      else if (d.hd === "rescan") { Object.keys(lens).forEach(function (k) { if (lens[k].s < 0) delete lens[k]; }); lsSet(LS_HOLOLEN, lens); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); render(); }   /* unreadable ones are measured again too */
+      else if (d.hd === "rescan") { Object.keys(lens).forEach(function (k) { if (lens[k].s < 0) delete lens[k]; }); lsSet(LS_HOLOLEN, lens); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); render(); }   /* unreadable ones are measured again too */
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
