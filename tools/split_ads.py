@@ -43,9 +43,12 @@ def duration(path):
         return None
 
 
-def detect(path, black_d, noise, pix_th):
+LOOSE = {"gap": 0.05, "noise": -38.0, "dark": 0.15, "picture": 0.85}   # --compare's second try: for worn tape, where black is grey and noisy
+
+
+def detect(path, black_d, noise, pix_th, pic_th=0.98):
     """ffmpeg's blackdetect and silencedetect over the whole file, in one pass; their report, as text."""
-    r = run(["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-vf", "blackdetect=d=%s:pix_th=%s" % (black_d, pix_th),
+    r = run(["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-vf", "blackdetect=d=%s:pix_th=%s:pic_th=%s" % (black_d, pix_th, pic_th),
              "-af", "silencedetect=noise=%sdB:d=%s" % (noise, black_d), "-f", "null", "-"])
     return r.stderr
 
@@ -116,6 +119,40 @@ def pl(n, word):
     return "%d %s%s" % (n, word, "" if n == 1 else "s")
 
 
+def flags(o):
+    return "--gap %g --noise %g --dark %g --picture %g" % (o["gap"], o["noise"], o["dark"], o["picture"])
+
+
+def compare(paths, a):
+    """For a sample of compilations: how much of them each way of cutting would keep, and how long a typical single is."""
+    mine = {"gap": a.gap, "noise": a.noise, "dark": a.dark, "picture": a.picture}
+    tries = [("as set", mine)] + ([("loose", LOOSE)] if LOOSE != mine else [])
+    stats = {(t, by): {"n": 0, "kept": 0.0, "lens": []} for t, _ in tries for by in ("both", "black", "silence")}
+    total = 0.0
+    for path, dur in paths:
+        total += dur; line = []
+        for t, o in tries:
+            black, silent = parse(detect(path, o["gap"], o["noise"], o["dark"], o["picture"]), dur)
+            for by in ("both", "black", "silence"):
+                keep = [e - s for k, s, e in plan(dur, gaps(black, silent, by), a.min, a.max) if k]
+                st = stats[(t, by)]; st["n"] += len(keep); st["kept"] += sum(keep); st["lens"] += keep
+                line.append("%s/%s %d" % (by, t, len(keep)))
+        print("%s (%s): %s" % (os.path.basename(path), mmss(dur), " · ".join(line)))
+    print("\nOver %s (%s):" % (pl(len(paths), "compilation"), mmss(total)))
+    print("  %-16s %8s %6s %8s   %s" % ("cut at", "singles", "kept", "typical", "add to the command"))
+    best = None
+    for (t, by), st in stats.items():
+        lens = sorted(st["lens"]); typ = lens[len(lens) // 2] if lens else 0; share = st["kept"] / total if total else 0
+        print("  %-16s %8d %5d%% %8s   --by %s %s" % (by + ", " + t, st["n"], round(share * 100), mmss(typ), by, flags(dict(tries)[t])))
+        if 10 <= typ <= 90 and (best is None or share > best[0]):
+            best = (share, by, t)
+    if best:
+        print("\nMost kept with singles of a normal length (10 s to 1:30): --by %s %s" % (best[1], flags(dict(tries)[best[2]])))
+    else:
+        print("\nNo way of cutting gave singles of a normal length (10 s to 1:30): these may have no black or silent moment between commercials.")
+    return 0
+
+
 def mmss(s):
     return "%d:%02d" % (int(s) // 60, int(s) % 60)
 
@@ -130,6 +167,9 @@ def main(argv=None):
     ap.add_argument("--gap", type=float, default=0.1, help="the shortest black or silence that counts, in seconds")
     ap.add_argument("--noise", type=float, default=-45.0, help="quieter than this is silence, in dB")
     ap.add_argument("--dark", type=float, default=0.10, help="how dark a pixel must be to count as black (0 to 1)")
+    ap.add_argument("--picture", type=float, default=0.98, help="how much of the picture must be that dark (0 to 1)")
+    ap.add_argument("--limit", type=int, help="only the first this many compilations (for a quick look)")
+    ap.add_argument("--compare", action="store_true", help="try each way of cutting on the compilations and say which keeps most (writes nothing)")
     ap.add_argument("--go", action="store_true", help="cut; without it, only list")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
@@ -142,8 +182,19 @@ def main(argv=None):
         sys.exit("No folder %s yet: make it first (it's where the singles go)." % out)
     seen = done_list(out)
     names = sorted(n for n in os.listdir(a.src) if VIDEO.search(n) and not PARTIAL.search(n) and os.path.isfile(os.path.join(a.src, n)))
-    total = {"files": 0, "pieces": 0, "short": 0, "long": 0, "failed": 0}
+    total = {"files": 0, "pieces": 0, "short": 0, "long": 0, "failed": 0, "would": 0, "secs": 0.0}
+    if a.compare:
+        found = []
+        for n in names:
+            d = duration(os.path.join(a.src, n))
+            if d and d > a.max:
+                found.append((os.path.join(a.src, n), d))
+            if a.limit and len(found) >= a.limit:
+                break
+        return compare(found, a)
     for n in names:
+        if a.limit and total["files"] >= a.limit:
+            break
         path = os.path.join(a.src, n); size = str(os.path.getsize(path))
         if (n, size) in seen:
             continue
@@ -152,13 +203,14 @@ def main(argv=None):
             print("?? %s: can't read its length, skipped" % n); total["failed"] += 1; continue
         if dur <= a.max:
             continue   # already a single
-        black, silent = parse(detect(path, a.gap, a.noise, a.dark), dur)
+        black, silent = parse(detect(path, a.gap, a.noise, a.dark, a.picture), dur)
         pieces = plan(dur, gaps(black, silent, a.by), a.min, a.max)
         keep = [p for p in pieces if p[0]]
         total["files"] += 1; total["short"] += sum(1 for p in pieces if not p[0] and p[2] - p[1] < a.min); total["long"] += sum(1 for p in pieces if not p[0] and p[2] - p[1] > a.max)
         print("%s (%s): %d pieces%s" % (n, mmss(dur), len(keep), "" if len(keep) == len(pieces) else ", %d left out" % (len(pieces) - len(keep))))
         for i, (_, s, e) in enumerate(keep, 1):
             print("   %02d  %s to %s  (%s)" % (i, mmss(s), mmss(e), mmss(e - s)))
+        total["would"] += len(keep); total["secs"] += sum(e - s for _, s, e in keep)
         if not a.go:
             continue
         stem = re.sub(r"\.[^.]+$", "", n)
@@ -173,7 +225,7 @@ def main(argv=None):
     print("\n%s%s · left out: %d too short, %d still over %s (no cut found) · %d failed"
           % (pl(total["files"], "compilation"), " · %s written" % pl(total["pieces"], "single") if a.go else "", total["short"], total["long"], mmss(a.max), total["failed"]))
     if not a.go and total["files"]:
-        print("Nothing written: add --go to cut them.")
+        print("--go would write %s (%s of commercials). Nothing written yet." % (pl(total["would"], "single"), mmss(total["secs"])))
     return 1 if total["failed"] else 0
 
 
@@ -233,6 +285,7 @@ def selftest():
     before = os.path.getmtime(os.path.join(out, got[0]))
     assert main(["--src", src, "--go"]) == 0 and os.path.getmtime(os.path.join(out, got[0])) == before, "done once, never again"
     assert os.path.exists(comp), "the original stays"
+    assert compare([(comp, duration(comp))], argparse.Namespace(gap=.1, noise=-45.0, dark=.10, picture=.98, min=5.0, max=180.0)) == 0
     print("real cut OK")
     return 0
 
