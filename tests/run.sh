@@ -41,6 +41,7 @@ run app_names.test.js
 run holo_net.test.js
 run backup_keys.test.js
 if python3 ../tools/ia_fetch.py --selftest >/dev/null 2>&1; then echo "PASS  ia_fetch --selftest"; else echo "FAIL  ia_fetch --selftest"; python3 ../tools/ia_fetch.py --selftest 2>&1 | sed 's/^/      /'; fail=1; fi
+if python3 ../tools/split_ads.py --selftest >/dev/null 2>&1; then echo "PASS  split_ads --selftest"; else echo "FAIL  split_ads --selftest"; python3 ../tools/split_ads.py --selftest 2>&1 | sed 's/^/      /'; fail=1; fi
 run bridge_ledger.test.js
 run bridge_log.test.js
 run bridge_habits.test.js
