@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.51.5 · 2026-10-30
+- **Fixed: panels could open as a thin sliver under the top bar** (PLAN DAY, and any other panel), with nothing reachable. It happened after using the app switcher or the lock screen while audio was playing: the audio keeps Bridge running in the background, iPadOS briefly reported a tiny screen, and Bridge kept that size. Panels now size themselves to the keyboard only while you're typing, use the whole screen otherwise, and measure again when you come back to the app and as a panel opens.
+
 ## 2.51.4 · 2026-10-29
 - **HOLODECK ignores what a stopped yt-dlp run leaves behind.** A video-only piece such as `004 - Title [id].f136.mp4`, or a half-merged `….temp.mp4`, used to count as an episode (one that would play without sound). Now only finished files are part of a channel.
 

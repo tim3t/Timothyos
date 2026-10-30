@@ -782,6 +782,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
 | A Systems row says **ERROR** in red | The reason is underneath; tap **REFRESH NOW** after fixing it |
 | A capture says NOT SAVED | **SYSTEMS → CAPTURE** shows why. Retry or discard it |
+| A panel (PLAN DAY, CAPTURE…) opens as a thin strip under the top bar | Update to 2.51.5 or later. It happened after the app switcher or lock screen while audio played |
 | The iPad still locks while Bridge is open | **SYSTEMS → STANDBY** shows whether iPadOS kept the screen on. If it declined: Settings → Display & Brightness → Auto-Lock → Never while docked |
 
 **The Google bridge, calendars and Notion**

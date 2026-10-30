@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.51.4";
+  var VERSION = "2.51.5";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4070,7 +4070,7 @@
   }
   /* Sheets slide up when they open (CSS) and slide down before they hide. */
   var sheetTimers = {};
-  function showSheet(id) { var s = $(id); clearTimeout(sheetTimers[id]); s.classList.remove("closing"); s.hidden = false; }
+  function showSheet(id) { var s = $(id); clearTimeout(sheetTimers[id]); s.classList.remove("closing"); if (typeof fitViewport === "function") fitViewport(); s.hidden = false; }
   function hideSheet(id) {
     var s = $(id);
     if (s.hidden) return;
@@ -6547,13 +6547,24 @@
      status bar and, while typing, above the keyboard. iPadOS shrinks the visual viewport for the keyboard
      and may scroll it; the scrims follow it through --vv-top and --vv-h. */
   lsDel(LS_TOPGAP);
+  /* 2.51.5: only while a text field has the keyboard. With audio playing the app keeps running in the background, and
+     iPadOS reports a tiny visual viewport during the app switcher or lock screen and sends no resize on the way back:
+     the stored height (77 px once) left every panel as a sliver under the top bar. So a hidden page changes nothing,
+     no keyboard means the whole screen, and it's measured again on coming back and as a panel opens. */
   function fitViewport() {
     var v = window.visualViewport, r = document.documentElement.style;
-    if (!v) return;
+    if (!v || document.hidden) return;
+    var f = document.activeElement, typing = f && (f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test(f.type || ""))) || (f && f.isContentEditable);
+    if (!typing || v.height < 120) { r.removeProperty("--vv-top"); r.removeProperty("--vv-h"); return; }
     r.setProperty("--vv-top", Math.max(0, v.offsetTop) + "px");
     r.setProperty("--vv-h", v.height + "px");
   }
-  if (window.visualViewport) { visualViewport.addEventListener("resize", fitViewport); visualViewport.addEventListener("scroll", fitViewport); fitViewport(); }
+  if (window.visualViewport) {
+    visualViewport.addEventListener("resize", fitViewport); visualViewport.addEventListener("scroll", fitViewport);
+    document.addEventListener("visibilitychange", fitViewport); window.addEventListener("pageshow", fitViewport); window.addEventListener("resize", fitViewport);
+    document.addEventListener("focusin", function () { setTimeout(fitViewport, 0); }); document.addEventListener("focusout", function () { setTimeout(fitViewport, 50); });
+    fitViewport();
+  }
 
   /* ---------- Render + navigation ---------- */
   /* ---------- Storage (the NAS) ---------- */
