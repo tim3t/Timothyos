@@ -1,6 +1,6 @@
 # TimothyOS: Design Document
 
-**Status:** Built and in daily use: app 2.52.0, bridge 1.35.0 (updated 2026-10-30). Section 0 is the running decisions log; sections 1 to 13 are the original plan, kept as history.
+**Status:** Built and in daily use: app 2.52.1, bridge 1.35.0 (updated 2026-10-30). Section 0 is the running decisions log; sections 1 to 13 are the original plan, kept as history.
 **Date:** 2026-10-05 (original plan)
 **Owner:** Timothy (single user)
 

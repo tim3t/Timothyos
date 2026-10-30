@@ -42,12 +42,17 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   await p.waitForFunction(() => /commercial breaks/.test((document.getElementById('hdInfo1') || {}).innerText || ''));
 
   // every length in: episodes become 10 minutes and the short commercials 2:50, so "now" can be inside a break
-  await p.waitForFunction(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'), n = pre => Object.keys(l).filter(k => k.startsWith(pre) && l[k].s > 0).length;
-    return n('/Video/Test Channel/') >= 3 && n('/Video/Test Network/') >= 8 && n('/Video/Commercials/') === 4; }, null, { timeout: 60000 });
+  await p.waitForFunction(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'), a = JSON.parse(localStorage.getItem('tos.holoadlen.v1') || '{}'), n = pre => Object.keys(l).filter(k => k.startsWith(pre) && l[k].s > 0).length;
+    return n('/Video/Test Channel/') >= 3 && n('/Video/Test Network/') >= 8 && Object.values(a).filter(x => x.s > 0).length === 4; }, null, { timeout: 60000 });
+  // 2.52.1: commercials' lengths are kept apart, under short keys, so thousands of singles never crowd out the episodes
+  assert.ok(!(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')))));
+  assert.ok(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).every(k => k.length < 16 && !k.includes('/'))));
   await p.evaluate(() => {
     const l = JSON.parse(localStorage.getItem('tos.hololen.v1'));
-    Object.keys(l).forEach(k => { if (/^\/Video\/Test (Channel|Network)\//.test(k)) l[k].s = 600; if (k.startsWith('/Video/Commercials/') && !/Long Infomercial/.test(k)) l[k].s = 170; });
+    Object.keys(l).forEach(k => { if (/^\/Video\/Test (Channel|Network)\//.test(k)) l[k].s = 600; });
     localStorage.setItem('tos.hololen.v1', JSON.stringify(l));
+    const a = JSON.parse(localStorage.getItem('tos.holoadlen.v1')); Object.values(a).forEach(x => { if (x.s < 100) x.s = 170; });   // the 185 s one stays too long
+    localStorage.setItem('tos.holoadlen.v1', JSON.stringify(a));
     const c = JSON.parse(localStorage.getItem('tos.holo.v1')); c.chans[0].premiere = Date.now() - 610e3; c.chans[1].breaks = true; localStorage.setItem('tos.holo.v1', JSON.stringify(c));
   });
   await p.reload(); await visual();
@@ -85,6 +90,11 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   await p.reload(); await visual();
   await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4);
   assert.deepStrictEqual((await rows(p)).slice(1).map(r => r.slice(0, 5)), later);
+
+  // a length measured under 2.52.0 (kept with the episodes) moves to the commercials' own store
+  const na = await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); l['/Video/Commercials/Older One.webm'] = { s: 5, z: 1 }; localStorage.setItem('tos.hololen.v1', JSON.stringify(l)); return Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length; });
+  await p.reload(); await visual();
+  assert.ok(await p.evaluate(n => !Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')) && Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length === n + 1, na));
 
   // BREAKS off: channel 2's guide has no breaks
   await p.click('[data-hdbrk="2"]');

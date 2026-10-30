@@ -9,7 +9,7 @@ const LEFT_OUT = {
   // copies of what the bridge, Notion, YNAB, the relay or the web give back on the next sync
   cache: ['tos.cache.v1', 'tos.dates.v1', 'tos.done.v1', 'tos.tasks.v1', 'tos.weeks.v1', 'tos.rlog.v1', 'tos.habits.v1', 'tos.library.v1', 'tos.tarot.v1', 'tos.apiary.v1',
     'tos.inbox.v1', 'tos.ledger.v1', 'tos.hols.v1', 'tos.schema.v1', 'tos.astro.v1', 'tos.brief.v1', 'tos.sci.v1', 'tos.scilog.v1', 'tos.wx.v1',
-    'tos.nasart.v1', 'tos.naslen.v1', 'tos.nastags.v1', 'tos.hololen.v1'],
+    'tos.nasart.v1', 'tos.naslen.v1', 'tos.nastags.v1', 'tos.hololen.v1', 'tos.holoadlen.v1'],
   // writes on their way: they belong to this iPad and go out with their capture ids; a restore elsewhere must not resend them
   queue: ['tos.queue.v1', 'tos.habitq.v1', 'tos.tarotq.v1', 'tos.apiaryq.v1', 'tos.inboxq.v1', 'tos.sciq.v1'],
   // unsaved writing: private, and finished or discarded on this iPad (the Log draft never leaves it)

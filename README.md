@@ -603,7 +603,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - A break follows each episode. On a channel of short videos (under about 8 minutes, such as music videos) a break comes about every 12 minutes instead.
   - Each channel goes through all the commercials before any repeats. A commercial not yet measured counts as 30 seconds until it is.
   - During a break there's no credit and no UP NEXT; ● LIVE and the channel mark stay. The guide shows the whole break as one **COMMERCIAL BREAK** row with its length, and UP NEXT before a break names what comes after it.
-  - **Compilations** (several commercials in one video, 5 to 8 minutes long, as YouTube playlists of old commercials often are) are skipped for their length. `tools/split_ads.py` cuts them into single commercials on the NAS, once, at the moments where the picture is black and the sound silent together. Each piece becomes its own H.264 MP4 in `Commercials/Singles/`, which HOLODECK reads with the rest of the folder; the originals stay where they are (still skipped for their length), and nothing is deleted. It lists the cuts it would make unless given `--go`, and keeps `Singles/_split_done.txt`, so a later run splits only new downloads.
+  - **Compilations** (several commercials in one video, 5 to 8 minutes long, as YouTube playlists of old commercials often are) are skipped for their length. `tools/split_ads.py` cuts them into single commercials on the NAS, once, at the moments where the picture is black and the sound silent together. Each piece becomes its own H.264 MP4 in `Commercials/Singles/`, which HOLODECK reads with the rest of the folder; the originals stay where they are (still skipped for their length), and nothing is deleted. It lists the cuts it would make unless given `--go`, and keeps `Singles/_split_done.txt`, so a later run splits only new downloads (and tries again any compilation that gave no singles).
     1. Make the folder `Singles` inside your Commercials folder.
     2. **UGOS → Docker → Project → Create**, name `split-ads`, and paste, with `/PATH/TO/Commercials` replaced by that folder's path:
        ```yaml
@@ -619,7 +619,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
              - |
                set -e
                apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-               python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/5fbbd7778801fdde62a3addb052b514f20f81a84/tools/split_ads.py', '/tmp/split_ads.py')"
+               python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/e081509680e56f4c50f34c5dc5a08a56fc0c731d/tools/split_ads.py', '/tmp/split_ads.py')"
                nice -n 10 python -u /tmp/split_ads.py --src /data
        ```
     3. Deploy, then read **Logs**: each compilation with the pieces it would make and their lengths, and at the end how many singles `--go` would write. A few minutes per compilation (it reads each one through once).

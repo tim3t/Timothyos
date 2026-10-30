@@ -2,9 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.52.1 · 2026-10-30
+- **HOLODECK keeps thousands of commercials' lengths without crowding out the episodes.** Bridge remembers at most 5,000 episode lengths; a folder of split commercials could hold more than that on its own, and the two would have pushed each other out, measuring over and over. Commercials now have their own compact store (lengths measured under 2.52.0 move over by themselves), and the biggest unmeasured commercial is measured first, so compilations left beside their singles drop out of the breaks quickly.
+
 ## Tools · 2026-10-30
 - **`tools/split_ads.py`: commercial compilations into single commercials.** HOLODECK skips commercials over 3 minutes, so compilations of several never aired. Run once on the NAS (README → HOLODECK → Commercial breaks), it cuts each one where the picture is black and the sound silent, into `Commercials/Singles/`. It lists the cuts first, never touches the originals, and later runs split only new downloads. No app change.
-- **`split_ads.py --compare`:** when the preview finds few cuts, it tries each way of cutting (black and silent together, black alone, silence alone; as set and looser for worn tape) on a sample of compilations and names the one that keeps the most at a normal commercial length. The preview now also says how many singles `--go` would write.
+- **`split_ads.py --compare`:** when the preview finds few cuts, it tries each way of cutting (black and silent together, black alone, silence alone; as set and looser for worn tape) on a sample of compilations and names the one that keeps the most at a normal commercial length. The preview now also says how many singles `--go` would write. A compilation that gives no singles is tried again on the next run.
 
 ## 2.52.0 · 2026-10-30
 - **HOLODECK: commercial breaks.** Choose one folder of commercials under VISUAL's channel list (**COMMERCIALS → CHOOSE FOLDER**), then turn on **BREAKS** for any channel, IN ORDER or NETWORK. One or two commercials play between episodes, or about every 12 minutes on a channel of short videos. Each channel goes through every commercial before any repeats; anything over 3 minutes is skipped. During a break the guide shows one **COMMERCIAL BREAK** row with its length, and there's no credit or UP NEXT. Like the rest of the broadcast, the breaks come from the clock, so every channel keeps its own breaks whichever one you watch. Settings stay on this iPad and in backups.

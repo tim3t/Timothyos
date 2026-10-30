@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.52.0";
+  var VERSION = "2.52.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10232,10 +10232,14 @@
      row), sometimes two of its episodes in a row as a block, each show working through that day's shuffle of its
      episodes. Unmeasured lengths count as the show's typical length, so it's on air at once; the times settle as the
      real lengths come in (once, kept). UP NEXT shows in an episode's last seconds. */
-  var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1";
+  var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1", LS_HOLOADLEN = "tos.holoadlen.v1";
   var holo = (function () {
     var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false, ads: "" }, lsGet(LS_HOLO) || {});   /* ads: the one Commercials folder (2.52); each channel's breaks: c.breaks */
     var lens = lsGet(LS_HOLOLEN) || {};
+    /* Commercials' lengths are kept apart under a short key (2.52.1): a split folder holds thousands, which would crowd
+       the episodes out of `lens` (5,000 at most) and fill the iPad's storage with long paths */
+    var adLens = lsGet(LS_HOLOADLEN) || {};
+    if (cfg.ads) { var moved = 0; Object.keys(lens).forEach(function (k) { if (k.indexOf(cfg.ads + "/") === 0) { adLens[adKey(k)] = lens[k]; delete lens[k]; moved++; } }); if (moved) { lsSet(LS_HOLOLEN, lens); lsSet(LS_HOLOADLEN, adLens); } }   /* measured under 2.52.0 */
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
     var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
@@ -10253,9 +10257,15 @@
        network error is tried again after 10 minutes; "format" (the iPad can't decode it) stands until the file changes.
        Before 2.51.1 an unreadable file was marked for good, with no reason kept: those are measured again too. */
     var HD_RETRY_MS = 10 * 60000;
-    function unknown(it) { var x = lens[it.f.path]; return !(x && x.z === it.f.size) || (x.s < 0 && x.why !== "format" && !(Date.now() - (x.at || 0) < HD_RETRY_MS)); }
-    function unreadable(it) { var x = lens[it.f.path]; return !unknown(it) && x.s < 0; }
-    function lenOf(it) { var x = lens[it.f.path]; return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
+    function adKey(p) { var r = ""; for (var i = p.length - 1; i >= 0; i--) r += p.charAt(i); return hash(p).toString(36) + hash(r).toString(36); }   /* two hashes: a clash would have two commercials measured in turn for ever */
+    function rec(it) { return it.ad ? adLens[it._k || (it._k = adKey(it.f.path))] : lens[it.f.path]; }
+    function keepLen(it, x) {   /* store a length and save that store */
+      if (!it.ad) { lens[it.f.path] = x; var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); return; }
+      adLens[it._k || (it._k = adKey(it.f.path))] = x; var ka = Object.keys(adLens); if (ka.length > 12000) ka.slice(0, ka.length - 12000).forEach(function (k) { delete adLens[k]; }); lsSet(LS_HOLOADLEN, adLens);
+    }
+    function unknown(it) { var x = rec(it); return !(x && x.z === it.f.size) || (x.s < 0 && x.why !== "format" && !(Date.now() - (x.at || 0) < HD_RETRY_MS)); }
+    function unreadable(it) { var x = rec(it); return !unknown(it) && x.s < 0; }
+    function lenOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
 
     /* ---- a channel's folder: the running order, what's skipped, the lengths ---- */
     function seasonOf(n) { var m = /\b(?:season|series)\s*(\d+)/i.exec(n) || /\bS(\d{1,2})\b/i.exec(n) || /^\s*(\d{1,2})\s*$/.exec(n); return m ? +m[1] : null; }
@@ -10436,11 +10446,11 @@
     function probe() {   /* each new file's length, one at a time, from its header only: this channel first */
       if (X.probing) return;
       var list = [cur()].concat(cfg.chans), it = null;
-      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide && A.play && A.dir === cfg.ads) it = A.play.filter(unknown)[0] || null; });   /* the commercials after the channels' lineups (2.52) */
+      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide && A.play && A.dir === cfg.ads) it = A.play.filter(unknown).reduce(function (m, x) { return m && m.f.size >= x.f.size ? m : x; }, null); });   /* biggest first: a compilation left beside its singles is ruled out early */   /* the commercials after the channels' lineups (2.52) */
       if (!it) { paint(); return; }
       X.probing = true;
-      var f = it.f, v = document.createElement("video"), done = false, fin = function (s, why) { if (done) return; done = true; clearTimeout(t); lens[f.path] = s > 0 ? { s: s, z: f.size } : { s: -1, z: f.size, why: why, at: Date.now() }; X.lv++; v.removeAttribute("src"); v.load(); X.probing = false;
-        var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); paint(); probe(); };
+      var f = it.f, v = document.createElement("video"), done = false, fin = function (s, why) { if (done) return; done = true; clearTimeout(t); keepLen(it, s > 0 ? { s: s, z: f.size } : { s: -1, z: f.size, why: why, at: Date.now() }); X.lv++; v.removeAttribute("src"); v.load(); X.probing = false;
+        paint(); probe(); };
       var t = setTimeout(function () { fin(-1, "timeout"); }, 45000);   /* a big file without +faststart is read from both ends over Tailscale: give it time */
       v.preload = "metadata"; v.muted = true; v.onloadedmetadata = function () { fin(isFinite(v.duration) && v.duration > 1 ? Math.round(v.duration * 10) / 10 : -1, "format"); };
       v.onerror = function () { fin(-1, v.error && v.error.code === 4 ? "format" : "net"); };   /* 4: MEDIA_ERR_SRC_NOT_SUPPORTED */
@@ -10508,7 +10518,7 @@
       v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
       v.onloadedmetadata = function () {
-        if (isFinite(v.duration) && v.duration > 1) { if (unknown(c.it)) { lens[c.it.f.path] = { s: Math.round(v.duration * 10) / 10, z: c.it.f.size }; X.lv++; lsSet(LS_HOLOLEN, lens); } c.dur = v.duration; }   /* playing measures it: the schedule never runs on a guess for what's on */
+        if (isFinite(v.duration) && v.duration > 1) { if (unknown(c.it)) { keepLen(c.it, { s: Math.round(v.duration * 10) / 10, z: c.it.f.size }); X.lv++; } c.dur = v.duration; }   /* playing measures it: the schedule never runs on a guess for what's on */
         var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
       meta(c); paint();
     }
@@ -10561,7 +10571,7 @@
       if (breaks(c) === false) return "READING THE COMMERCIALS…";
       var bad = s.play.filter(unreadable);
       if (bad.length === s.play.length) {   /* every one measured and none readable: say why rather than "measuring" for ever */
-        var fmt = bad.filter(function (it) { return lens[it.f.path].why === "format"; }).length;
+        var fmt = bad.filter(function (it) { return rec(it).why === "format"; }).length;
         return fmt === bad.length ? "THE IPAD CAN'T PLAY THESE " + bad.length + " VIDEOS · CONVERT THEM TO MP4 (H.264)" : "COULDN'T READ THESE VIDEOS FROM THE NAS · TRYING AGAIN IN A FEW MINUTES";
       }
       return "MEASURING " + s.play.filter(function (it) { return !unknown(it); }).length + " OF " + s.play.length + " VIDEOS…";
@@ -10781,7 +10791,7 @@
         if (was) { if (cfg.chans.length) switchTo(cfg.chans[0].id); else { cfg.ch = 0; save(); off(); } }
         render();
       }
-      else if (d.hd === "rescan") { Object.keys(lens).forEach(function (k) { if (lens[k].s < 0) delete lens[k]; }); lsSet(LS_HOLOLEN, lens); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); render(); }   /* unreadable ones are measured again too */
+      else if (d.hd === "rescan") { [[lens, LS_HOLOLEN], [adLens, LS_HOLOADLEN]].forEach(function (m) { Object.keys(m[0]).forEach(function (k) { if (m[0][k].s < 0) delete m[0][k]; }); lsSet(m[1], m[0]); }); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); render(); }   /* unreadable ones are measured again too */
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
