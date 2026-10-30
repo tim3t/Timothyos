@@ -102,6 +102,7 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
   await p.click('.elbow'); await p.waitForSelector('.ov-cond');
   await p.click('#allBtn'); await p.click('[data-station="ressikan"]'); await p.waitForSelector('.rs');
   assert.strictEqual(await p.getAttribute('[data-rsact="power"]', 'aria-pressed'), 'false', 'quiet after leaving');
+  await p.waitForFunction(() => window.__acs[window.__acs.length - 1].state === 'suspended', null, { timeout: 5000 }).catch(() => {});   // suspend() settles a moment later under load
   assert.strictEqual((await acs(p)).pop(), 'suspended', 'the iPad\'s sound handed back');
   const n = (await acs(p)).length;
   await p.click('[data-rsact="power"]');   // coming back later: a fresh engine, running
