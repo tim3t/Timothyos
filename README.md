@@ -603,6 +603,29 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - A break follows each episode. On a channel of short videos (under about 8 minutes, such as music videos) a break comes about every 12 minutes instead.
   - Each channel goes through all the commercials before any repeats. A commercial not yet measured counts as 30 seconds until it is.
   - During a break there's no credit and no UP NEXT; ● LIVE and the channel mark stay. The guide shows the whole break as one **COMMERCIAL BREAK** row with its length, and UP NEXT before a break names what comes after it.
+  - **Compilations** (several commercials in one video, 5 to 8 minutes long, as YouTube playlists of old commercials often are) are skipped for their length. `tools/split_ads.py` cuts them into single commercials on the NAS, once, at the moments where the picture is black and the sound silent together. Each piece becomes its own H.264 MP4 in `Commercials/Singles/`, which HOLODECK reads with the rest of the folder; the originals stay where they are (still skipped for their length), and nothing is deleted. It lists the cuts it would make unless given `--go`, and keeps `Singles/_split_done.txt`, so a later run splits only new downloads.
+    1. Make the folder `Singles` inside your Commercials folder.
+    2. **UGOS → Docker → Project → Create**, name `split-ads`, and paste, with `/PATH/TO/Commercials` replaced by that folder's path:
+       ```yaml
+       services:
+         split-ads:
+           image: python:3.12-slim
+           container_name: split-ads
+           restart: "no"
+           volumes:
+             - "/PATH/TO/Commercials:/data"
+           entrypoint: ["sh", "-c"]
+           command:
+             - |
+               set -e
+               apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+               python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/032ddf6ce98b9d78f19ea4d5679d4a69450f46d9/tools/split_ads.py', '/tmp/split_ads.py')"
+               nice -n 10 python -u /tmp/split_ads.py --src /data
+       ```
+    3. Deploy, then read **Logs**: each compilation with the pieces it would make and their lengths. A few minutes per compilation (it reads each one through once).
+    4. When the cuts look right, add ` --go` to the last line and **Redeploy**. Re-encoding takes a while on the NAS (expect a few hours for 60 compilations); it's fine to let it run overnight, and HOLODECK picks up singles as they appear (**LOOK AGAIN**). Redeploy after more downloads to split only the new ones.
+    - Too few cuts (pieces still over 3 minutes)? Some compilations go to black without a silent moment: try `--by black`. Cut in the middle of a commercial? Make the gap longer with `--gap 0.3`. `--noise -40` treats louder hiss as silence; `--dark 0.15` treats dark grey as black; `--min 5` and `--max 180` are the shortest and longest pieces kept.
+    - The container sees only the Commercials folder, from one fixed commit of this repository; it talks to nothing but Debian's and GitHub's servers while it sets up, and holds no keys.
   - Turning BREAKS on or off, or adding commercials to the folder, deals that channel's schedule afresh from that moment. **CLEAR** stops all breaks (each channel's BREAKS setting is kept for when you choose a folder again). The folder and each channel's setting are kept on this iPad and in your backups.
 - **SLEEP** under the TV: 15 MIN, 30 MIN, 1 HOUR, 2 HOURS or END OF THIS SHOW turns the TV off, on other screens and in Picture in Picture too (the chip counts down). Turning the TV off by hand clears it.
 - **Standby** never starts on HOLODECK (the arch, VISUAL or AUDIO) or while the TV is on air. Once a sleep timer (VISUAL's or AUDIO's) has run out, Standby takes over as usual, so a night in front of the TV ends on the dim night clock; the next touch holds HOLODECK awake again.
@@ -852,6 +875,7 @@ Everything the app keeps only on this iPad goes into one file you keep: the Goog
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
 - **HOLODECK** streams from your NAS through the relay only; your channels (folders and names) and the video lengths stay on this iPad (channels also in your backups).
 - **`tools/ia_fetch.py`** runs only on your NAS, only when you start it, from one fixed commit; it talks to archive.org alone and holds no keys.
+- **`tools/split_ads.py`** runs only on your NAS, only when you start it, from one fixed commit; it works on the Commercials folder alone, talks to nothing, and only adds files.
 - **RESSIKAN** makes all its sound on the iPad; nothing it plays or records leaves it unless you save a take to Files.
 - **Straight from the iPad:** weather from Open-Meteo (only your rounded coordinates), book searches from Open Library (only the search words). Location, bearings, your intent lines, ignored events and the other iPad settings never go to this repository.
 - **SCIENCE** sends only your rounded coordinates (about 1 km): from the iPad to NOAA, USGS, the National Weather Service, Open-Meteo, NASA and iNaturalist, and through the Google bridge to the ADS-B network (adsb.lol), CelesTrak and eBird. Aircraft and route lookups send a callsign or aircraft code to adsbdb. Landmarks: the rounded location goes once to OpenStreetMap (Overpass) to suggest them, and a place you search for goes to Open-Meteo's place search; the landmarks themselves stay on this iPad and never reach the bridge, Notion or the Science Log. Nothing else leaves; the bridge never stores the location.
@@ -876,6 +900,7 @@ icons/, fonts/           app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs      the Google bridge
 tools/bump_version.py    sets the version everywhere before a release
 tools/ia_fetch.py        public access TV from the Internet Archive, run on the NAS (NAS relay, Part 1)
+tools/split_ads.py       cuts commercial compilations into singles for HOLODECK's breaks, run on the NAS
 tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,
                          then the real app in a headless browser against simulated bridges and a simulated NAS
                          (about 5 minutes, in lanes)

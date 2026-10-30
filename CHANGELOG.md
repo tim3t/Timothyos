@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## Tools · 2026-10-30
+- **`tools/split_ads.py`: commercial compilations into single commercials.** HOLODECK skips commercials over 3 minutes, so compilations of several never aired. Run once on the NAS (README → HOLODECK → Commercial breaks), it cuts each one where the picture is black and the sound silent, into `Commercials/Singles/`. It lists the cuts first, never touches the originals, and later runs split only new downloads. No app change.
+
 ## 2.52.0 · 2026-10-30
 - **HOLODECK: commercial breaks.** Choose one folder of commercials under VISUAL's channel list (**COMMERCIALS → CHOOSE FOLDER**), then turn on **BREAKS** for any channel, IN ORDER or NETWORK. One or two commercials play between episodes, or about every 12 minutes on a channel of short videos. Each channel goes through every commercial before any repeats; anything over 3 minutes is skipped. During a break the guide shows one **COMMERCIAL BREAK** row with its length, and there's no credit or UP NEXT. Like the rest of the broadcast, the breaks come from the clock, so every channel keeps its own breaks whichever one you watch. Settings stay on this iPad and in backups.
 
