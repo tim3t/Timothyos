@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.2";
+  var VERSION = "2.53.3";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10549,20 +10549,23 @@
       v.addEventListener("timeupdate", tick);
       return (X.v = v);
     }
-    /* Full screen (2.53.2): the whole TV screen, so CRT, LIVE, the channel mark, credits and UP NEXT come too. The iPad
-       player (the video alone) only where a page element can't go full screen (iPhone). A redraw while full screen
-       waits until it ends: redrawing would replace the screen and drop out of full screen. Picture in Picture was
-       taken out in 2.53.2: the iPad offers it to no web app on the Home Screen, not even in its own player. */
+    /* Full screen (2.53.3): Bridge draws it itself. The TV screen covers the whole app (X.big), so CRT, LIVE, the
+       channel mark, credits and UP NEXT come too, and a redraw keeps it. Where the browser can also hide its own bars
+       (Safari), the page asks for that too; a Home Screen app has none and isn't offered it (2.53.2 relied on it and
+       fell back to the iPad's player, which shows the video alone). Picture in Picture was taken out in 2.53.2: the
+       iPad offers it to no web app on the Home Screen, not even in its own player. */
     function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
-    function inFull() { var e = fsEl(); return !!e && e.id === "hdScreen"; }
     function fullOn() {
-      var s = $("hdScreen"), v = X.v; if (!s) return;
-      var go = s.requestFullscreen || s.webkitRequestFullscreen;
-      if (go) { try { var r = go.call(s); if (r && r.catch) r.catch(function () { if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen(); }); return; } catch (e) { /* the iPad player, below */ } }
-      if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+      if (!X.on) return; X.big = true; render();
+      var d = document.documentElement, go = d.requestFullscreen || d.webkitRequestFullscreen;
+      if (go) { try { var r = go.call(d); if (r && r.catch) r.catch(function () { /* drawn full screen all the same */ }); } catch (e) { /* drawn full screen all the same */ } }
     }
-    function fullOff() { if (!inFull()) return; var x = document.exitFullscreen || document.webkitExitFullscreen; if (x) { try { var r = x.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ } } }
-    ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!inFull() && X.dirty) { X.dirty = false; if (state.screen === "holodeck") render(); } }); });
+    function fullOff() {
+      var was = X.big; X.big = false;
+      if (fsEl()) { var x = document.exitFullscreen || document.webkitExitFullscreen; try { var r = x && x.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ } }
+      if (was && state.screen === "holodeck") render();
+    }
+    ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!fsEl() && X.big) fullOff(); }); });   /* the browser's own way out */
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
@@ -10582,7 +10585,7 @@
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
     }
-    function off() { fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -10711,14 +10714,13 @@
     }
     function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
     function render() {
-      if (X.prog && inFull()) { X.dirty = true; paint(); return; }   /* full screen: redraw when it ends */
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
       if (!X.prog) { $("content").innerHTML = archHtml(); clearInterval(X.timer); X.timer = 0; paint(); return; }
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
       var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
-      var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
+      var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
         (X.on ? '<button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
@@ -10864,7 +10866,7 @@
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && X.sleepOpen && state.screen === "holodeck") { X.sleepOpen = false; render(); } });
+    document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || state.screen !== "holodeck") return; if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); });
     function leave() { X.sleepOpen = false; if (X.on) off(); }   /* leaving: off */
     document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
       if (document.hidden || !X.on || state.screen !== "holodeck") return;

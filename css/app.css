@@ -2534,13 +2534,12 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-rb { background: var(--chrome-b); }
 .hd-rv { background: var(--chrome-a); }
 .hd-rb:disabled, .hd-rv:disabled { opacity: .4; }
-/* full screen (2.53.2): the whole TV screen, so CRT and everything drawn on it come too */
-.hd-screen:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; }
-.hd-screen:-webkit-full-screen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; }
+/* full screen (2.53.3): drawn by Bridge, the TV screen over the whole app, so CRT and everything drawn on it come too */
+.hd-tv.big .hd-screen { position: fixed; inset: 0; z-index: 200; width: 100vw; height: 100vh; height: 100dvh; aspect-ratio: auto; border-radius: 0; }
+body:has(.hd-tv.big) { overflow: hidden; }
 .hd-fsx { display: none; position: absolute; left: 50%; top: 4%; transform: translateX(-50%); z-index: 6; min-height: 44px; padding: 0 18px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, .35); background: rgba(0, 0, 0, .45); color: rgba(255, 255, 255, .75); font-family: var(--display); font-size: 14px; letter-spacing: .14em; opacity: .55; }
 .hd-fsx:focus-visible, .hd-fsx:active { opacity: 1; }
-.hd-screen:fullscreen .hd-fsx { display: block; }
-.hd-screen:-webkit-full-screen .hd-fsx { display: block; }
+.hd-tv.big .hd-fsx { display: block; }
 .hd-sleepb { border-radius: 6px 6px 32px 32px; background: #3a3c48; }
 .hd-rail .hd-sleepb { color: var(--fg); }
 .hd-rail .hd-sleepb.set { background: var(--chrome-d); color: var(--ink); }

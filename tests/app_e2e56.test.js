@@ -105,20 +105,28 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.strictEqual(await txt(p, '.hd-look'), 'LOOK CLEAN'); assert.ok(await p.$('[data-hdlook="crt"]'), 'the next tap goes back to CRT');
   assert.ok(/^NOW \S.* · \S.* \d+:\d\d left · next: \S/.test(await txt(p, '#hdNow')), await txt(p, '#hdNow'));
   assert.ok(!(await p.$('[data-hd="pip"]')), 'no Picture in Picture: the iPad offers it to no Home Screen web app (2.53.2)');
-  // 2.53.2: FULL SCREEN takes the whole TV screen, so CRT and everything drawn on it come too; a redraw waits until it ends
+  // 2.53.3: FULL SCREEN is drawn by Bridge: the TV screen over the whole app, so CRT and everything on it come too.
+  // As in a Home Screen app on the iPad, there's no browser full screen to ask for (2.53.2 relied on it and fell back
+  // to the iPad's player, which showed the video alone)
+  await p.evaluate(() => { delete Element.prototype.requestFullscreen; delete Element.prototype.webkitRequestFullscreen; HTMLVideoElement.prototype.webkitEnterFullscreen = function () { window.__native = true; }; });
   await p.click('[data-hdlook="crt"]');
   await p.click('[data-hd="full"]');
-  await p.waitForFunction(() => (document.fullscreenElement || {}).id === 'hdScreen', null, { timeout: 5000 });
+  await p.waitForSelector('.hd-tv.big');
+  assert.ok(!(await p.evaluate(() => window.__native)), "never the iPad's own player");
+  const box = await p.evaluate(() => { const r = document.getElementById('hdScreen').getBoundingClientRect(); return [r.left, r.top, Math.round(r.width), Math.round(r.height), innerWidth, innerHeight]; });
+  assert.deepStrictEqual(box, [0, 0, box[4], box[5], box[4], box[5]], 'the screen covers the whole app: ' + box);
   assert.ok(await p.isVisible('[data-hd="fullexit"]'), 'its own way out');
   assert.notStrictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('hdScreen'), '::after').backgroundImage), 'none', 'CRT scan lines in full screen');
   assert.ok(await p.isVisible('#hdLive') && await p.isVisible('.hd-bug'));
-  await p.evaluate(() => document.querySelector('[data-hd="mute"]').click());   // something that redraws
-  assert.strictEqual(await p.evaluate(() => (document.fullscreenElement || {}).id), 'hdScreen', 'still full screen after a redraw');
+  assert.strictEqual(await p.evaluate(() => document.elementFromPoint(innerWidth / 2, innerHeight / 2).closest('#hdScreen') !== null), true, 'nothing of the page on top');
+  await p.evaluate(() => document.querySelector('[data-hd="mute"]').click());   // a redraw
+  assert.ok(await p.$('.hd-tv.big'), 'still full screen after a redraw');
   const vf = await vid(p); assert.ok(!vf.paused && vf.inScreen && !vf.muted);
   await p.click('[data-hd="fullexit"]');
-  await p.waitForFunction(() => !document.fullscreenElement, null, { timeout: 5000 });
-  assert.strictEqual(await p.getAttribute('[data-hd="mute"]', 'aria-pressed'), 'false', 'the waiting redraw happens on the way out');
-  assert.ok(!(await p.isVisible('[data-hd="fullexit"]')));
+  assert.ok(!(await p.$('.hd-tv.big'))); assert.ok(!(await p.isVisible('[data-hd="fullexit"]')));
+  assert.strictEqual(await p.getAttribute('[data-hd="mute"]', 'aria-pressed'), 'false');
+  await p.click('[data-hd="full"]'); await p.waitForSelector('.hd-tv.big'); await p.keyboard.press('Escape');
+  assert.ok(!(await p.$('.hd-tv.big')), 'Escape leaves full screen');
   await p.click('[data-hdlook="clean"]');
   // channel rows fold: + opens one, − folds it, COLLAPSE ALL folds the lot
   assert.ok(await p.isVisible('#hdInfo1'), 'a channel just added opens to show what was found');

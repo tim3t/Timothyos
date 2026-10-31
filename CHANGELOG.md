@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.3 · 2026-10-31
+- **Fixed: FULL SCREEN still lost CRT on the iPad.** 2.53.2 asked the browser to make the TV screen full screen, but iPadOS doesn't offer that to a web app on the Home Screen, so Bridge fell back to the iPad's own player, which shows the video alone. Now Bridge draws full screen itself: the TV screen covers the whole app, with CRT, ● LIVE, the channel mark, credits and UP NEXT, and **✕ EXIT FULL SCREEN** at the top.
+
 ## 2.53.2 · 2026-10-31
 - **HOLODECK: FULL SCREEN keeps CRT.** It now fills the iPad with the whole TV screen instead of handing the video to the iPad's player, so the scan lines, ● LIVE, the channel mark, credits and UP NEXT come along. **✕ EXIT FULL SCREEN** at the top brings it back. On an iPhone the iPhone's player still takes over.
 - **Picture in Picture is gone.** iPadOS doesn't offer it to web apps on the Home Screen (not even in its own player), so the button never worked. Leaving HOLODECK turns the TV off.
