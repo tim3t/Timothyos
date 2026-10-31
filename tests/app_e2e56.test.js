@@ -243,9 +243,10 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   // ---- the relay failing: five videos in a row that won't play turn the TV off, with a note
   await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Test Series/') + '&code=404&n=999');
   await p.click('.hd-tune');
-  await p.waitForFunction(() => /Five videos in a row wouldn't play/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
+  await p.waitForFunction(() => /Five videos in a row didn't load/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
   assert.ok(!(await vid(p)).src.includes('/Video/'), 'off after five failures');
   assert.ok(await p.$('.hd-tune'), 'TUNE IN offered again');
+  assert.ok(await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); return !Object.keys(l).some(k => k.startsWith('/Video/Test Series/') && l[k].why === 'format'); }), 'the NAS failing never marks a video as one the iPad can\'t play (2.53.4)');
   await fetch(R + '/__fail?n=0');
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time

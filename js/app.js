@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.3";
+  var VERSION = "2.53.4";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10450,6 +10450,10 @@
         '<div class="hd-more"' + (open ? "" : " hidden") + ">" + (cfg.ads ? '<small class="muted">' + esc(cfg.ads) + '</small><small id="hdAdsInfo">' + adsInfo() + "</small>" : '<small class="muted">Choose a folder of commercials, then turn on BREAKS for a channel.</small>') +
         '<span class="hd-acts"><button type="button" class="chip sm" data-hd="adpick" aria-expanded="' + (X.pick && X.pickFor === "ads") + '">' + (cfg.ads ? "CHANGE FOLDER" : "CHOOSE FOLDER") + "</button>" + (cfg.ads ? '<button type="button" class="chip sm" data-hd="adclear">CLEAR</button>' : "") + "</span></div></div>";
     }
+    function badList(x) {   /* an opened row names the videos this iPad can't play (2.53.4), so they can be found and converted */
+      var s = F[x.dir], bad = s && s.play ? s.play.filter(unreadable) : []; if (!bad.length) return "";
+      return '<small class="hd-bad"><b>CAN\'T PLAY HERE</b> ' + esc(bad.slice(0, 6).map(function (it) { return it.f.name.replace(/\.[^.]+$/, ""); }).join(" · ")) + (bad.length > 6 ? " · and " + (bad.length - 6) + " more" : "") + "</small>";
+    }
     function chanSum(x) {   /* a channel's row folded: its style, and anything that needs a look */
       var s = F[x.dir], w = "";
       if (s && s.err && !s.play) w = "CAN'T REACH THE FOLDER";
@@ -10540,11 +10544,7 @@
       var k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k;
       var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
       v.addEventListener("ended", function () { if (!X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
-      v.addEventListener("error", function () {
-        if (!X.on || !X.cur || !v.getAttribute("src")) return;
-        if (++X.fails > 4) { off(); X.note = "Five videos in a row wouldn't play. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }
-        X.note = line(label(X.cur.it)) + " wouldn't play; on to the next."; var n = next(X.cur); if (n) start(n, false); else resume();
-      });
+      v.addEventListener("error", function () { if (X.on && X.cur && v.getAttribute("src")) failed(X.cur, X.meta || (v.error && v.error.code === 3) ? "format" : "net"); });   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
       v.addEventListener("playing", function () { X.fails = 0; });
       v.addEventListener("timeupdate", tick);
       return (X.v = v);
@@ -10566,12 +10566,27 @@
       if (was && state.screen === "holodeck") render();
     }
     ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!fsEl() && X.big) fullOff(); }); });   /* the browser's own way out */
+    /* A video that won't play (2.53.4). Its header can read fine (so it was measured) while the picture can't be decoded,
+       and the channel kept landing on it: tuning in skipped from title to title and gave up after five. Now a decode
+       failure takes it off the schedule for good on this iPad (LOOK AGAIN tries it afresh), and a network failure or a
+       stall for 10 minutes, like a failed measurement. */
+    function failed(c, why) {
+      clearTimeout(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
+      var nm = line(label(c.it));
+      if (why !== "format" && ++X.fails > 4) { off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
+      X.note = nm + (why === "format" ? " can't be played on this iPad, so it's left out from now on." : why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");
+      var n = next(c), s = F[c.c.dir];
+      if (n) start(n, false);
+      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = "None of this channel's videos can be played on this iPad (convert them to MP4 with H.264, then LOOK AGAIN)."; render(); }
+      else resume();
+    }
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
+      X.meta = false; clearTimeout(X.wd); X.wd = setTimeout(function () { if (X.on && X.cur === c && v.readyState < 2) failed(c, "timeout"); }, 30000);   /* nothing to show after 30 s: stalled */
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
       v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
-      v.onloadedmetadata = function () {
+      v.onloadedmetadata = function () { X.meta = true;
         if (isFinite(v.duration) && v.duration > 1) { if (unknown(c.it)) { keepLen(c.it, { s: Math.round(v.duration * 10) / 10, z: c.it.f.size }); X.lv++; } c.dur = v.duration; }   /* playing measures it: the schedule never runs on a guess for what's on */
         var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
       meta(c); paint();
@@ -10585,7 +10600,7 @@
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
     }
-    function off() { X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { clearTimeout(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -10730,7 +10745,7 @@
         var on = x.id === cfg.ch, arm = X.rm === x.id, open = !!X.open[x.id] || X.ren === x.id || arm;
         return '<div class="hd-chan' + (open ? " open" : "") + '" aria-current="' + on + '"><div class="hd-chrow"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><span class="hd-nm"><b>' + esc(x.name) + "</b>" + (on ? '<em class="hd-here">ON SCREEN</em>' : "") + '</span><small class="hd-sum" id="hdSum' + x.id + '">' + chanSum(x) + "</small></span>" +
           '<button type="button" class="hd-pm" data-hdopen="' + x.id + '" aria-expanded="' + open + '" aria-label="' + (open ? "Hide " : "Show ") + esc(x.name) + ' details">' + (open ? "−" : "+") + "</button></div>" +
-          '<div class="hd-more"' + (open ? "" : " hidden") + '><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
+          '<div class="hd-more"' + (open ? "" : " hidden") + '><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" + badList(x) +
           (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") +
           '<span class="hd-acts"><span class="hd-style" role="group" aria-label="Style">' + [["order", "IN ORDER"], ["network", "NETWORK"]].map(function (st) { return '<button type="button" class="chip sm" data-hdstyle="' + x.id + "|" + st[0] + '" aria-pressed="' + ((x.style || "order") === st[0]) + '">' + st[1] + "</button>"; }).join("") + "</span>" + '<button type="button" class="chip sm" data-hdbrk="' + x.id + '" aria-pressed="' + !!x.breaks + '"' + (cfg.ads ? "" : " disabled") + ">BREAKS</button>" + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
           '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div></div>";

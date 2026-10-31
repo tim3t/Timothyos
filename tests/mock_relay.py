@@ -142,6 +142,11 @@ def videos():
     # 2.51.1: videos with a playable name that no browser can decode; the folder shows only after /__mkdir?d=/Video/Broken Rips
     out["/Video/Broken Rips/Episode 1.webm"] = (b"\x00not a video at all" * 64, "2026-10-01T10:00:00Z")
     out["/Video/Broken Rips/Episode 2.webm"] = (b"\x01still not a video" * 64, "2026-10-01T10:00:00Z")
+    # 2.53.4: videos whose header reads fine (so they measure) but whose picture can't be decoded; shown after /__mkdir?d=/Video/Rough Cuts
+    good = out["/Video/Test Channel/01 - Neon Harbor - Midnight Signal.webm"][0]
+    bad = bytes(good[:1500]) + bytes((i * 7919 + 13) % 256 for i in range(len(good) - 1500))
+    out["/Video/Rough Cuts/01 - Plays Fine.webm"] = (good, "2026-10-01T10:00:00Z")
+    for i in range(2, 8): out["/Video/Rough Cuts/%02d - Broken Picture %d.webm" % (i, i)] = (bad[:-i], "2026-10-01T10:00:00Z")   # sizes differ, so each is its own file
     # 2.52: a folder of commercials, three short and one over 3 minutes; it shows only after /__mkdir?d=/Video/Commercials
     for name, secs, src, br in [("Fizzy Pop - Taste the Sparkle.webm", 2, "smptebars=s=160x120:r=10", "40k"), ("Moon Mops - Clean Like Never Before.webm", 3, "testsrc=s=160x120:r=10", "40k"),
                                 ("Pocket Rocket Toys.webm", 4, "rgbtestsrc=s=160x120:r=10", "40k"), ("Long Infomercial.webm", 185, "testsrc=s=64x48:r=1", "8k")]:

@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.4 · 2026-10-31
+- **Fixed: tuning in skipped through titles and never started playing.** A video can have a readable header (so Bridge measured it and put it on the schedule) but a picture the iPad can't decode. Bridge skipped it, but left it on the schedule, so the channel kept landing on its broken videos and gave up after five. Now a video that fails to decode leaves the schedule on that iPad and the TV carries on to one that plays; a run of them no longer stops it. A video that doesn't load (the network) or doesn't start within 30 seconds is skipped and tried again after 10 minutes. The channel's folded row counts them (**N UNREADABLE**), an opened row names them (**CAN'T PLAY HERE**), and **LOOK AGAIN** tries them afresh.
+
 ## 2.53.3 · 2026-10-31
 - **Fixed: FULL SCREEN still lost CRT on the iPad.** 2.53.2 asked the browser to make the TV screen full screen, but iPadOS doesn't offer that to a web app on the Home Screen, so Bridge fell back to the iPad's own player, which shows the video alone. Now Bridge draws full screen itself: the TV screen covers the whole app, with CRT, ● LIVE, the channel mark, credits and UP NEXT, and **✕ EXIT FULL SCREEN** at the top.
 
