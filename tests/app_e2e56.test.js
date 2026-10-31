@@ -133,7 +133,8 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.strictEqual(credit, 'Test Series Season 1, Episode 1', 'the credit: the channel, the season and episode (no "Full Episode", no id)');
   await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4 && / round/.test(document.getElementById('hdInfo2').textContent), null, { timeout: 20000 });
   const g2 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
-  assert.deepStrictEqual(g2, ['S1 E1', 'S1 E2', 'S1 E10', 'S2 E1'], 'episodes by number, seasons by number');
+  const ORD = ['S1 E1', 'S1 E2', 'S1 E10', 'S2 E1', 'S10 E1 · The Last Case'], k2 = ORD.indexOf(g2[0]);   /* measuring is paced (2.53.1), so a 5-second first episode may be over by now */
+  assert.ok(k2 >= 0 && k2 <= 1, g2.join(' | ')); assert.deepStrictEqual(g2, ORD.slice(k2, k2 + 4), 'episodes by number, seasons by number');
   assert.ok(/^3 seasons \+ specials · 7 episodes · 1 MKV skipped · in order · 40 s round · on air since /.test(await txt(p, '#hdInfo2')), await txt(p, '#hdInfo2'));
   const oth = await txt(p, '#hdOthers');
   assert.ok(/^CH 1 .+ Test Channel · until \d\d:\d\d · tap to switch$/.test(oth), oth);

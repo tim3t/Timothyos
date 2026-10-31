@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.0";
+  var VERSION = "2.53.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10251,7 +10251,8 @@
     function num(c) { return cfg.chans.indexOf(c) + 1; }
     function folderName(p) { return baseName(p).replace(/_+/g, " ").trim(); }
     function ext(n) { var m = /\.([a-z0-9]+)$/i.exec(n); return m ? m[1].toLowerCase() : ""; }
-    function canPlay(n) { var t = KINDS[ext(n)]; if (!t) return false; var v = document.createElement("video"); return !!v.canPlayType && v.canPlayType(t) !== ""; }
+    var CANPLAY = {};   /* asked once per type (2.53.1): a video element per file name made thousands at once for a big folder, and froze a new iPad */
+    function canPlay(n) { var t = KINDS[ext(n)]; if (!t) return false; if (CANPLAY[t] == null) { var v = document.createElement("video"); CANPLAY[t] = !!v.canPlayType && v.canPlayType(t) !== ""; } return CANPLAY[t]; }
     function url(p) { return nasBase() + encPath(p) + "?k=" + encodeURIComponent(nasConf().token); }
     /* Never measured, or the file has changed, or it couldn't be read for a reason that may pass (2.51.1): a timeout or a
        network error is tried again after 10 minutes; "format" (the iPad can't decode it) stands until the file changes.
@@ -10382,7 +10383,7 @@
       var a = A; if (a.busy || (!force && a.at && Date.now() - a.at < (a.play ? 10 * 60000 : 30000))) return;
       a.busy = true; a.err = "";
       nasList(dir, true).then(function (l) { return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) { return arrange(l.items, kids); }); })
-        .then(function (r) { a.play = r.play.map(function (it) { return { f: it.f, ad: true }; }); a.skip = r.skip; a.v = -1; BK = {}; probe(); }, function (e) { a.err = nasErrText(e); })
+        .then(function (r) { a.play = r.play.map(function (it) { return { f: it.f, ad: true }; }); a.skip = r.skip; a.v = -1; a.medz = null; BK = {}; probe(); }, function (e) { a.err = nasErrText(e); })
         .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) render(); });
     }
     function mixInt(x) { x = (x ^ x >>> 16) >>> 0; x = Math.imul(x, 0x7feb352d) >>> 0; x = (x ^ x >>> 15) >>> 0; x = Math.imul(x, 0x846ca68b) >>> 0; return (x ^ x >>> 16) >>> 0; }
@@ -10432,7 +10433,7 @@
       if (!A.play) return esc(A.err);
       var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(unreadable).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
       return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
-        (m < n ? " · measuring " + m + " of " + n : " · " + ok + " can air") + " · breaks on " + on + (on === 1 ? " channel" : " channels");
+        " · " + ok + " can air · " + m + " measured, the rest as they come up · breaks on " + on + (on === 1 ? " channel" : " channels");
     }
     function adsSum() {   /* the Commercials row folded: how many can air */
       if (!cfg.ads) return "NO FOLDER YET";
@@ -10472,14 +10473,23 @@
       if (s.shows && !wide) { var l = picks(c, s, dayStart(Date.now())); for (var i = 0; i < l.length; i++) if (unknown(l[i])) return l[i]; return null; }
       return s.play.filter(unknown)[0] || null;
     }
+    function adWant() {   /* 2.53.1: only the commercials worth measuring ahead: any much bigger than the rest (likely over 3 minutes: a compilation left beside its singles), biggest first, then those in this channel's next breaks. The rest count as 30 s until they air, so a new iPad never reads thousands of headers over the network */
+      if (!A.play || A.dir !== cfg.ads) return null;
+      if (A.medz == null) { var zs = A.play.map(function (it) { return it.f.size || 0; }).sort(function (a, b) { return a - b; }); A.medz = zs.length ? zs[zs.length >> 1] : 0; }
+      var big = null; A.play.forEach(function (it) { if (it.f.size > 3 * A.medz && unknown(it) && (!big || it.f.size > big.f.size)) big = it; });
+      if (big) return big;
+      var c = cur(), n = c && breaks(c) ? at(c, Date.now()) : null;
+      for (var i = 0; n && i < 16; i++) { if (n.it.ad && unknown(n.it)) return n.it; n = after(n); }
+      return null;
+    }
     function probe() {   /* each new file's length, one at a time, from its header only: this channel first */
       if (X.probing) return;
       var list = [cur()].concat(cfg.chans), it = null;
-      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide && A.play && A.dir === cfg.ads) it = A.play.filter(unknown).reduce(function (m, x) { return m && m.f.size >= x.f.size ? m : x; }, null); });   /* biggest first: a compilation left beside its singles is ruled out early */   /* the commercials after the channels' lineups (2.52) */
+      [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide) it = adWant(); });   /* the commercials after the channels' lineups (2.52) */
       if (!it) { paint(); return; }
       X.probing = true;
-      var f = it.f, v = document.createElement("video"), done = false, fin = function (s, why) { if (done) return; done = true; clearTimeout(t); keepLen(it, s > 0 ? { s: s, z: f.size } : { s: -1, z: f.size, why: why, at: Date.now() }); X.lv++; v.removeAttribute("src"); v.load(); X.probing = false;
-        paint(); probe(); };
+      var f = it.f, v = X.pv || (X.pv = document.createElement("video")), done = false, fin = function (s, why) { if (done) return; done = true; clearTimeout(t); v.onloadedmetadata = v.onerror = null; keepLen(it, s > 0 ? { s: s, z: f.size } : { s: -1, z: f.size, why: why, at: Date.now() }); X.lv++; v.removeAttribute("src"); v.load();
+        paint(); setTimeout(function () { X.probing = false; probe(); }, X.on ? 1500 : 300); };   /* one element, reused, and a pause between files (2.53.1): gentler on the iPad, and on the picture while on air */
       var t = setTimeout(function () { fin(-1, "timeout"); }, 45000);   /* a big file without +faststart is read from both ends over Tailscale: give it time */
       v.preload = "metadata"; v.muted = true; v.onloadedmetadata = function () { fin(isFinite(v.duration) && v.duration > 1 ? Math.round(v.duration * 10) / 10 : -1, "format"); };
       v.onerror = function () { fin(-1, v.error && v.error.code === 4 ? "format" : "net"); };   /* 4: MEDIA_ERR_SRC_NOT_SUPPORTED */

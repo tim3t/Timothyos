@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.1 · 2026-10-31
+- **Fixed: HOLODECK froze a new iPad.** After a restore the iPad knows your channels and the Commercials folder but none of the video lengths, and with thousands of commercials Bridge made a video player for every file just to ask whether the iPad could play it (over 5,000 in a few seconds), then lined up every commercial to be measured over the network. The iPad stopped answering taps. Now it asks once per kind of file, measures with one reused player and a short pause between files, and measures only the commercials worth measuring ahead: any much bigger than the rest (likely over 3 minutes), then those in the coming breaks. The others count as 30 seconds until they air, and are measured as they play. The Commercials line now says "N measured, the rest as they come up".
+
 ## 2.53.0 · 2026-10-31
 - **HOLODECK → VISUAL has a new layout** (Timothy's pick of three mockups). The screen is bigger, in a slim frame that glows with the picture while on air. Under it, only power and mute, beside a line that shows what's on, the time left, a progress bar and what's next. The rest moved to an LCARS rail beside the screen: **LOOK** (one button that switches between CRT and CLEAN) above the channel dial, **CH ▲ / CH ▼**, **PIP** and **FULL**, and **SLEEP** at the foot.
 - **SLEEP opens a window** of large choices instead of a row of chips; the rail button counts down while a timer is set.

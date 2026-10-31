@@ -152,7 +152,7 @@ def videos():
 FILES.update(videos())
 
 DIRS = {"/", "/cdrom", "/Podcasts", "/Podcasts/Show A", "/Podcasts/Show B", "/Music", "/Music/Album", "/Music/Album2", "/Podcasts/.hidden", "/Music/Lengths", "/Podcasts/Show C", "/Video", "/Video/Test Channel", "/Video/Other Channel", "/Video/Test Series", "/Video/Test Series/Specials", "/Video/Test Network", "/Video/Test Network/angry_test", "/Video/Test Network/show_two", "/Video/Test Network/show_two/Season 1", "/Video/Test Network/show_two/Season 2", "/Video/Test Network/third_show"} | {"/Video/Test Series/Test Series \u2014 Season %d" % n for n in (1, 2, 10)}
-DIRS0 = set(DIRS); FAIL = {}   # /__reset restores the folders; /__fail makes files fail on purpose
+DIRS0 = set(DIRS); FILES0 = set(FILES); FAIL = {}   # /__reset restores the folders; /__fail makes files fail on purpose
 STATS = {"lists": 0, "denied": 0, "media": 0, "ha_denied": 0, "toggles": 0, "calls": [], "sent": {}}   # sent: bytes served per file
 HA_TOKEN = "ha-test-token"
 HA = {
@@ -253,9 +253,12 @@ class H(BaseHTTPRequestHandler):
             HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
             STATS["calls"] = []; return self.send_json(200, {})
         if path == "/__reset":   # tests: back to the folders the relay started with, nothing failing
-            DIRS.clear(); DIRS.update(DIRS0); FAIL.clear(); return self.send_json(200, {})
+            DIRS.clear(); DIRS.update(DIRS0); FAIL.clear(); [FILES.pop(k) for k in list(FILES) if k not in FILES0]; return self.send_json(200, {})
         if path == "/__fail":   # tests: the next n requests under a path answer with an error code (n=0 turns it off)
             FAIL.update({"prefix": q.get("prefix", ["/"])[0], "code": int(q.get("code", ["404"])[0]), "n": int(q.get("n", ["1"])[0])}); return self.send_json(200, {})
+        if path == "/__bulk":   # tests: a big folder (n copies of one file), as a fresh iPad meets thousands of commercials (2.53.1)
+            d, n, src = q.get("d", [""])[0], int(q.get("n", ["0"])[0]), q.get("src", [""])[0]
+            DIRS.add(d); [FILES.__setitem__(d + "/Single %04d.webm" % i, FILES[src]) for i in range(n)]; return self.send_json(200, {"n": n})
         if path == "/__mkdir":   # tests: a folder appears on the NAS mid-session, as a relay redeploy would
             DIRS.add(q.get("d", [""])[0]); return self.send_json(200, {})
         if path == "/__stats":

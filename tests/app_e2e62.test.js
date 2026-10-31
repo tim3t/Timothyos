@@ -44,18 +44,23 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
 
   // every length in: episodes become 10 minutes and the short commercials 2:50, so "now" can be inside a break
   await p.waitForFunction(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'), a = JSON.parse(localStorage.getItem('tos.holoadlen.v1') || '{}'), n = pre => Object.keys(l).filter(k => k.startsWith(pre) && l[k].s > 0).length;
-    return n('/Video/Test Channel/') >= 3 && n('/Video/Test Network/') >= 8 && Object.values(a).filter(x => x.s > 0).length === 4; }, null, { timeout: 60000 });
+    return n('/Video/Test Channel/') >= 3 && n('/Video/Test Network/') >= 8 && Object.values(a).some(x => x.s > 180); }, null, { timeout: 60000 });
+  // 2.53.1: only a commercial much bigger than the rest is measured ahead (it's likely too long); the others count as 30 s until they air
+  assert.ok((await txt(p, '#hdAdsInfo')).includes('the rest as they come up'), await txt(p, '#hdAdsInfo'));
   // 2.52.1: commercials' lengths are kept apart, under short keys, so thousands of singles never crowd out the episodes
   assert.ok(!(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')))));
   assert.ok(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).every(k => k.length < 16 && !k.includes('/'))));
-  await p.evaluate(() => {
+  const short = (await (await fetch(R + '/Video/Commercials/', { headers: { Authorization: 'Bearer relay-test-token' } })).json()).filter(f => !f.is_dir && !/Long Infomercial/.test(f.name));
+  await p.evaluate(short => {
     const l = JSON.parse(localStorage.getItem('tos.hololen.v1'));
     Object.keys(l).forEach(k => { if (/^\/Video\/Test (Channel|Network)\//.test(k)) l[k].s = 600; });
     localStorage.setItem('tos.hololen.v1', JSON.stringify(l));
-    const a = JSON.parse(localStorage.getItem('tos.holoadlen.v1')); Object.values(a).forEach(x => { if (x.s < 100) x.s = 170; });   // the 185 s one stays too long
+    const a = JSON.parse(localStorage.getItem('tos.holoadlen.v1'));   // the 185 s one stays too long; the short ones become 2:50 (keys as the app makes them)
+    const fnv = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }, key = q => fnv(q).toString(36) + fnv(q.split('').reverse().join('')).toString(36);
+    short.forEach(f => { a[key('/Video/Commercials/' + f.name)] = { s: 170, z: f.size }; });
     localStorage.setItem('tos.holoadlen.v1', JSON.stringify(a));
     const c = JSON.parse(localStorage.getItem('tos.holo.v1')); c.chans[0].premiere = Date.now() - 610e3; c.chans[1].breaks = true; localStorage.setItem('tos.holo.v1', JSON.stringify(c));
-  });
+  }, short);
   await p.reload(); await visual();
 
   // 10 s into the first break: one row for the whole break, with its length; the episodes either side
