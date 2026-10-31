@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.2 · 2026-10-31
+- **HOLODECK: FULL SCREEN keeps CRT.** It now fills the iPad with the whole TV screen instead of handing the video to the iPad's player, so the scan lines, ● LIVE, the channel mark, credits and UP NEXT come along. **✕ EXIT FULL SCREEN** at the top brings it back. On an iPhone the iPhone's player still takes over.
+- **Picture in Picture is gone.** iPadOS doesn't offer it to web apps on the Home Screen (not even in its own player), so the button never worked. Leaving HOLODECK turns the TV off.
+
 ## 2.53.1 · 2026-10-31
 - **Fixed: HOLODECK froze a new iPad.** After a restore the iPad knows your channels and the Commercials folder but none of the video lengths, and with thousands of commercials Bridge made a video player for every file just to ask whether the iPad could play it (over 5,000 in a few seconds), then lined up every commercial to be measured over the network. The iPad stopped answering taps. Now it asks once per kind of file, measures with one reused player and a short pause between files, and measures only the commercials worth measuring ahead: any much bigger than the rest (likely over 3 minutes), then those in the coming breaks. The others count as 30 seconds until they air, and are measured as they play. The Commercials line now says "N measured, the rest as they come up".
 

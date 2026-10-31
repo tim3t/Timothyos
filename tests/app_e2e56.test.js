@@ -104,7 +104,22 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok(!(await p.$('.hd-tv.crt')));
   assert.strictEqual(await txt(p, '.hd-look'), 'LOOK CLEAN'); assert.ok(await p.$('[data-hdlook="crt"]'), 'the next tap goes back to CRT');
   assert.ok(/^NOW \S.* · \S.* \d+:\d\d left · next: \S/.test(await txt(p, '#hdNow')), await txt(p, '#hdNow'));
-  assert.ok(!(await p.isDisabled('[data-hd="pip"]')) && !(await p.isDisabled('[data-hd="full"]')), 'PIP and FULL on the rail while on air');
+  assert.ok(!(await p.$('[data-hd="pip"]')), 'no Picture in Picture: the iPad offers it to no Home Screen web app (2.53.2)');
+  // 2.53.2: FULL SCREEN takes the whole TV screen, so CRT and everything drawn on it come too; a redraw waits until it ends
+  await p.click('[data-hdlook="crt"]');
+  await p.click('[data-hd="full"]');
+  await p.waitForFunction(() => (document.fullscreenElement || {}).id === 'hdScreen', null, { timeout: 5000 });
+  assert.ok(await p.isVisible('[data-hd="fullexit"]'), 'its own way out');
+  assert.notStrictEqual(await p.evaluate(() => getComputedStyle(document.getElementById('hdScreen'), '::after').backgroundImage), 'none', 'CRT scan lines in full screen');
+  assert.ok(await p.isVisible('#hdLive') && await p.isVisible('.hd-bug'));
+  await p.evaluate(() => document.querySelector('[data-hd="mute"]').click());   // something that redraws
+  assert.strictEqual(await p.evaluate(() => (document.fullscreenElement || {}).id), 'hdScreen', 'still full screen after a redraw');
+  const vf = await vid(p); assert.ok(!vf.paused && vf.inScreen && !vf.muted);
+  await p.click('[data-hd="fullexit"]');
+  await p.waitForFunction(() => !document.fullscreenElement, null, { timeout: 5000 });
+  assert.strictEqual(await p.getAttribute('[data-hd="mute"]', 'aria-pressed'), 'false', 'the waiting redraw happens on the way out');
+  assert.ok(!(await p.isVisible('[data-hd="fullexit"]')));
+  await p.click('[data-hdlook="clean"]');
   // channel rows fold: + opens one, − folds it, COLLAPSE ALL folds the lot
   assert.ok(await p.isVisible('#hdInfo1'), 'a channel just added opens to show what was found');
   await p.click('[data-hdopen="1"]'); assert.ok(await p.isHidden('#hdInfo1'), '− folds it');

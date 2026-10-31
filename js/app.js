@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.1";
+  var VERSION = "2.53.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10547,10 +10547,22 @@
       });
       v.addEventListener("playing", function () { X.fails = 0; });
       v.addEventListener("timeupdate", tick);
-      ["leavepictureinpicture", "webkitpresentationmodechanged"].forEach(function (ev) { v.addEventListener(ev, function () { if (!pip() && state.screen !== "holodeck") off(); }); });
       return (X.v = v);
     }
-    function pip() { var v = X.v; return !!v && (document.pictureInPictureElement === v || v.webkitPresentationMode === "picture-in-picture"); }
+    /* Full screen (2.53.2): the whole TV screen, so CRT, LIVE, the channel mark, credits and UP NEXT come too. The iPad
+       player (the video alone) only where a page element can't go full screen (iPhone). A redraw while full screen
+       waits until it ends: redrawing would replace the screen and drop out of full screen. Picture in Picture was
+       taken out in 2.53.2: the iPad offers it to no web app on the Home Screen, not even in its own player. */
+    function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+    function inFull() { var e = fsEl(); return !!e && e.id === "hdScreen"; }
+    function fullOn() {
+      var s = $("hdScreen"), v = X.v; if (!s) return;
+      var go = s.requestFullscreen || s.webkitRequestFullscreen;
+      if (go) { try { var r = go.call(s); if (r && r.catch) r.catch(function () { if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen(); }); return; } catch (e) { /* the iPad player, below */ } }
+      if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+    }
+    function fullOff() { if (!inFull()) return; var x = document.exitFullscreen || document.webkitExitFullscreen; if (x) { try { var r = x.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ } } }
+    ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!inFull() && X.dirty) { X.dirty = false; if (state.screen === "holodeck") render(); } }); });
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
@@ -10570,7 +10582,7 @@
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
     }
-    function off() { X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -10624,7 +10636,7 @@
         '<span class="hd-ptr" id="hdPtr" style="transform: rotate(' + (ang(Math.max(0, i)) + 180) + 'deg)"></span>' +
         cfg.chans.map(function (c, k) { var a = (ang(k) - 90) * Math.PI / 180; return '<span class="hd-tick' + (k === i ? " on" : "") + '" style="left: calc(50% + ' + (Math.cos(a) * 64).toFixed(1) + "px); top: calc(50% + " + (Math.sin(a) * 64).toFixed(1) + 'px)">' + (k + 1) + "</span>"; }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
-        '<span class="hd-rpair"><button type="button" class="hd-rv" data-hd="pip" aria-label="Picture in Picture"' + (X.on ? "" : " disabled") + '>PIP</button><button type="button" class="hd-rv" data-hd="full" aria-label="Full screen"' + (X.on ? "" : " disabled") + ">FULL</button></span>" +
+        '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
         '<button type="button" class="hd-sleepb' + (X.sleep ? " set" : "") + '" data-hd="sleep" aria-haspopup="dialog" aria-expanded="' + X.sleepOpen + '"><small>SLEEP</small><span>' + (typeof X.sleep === "number" ? '<span id="hdSleepLeft">' + sleepLeft() + "</span> MIN LEFT" : X.sleep === "end" ? "END OF SHOW" : "OFF") + "</span></button>" +
         "</div>";
     }
@@ -10649,7 +10661,6 @@
       cfg.chans.forEach(function (x) { if (nasConf()) load(x, false); }); loadAds(false);
       if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) render(); }, function () { /* the line says so */ });
       var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + num(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
-      if (X.on && pip()) vis = '<span><em>ON AIR</em><b>In Picture in Picture · CH ' + num(cur()) + "</b></span>" + vis;
       if (pn) lines.push("<span><em>" + (pl.el && !pl.el.paused ? "PLAYING" : "PAUSED") + "</em><b>" + esc(dispName(pl.path)) + "</b></span>");
       ks = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30 && k !== pl.path; }).sort(function (a, b) { return plays[b].at - plays[a].at; });
       if (ks.length) lines.push("<span><em>CONTINUE</em><b>" + esc(dispName(ks[0]) + " · " + baseName(parentOf(ks[0]))) + "</b></span>");
@@ -10678,7 +10689,7 @@
       clearInterval(X.sleepT); X.sleepT = 0;
       X.sleep = v === "off" ? null : v === "end" ? "end" : +v;
       X.sleepAt = typeof X.sleep === "number" ? Date.now() + X.sleep * 60000 : 0;
-      if (typeof X.sleep === "number") X.sleepT = setInterval(sleepCheck, 5000);   /* keeps time on other screens and in Picture in Picture too */
+      if (typeof X.sleep === "number") X.sleepT = setInterval(sleepCheck, 5000);   /* keeps time in full screen too */
       if (X.sleep) toast(X.sleep === "end" ? "The TV goes off at the end of this show" : "The TV goes off in " + (X.sleep >= 60 ? X.sleep / 60 + (X.sleep === 60 ? " hour" : " hours") : X.sleep + " minutes"));
     }
     function sleepCheck() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
@@ -10692,7 +10703,7 @@
     function sleepWin() {   /* 2.53: the sleep timer in a window of its own, large choices for a dark room */
       if (!X.sleepOpen) return "";
       return '<div class="hd-modal"><button type="button" class="hd-scrim" data-hd="sleepclose" aria-label="Close the sleep timer"></button><div class="hd-win" role="dialog" aria-modal="true" aria-labelledby="hdSleepT">' +
-        '<div class="phead" style="--c: var(--chrome-d)"><span class="cap"></span><h2 id="hdSleepT">SLEEP TIMER</h2></div><p class="muted">The TV turns off by itself, here, on other screens or in Picture in Picture.</p>' +
+        '<div class="phead" style="--c: var(--chrome-d)"><span class="cap"></span><h2 id="hdSleepT">SLEEP TIMER</h2></div><p class="muted">The TV turns off by itself, in full screen too.</p>' +
         '<div class="hd-sleepgrid" role="group" aria-label="Sleep timer">' + SLEEPS.map(function (o) {
           var on = o[0] === "off" ? !X.sleep : String(X.sleep) === o[0];
           return '<button type="button" class="hd-sl" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<small>· <span id="hdSleepLeft2">' + sleepLeft() + "</span> LEFT</small>" : "") + "</button>";
@@ -10700,6 +10711,7 @@
     }
     function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
     function render() {
+      if (X.prog && inFull()) { X.dirty = true; paint(); return; }   /* full screen: redraw when it ends */
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
       if (!X.prog) { $("content").innerHTML = archHtml(); clearInterval(X.timer); X.timer = 0; paint(); return; }
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
@@ -10707,7 +10719,7 @@
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
       var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
-        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
+        (X.on ? '<button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
         '<div class="hd-np" id="hdNow">' + nowHtml() + "</div></div>" +
@@ -10826,8 +10838,8 @@
       else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
       else if (d.hdch !== undefined) switchTo(+d.hdch);
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
-      else if (d.hd === "pip" && X.v) { var v = X.v; if (pip()) { if (document.exitPictureInPicture) document.exitPictureInPicture().catch(function () {}); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("inline"); } else if (v.requestPictureInPicture) v.requestPictureInPicture().catch(function () { toast("Picture in Picture isn't available here"); }); else if (v.webkitSetPresentationMode) v.webkitSetPresentationMode("picture-in-picture"); }
-      else if (d.hd === "full" && X.v) { var s = $("hdScreen"); if (X.v.webkitEnterFullscreen) X.v.webkitEnterFullscreen(); else if (s && s.requestFullscreen) s.requestFullscreen().catch(function () {}); }
+      else if (d.hd === "full" && X.v) fullOn();
+      else if (d.hd === "fullexit") fullOff();
       else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
       else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } render(); }
       else if (d.hd === "useads" || d.hd === "adclear") {   /* the one Commercials folder: every channel with BREAKS draws from it */
@@ -10853,7 +10865,7 @@
       return true;
     }
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && X.sleepOpen && state.screen === "holodeck") { X.sleepOpen = false; render(); } });
-    function leave() { X.sleepOpen = false; if (X.on && pip()) { X.keep.appendChild(X.v); return; } if (X.on) off(); }   /* leaving: off, unless it's floating in Picture in Picture */
+    function leave() { X.sleepOpen = false; if (X.on) off(); }   /* leaving: off */
     document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
       if (document.hidden || !X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
@@ -12436,7 +12448,7 @@
   }
   function go(screen, anchor) {
     if (state.screen === "ressikan" && screen !== "ressikan") rs.leave();   /* RESSIKAN goes quiet when you leave it */
-    if (state.screen === "holodeck" && screen !== "holodeck") holo.leave();   /* HOLODECK turns off, unless in Picture in Picture */
+    if (state.screen === "holodeck" && screen !== "holodeck") holo.leave();   /* the HOLODECK TV turns off */
     if (screen === "holodeck") holo.arch();   /* entering HOLODECK, or tapping it again: the arch, every time (Timothy, 2.47) */
     if (screen === "log" || state.screen === "log") lockLog();   /* opening LOG always asks for the PIN */
     if (screen === "loom" && state.screen !== "loom") { lm.t = calm() ? 0 : -5; lm.target = null; lm.vel = 0; lm.base = 0; }   /* arrive with a short glide into today */
