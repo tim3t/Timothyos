@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.0 · 2026-10-31
+- **HOLODECK → VISUAL has a new layout** (Timothy's pick of three mockups). The screen is bigger, in a slim frame that glows with the picture while on air. Under it, only power and mute, beside a line that shows what's on, the time left, a progress bar and what's next. The rest moved to an LCARS rail beside the screen: **LOOK** (one button that switches between CRT and CLEAN) above the channel dial, **CH ▲ / CH ▼**, **PIP** and **FULL**, and **SLEEP** at the foot.
+- **SLEEP opens a window** of large choices instead of a row of chips; the rail button counts down while a timer is set.
+- **The channel list starts folded.** Each row is one line: number, name, ON SCREEN, its style, BREAKS, and anything that needs a look. **+** opens a row for the folder, what was found and its buttons; **−** and **COLLAPSE ALL** fold them. Commercials folds the same way.
+
 ## 2.52.1 · 2026-10-30
 - **HOLODECK keeps thousands of commercials' lengths without crowding out the episodes.** Bridge remembers at most 5,000 episode lengths; a folder of split commercials could hold more than that on its own, and the two would have pushed each other out, measuring over and over. Commercials now have their own compact store (lengths measured under 2.52.0 move over by themselves), and the biggest unmeasured commercial is measured first, so compilations left beside their singles drop out of the breaks quickly.
 

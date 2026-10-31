@@ -42,20 +42,29 @@ const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.cl
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
   for (let i = 0; i < 6; i++) { await p.clock.runFor(200); await p.waitForTimeout(100); }
   await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 });
-  assert.strictEqual(await txt(p, '.hd-sleepbar'), 'SLEEP OFF 15 MIN 30 MIN 1 HOUR 2 HOURS END OF THIS SHOW');
+  // 2.53: SLEEP at the foot of the rail opens a window of large choices
+  const sleepPick = async v => { await p.click('[data-hd="sleep"]'); await p.waitForSelector('.hd-win'); await p.click('[data-hdsleep="' + v + '"]'); assert.ok(!(await p.$('.hd-win')), 'a choice closes the window'); };
+  assert.strictEqual(await txt(p, '[data-hd="sleep"]'), 'SLEEP OFF');
+  await p.click('[data-hd="sleep"]');
+  assert.strictEqual(await txt(p, '.hd-sleepgrid'), 'OFF 15 MIN 30 MIN 1 HOUR 2 HOURS END OF THIS SHOW');
+  assert.strictEqual(await p.getAttribute('.hd-win', 'role'), 'dialog');
+  await p.keyboard.press('Escape'); assert.ok(!(await p.$('.hd-win')), 'Escape closes it');
   await p.click('.hd-tune');
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
-  await p.click('[data-hdsleep="15"]');
+  await sleepPick('15');
+  assert.strictEqual(await txt(p, '[data-hd="sleep"]'), 'SLEEP 15 MIN LEFT');
+  await p.click('[data-hd="sleep"]');
   assert.strictEqual(await p.getAttribute('[data-hdsleep="15"]', 'aria-pressed'), 'true');
   assert.strictEqual(await txt(p, '[data-hdsleep="15"]'), '15 MIN · 15 LEFT');
+  await p.click('.hd-winend [data-hd="sleepclose"]');
   assert.ok((await txt(p, '#toast')).includes('The TV goes off in 15 minutes'));
   await idle(p, 9 * 60000);
   assert.ok(await p.isHidden('#standby'), 'no Standby while the TV is on');
   assert.ok((await src(p)).includes('/Video/'), 'still on air at 9 minutes');
-  assert.ok(/^15 MIN · [67] LEFT$/.test(await txt(p, '[data-hdsleep="15"]')), 'counting down: ' + await txt(p, '[data-hdsleep="15"]'));   /* refreshed each second, so 6 or 7 at exactly 9:00 */
+  assert.ok(/^SLEEP [67] MIN LEFT$/.test(await txt(p, '[data-hd="sleep"]')), 'counting down: ' + await txt(p, '[data-hd="sleep"]'));   /* refreshed each second, so 6 or 7 at exactly 9:00 */
   await idle(p, 7 * 60000);
   assert.ok(!(await src(p)).includes('/Video/'), 'off at 15 minutes');
-  assert.strictEqual(await p.getAttribute('[data-hdsleep="off"]', 'aria-pressed'), 'true', 'the timer is spent');
+  assert.strictEqual(await txt(p, '[data-hd="sleep"]'), 'SLEEP OFF', 'the timer is spent');
   await idle(p, 60000);
   assert.ok(await p.isVisible('#standby'), 'after the sleep timer, Standby takes over (no touch for 5 minutes)');
   await p.screenshot({ path: D + 'holodeck-sleep.png' });
@@ -68,7 +77,8 @@ const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.cl
   // ---- END OF THIS SHOW: off when the video ends
   await p.click('.hd-tune');
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
-  await p.click('[data-hdsleep="end"]');
+  await sleepPick('end');
+  assert.strictEqual(await txt(p, '[data-hd="sleep"]'), 'SLEEP END OF SHOW');
   assert.ok((await txt(p, '#toast')).includes('The TV goes off at the end of this show'));
   await p.waitForFunction(() => !(document.getElementById('hdVideo').getAttribute('src') || '').length, null, { timeout: 15000 });
   assert.ok((await txt(p, '#toast')).includes('Sleep timer: the TV went off at the end of the show'));
@@ -76,8 +86,8 @@ const idle = async (p, ms) => { for (let t = 0; t < ms; t += 30000) { await p.cl
 
   // ---- turning it off by hand clears a timer
   await p.click('.hd-tune'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
-  await p.click('[data-hdsleep="30"]'); await p.click('[data-hd="tune"]');
-  assert.strictEqual(await p.getAttribute('[data-hdsleep="off"]', 'aria-pressed'), 'true');
+  await sleepPick('30'); await p.click('[data-hd="tune"]');
+  assert.strictEqual(await txt(p, '[data-hd="sleep"]'), 'SLEEP OFF');
 
   // ---- AUDIO's sleep timer: the episode pauses on time, then Standby takes over (2.49 hand-over)
   await p.click('[data-hdgo="arch"]'); await p.waitForSelector('.hd-arch');

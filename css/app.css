@@ -2490,8 +2490,13 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-panel .phead .meta { white-space: normal; text-align: right; min-width: 0; }
 .hd-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .hd-two > * { min-width: 0; }
-.hd-tv { background: linear-gradient(160deg, #23242c, #111218); border-radius: 26px; padding: 18px; box-shadow: inset 0 0 0 2px #2c2e3a; display: grid; gap: 14px; }
-.hd-screen { position: relative; aspect-ratio: 16 / 10; background: #000; border-radius: 16px; overflow: hidden; }
+/* 2.53, layout C: the screen gets the room; a slim frame that glows with the picture while on air */
+.hd-stage { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; align-items: start; }
+.hd-main { display: grid; gap: 12px; min-width: 0; }
+.hd-tv { background: linear-gradient(180deg, #1f2029, #101117); border-radius: 22px; padding: 8px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px #2c2e3a, 0 18px 40px rgba(0, 0, 0, .5); transition: box-shadow .8s; }
+.hd-tv.on { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px #2c2e3a, 0 0 70px rgba(214, 124, 98, .22), 0 0 140px rgba(123, 63, 110, .14); }
+.hd-screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 14px; overflow: hidden; }
+.hd-screen::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; background: linear-gradient(160deg, rgba(255, 255, 255, .05) 0%, rgba(255, 255, 255, 0) 28%); }
 .hd-screen .hd-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .hd-tv.crt .hd-screen::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
   background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .55) 100%); }
@@ -2507,8 +2512,43 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-tune span { font-family: var(--display); font-weight: 700; font-size: clamp(20px, 3.4vw, 34px); letter-spacing: .18em; border: 3px solid var(--fg); border-radius: 40px; padding: 10px 26px; }
 .hd-tune small { font-family: var(--display); font-size: 14px; letter-spacing: .12em; color: var(--dim); }
 .hd-tune:disabled span { opacity: .4; }
-.hd-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.hd-gap { flex: 1 1 0; }
+.hd-bar { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 12px; align-items: center; background: var(--panel); border-radius: 26px; padding: 8px 18px 8px 8px; }
+.hd-mute { width: 48px; height: 48px; border-radius: 24px; border: 2px solid var(--line); background: transparent; color: var(--fg); display: grid; place-items: center; padding: 0; }
+.hd-mute[aria-pressed="true"] { background: var(--chrome-b); border-color: var(--chrome-b); color: var(--ink); }
+.hd-np { min-width: 0; display: grid; gap: 2px; }
+.hd-nprow { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.hd-npt { flex: none; font-family: var(--display); font-size: 13px; letter-spacing: .18em; color: var(--chrome-b); }
+.hd-nprow b { min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-nprow small { margin-left: auto; flex: none; color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-np .hd-prog { height: 4px; margin-top: 4px; }
+/* the rail: LCARS blocks, the look on top and the sleep timer at the foot */
+.hd-rail { display: flex; flex-direction: column; gap: 6px; }
+.hd-rail button { font-family: var(--display); border: 0; color: var(--ink); }
+.hd-look, .hd-sleepb { min-height: 64px; display: grid; place-content: center; justify-items: center; gap: 0; }
+.hd-look { border-radius: 32px 32px 6px 6px; background: var(--chrome-c); }
+.hd-look small, .hd-sleepb small { font-size: 11px; letter-spacing: .24em; }
+.hd-look span, .hd-sleepb span { font-size: 19px; font-weight: 700; letter-spacing: .12em; }
+.hd-rail .hd-dialbox { background: var(--panel); border-radius: 6px; padding: 10px 0 6px; gap: 10px; }
+.hd-rpair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.hd-rb, .hd-rv { min-height: 50px; border-radius: 6px; font-size: 15px; letter-spacing: .1em; }
+.hd-rb { background: var(--chrome-b); }
+.hd-rv { background: var(--chrome-a); }
+.hd-rb:disabled, .hd-rv:disabled { opacity: .4; }
+.hd-sleepb { border-radius: 6px 6px 32px 32px; background: #3a3c48; }
+.hd-rail .hd-sleepb { color: var(--fg); }
+.hd-rail .hd-sleepb.set { background: var(--chrome-d); color: var(--ink); }
+.hd-sleepb span { font-size: 15px; }
+/* the sleep timer's window */
+.hd-modal { position: fixed; inset: 0; z-index: 70; display: grid; justify-items: center; align-items: start; padding: 16vh 16px 16px; }
+.hd-scrim { position: absolute; inset: 0; border: 0; background: rgba(4, 5, 8, .72); }
+.hd-win { position: relative; width: min(460px, 100%); box-sizing: border-box; background: var(--panel); border-left: 10px solid var(--chrome-d); border-radius: 0 26px 26px 0; padding: 18px 20px 20px; box-shadow: 0 30px 60px rgba(0, 0, 0, .6); display: grid; gap: 14px; }
+.hd-win .phead { margin: 0; }
+.hd-win p { margin: 0; }
+.hd-sleepgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.hd-sl { min-height: 64px; border-radius: 18px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); font-family: var(--display); font-size: 18px; letter-spacing: .12em; display: grid; place-content: center; }
+.hd-sl small { font-size: 12px; letter-spacing: .14em; }
+.hd-sl[aria-pressed="true"] { background: var(--chrome-d); border-color: var(--chrome-d); color: var(--ink); }
+.hd-winend { justify-content: flex-end; margin: 0; }
 .hd-keep { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .hd-guide { display: grid; gap: 8px; }
 .hd-slot { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
@@ -2562,18 +2602,12 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-upnext[hidden] { display: grid !important; opacity: 0; transform: translateX(16px); }
 @media (prefers-reduced-motion: reduce) { .hd-upnext { transition: none; } }
 .hd-style { display: inline-flex; gap: 6px; margin-right: 6px; }
-/* 2.52: commercial breaks: the one Commercials folder, and a break's row in the guide */
-.hd-ads { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; align-items: center; margin-top: 12px; padding: 10px 12px; border: 2px dashed var(--line); border-radius: 12px; }
-.hd-adsi { min-width: 0; display: grid; gap: 2px; }
-.hd-adsi b { font-weight: 600; overflow-wrap: anywhere; }
-.hd-adsi small { font-size: 14px; overflow-wrap: anywhere; }
+/* 2.52: commercial breaks: the one Commercials folder (a row like a channel's since 2.53), and a break's row in the guide */
+.hd-ads { border: 2px dashed var(--line); margin-top: 8px; }
+.hd-adsic { color: var(--chrome-d); display: grid; place-items: center; }
 .hd-slot.hd-brk b { color: var(--dim); letter-spacing: .08em; }
-/* 2.49: VISUAL's sleep timer */
-.hd-sleepbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .hd-lab { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--dim); margin-right: 4px; }
 /* 2.46: channels and the dial */
-.hd-set { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 16px; align-items: stretch; }
-.hd-set > * { min-width: 0; }
 .hd-dialbox { display: grid; align-content: center; justify-items: center; gap: 18px; background: rgba(0, 0, 0, .25); border-radius: 18px; padding: 18px 8px; }
 .hd-chnum { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .08em; color: var(--chrome-b); }
 .hd-dial { position: relative; width: 96px; height: 96px; margin: 8px 0; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #4a4c5a, #16171d 70%); box-shadow: inset 0 0 0 3px #2c2e3a, 0 4px 10px rgba(0, 0, 0, .5); touch-action: none; cursor: grab; }
@@ -2581,19 +2615,29 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-ptr { position: absolute; left: 50%; top: 50%; width: 4px; height: 40px; margin-left: -2px; transform-origin: 50% 0; background: var(--chrome-b); border-radius: 2px; transition: transform .25s ease; pointer-events: none; }
 .hd-tick { position: absolute; transform: translate(-50%, -50%); font-family: var(--display); font-size: 13px; color: var(--dim); pointer-events: none; }
 .hd-tick.on { color: var(--chrome-b); font-weight: 700; }
-.hd-chbtns { display: grid; gap: 8px; }
 .hd-other { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; border: 2px dashed var(--line); border-radius: 12px; padding: 8px 12px; background: transparent; color: var(--fg); text-align: left; min-height: 52px; }
 .hd-other .t { font-family: var(--display); letter-spacing: .1em; font-size: 15px; color: var(--dim); }
 .hd-other b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hd-other small { display: block; color: var(--dim); font-size: 14px; }
 .hd-chans { display: grid; gap: 8px; }
-.hd-chan { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px 12px; align-items: center; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
+.hd-chan, .hd-ads { display: grid; gap: 8px; background: var(--panel-2); border-radius: 12px; padding: 8px 8px 8px 10px; }
+.hd-chrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px; gap: 10px; align-items: center; }
+.hd-nm { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hd-nm b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hd-here { flex: none; font-style: normal; font-family: var(--display); font-size: 11px; letter-spacing: .16em; color: var(--ink); background: var(--chrome-b); border-radius: 8px; padding: 2px 7px; }
+.hd-cm small.hd-sum { font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--dim); }
+.hd-att { color: var(--chrome-d); }
+.hd-pm { width: 44px; height: 44px; border-radius: 22px; border: 2px solid var(--line); background: transparent; color: var(--fg); font-family: var(--display); font-size: 22px; line-height: 1; padding: 0; }
+.open > .hd-chrow .hd-pm { background: var(--chrome-c); border-color: var(--chrome-c); color: var(--ink); }
+.hd-more { display: grid; gap: 8px; padding: 2px 0 4px 50px; min-width: 0; }
+.hd-more small { font-size: 14px; overflow-wrap: anywhere; }
+.hd-more[hidden] { display: none; }
 .hd-chan[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--chrome-b); }
 .hd-n { font-family: var(--display); font-weight: 700; font-size: 24px; color: var(--chrome-b); text-align: center; }
 .hd-cm { min-width: 0; display: grid; gap: 2px; }
 .hd-cm b { font-weight: 600; overflow-wrap: anywhere; }
 .hd-cm small { font-size: 14px; overflow-wrap: anywhere; }
-.hd-acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+.hd-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 .hd-ren { display: flex; gap: 8px; margin-top: 6px; }
 .hd-ren input { flex: 1 1 auto; min-width: 0; min-height: 40px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--fg); padding: 0 10px; font: inherit; }
 .hd-pick { display: grid; gap: 10px; }
@@ -2601,8 +2645,8 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-dir { border: 0; text-align: left; background: var(--panel-2); color: var(--fg); border-radius: 12px; min-height: 52px; padding: 8px 12px; display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
 .hd-dir > i { align-self: stretch; border-radius: 3px; background: var(--chrome-c); }
 @media (max-width: 900px) { .hd-two { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .hd-set { grid-template-columns: minmax(0, 1fr); } .hd-dialbox { grid-template-columns: auto auto auto; justify-content: center; align-items: center; gap: 22px; padding: 14px 28px; } }
-@media (max-width: 640px) { .hd-panel { padding: 12px 12px 14px; } .hd-tv { padding: 10px; border-radius: 18px; } .hd-screen { aspect-ratio: 4 / 3; } .hd-gap { display: none; } .hd-panel .phead { flex-wrap: wrap; } .hd-panel .phead .meta { width: 100%; text-align: left; padding-left: 40px; } }
+@media (max-width: 760px) { .hd-stage { grid-template-columns: minmax(0, 1fr); } .hd-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .hd-rail .hd-dialbox { grid-column: 1 / -1; grid-template-columns: auto auto; justify-content: center; align-items: center; gap: 28px; padding: 10px 28px; } .hd-look { order: -2; border-radius: 32px 6px 6px 6px; } .hd-sleepb { order: -1; border-radius: 6px 32px 6px 6px; } }
+@media (max-width: 640px) { .hd-panel { padding: 12px 12px 14px; } .hd-tv { padding: 6px; border-radius: 18px; } .hd-screen { aspect-ratio: 4 / 3; } .hd-bar { grid-template-columns: auto auto; } .hd-np { grid-column: 1 / -1; padding: 0 0 4px 8px; } .hd-nprow { flex-wrap: wrap; } .hd-nprow small { margin-left: 0; max-width: 100%; } .hd-more { padding-left: 4px; } .hd-panel .phead { flex-wrap: wrap; } .hd-panel .phead .meta { width: 100%; text-align: left; padding-left: 40px; } }
 
 /* ---------- LOG → SESSIONS (2.51): counseling session notes behind the log's code ---------- */
 .sx-tabs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

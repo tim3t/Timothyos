@@ -20,6 +20,8 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 
   // every video measured, none readable: say so, rather than "measuring" for ever
   await p.waitForFunction(() => /CAN'T PLAY THESE/.test(document.body.innerText), null, { timeout: 30000 });
+  assert.ok((await txt(p, '#hdSum1')).includes('2 UNREADABLE'), 'the folded row says so (2.53)');
+  await p.click('[data-hdopen="1"]');
   const page = await txt(p, '#content');
   assert.ok(page.includes("THE IPAD CAN'T PLAY THESE 2 VIDEOS · CONVERT THEM TO MP4 (H.264)"), page);
   assert.ok(!/MEASURING 2 OF 2/.test(page));

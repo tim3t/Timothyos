@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.52.1";
+  var VERSION = "2.53.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10241,7 +10241,7 @@
     var adLens = lsGet(LS_HOLOADLEN) || {};
     if (cfg.ads) { var moved = 0; Object.keys(lens).forEach(function (k) { if (k.indexOf(cfg.ads + "/") === 0) { adLens[adKey(k)] = lens[k]; delete lens[k]; moved++; } }); if (moved) { lsSet(LS_HOLOLEN, lens); lsSet(LS_HOLOADLEN, adLens); } }   /* measured under 2.52.0 */
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", open: {}, sleepOpen: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var PARTIAL = /\.(f\d+|temp)\.[a-z0-9]+$/i;   /* yt-dlp's pieces of an unfinished download ("….f136.mp4" is video without sound, "….temp.mp4" a merge in progress): never episodes (2.51.4) */
     if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; save(); }   /* the channel shown was removed: the first one */
@@ -10434,9 +10434,38 @@
       return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
         (m < n ? " · measuring " + m + " of " + n : " · " + ok + " can air") + " · breaks on " + on + (on === 1 ? " channel" : " channels");
     }
-    function adsRow() {   /* under the channels: the one Commercials folder */
-      return '<div class="hd-ads"><span class="hd-lab">COMMERCIALS</span><span class="hd-adsi">' + (cfg.ads ? "<b>" + esc(cfg.ads) + '</b><small id="hdAdsInfo">' + adsInfo() + "</small>" : '<b>No folder yet</b><small class="muted">Choose a folder of commercials, then turn on BREAKS for a channel.</small>') +
-        '</span><span class="hd-acts"><button type="button" class="chip sm" data-hd="adpick" aria-expanded="' + (X.pick && X.pickFor === "ads") + '">' + (cfg.ads ? "CHANGE FOLDER" : "CHOOSE FOLDER") + "</button>" + (cfg.ads ? '<button type="button" class="chip sm" data-hd="adclear">CLEAR</button>' : "") + "</span></div>";
+    function adsSum() {   /* the Commercials row folded: how many can air */
+      if (!cfg.ads) return "NO FOLDER YET";
+      if (A.dir !== cfg.ads || (!A.play && !A.err)) return "READING THE FOLDER…";
+      if (!A.play) return '<span class="hd-att">CAN\'T REACH THE FOLDER</span>';
+      var on = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      return adPool().length + " CAN AIR · BREAKS ON " + on + (on === 1 ? " CHANNEL" : " CHANNELS");
+    }
+    function adsRow() {   /* under the channels: the one Commercials folder, folded like a channel (2.53) */
+      var open = !cfg.ads || !!X.open.ads || (X.pick && X.pickFor === "ads");
+      return '<div class="hd-ads' + (open ? " open" : "") + '"><div class="hd-chrow"><span class="hd-n hd-adsic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="m8 2 4 4 4-4"/></svg></span>' +
+        '<span class="hd-cm"><span class="hd-nm"><b>Commercials</b></span><small class="hd-sum" id="hdAdsSum">' + adsSum() + "</small></span>" +
+        (cfg.ads ? '<button type="button" class="hd-pm" data-hdopen="ads" aria-expanded="' + open + '" aria-label="' + (open ? "Hide" : "Show") + ' commercials details">' + (open ? "−" : "+") + "</button>" : "") + "</div>" +
+        '<div class="hd-more"' + (open ? "" : " hidden") + ">" + (cfg.ads ? '<small class="muted">' + esc(cfg.ads) + '</small><small id="hdAdsInfo">' + adsInfo() + "</small>" : '<small class="muted">Choose a folder of commercials, then turn on BREAKS for a channel.</small>') +
+        '<span class="hd-acts"><button type="button" class="chip sm" data-hd="adpick" aria-expanded="' + (X.pick && X.pickFor === "ads") + '">' + (cfg.ads ? "CHANGE FOLDER" : "CHOOSE FOLDER") + "</button>" + (cfg.ads ? '<button type="button" class="chip sm" data-hd="adclear">CLEAR</button>' : "") + "</span></div></div>";
+    }
+    function chanSum(x) {   /* a channel's row folded: its style, and anything that needs a look */
+      var s = F[x.dir], w = "";
+      if (s && s.err && !s.play) w = "CAN'T REACH THE FOLDER";
+      else if (s && s.play) {
+        var nb = s.play.filter(unreadable).length, m = s.play.filter(function (it) { return !unknown(it); }).length;
+        w = nb ? nb + " UNREADABLE" : s.skip.length ? s.skip.length + " SKIPPED" : m < s.play.length ? "MEASURING " + m + " OF " + s.play.length : "";
+      }
+      return (net(x) ? "NETWORK" : "IN ORDER") + (x.breaks ? " · BREAKS" : "") + (w ? ' · <span class="hd-att">' + esc(w) + "</span>" : "");
+    }
+    function nowHtml() {   /* under the screen: what's on, time left, what's next */
+      var ch = cur(), c = ch && (X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()));
+      if (!c) return '<span class="hd-nprow"><span class="hd-npt">' + (ch ? "CH " + num(ch) : "HOLODECK") + "</span><b>" + esc(ch ? ch.name : "Add a channel below") + "</b></span>";
+      var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
+      var dur = c.brk ? c.brk.dur : c.dur, p = c.brk ? (c.startMs - c.brk.startMs) / 1000 + pos : pos, n = c.brk ? pastBreak(c) : after(c);
+      if (n && n.brk) n = pastBreak(n);
+      return '<span class="hd-nprow"><span class="hd-npt">' + (X.on ? "NOW" : "ON CH " + num(ch)) + "</span><b>" + esc(line(label(c.it))) + "</b><small>" + mmss(dur - p) + " left" + (n ? " · next: " + esc(line(label(n.it))) : "") + "</small></span>" +
+        '<span class="hd-prog"><i style="width:' + Math.max(0, Math.min(100, p / dur * 100)).toFixed(1) + '%"></i></span>';
     }
     function want(c, wide) {   /* the next length to measure: today's lineup first (NETWORK), or the running order (IN ORDER) */
       var s = c && F[c.dir]; if (!s || !s.play) return null;
@@ -10577,12 +10606,17 @@
       return "MEASURING " + s.play.filter(function (it) { return !unknown(it); }).length + " OF " + s.play.length + " VIDEOS…";
     }
     function ang(k) { var n = cfg.chans.length; return n > 1 ? -100 + k * 200 / (n - 1) : 0; }   /* the channels spread evenly across the dial's face */
-    function dial() {
-      var n = cfg.chans.length, i = cfg.chans.indexOf(cur());
-      return '<div class="hd-dialbox"><span class="hd-chnum">CH ' + (i > -1 ? i + 1 : "–") + '</span><div class="hd-dial" id="hdDial" role="slider" tabindex="0" aria-label="Channel dial" aria-valuemin="1" aria-valuemax="' + Math.max(1, n) + '" aria-valuenow="' + Math.max(1, i + 1) + '">' +
+    function rail() {   /* 2.53, layout C: an LCARS rail beside the screen: the look, the channel, the view, the sleep timer */
+      var n = cfg.chans.length, i = cfg.chans.indexOf(cur()), to = cfg.look === "crt" ? "clean" : "crt", sl = SLEEPS.filter(function (o) { return o[0] === "off" ? !X.sleep : String(X.sleep) === o[0]; })[0];
+      return '<div class="hd-rail">' +
+        '<button type="button" class="hd-look" data-hdlook="' + to + '" aria-label="Look: ' + cfg.look.toUpperCase() + ". Tap for " + to.toUpperCase() + '"><small>LOOK</small><span>' + cfg.look.toUpperCase() + "</span></button>" +
+        '<div class="hd-dialbox"><span class="hd-chnum">CH ' + (i > -1 ? i + 1 : "–") + '</span><div class="hd-dial" id="hdDial" role="slider" tabindex="0" aria-label="Channel dial" aria-valuemin="1" aria-valuemax="' + Math.max(1, n) + '" aria-valuenow="' + Math.max(1, i + 1) + '">' +
         '<span class="hd-ptr" id="hdPtr" style="transform: rotate(' + (ang(Math.max(0, i)) + 180) + 'deg)"></span>' +
-        cfg.chans.map(function (c, k) { var a = (ang(k) - 90) * Math.PI / 180; return '<span class="hd-tick' + (k === i ? " on" : "") + '" style="left: calc(50% + ' + (Math.cos(a) * 64).toFixed(1) + "px); top: calc(50% + " + (Math.sin(a) * 64).toFixed(1) + 'px)">' + (k + 1) + "</span>"; }).join("") + "</div>" +
-        '<span class="hd-chbtns"><button type="button" class="chip sm" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="chip sm" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span></div>";
+        cfg.chans.map(function (c, k) { var a = (ang(k) - 90) * Math.PI / 180; return '<span class="hd-tick' + (k === i ? " on" : "") + '" style="left: calc(50% + ' + (Math.cos(a) * 64).toFixed(1) + "px); top: calc(50% + " + (Math.sin(a) * 64).toFixed(1) + 'px)">' + (k + 1) + "</span>"; }).join("") + "</div></div>" +
+        '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
+        '<span class="hd-rpair"><button type="button" class="hd-rv" data-hd="pip" aria-label="Picture in Picture"' + (X.on ? "" : " disabled") + '>PIP</button><button type="button" class="hd-rv" data-hd="full" aria-label="Full screen"' + (X.on ? "" : " disabled") + ">FULL</button></span>" +
+        '<button type="button" class="hd-sleepb' + (X.sleep ? " set" : "") + '" data-hd="sleep" aria-haspopup="dialog" aria-expanded="' + X.sleepOpen + '"><small>SLEEP</small><span>' + (typeof X.sleep === "number" ? '<span id="hdSleepLeft">' + sleepLeft() + "</span> MIN LEFT" : X.sleep === "end" ? "END OF SHOW" : "OFF") + "</span></button>" +
+        "</div>";
     }
     function bindDial() {   /* turn it with a finger and let go near a channel; a tap moves on one */
       var dl = $("hdDial"), ptr = $("hdPtr"), drag = null; if (!dl) return;
@@ -10645,11 +10679,14 @@
       if (state.screen === "holodeck") render();
     }
     function sleepLeft() { return Math.max(1, Math.ceil((X.sleepAt - Date.now()) / 60000)); }
-    function sleepBar() {
-      return '<div class="hd-sleepbar" role="group" aria-label="Sleep timer"><span class="hd-lab">SLEEP</span>' + SLEEPS.map(function (o) {
-        var on = o[0] === "off" ? !X.sleep : String(X.sleep) === o[0];
-        return '<button type="button" class="chip sm" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<span>· <span id="hdSleepLeft">' + sleepLeft() + "</span> LEFT</span>" : "") + "</button>";
-      }).join("") + "</div>";
+    function sleepWin() {   /* 2.53: the sleep timer in a window of its own, large choices for a dark room */
+      if (!X.sleepOpen) return "";
+      return '<div class="hd-modal"><button type="button" class="hd-scrim" data-hd="sleepclose" aria-label="Close the sleep timer"></button><div class="hd-win" role="dialog" aria-modal="true" aria-labelledby="hdSleepT">' +
+        '<div class="phead" style="--c: var(--chrome-d)"><span class="cap"></span><h2 id="hdSleepT">SLEEP TIMER</h2></div><p class="muted">The TV turns off by itself, here, on other screens or in Picture in Picture.</p>' +
+        '<div class="hd-sleepgrid" role="group" aria-label="Sleep timer">' + SLEEPS.map(function (o) {
+          var on = o[0] === "off" ? !X.sleep : String(X.sleep) === o[0];
+          return '<button type="button" class="hd-sl" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<small>· <span id="hdSleepLeft2">' + sleepLeft() + "</span> LEFT</small>" : "") + "</button>";
+        }).join("") + '</div><div class="btnrow hd-winend"><button type="button" class="chip sm" data-hd="sleepclose">CLOSE</button></div></div></div>';
     }
     function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
     function render() {
@@ -10659,25 +10696,29 @@
       var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
-      var tv = '<div class="hd-set"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
-        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div>" +
-        '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + '</button><button type="button" class="chip sm" data-hd="mute" aria-pressed="' + cfg.muted + '">' + (cfg.muted ? "MUTED" : "MUTE") + "</button>" +
-        '<button type="button" class="chip sm" data-hd="pip"' + (X.on ? "" : " disabled") + '>PICTURE IN PICTURE</button><button type="button" class="chip sm" data-hd="full"' + (X.on ? "" : " disabled") + '>FULL SCREEN</button><span class="hd-gap"></span>' +
-        '<button type="button" class="chip sm" data-hdlook="crt" aria-pressed="' + (cfg.look === "crt") + '">CRT</button><button type="button" class="chip sm" data-hdlook="clean" aria-pressed="' + (cfg.look === "clean") + '">CLEAN</button></div>' +
-        sleepBar() + (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + dial() + "</div>";
+      var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
+        (X.on ? '<span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
+        '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
+        '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
+        '<div class="hd-np" id="hdNow">' + nowHtml() + "</div></div>" +
+        (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + rail() + "</div>";
       var rows = cfg.chans.map(function (x, i) {
-        var on = x.id === cfg.ch, arm = X.rm === x.id;
-        return '<div class="hd-chan" aria-current="' + on + '"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><b>' + esc(x.name) + '</b><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
-          (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") + "</span>" +
+        var on = x.id === cfg.ch, arm = X.rm === x.id, open = !!X.open[x.id] || X.ren === x.id || arm;
+        return '<div class="hd-chan' + (open ? " open" : "") + '" aria-current="' + on + '"><div class="hd-chrow"><span class="hd-n">' + (i + 1) + '</span><span class="hd-cm"><span class="hd-nm"><b>' + esc(x.name) + "</b>" + (on ? '<em class="hd-here">ON SCREEN</em>' : "") + '</span><small class="hd-sum" id="hdSum' + x.id + '">' + chanSum(x) + "</small></span>" +
+          '<button type="button" class="hd-pm" data-hdopen="' + x.id + '" aria-expanded="' + open + '" aria-label="' + (open ? "Hide " : "Show ") + esc(x.name) + ' details">' + (open ? "−" : "+") + "</button></div>" +
+          '<div class="hd-more"' + (open ? "" : " hidden") + '><small class="muted">' + esc(x.dir) + '</small><small id="hdInfo' + x.id + '">' + chanInfo(x) + "</small>" +
+          (X.ren === x.id ? '<span class="hd-ren"><input id="hdRename" maxlength="40" autocomplete="off" value="' + esc(x.name) + '" aria-label="Channel name"><button type="button" class="chip sm" data-hd="rensave">SAVE</button></span>' : "") +
           '<span class="hd-acts"><span class="hd-style" role="group" aria-label="Style">' + [["order", "IN ORDER"], ["network", "NETWORK"]].map(function (st) { return '<button type="button" class="chip sm" data-hdstyle="' + x.id + "|" + st[0] + '" aria-pressed="' + ((x.style || "order") === st[0]) + '">' + st[1] + "</button>"; }).join("") + "</span>" + '<button type="button" class="chip sm" data-hdbrk="' + x.id + '" aria-pressed="' + !!x.breaks + '"' + (cfg.ads ? "" : " disabled") + ">BREAKS</button>" + (on ? "" : '<button type="button" class="chip sm" data-hdch="' + x.id + '">WATCH</button>') + '<button type="button" class="chip sm" data-hdren="' + x.id + '" aria-expanded="' + (X.ren === x.id) + '">RENAME</button>' +
-          '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div>";
+          '<button type="button" class="chip sm" data-hdrm="' + x.id + '"' + (arm ? ' style="--c: var(--bad)"' : "") + ">" + (arm ? "REMOVE IT" : "REMOVE") + "</button></span></div></div>";
       }).join("");
+      var anyOpen = Object.keys(X.open).some(function (id) { return X.open[id]; });
       var src = (rows ? '<div class="hd-chans">' + rows + "</div>" : '<p class="muted">Choose the folder for channel 1: a folder of videos, or a series with one folder per season.</p>') +
         (s && s.skip && s.skip.length ? '<p class="muted">The iPad can\'t play ' + esc(kinds(s.skip).replace(/\d+ /g, "")) + " files, so the channel skips them. README → HOLODECK has a one-time fix on the NAS.</p>" : "") +
-        '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + "</div>" + (X.pick && X.pickFor !== "ads" ? picker() : "") + adsRow() + (X.pick && X.pickFor === "ads" ? picker() : "");
+        adsRow() + (X.pick && X.pickFor === "ads" ? picker() : "") +
+        '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + (anyOpen ? '<button type="button" class="chip sm" data-hd="collapse">COLLAPSE ALL</button>' : "") + "</div>" + (X.pick && X.pickFor !== "ads" ? picker() : "");
       X.oth = "";
-      $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", c ? "CHANNEL " + k + " · " + esc(c.name.toUpperCase()) : "HOLODECK", "ALWAYS ON AIR · EVERY CHANNEL KEEPS RUNNING", tv) +
-        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER OR NETWORK", src) + "</div></div>";
+      $("content").innerHTML = '<div class="hd">' + archBtn() + tv +
+        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER OR NETWORK", src) + "</div>" + sleepWin() + "</div>";
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
       bindDial(); paint();
       clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
@@ -10724,6 +10765,7 @@
       if (state.screen !== "holodeck") return;
       var g = $("hdGuide"); if (g) g.innerHTML = guide();
       var o = $("hdOthers"), h = others(); if (o && h !== X.oth) { o.innerHTML = h; X.oth = h; }
+      var np = $("hdNow"); if (np) np.innerHTML = nowHtml();
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
       if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
@@ -10738,7 +10780,9 @@
       if (tb) tb.disabled = !ready; if (ts) ts.textContent = tuneSub(); if (pw && !X.on) pw.disabled = !ready;
       cfg.chans.forEach(function (x) { var e = $("hdInfo" + x.id), h = chanInfo(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
       var ai = $("hdAdsInfo"); if (ai) { var ah = adsInfo(); if (ai.innerHTML !== ah) ai.innerHTML = ah; }
-      var sl = $("hdSleepLeft"); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft();
+      var as = $("hdAdsSum"); if (as) { var sh = adsSum(); if (as.innerHTML !== sh) as.innerHTML = sh; }
+      cfg.chans.forEach(function (x) { var e = $("hdSum" + x.id), h = chanSum(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
+      ["hdSleepLeft", "hdSleepLeft2"].forEach(function (id) { var sl = $(id); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft(); });
     }
     function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tick(); status(); } }
     function noise() {   /* the static, drawn for half a second */
@@ -10749,8 +10793,11 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined) return false;
-      if (d.hdsleep) { setSleep(d.hdsleep); render(); return true; }
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined && d.hdopen === undefined) return false;
+      if (d.hdsleep) { setSleep(d.hdsleep); X.sleepOpen = false; render(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
+      if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } render(); return true; }   /* + / − on a row (2.53) */
+      if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; render(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
+      if (d.hd === "collapse") { X.open = {}; X.ren = 0; X.rm = 0; render(); return true; }
       if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
         var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
         sc.style = sp[1]; save(); load(sc, true);
@@ -10781,7 +10828,7 @@
       else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
-        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; save(); switchTo(id);
+        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; X.open[id] = true; save(); switchTo(id);
       }
       else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
       else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
@@ -10795,7 +10842,8 @@
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
-    function leave() { if (X.on && pip()) { X.keep.appendChild(X.v); return; } if (X.on) off(); }   /* leaving: off, unless it's floating in Picture in Picture */
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && X.sleepOpen && state.screen === "holodeck") { X.sleepOpen = false; render(); } });
+    function leave() { X.sleepOpen = false; if (X.on && pip()) { X.keep.appendChild(X.v); return; } if (X.on) off(); }   /* leaving: off, unless it's floating in Picture in Picture */
     document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
       if (document.hidden || !X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);

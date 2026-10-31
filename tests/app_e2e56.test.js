@@ -97,8 +97,20 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   // ---- MUTE, CLEAN, and the page redrawing doesn't stop it
   await p.click('[data-hd="mute"]');
   assert.strictEqual((await vid(p)).muted, true);
+  assert.strictEqual(await p.getAttribute('[data-hd="mute"]', 'aria-pressed'), 'true');
+  // 2.53: LOOK is one button on the rail that switches between the two; under the screen, what's on and what's next
+  assert.strictEqual(await txt(p, '.hd-look'), 'LOOK CRT');
   await p.click('[data-hdlook="clean"]');
   assert.ok(!(await p.$('.hd-tv.crt')));
+  assert.strictEqual(await txt(p, '.hd-look'), 'LOOK CLEAN'); assert.ok(await p.$('[data-hdlook="crt"]'), 'the next tap goes back to CRT');
+  assert.ok(/^NOW \S.* · \S.* \d+:\d\d left · next: \S/.test(await txt(p, '#hdNow')), await txt(p, '#hdNow'));
+  assert.ok(!(await p.isDisabled('[data-hd="pip"]')) && !(await p.isDisabled('[data-hd="full"]')), 'PIP and FULL on the rail while on air');
+  // channel rows fold: + opens one, − folds it, COLLAPSE ALL folds the lot
+  assert.ok(await p.isVisible('#hdInfo1'), 'a channel just added opens to show what was found');
+  await p.click('[data-hdopen="1"]'); assert.ok(await p.isHidden('#hdInfo1'), '− folds it');
+  await p.click('[data-hdopen="1"]'); assert.ok(await p.isVisible('#hdInfo1'));
+  assert.strictEqual(await p.getAttribute('[data-hdopen="1"]', 'aria-expanded'), 'true');
+  await p.click('[data-hd="collapse"]'); assert.ok(await p.isHidden('#hdInfo1')); assert.ok(!(await p.$('[data-hd="collapse"]')));
   const v3 = await vid(p); assert.ok(!v3.paused && v3.inScreen, 'still playing after a redraw');
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).look), 'clean');
 
@@ -153,9 +165,10 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   g3.forEach((x, i) => assert.strictEqual(x, RUN[(k3 + i) % RUN.length], 'the last season, the specials, the extra, then round again: ' + g3.join(' | ')));
 
   // ---- rename; remove (two taps); the numbers follow the list
-  await p.click('[data-hdren="2"]'); await p.fill('#hdRename', 'Mystery Hour'); await p.click('[data-hd="rensave"]');
+  const openRow = async id => { if (await p.getAttribute('[data-hdopen="' + id + '"]', 'aria-expanded') !== 'true') await p.click('[data-hdopen="' + id + '"]'); };   // 2.53: rows start folded
+  await openRow(2); await p.click('[data-hdren="2"]'); await p.fill('#hdRename', 'Mystery Hour'); await p.click('[data-hd="rensave"]');
   assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 2 · MYSTERY HOUR'));
-  await p.click('[data-hdrm="1"]'); assert.strictEqual(await txt(p, '[data-hdrm="1"]'), 'REMOVE IT');
+  await openRow(1); await p.click('[data-hdrm="1"]'); assert.strictEqual(await txt(p, '[data-hdrm="1"]'), 'REMOVE IT');
   await p.click('[data-hdrm="1"]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
   assert.ok((await txt(p, '#eyebrow')).startsWith('RESOURCES · HOLODECK · VISUAL · CH 1 · MYSTERY HOUR'));

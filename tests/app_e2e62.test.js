@@ -22,7 +22,7 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   await p.reload(); await visual();
 
   // no folder yet: BREAKS can't be turned on
-  assert.ok((await txt(p, '.hd-ads')).includes('No folder yet'));
+  assert.ok((await txt(p, '.hd-ads')).includes('NO FOLDER YET'));
   assert.ok(await p.$eval('[data-hdbrk="1"]', e => e.disabled), 'BREAKS waits for a folder');
 
   // choose the folder: it isn't a channel, and the picker says what it holds
@@ -30,13 +30,14 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   await p.waitForSelector('[data-hd="useads"]');
   assert.ok((await txt(p, '[data-hd="useads"]')).includes('USE FOR COMMERCIALS · 4 VIDEOS'));
   await p.click('[data-hd="useads"]');
+  await p.click('[data-hdopen="ads"]');   // 2.53: the row folds like a channel's
   await p.waitForFunction(() => /1 over 3 min, skipped/.test(document.querySelector('.hd-ads').innerText) && /3 can air/.test(document.querySelector('.hd-ads').innerText), null, { timeout: 30000 });
   assert.ok((await txt(p, '.hd-ads')).includes('/Video/Commercials 4 commercials'));
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).ads), '/Video/Commercials');
   assert.ok(!(await p.$$eval('.hd-chan', a => a.length === 3)), 'still two channels');
 
   // BREAKS on for channel 1
-  await p.click('[data-hdbrk="1"]');
+  await p.click('[data-hdopen="1"]'); await p.click('[data-hdbrk="1"]');
   assert.strictEqual(await p.getAttribute('[data-hdbrk="1"]', 'aria-pressed'), 'true');
   assert.strictEqual(await p.getAttribute('[data-hdbrk="2"]', 'aria-pressed'), 'false', 'per channel');
   await p.waitForFunction(() => /commercial breaks/.test((document.getElementById('hdInfo1') || {}).innerText || ''));
@@ -97,12 +98,12 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   assert.ok(await p.evaluate(n => !Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')) && Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length === n + 1, na));
 
   // BREAKS off: channel 2's guide has no breaks
-  await p.click('[data-hdbrk="2"]');
+  await p.click('[data-hdopen="2"]'); await p.click('[data-hdbrk="2"]');
   await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4 && !/COMMERCIAL/.test(document.getElementById('hdGuide').innerText));
 
   // CLEAR: no folder, BREAKS waits again; the channels' own setting is kept
-  await p.click('[data-hd="adclear"]');
-  assert.ok((await txt(p, '.hd-ads')).includes('No folder yet'));
+  await p.click('[data-hdopen="ads"]'); await p.click('[data-hd="adclear"]');
+  assert.ok((await txt(p, '.hd-ads')).includes('NO FOLDER YET'));
   assert.ok(await p.$eval('[data-hdbrk="1"]', e => e.disabled));
   const cfg = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')));
   assert.strictEqual(cfg.ads, ''); assert.strictEqual(cfg.chans[0].breaks, true);
