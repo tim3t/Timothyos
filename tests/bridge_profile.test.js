@@ -120,4 +120,17 @@ assert.deepStrictEqual(get({ action: 'upkeep', key }).items.map(x => [x.id, x.re
 assert.deepStrictEqual(get({ action: 'upkeep', key }).items.map(x => x.id), ['tractor']);
 assert.ok(post({ action: 'upkeepremove', id: 'u1' }).ok, 'already gone: fine');
 assert.strictEqual(post({ action: 'upkeepremove', id: '' }).error, 'bad_request');
+// 1.36.1: long text is cut into Notion's 2,000-character pieces without splitting an emoji (two JavaScript characters)
+{
+  const t = 'a'.repeat(1999) + '🐝' + 'b'.repeat(10), parts = ctx.pieces_(t, 3);
+  assert.strictEqual(parts.join(''), t, 'nothing lost');
+  assert.strictEqual(parts[0].length, 1999, 'the cut moves before the emoji');
+  assert.ok(parts.every(x => !/[\uD800-\uDBFF]$/.test(x) && !/^[\uDC00-\uDFFF]/.test(x)), 'no half emoji at either end');
+  assert.strictEqual(ctx.rt_('x'.repeat(4000)).length, 2, 'plain text: still 2,000 a piece');
+  const long = ('Notes 🐝 ').repeat(700), lr = ctx.logRich_(long);
+  assert.strictEqual(lr.map(r => r.text.content).join(''), long);
+  assert.ok(lr.every(r => r.text.content.length <= 2000));
+  const up = post({ action: 'upkeepsave', item: { id: 'emo1', name: 'Hive 🐝 frames ☀️', every: 1, unit: 'weeks', hist: [] } });
+  assert.strictEqual(up.item.name, 'Hive 🐝 frames ☀️', 'emoji kept through Notion and back');
+}
 console.log('bridge profile + upkeep: ok');

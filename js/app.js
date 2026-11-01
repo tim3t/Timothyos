@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.54.0";
+  var VERSION = "2.54.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -102,6 +102,8 @@
   /* Notion labels carry emoji ("🔴 High", "🎯 Work"). Show them as plain text;
      the original value is still what gets sent back to Notion. */
   var EMOJI = /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{25A0}-\u{27BF}\u{2B00}-\u{2BFF}\u{3030}\u{303D}\u{3297}\u{3299}\u{00A9}\u{00AE}\u{203C}\u{2049}\u{2122}\u{2139}\u{FE0F}\u{200D}\u{20E3}]/gu;
+  /* bare(): for labels only (Notion's select options, areas, statuses, fund names), shown as plain LCARS text.
+     Never for what Timothy wrote (titles, notes, names): those keep their emoji on every screen (2.54.1). */
   function bare(s) { return String(s == null ? "" : s).replace(EMOJI, "").replace(/\s+/g, " ").trim(); }
   function cssNum(name, fallback) {
     var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
@@ -1139,8 +1141,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.36.0";
-  var BRIDGE_FEATURES = [["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.36.1";
+  var BRIDGE_FEATURES = [["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -5634,7 +5636,7 @@
         if (near < .5) {
           beads.push({ x: p.x - br, y: by - br, w: br * 2, h: br * 2 });
           lm.hits.push({ ev: e.ev, x: p.x, y: by, r: Math.max(br, 14) });
-          if (p.s > .5) labels.push({ t: e.time + "  " + bare(e.ev.title || "Busy"), x: p.x - br - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: p.a, pr: 200 - i * .1, plate: true });
+          if (p.s > .5) labels.push({ t: e.time + "  " + (e.ev.title || "Busy"), x: p.x - br - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: p.a, pr: 200 - i * .1, plate: true });
         }
       });
       if (ev.length > show.length && p.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: p.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: p.a, pr: near < .5 ? 190 : 40 });
@@ -5646,7 +5648,7 @@
         cx.fillStyle = C.b; cx.beginPath(); cx.moveTo(p.x, ky - kr); cx.lineTo(p.x + kr, ky); cx.lineTo(p.x, ky + kr); cx.lineTo(p.x - kr, ky); cx.closePath(); cx.fill();
         if (near < .5) lm.hits.push({ kd: info.kd[0].o, x: p.x, y: ky, r: Math.max(kr, 14) });
         o += kr + (12 + 6 * p.s) * U;
-        if (p.s > .4) labels.push({ t: bare(info.kd[0].o.d.title).toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: p.x, y: p.y + o + (14 + 6 * p.s) * U, f: "600 " + Math.round((11 + 4 * p.s) * U) + "px " + C.display, c: C.b, al: "center", a: p.a, pr: (near < .5 ? 205 : 70) + p.s * 10 - near });
+        if (p.s > .4) labels.push({ t: String(info.kd[0].o.d.title || "").toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: p.x, y: p.y + o + (14 + 6 * p.s) * U, f: "600 " + Math.round((11 + 4 * p.s) * U) + "px " + C.display, c: C.b, al: "center", a: p.a, pr: (near < .5 ? 205 : 70) + p.s * 10 - near });
       } else o += 4 * U;
       if (p.s > .36) labels.push({ t: DOW[dt.getDay()] + " " + dt.getDate(), x: p.x, y: p.y + o, f: (near < .5 ? "700 " : "400 ") + Math.round((10 + 9 * p.s) * U) + "px " + C.display, c: it.k === 0 ? C.b : C.dim, al: "center", a: p.a, pr: (near < .5 ? 210 : 60) + p.s * 20 });
       if (dt.getDate() === 1 && p.s > .25) labels.push({ t: MON[dt.getMonth()] + " " + dt.getFullYear(), x: p.x, y: top - 14 * U, f: "600 " + Math.round((11 + 9 * p.s) * U) + "px " + C.display, c: C.a, al: "center", a: p.a, pr: 75 });
@@ -5705,7 +5707,7 @@
     if (!f || !a) return;
     var rows = info.kd.map(function (m) { return kdRow(m.o, key); }).join("") + info.ev.map(function (e) {
       state.index[e.ev.id] = e.ev;
-      return '<button type="button" class="kd a-' + e.area + pendingCls(e.ev) + '" data-id="' + esc(e.ev.id) + '"><span class="st"></span><span class="dt tnum">' + e.time + '</span><span class="tt"><b>' + esc(bare(e.ev.title || "Busy")) + "</b>" + (e.ev.location ? "<small>" + esc(e.ev.location) + "</small>" : "") + "</span>" + (e.ev.pending ? '<span class="pill">' + pendingTag(e.ev).slice(3) + "</span>" : "") + "</button>";
+      return '<button type="button" class="kd a-' + e.area + pendingCls(e.ev) + '" data-id="' + esc(e.ev.id) + '"><span class="st"></span><span class="dt tnum">' + e.time + '</span><span class="tt"><b>' + esc(e.ev.title || "Busy") + "</b>" + (e.ev.location ? "<small>" + esc(e.ev.location) + "</small>" : "") + "</span>" + (e.ev.pending ? '<span class="pill">' + pendingTag(e.ev).slice(3) + "</span>" : "") + "</button>";
     }).join("");
     f.innerHTML = phead(k === 0 ? "TODAY" : dLabel(day), info.ev.length ? info.ev.length + (info.ev.length === 1 ? " EVENT" : " EVENTS") : "") +
       (rows || '<div class="empty">' + (hasData(lmRange()) ? "A clear day." : state.sync.status === "syncing" ? "Loading…" : "No data for this day yet.") + "</div>");
@@ -12724,6 +12726,16 @@
   var growW = window.innerWidth;
   window.addEventListener("resize", function () { if (window.innerWidth !== growW) { growW = window.innerWidth; document.querySelectorAll("textarea:not(.cl-text)").forEach(function (ta) { growBox(ta, true); }); } });
 
+  var renderHeld = false, actAt = 0;
+  document.addEventListener("click", function (e) { if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) actAt = Date.now(); }, true);
+  document.addEventListener("submit", function () { actAt = Date.now(); }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Enter") actAt = Date.now(); }, true);
+  var WRITE_LIVE = /^(clFind|haQ|lmFind|nasQ|olq|trQ|laQ|laF|aiMatch|connKey)$/;   /* search and question boxes: their results come in while you're in them */
+  function writingNow() {
+    var a = document.activeElement;
+    return !!a && !!a.id && $("content").contains(a) && !WRITE_LIVE.test(a.id) && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && /^(text|search|)$/.test(a.type)));
+  }
+  $("content").addEventListener("focusout", function () { setTimeout(function () { if (renderHeld && !writingNow()) { renderHeld = false; render(true); } }, 0); });
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
@@ -12734,6 +12746,10 @@
     /* Writing in the log: a background redraw would cost the keyboard its place. Leave the page alone. */
     if (keepScroll && state.screen === "log" && active && /^clText-/.test(active.id)) { setAreas(); renderHeader(); renderStatus(); return; }
     if (keepScroll && state.screen === "storage" && pl.scrub) { setAreas(); renderHeader(); renderStatus(); return; }   /* a finger is on the scrubber: a background redraw would take it away */
+    /* 2.54.1: writing in any field, a redraw nobody asked for (the clock, a sync landing) waits until you leave it. It
+       used to swap the field for a fresh copy and put the focus back, and on the iPad an emoji picked from the keyboard
+       in that moment went nowhere. Search boxes still redraw, so their results show while the keyboard is up. */
+    if (writingNow() && !window.event && Date.now() - actAt > 15000) { renderHeld = true; setAreas(); renderHeader(); renderStatus(); return; }   /* the answer to a button, Return or a form you just sent still shows at once */
     var typed = {};
     $("content").querySelectorAll("input[id], textarea[id]").forEach(function (f) {
       if ((f.tagName === "TEXTAREA" || /^(text|search|url|tel|email|number|)$/.test(f.type)) && f.value !== f.defaultValue) typed[f.id] = f.value;

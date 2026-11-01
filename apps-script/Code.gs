@@ -105,7 +105,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.36.0';
+var VERSION = '1.36.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -810,9 +810,17 @@ var REVIEW_NUM = { hoursWork: 'Hours Work', hoursPersonal: 'Hours Personal', hou
 var YMD = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 function addDaysYmd_(ymd, n) { var d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 /** Rich text in Notion's 2000-character pieces. */
-function rt_(text) {
-  var out = [];
-  for (var i = 0; i < text.length && out.length < 3; i += 2000) out.push({ text: { content: text.slice(i, i + 2000) } });
+function rt_(text) { return pieces_(text, 3).map(function (t) { return { text: { content: t } }; }); }
+/** Notion takes at most 2,000 characters per piece of text. Long text is cut into pieces, never inside an emoji
+    (1.36.1): one emoji is two JavaScript characters, and a cut between them lost it. */
+function pieces_(text, max) {
+  var out = [], i = 0;
+  text = String(text);
+  while (i < text.length && out.length < max) {
+    var j = Math.min(i + 2000, text.length), c = text.charCodeAt(j - 1);
+    if (j < text.length && c >= 0xD800 && c <= 0xDBFF) j--;   /* the first half of an emoji: it goes with its second half */
+    out.push(text.slice(i, j)); i = j;
+  }
   return out;
 }
 function toReview_(pg) {
@@ -1369,11 +1377,7 @@ function logJoin_(blocks) {
   });
   return s;
 }
-function logRich_(text) {
-  var out = [];
-  for (var i = 0; i < text.length && out.length < 100; i += 2000) out.push({ type: 'text', text: { content: text.slice(i, i + 2000) } });
-  return out;
-}
+function logRich_(text) { return pieces_(text, 100).map(function (t) { return { type: 'text', text: { content: t } }; }); }
 function logBlock_(p) { var b = { object: 'block', type: p.type }; b[p.type] = { rich_text: logRich_(p.text) }; return b; }
 
 /** Notion asks callers to slow down now and then; a log save waits and tries again. */
@@ -2503,11 +2507,7 @@ function tarotName_(c) { return c.charAt(0) === 'M' ? TAROT_MAJOR[Number(c.slice
 function tarotGen_() { return CacheService.getScriptCache().get('tgen') || '0'; }
 function tarotBump_() { CacheService.getScriptCache().put('tgen', Utilities.getUuid().slice(0, 8), 21600); }
 /** Rich text for longer stored values: up to 40 pieces of 2,000 characters. */
-function rtLong_(text) {
-  var out = [];
-  for (var i = 0; i < text.length && out.length < 40; i += 2000) out.push({ text: { content: text.slice(i, i + 2000) } });
-  return out;
-}
+function rtLong_(text) { return pieces_(text, 40).map(function (t) { return { text: { content: t } }; }); }
 function tarotData_(p) { try { return JSON.parse(plain_(p.Data && p.Data.rich_text) || '{}') || {}; } catch (e) { return {}; } }
 function toTarot_(pg) {
   var p = pg.properties || {}, kind = sel_(p.Kind) || 'Reading', d = tarotData_(p);
