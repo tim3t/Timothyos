@@ -7,7 +7,7 @@
 // turns it off, STORAGE no longer lists /Video, COMPUTER, phone width. 2.47: HOLODECK opens on the arch (VISUAL or
 // AUDIO, which is STORAGE now); ◇ ARCH from either; one at a time (the TV pauses audio, audio turns the TV off); the
 // radio band's needle; STORAGE gone from ALL STATIONS. 2.48: a NETWORK channel (show folders, two levels, programmed
-// like TV: show names, never three of a show in a row, UP NEXT), back to IN ORDER.
+// like TV: show names, never the same show twice in a row, UP NEXT), back to IN ORDER.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
@@ -213,7 +213,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   const g4 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
   const sh4 = g4.map(x => SHOWS.find(n => x.startsWith(n + ' · ')));
   assert.ok(sh4.every(Boolean), 'each slot names its show: ' + g4.join(' | '));
-  for (let i = 0; i + 2 < sh4.length; i++) assert.ok(!(sh4[i] === sh4[i + 1] && sh4[i + 1] === sh4[i + 2]), 'never three of a show in a row: ' + g4.join(' | '));
+  for (let i = 0; i + 1 < sh4.length; i++) assert.ok(sh4[i] !== sh4[i + 1], 'never the same show twice in a row (2.53.5: no blocks of two): ' + g4.join(' | '));
   assert.ok(g4.every(x => !/Full Episode|\[|\.f\d|\.part/.test(x)), 'no "Full Episode", ids or leftovers: ' + g4.join(' | '));
   const all = await p.evaluate(() => [...document.querySelectorAll('#hdGuide .hd-slot b')].map(x => x.textContent).join(' | '));
   assert.ok(!/Unfinished/.test(all), 'a .part download never airs');
@@ -240,14 +240,19 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
 
-  // ---- the relay failing: five videos in a row that won't play turn the TV off, with a note
+  // ---- the relay failing: each video that doesn't load is set aside for 10 minutes, never marked as one the iPad can't
+  // play (2.53.4); the TV carries on with whatever does load (here, one the browser still holds). Five in a row with
+  // nothing loading: app_e2e64, in a fresh browser.
+  const cdp = await ctx.newCDPSession(p); await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
   await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Test Series/') + '&code=404&n=999');
   await p.click('.hd-tune');
-  await p.waitForFunction(() => /Five videos in a row didn't load/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
-  assert.ok(!(await vid(p)).src.includes('/Video/'), 'off after five failures');
-  assert.ok(await p.$('.hd-tune'), 'TUNE IN offered again');
+  await p.waitForFunction(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); return Object.keys(l).filter(k => k.startsWith('/Video/Test Series/') && l[k].why === 'net').length >= 3; }, null, { timeout: 30000 });
   assert.ok(await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); return !Object.keys(l).some(k => k.startsWith('/Video/Test Series/') && l[k].why === 'format'); }), 'the NAS failing never marks a video as one the iPad can\'t play (2.53.4)');
-  await fetch(R + '/__fail?n=0');
+  await fetch(R + '/__fail?n=0'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: false });
+  if (await p.$('#hdLive')) await p.click('[data-hd="tune"]');   /* off */
+  await p.click('[data-hd="rescan"]');   /* LOOK AGAIN: the set-aside ones are measured afresh */
+  await p.waitForFunction(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.s < 0), null, { timeout: 30000 });
+  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 30000 });
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });

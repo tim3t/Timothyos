@@ -53,6 +53,23 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.click('[data-hd="rescan"]');
   assert.ok(await p.evaluate(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.s < 0)));
 
+  // the NAS failing, in a fresh browser (nothing cached): five that don't load turn the TV off with the NAS's note, and
+  // none is marked as one the iPad can't play
+  await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Rough Cuts/') + '&code=404&n=999');
+  const ctx2 = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  const q = await ctx2.newPage(); q.on('pageerror', e => errs.push(e.message));
+  const lensNow = await p.evaluate(() => localStorage.getItem('tos.hololen.v1'));
+  await q.goto('http://localhost:8080/');
+  await q.evaluate(([k, r, l]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
+    localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck'])); localStorage.setItem('tos.hololen.v1', l);   /* lengths known, as on the iPad that measured them */
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, look: 'clean', muted: true })); }, [K, R, lensNow]);
+  await q.reload(); await q.click('[data-screen="holodeck"].nav'); await q.waitForSelector('.hd-arch'); await q.click('[data-hdprog="visual"]');
+  await q.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 }); await q.click('.hd-tune');
+  await q.waitForFunction(() => /Five videos in a row didn't load|None of this channel's videos would load/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
+  assert.ok(await q.$('.hd-tune'), 'off, TUNE IN offered again');
+  assert.ok(await q.evaluate(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.why === 'format')), 'an outage never marks a video unplayable');
+  await fetch(R + '/__fail?n=0');
+
   await fetch(R + '/__reset');
   console.log('errors', errs);
   await b.close();

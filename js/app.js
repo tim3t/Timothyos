@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.4";
+  var VERSION = "2.53.5";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10229,8 +10229,7 @@
      the extra tap to reorient). One at a time: tuning in pauses audio, and audio starting turns the TV off.
      2.48: a channel's style is IN ORDER (above) or NETWORK: a folder of show folders programmed like a TV network. Each
      broadcast day (from 6:00) has its own lineup, worked out from the date: a show at random (never the same twice in a
-     row), sometimes two of its episodes in a row as a block, each show working through that day's shuffle of its
-     episodes. Unmeasured lengths count as the show's typical length, so it's on air at once; the times settle as the
+     row; no blocks of two since 2.53.5), each show working through that day's shuffle of its episodes. Unmeasured lengths count as the show's typical length, so it's on air at once; the times settle as the
      real lengths come in (once, kept). UP NEXT shows in an episode's last seconds. */
   var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1", LS_HOLOADLEN = "tos.holoadlen.v1";
   var holo = (function () {
@@ -10326,7 +10325,7 @@
       var key = c.dir + "|" + ymd(new Date(ds)) + "|" + s.play.length; if (PK[key]) return PK[key];
       var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {}, used = {};
       var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hash(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptr[k] = 0; } return ord[k]; };
-      var take = function (k) {   /* the show's next episode in today's shuffle that hasn't aired today (2.50: a block's second episode counts too); all aired: round again */
+      var take = function (k) {   /* the show's next episode in today's shuffle that hasn't aired today; all aired: round again */
         var o = order(k), n = o.length, u = used[k] || (used[k] = {}), c = 0;
         if (Object.keys(u).length >= n) u = used[k] = {};
         while (u[o[ptr[k] % n]] && c++ < n) ptr[k]++;
@@ -10335,10 +10334,9 @@
       out.more = function () {   /* the lineup grows as far as the day needs: the same picks every time, from the date */
         for (var m = out.length + 120; out.length < m && sh.length;) {
           var k = Math.floor(r() * sh.length); if (sh.length > 1 && k === last) k = (last + 1 + Math.floor(r() * (sh.length - 1))) % sh.length;   /* never the same show twice in a row… */
-          var i = take(k), n = sh[k].items.length;
-          if (n > 1 && r() < .25) { var j = i + 1 < n ? i + 1 : i - 1; if (!used[k][j]) { used[k][j] = 1; out.push(sh[k].items[Math.min(i, j)], sh[k].items[Math.max(i, j)]); } else out.push(sh[k].items[i]); }   /* …except as a block: two in a row, in order */
-          else out.push(sh[k].items[i]);
-          last = k;
+          var it = sh[k].items[take(k)];
+          if (it === out[out.length - 1] && sh[k].items.length > 1) it = sh[k].items[take(k)];   /* one show alone, as its shuffle starts again: never the same video twice running */
+          out.push(it); last = k;   /* 2.53.5: no blocks of two in a row (Timothy: with vlogs they read as the same video twice) */
         }
       };
       out.more();
@@ -10496,7 +10494,10 @@
         paint(); setTimeout(function () { X.probing = false; probe(); }, X.on ? 1500 : 300); };   /* one element, reused, and a pause between files (2.53.1): gentler on the iPad, and on the picture while on air */
       var t = setTimeout(function () { fin(-1, "timeout"); }, 45000);   /* a big file without +faststart is read from both ends over Tailscale: give it time */
       v.preload = "metadata"; v.muted = true; v.onloadedmetadata = function () { fin(isFinite(v.duration) && v.duration > 1 ? Math.round(v.duration * 10) / 10 : -1, "format"); };
-      v.onerror = function () { fin(-1, v.error && v.error.code === 4 ? "format" : "net"); };   /* 4: MEDIA_ERR_SRC_NOT_SUPPORTED */
+      v.onerror = function () {   /* 4: MEDIA_ERR_SRC_NOT_SUPPORTED, which a 404 or an unreachable NAS reads as too (2.53.5): it's "format" only if the file answers */
+        if (!(v.error && v.error.code === 4)) { fin(-1, "net"); return; }
+        fetch(url(f.path), { headers: { Range: "bytes=0-0" } }).then(function (r) { fin(-1, r.ok ? "format" : "net"); }, function () { fin(-1, "net"); });
+      };
       v.src = url(f.path);
     }
 
@@ -10546,7 +10547,7 @@
       v.addEventListener("ended", function () { if (!X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () { if (X.on && X.cur && v.getAttribute("src")) failed(X.cur, X.meta || (v.error && v.error.code === 3) ? "format" : "net"); });   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
       v.addEventListener("playing", function () { X.fails = 0; });
-      v.addEventListener("timeupdate", tick);
+      v.addEventListener("timeupdate", function () { if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
       return (X.v = v);
     }
     /* Full screen (2.53.3): Bridge draws it itself. The TV screen covers the whole app (X.big), so CRT, LIVE, the
@@ -10571,18 +10572,19 @@
        failure takes it off the schedule for good on this iPad (LOOK AGAIN tries it afresh), and a network failure or a
        stall for 10 minutes, like a failed measurement. */
     function failed(c, why) {
-      clearTimeout(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
+      clearInterval(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
       var nm = line(label(c.it));
       if (why !== "format" && ++X.fails > 4) { off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
       X.note = nm + (why === "format" ? " can't be played on this iPad, so it's left out from now on." : why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");
       var n = next(c), s = F[c.c.dir];
       if (n) start(n, false);
-      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = "None of this channel's videos can be played on this iPad (convert them to MP4 with H.264, then LOOK AGAIN)."; render(); }
+      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos can be played on this iPad (convert them to MP4 with H.264, then LOOK AGAIN)." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; render(); }
       else resume();
     }
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
-      X.meta = false; clearTimeout(X.wd); X.wd = setTimeout(function () { if (X.on && X.cur === c && v.readyState < 2) failed(c, "timeout"); }, 30000);   /* nothing to show after 30 s: stalled */
+      X.meta = false; X.tp = Date.now(); clearInterval(X.wd);   /* 2.53.5: stalled = playing but no progress for 30 s, from the start or part way (data that stopped coming) */
+      X.wd = setInterval(function () { if (!X.on || X.cur !== c) { clearInterval(X.wd); return; } if (!v.paused && !document.hidden && Date.now() - X.tp > 30000) failed(c, "timeout"); }, 5000);
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
       v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
@@ -10600,7 +10602,7 @@
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
     }
-    function off() { clearTimeout(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -10884,6 +10886,7 @@
     document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || state.screen !== "holodeck") return; if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); });
     function leave() { X.sleepOpen = false; if (X.on) off(); }   /* leaving: off */
     document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
+      X.tp = Date.now();   /* time away isn't a stall */
       if (document.hidden || !X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });

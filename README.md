@@ -585,7 +585,7 @@ HOLODECK opens on **the arch**, as on the ship: **ENTER PROGRAM** with two progr
 A TV that's always on air. **COMPUTER** ("tv", then **Tune in to the HOLODECK**) goes straight in. Each channel is one NAS folder, played in one of two styles, chosen per channel in the channel list:
 
 - **IN ORDER** (the start): a folder of videos, or a series with one folder per season, played in order (file names in number order; a series season by season, episode by episode, then its specials and extras), laid end to end from the moment you added it, and starting again from the top at the end.
-- **NETWORK:** a folder of show folders, programmed like a TV network: a new lineup each day from 6:00, shows in turn, now and then two episodes of one in a row (details below).
+- **NETWORK:** a folder of show folders, programmed like a TV network: a new lineup each day from 6:00, shows in turn (details below).
 
 Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcast, and every channel keeps running whichever one you watch; nothing about your viewing is remembered. Your channels, their styles and the look (CRT or CLEAN) are kept on this iPad (and in your backups); measured video lengths only on this iPad.
 
@@ -641,7 +641,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
 - **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order), and measures again any video that couldn't be read. The channel list counts videos that couldn't be read as **unreadable**.
 - **NETWORK in detail** (tap **NETWORK** beside a channel in the channel list; **IN ORDER** switches back). For a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
-  - A show at random each time, never the same show twice in a row, except about one pick in four is a block: two episodes of it in a row, in order.
+  - A show at random each time, never the same show twice in a row (2.53.5: no more blocks of two episodes of one show).
   - Through the day, each show works through a shuffle of its own episodes, so none repeats that day.
   - The show's name comes from its folder (`night_owl_theatre` → Night Owl Theatre); the guide reads "Night Owl Theatre · S2 E5 · title". In an episode's last 15 seconds, **UP NEXT** names the next show (or MORE … for a block).
   - It's on air at once: an episode not yet measured counts as the show's typical length, and the times settle as real lengths come in (each measured once, and kept). A big folder takes a while to measure the first time, only while Bridge is open.

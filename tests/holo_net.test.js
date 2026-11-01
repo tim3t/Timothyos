@@ -1,7 +1,7 @@
 // HOLODECK NETWORK scheduling (2.48, repeats fixed in 2.50), as pure logic lifted out of js/app.js: the broadcast day
 // starts at 6:00 local (a daylight-saving day too), the same date and folder always give the same lineup, never the same
-// show three times running (two only as a block, in episode order), and no episode airs twice in a day until its show has
-// aired every one. Invented shows.
+// show twice running (2.53.5: no more blocks of two), and no episode airs twice in a day until its show has aired every
+// one; a lone show never airs one video twice running. Invented shows.
 process.env.TZ = 'America/Chicago';
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
@@ -33,11 +33,14 @@ assert.notStrictEqual(JSON.stringify(Array.from(other)), JSON.stringify(A.slice(
 const more = { shows, play: s.play.concat([{ show: 'Kitchen Corner', ep: 6, f: { path: '/Video/Net/Kitchen Corner/6' } }]) };
 assert.notStrictEqual(JSON.stringify(Array.from(fresh().picks(c, more, day).slice(0, 40), x => x.f.path)), JSON.stringify(A.slice(0, 40)), 'a new file reshuffles the day (the key includes the count)');
 
-// never three of a show in a row; a pair is a block, in episode order
+// never the same show twice running: no blocks (2.53.5)
 const L = grow(fresh(), 600).slice(0, 600);
-for (let i = 2; i < L.length; i++) assert.ok(!(L[i].show === L[i - 1].show && L[i - 1].show === L[i - 2].show), 'three in a row at ' + i);
-for (let i = 1; i < L.length; i++) if (L[i].show === L[i - 1].show) assert.ok(L[i].ep === L[i - 1].ep + 1, 'a block runs in episode order at ' + i + ': ' + L[i - 1].ep + ', ' + L[i].ep);
-assert.ok(L.some((x, i) => i && x.show === L[i - 1].show), 'blocks do happen');
+for (let i = 1; i < L.length; i++) assert.ok(L[i].show !== L[i - 1].show, 'the same show twice running at ' + i + ': ' + L[i - 1].show);
+
+// a channel of one show (a vlogger's folder): never the same video twice running, even as its shuffle starts again
+const solo = { shows: [mk('Daily Vlog', 4)] }; solo.play = solo.shows[0].items;
+const V = (() => { const P = fresh(), l = P.picks({ dir: '/Video/Vlog' }, solo, day); while (l.length < 400) l.more(); return l.slice(0, 400); })();
+for (let i = 1; i < V.length; i++) assert.ok(V[i].f.path !== V[i - 1].f.path, 'the same video twice running at ' + i);
 
 // no episode twice in a day until its show has aired every one
 shows.forEach(sh => {

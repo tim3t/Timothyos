@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.53.5 · 2026-11-01
+- **HOLODECK NETWORK: no more two episodes of a show in a row.** About one pick in four used to be a block of two episodes of one show; with vlog channels that read as the same video twice. Each day's lineup is now a show at random each time, never the same show twice running, each show working through its own shuffle for the day; a channel of one show never airs the same video twice running. Today's lineup changes once with this update.
+- **Fixed: a NAS hiccup while measuring could mark videos as unplayable for good.** A missing file or an unreachable NAS reads to the iPad like a video it can't decode. Bridge now checks that the file answers before setting it aside for good; otherwise it tries again in 10 minutes.
+- **A video that stalls part way** (playing, but no progress for 30 seconds, such as when the connection drops) is now skipped and tried again later, as one that never starts already was. Time spent away from the app doesn't count.
+- If none of a channel's videos will load, the note now points to the NAS and Tailscale rather than to converting files.
+
 ## 2.53.4 · 2026-10-31
 - **Fixed: tuning in skipped through titles and never started playing.** A video can have a readable header (so Bridge measured it and put it on the schedule) but a picture the iPad can't decode. Bridge skipped it, but left it on the schedule, so the channel kept landing on its broken videos and gave up after five. Now a video that fails to decode leaves the schedule on that iPad and the TV carries on to one that plays; a run of them no longer stops it. A video that doesn't load (the network) or doesn't start within 30 seconds is skipped and tried again after 10 minutes. The channel's folded row counts them (**N UNREADABLE**), an opened row names them (**CAN'T PLAY HERE**), and **LOOK AGAIN** tries them afresh.
 
