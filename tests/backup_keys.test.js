@@ -11,11 +11,11 @@ const LEFT_OUT = {
     'tos.inbox.v1', 'tos.ledger.v1', 'tos.hols.v1', 'tos.schema.v1', 'tos.astro.v1', 'tos.brief.v1', 'tos.sci.v1', 'tos.scilog.v1', 'tos.wx.v1',
     'tos.nasart.v1', 'tos.naslen.v1', 'tos.nastags.v1', 'tos.hololen.v1', 'tos.holoadlen.v1'],
   // writes on their way: they belong to this iPad and go out with their capture ids; a restore elsewhere must not resend them
-  queue: ['tos.queue.v1', 'tos.habitq.v1', 'tos.tarotq.v1', 'tos.apiaryq.v1', 'tos.inboxq.v1', 'tos.sciq.v1'],
+  queue: ['tos.queue.v1', 'tos.habitq.v1', 'tos.tarotq.v1', 'tos.apiaryq.v1', 'tos.inboxq.v1', 'tos.sciq.v1', 'tos.upkeepq.v1'],
   // unsaved writing: private, and finished or discarded on this iPad (the Log draft never leaves it)
   draft: ['tos.ldraft.v1', 'tos.sndraft.v1', 'tos.rdraft.v1', 'tos.tarotdraft.v1', 'tos.apdraft.v1'],
   // this iPad's own running state
-  local: ['tos.sync.v1', 'tos.netlog.v1', 'tos.visits.v1', 'tos.bkat.v1', 'tos.ask.v1', 'tos.aispend.v1', 'tos.voicespend.v1'],
+  local: ['tos.sync.v1', 'tos.netlog.v1', 'tos.visits.v1', 'tos.bkat.v1', 'tos.ask.v1', 'tos.aispend.v1', 'tos.voicespend.v1', 'tos.profile.v1'],
   // retired, no longer read
   retired: ['tos.topgap.v1'],
 };

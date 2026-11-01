@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.53.5";
+  var VERSION = "2.54.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -59,8 +59,9 @@
   function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function lsSet(k, v) {
     try { localStorage.setItem(k, JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; })); } catch (e) { /* storage full or blocked */ }
+    if (lsHook) lsHook(k);
   }
-  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } if (lsHook) lsHook(k); }
 
   /* ---------- Dates ---------- */
   function p2(n) { return String(n).padStart(2, "0"); }
@@ -542,6 +543,7 @@
       if (j.version) state.bridgeVersion = j.version;
       state.caps = j.capabilities || [];
       persist();
+      prof.kick(); loadUpkeep(false);
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
@@ -829,6 +831,7 @@
       "</div></section>";
 
     html += backupSection();
+    html += prof.section();
     html += netSection();
     html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · " + WRITABLE.map(function (k) { return AREAS[k].name; }).join(" + ") + (WRITABLE.length > 1 ? " TAKE" : " TAKES") + " CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
@@ -875,6 +878,247 @@
     $("content").innerHTML = html;
   }
 
+  /* ---------- PROFILE SYNC (2.54, bridge 1.36) ---------- */
+  /* Timothy works on two iPads, HUB and MOBILE. What each kept only on itself (HOLODECK's channels, AUDIO's places,
+     pins, intent lines, landmarks and the rest, grouped in PROF_GROUPS) is kept in step through the Google bridge,
+     in its own private storage. Local-first: every read stays on the iPad; a change goes up a few seconds later
+     (AUDIO's places every 30 seconds while playing), and what the other iPad changed comes in when Bridge opens,
+     when it's come back to, and every few minutes. A newer change wins, item by item; AUDIO's places merge episode by
+     episode. A change that came in is written to this iPad's storage, and the app reloads to show it once nothing
+     would be lost (no audio or TV playing, nothing being typed, no LOG open, no panel open). Keys and tokens, drafts,
+     the AI switches and caches never take part. Each item can be kept to this iPad alone (its switch in SYSTEMS).
+     This iPad's side: tos.profile.v1 { on, name, paused, at: {key: ms changed}, by: {key: iPad}, sent: {key: ms},
+     off: {row: true}, last, rev }, never in a backup. */
+  var LS_PROFILE = "tos.profile.v1";
+  var lsHook = null;   /* lsSet / lsDel tell profile sync what changed */
+  var PROF_GROUPS = [
+    ["AUDIO", [["plays", "Resume points and finished episodes", ["tos.plays.v1"]], ["nashide", "Hidden folders and sort order", ["tos.nashide.v1", "tos.nassort.v1"]], ["naspref", "Speed, autoplay and last folder", ["tos.naspref.v1", "tos.nasdir.v1"]]]],
+    ["HOLODECK", [["holo", "Channels, styles, BREAKS, Commercials folder, look", ["tos.holo.v1"]]]],
+    ["BRIDGE AND TODAY", [["log", "Intent lines (30 days) and bearings", ["tos.log.v1", "tos.bearings.v1"]], ["pins", "Pins, start screen, open panels", ["tos.pins.v1", "tos.start.v1", "tos.bopen.v1"]], ["hidden", "Calendars hidden on Today", ["tos.hidden.v1"]]]],
+    ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
+    ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups", ["tos.hadev.v1", "tos.hagroups.v1"]], ["engview", "Tab, room and view", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1"]]]],
+    ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
+    ["SCIENCE AND ASTROMETRICS", [["scilm", "Landmarks and overlays", ["tos.scilm.v1", "tos.scilmoff.v1", "tos.scilineoff.v1"]], ["ship", "Ship's Year", ["tos.shipyear.v1"]]]],
+    ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
+  ];
+  var prof = (function () {
+    var M = Object.assign({ on: false, name: "", paused: false, at: {}, by: {}, sent: {}, off: {}, h: {}, last: 0, rev: 0 }, lsGet(LS_PROFILE) || {});
+    var KEY = {}, LABEL = {};
+    PROF_GROUPS.forEach(function (g) { g[1].forEach(function (r) { LABEL[r[0]] = r[1]; r[2].forEach(function (k) { KEY[k] = r[0]; }); }); });
+    var X = { busy: false, t: 0, due: 0, err: "", join: null, applying: false, pending: false, from: "", touch: 0 };
+    var PLAYS = "tos.plays.v1", UNION = ["tos.ignore.v1", "tos.breaks.v1", "tos.bearings.v1", "tos.nashide.v1"];
+    function save() { lsSet(LS_PROFILE, M); }
+    function me() { return M.name || ""; }
+    function synced(k) { return !!KEY[k] && !M.off[KEY[k]]; }
+    function can() { return !!state.conn && state.caps.indexOf("profile") > -1; }
+    function live() { return M.on && !M.paused && can(); }
+    function hash(str) { var h = 5381, i = str.length; while (i) h = (h * 33) ^ str.charCodeAt(--i); return (h >>> 0).toString(36) + "." + str.length; }
+    function stored(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+    lsHook = function (k) {   /* a change on this iPad: when, and by which iPad; sent a little later. The same value written again is no change. */
+      if (X.applying || !KEY[k]) return;
+      var h = hash(stored(k));
+      if (M.h[k] === h) return;
+      M.h[k] = h; M.at[k] = Date.now(); M.by[k] = me(); save();
+      if (live() && synced(k)) soon(k === PLAYS && pl.el && !pl.el.paused ? 30000 : 4000);   /* while playing, every 30 seconds; paused, at once */
+    };
+    function soon(ms) { var due = Date.now() + ms; if (X.t && X.due <= due) return; clearTimeout(X.t); X.due = due; X.t = setTimeout(sync, ms); }
+    function raw(k) { var v = lsGet(k); return v === undefined ? null : v; }
+    function sync(asked) {   /* asked: SYNC NOW or joining, so a change that came in shows at once */
+      clearTimeout(X.t); X.t = 0;
+      if (!live() || X.busy) return Promise.resolve();
+      var out = {}, n = 0;
+      Object.keys(KEY).forEach(function (k) { if (synced(k) && (M.at[k] || 0) > (M.sent[k] || 0)) { out[k] = { v: k === PLAYS ? newPlays() : raw(k), at: M.at[k], by: M.by[k] || me() }; n++; } });
+      X.busy = true; X.err = ""; paint();
+      return (n ? apiPost({ action: "profileput", items: out }, 60000) : api({ action: "profile" })).then(function (j) {
+        Object.keys(out).forEach(function (k) { if ((M.sent[k] || 0) < out[k].at) M.sent[k] = out[k].at; });
+        take(j.items || {}, asked); M.last = Date.now(); M.rev = j.rev || 0; save();
+      }, function (e) { X.err = describe(e); }).then(function () { X.busy = false; paint(); });
+    }
+    function newPlays() {   /* AUDIO's places: only the episodes changed since the last send (the bridge merges them in) */
+      var since = M.sent[PLAYS] || 0, o = {};
+      Object.keys(plays).forEach(function (p) { if ((plays[p].at || 0) > since) o[p] = plays[p]; });
+      return o;
+    }
+    function put(k, v, at, by) { X.applying = true; if (v === null || v === undefined) lsDel(k); else lsSet(k, v); X.applying = false; M.h[k] = hash(stored(k)); M.at[k] = at; M.by[k] = by || ""; M.sent[k] = at; }
+    function mergePlays(r) {   /* each episode keeps its newer place; the one playing now keeps going */
+      var inc = (r && r.v) || {}, n = 0;
+      Object.keys(inc).forEach(function (p) {
+        var e = inc[p];
+        if (!e || typeof e.at !== "number" || (plays[p] && e.at <= (plays[p].at || 0)) || (pl.path === p && pl.el && !pl.el.paused)) return;
+        plays[p] = e; if (!e.by) e.by = r.by || ""; n++;
+        if (pl.path === p && pl.el && pl.ready && !e.done && isFinite(pl.el.duration) && e.p < pl.el.duration - 5) { pl.el.currentTime = e.p; paintPlayer(); toast("Picked up from " + (e.by || "your other iPad") + " at " + mmss(e.p)); }   /* loaded here but paused: it moves to where the other iPad stopped */
+      });
+      if (n) { X.applying = true; savePlays(); X.applying = false; if (state.screen === "storage" && !pl.scrub) render(true); }
+      if (r && (r.at || 0) > (M.at[PLAYS] || 0)) { M.at[PLAYS] = r.at; M.sent[PLAYS] = Math.max(M.sent[PLAYS] || 0, r.at); }
+      return n;
+    }
+    function take(items, asked) {   /* what came back: anything newer than this iPad's own */
+      var changed = [];
+      Object.keys(items).forEach(function (k) {
+        if (!synced(k)) return;
+        var r = items[k] || {};
+        if (k === PLAYS) { mergePlays(r); return; }
+        if ((r.at || 0) <= (M.at[k] || 0)) return;
+        var was = raw(k);
+        put(k, r.v, r.at, r.by);
+        if (!same(was, r.v)) { changed.push(k); X.from = r.by || X.from; }   /* the same value, newer: nothing to show */
+      });
+      if (changed.length) { X.pending = true; reloadWhenSafe(asked); }
+      return changed;
+    }
+    document.addEventListener("pointerdown", function () { X.touch = Date.now(); }, true);
+    function safe(asked) {
+      if (document.hidden || typing() || state.screen === "log") return false;
+      if (!asked && Date.now() - X.touch < 45000) return false;   /* in use right now: wait until it's been left a moment */
+      if (pl.el && !pl.el.paused) return false;
+      if (holo.onAir()) return false;
+      return !document.querySelector(".scrim:not([hidden]), .hd-modal, .pf-modal");
+    }
+    function reloadWhenSafe(asked) {
+      if (!X.pending || !safe(asked)) return;
+      var last = 0; try { last = Number(sessionStorage.getItem("tos.profreload") || 0); } catch (e) { /* private window */ }
+      if (Date.now() - last < 20000) return;   /* never a reload loop */
+      try { sessionStorage.setItem("tos.profreload", String(Date.now())); sessionStorage.setItem("tos.profmsg", X.from ? "Updated from " + X.from : "Updated from your other iPad"); } catch (e) { /* fine */ }
+      location.reload();
+    }
+    function markAll(at) { Object.keys(KEY).forEach(function (k) { if (synced(k) && raw(k) !== null) { M.at[k] = at || M.at[k] || Date.now(); M.by[k] = me(); M.sent[k] = 0; } }); }
+    /* ---- joining: the first time an iPad turns sync on and the other one already has ---- */
+    function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+    function diffs(items) {   /* where this iPad and the profile differ, by row */
+      var rows = {};
+      Object.keys(items).forEach(function (k) {
+        if (!synced(k)) return;
+        var mine = raw(k), theirs = items[k].v;
+        if (k === PLAYS) { var a = mine || {}, b = theirs || {}, n = 0; Object.keys(b).forEach(function (p) { if (!a[p] || a[p].p !== b[p].p || !!a[p].done !== !!b[p].done) n++; }); if (n) rows.plays = n + (n === 1 ? " RESUME POINT DIFFERS" : " RESUME POINTS DIFFER"); return; }
+        if (mine !== null && !same(mine, theirs)) rows[KEY[k]] = "DIFFERENT";
+      });
+      return Object.keys(rows).map(function (r) { return (r === "plays" ? "AUDIO" : LABEL[r].split(/,| and /)[0].toUpperCase()) + " · " + rows[r]; });
+    }
+    function union(k, mine, theirs) {   /* MERGE: lists from both iPads */
+      if (k === "tos.holo.v1") {
+        var out = JSON.parse(JSON.stringify(theirs || {})), have = {}; out.chans = out.chans || [];
+        var top = out.chans.reduce(function (m, c) { have[c.dir] = 1; return Math.max(m, c.id || 0); }, 0);
+        ((mine && mine.chans) || []).forEach(function (c) { if (!have[c.dir]) { var x = JSON.parse(JSON.stringify(c)); x.id = ++top; out.chans.push(x); have[c.dir] = 1; } });
+        if (!out.ads && mine && mine.ads) out.ads = mine.ads;
+        return out;
+      }
+      if (k === "tos.scilm.v1") {
+        var o2 = JSON.parse(JSON.stringify(theirs || {})), seen = {}; o2.list = o2.list || [];
+        o2.list.forEach(function (l) { seen[(l.name || "") + "|" + l.lat + "|" + l.lon] = 1; });
+        ((mine && mine.list) || []).forEach(function (l) { if (!seen[(l.name || "") + "|" + l.lat + "|" + l.lon]) o2.list.push(l); });
+        return o2;
+      }
+      if (Array.isArray(mine) && Array.isArray(theirs)) return theirs.concat(mine.filter(function (x) { return !theirs.some(function (y) { return same(x, y); }); }));
+      return theirs;
+    }
+    function join(pick) {
+      var items = (X.join && X.join.items) || {}, now = Date.now(), changed = [];
+      if (pick === "mine") markAll(now);
+      else Object.keys(items).forEach(function (k) {
+        if (!synced(k)) return;
+        var r = items[k], mine = raw(k);
+        if (k === PLAYS) { mergePlays(r); M.sent[PLAYS] = 0; M.at[PLAYS] = now; return; }   /* and send this iPad's places up */
+        if (pick === "merge" && mine !== null && (k === "tos.holo.v1" || k === "tos.scilm.v1" || UNION.indexOf(k) > -1)) {
+          var u = union(k, mine, r.v);
+          if (!same(u, mine)) { put(k, u, now, me()); changed.push(k); }
+          M.at[k] = now; M.sent[k] = 0;   /* the combined list goes up */
+          return;
+        }
+        if (pick === "cloud" || mine === null || (r.at || 0) > (M.at[k] || 0)) { if (!same(mine, r.v)) changed.push(k); put(k, r.v, r.at, r.by); }
+        else { M.at[k] = M.at[k] || now; M.sent[k] = 0; }   /* this iPad's newer change goes up */
+      });
+      Object.keys(KEY).forEach(function (k) { if (synced(k) && !items[k] && raw(k) !== null) { M.at[k] = M.at[k] || now; M.sent[k] = 0; } });   /* only here: goes up */
+      M.on = true; M.paused = false; X.join = null; save();
+      X.from = Object.keys(items).map(function (k) { return items[k].by; }).filter(Boolean)[0] || "";
+      return sync(true).then(function () { if (changed.length) { X.pending = true; reloadWhenSafe(true); } toast(changed.length ? "Profile sync is on. Reloading with " + (X.from || "the other iPad") + "'s settings" : "Profile sync is on"); paint(); });
+    }
+    function turnOn() {
+      if (!me()) { toast("Name this iPad first: HUB or MOBILE"); return; }
+      if (!can()) { toast("Profile sync needs bridge 1.36"); return; }
+      X.busy = true; X.err = ""; paint();
+      api({ action: "profile" }).then(function (j) {
+        X.busy = false;
+        var items = j.items || {};
+        if (!Object.keys(items).length) { M.on = true; M.paused = false; markAll(); save(); sync().then(function () { toast("Profile sync is on. " + me() + "'s settings are the profile now"); paint(); }); return; }
+        var d = diffs(items);
+        if (!d.length) { X.join = { items: items }; join("merge"); return; }
+        X.join = { items: items, diff: d, pick: "merge" }; paint();
+      }, function (e) { X.busy = false; X.err = describe(e); paint(); });
+    }
+    /* ---- SYSTEMS → PROFILE SYNC ---- */
+    function ago(ms) { if (!ms) return ""; var m = Math.round((Date.now() - ms) / 60000); return m < 1 ? "JUST NOW" : m < 60 ? m + " MIN AGO" : new Date(ms).toDateString() === new Date().toDateString() ? "TODAY " + hm(new Date(ms)) : stamp(ms).toUpperCase(); }
+    function rowMeta(r) {
+      if (M.off[r[0]]) return { t: "STAYS ON THIS IPAD", warn: true };
+      var at = 0, by = "";
+      r[2].forEach(function (k) { if ((M.at[k] || 0) > at) { at = M.at[k]; by = M.by[k] || ""; } });
+      return { t: at ? (by ? by + " · " : "") + ago(at) : "NOT SET ON THIS IPAD", warn: false };
+    }
+    function section() {
+      var st = !M.on ? "off" : M.paused ? "paused" : X.busy ? "busy" : X.err ? "err" : "ok";
+      var big = { off: "OFF", paused: "PAUSED ON THIS IPAD", busy: "SYNCING…", err: "COULDN'T SYNC", ok: "IN SYNC" }[st];
+      var line = st === "off" ? (can() ? "Hub and Mobile keep the same settings, through your Google bridge. Name this iPad, then turn it on." : "Needs bridge 1.36 (SYSTEMS → BRIDGE shows what's new).")
+        : st === "paused" ? "Changes here stay here until you resume; nothing from the other iPad comes in."
+        : st === "err" ? X.err : st === "busy" ? "Sending and fetching changes." : "Last synced " + (M.last ? hm(new Date(M.last)) : "–") + " · checks again when you open Bridge or come back to it";
+      var h = '<section id="sec-sync">' + phead("PROFILE SYNC", "YOUR GOOGLE BRIDGE'S PRIVATE STORAGE", "chrome-c") +
+        '<div class="pf-status"><span class="pf-dot ' + st + '"></span><span class="pf-st"><b>' + big + "</b><small>" + esc(line) + "</small></span><span class=\"pf-acts\">" +
+        (M.on ? '<button type="button" class="btn sm" data-pf="sync"' + (M.paused || X.busy ? " disabled" : "") + '>SYNC NOW</button><button type="button" class="btn sm ghost" data-pf="pause" aria-pressed="' + M.paused + '">' + (M.paused ? "RESUME" : "PAUSE ON THIS IPAD") + "</button>"
+          : '<button type="button" class="btn sm" data-pf="on"' + (can() && me() && !X.busy ? "" : " disabled") + ">TURN ON</button>") + "</span></div>" +
+        '<div class="pf-name"><span class="ov-sub">THIS IPAD IS</span>' + ["HUB", "MOBILE"].map(function (n) { return '<button type="button" class="chip sm" data-pfname="' + n + '" aria-pressed="' + (M.name === n) + '">' + n + "</button>"; }).join("") +
+        '<small class="muted">Shown beside each change, and on the top bar.</small></div>';
+      if (M.on) h += '<div class="pf-groups">' + PROF_GROUPS.map(function (g) {
+        var rows = g[1], on = rows.filter(function (r) { return !M.off[r[0]]; }).length;
+        return '<div class="pf-group"><div class="pf-gh"><b>' + g[0] + "</b><small>" + (on === rows.length ? "ALL SYNCED" : on + " OF " + rows.length + " SYNCED") + "</small></div>" + rows.map(function (r) {
+          var m = rowMeta(r), onr = !M.off[r[0]];
+          return '<div class="pf-row"><button type="button" class="pf-sw" role="switch" data-pfrow="' + r[0] + '" aria-checked="' + onr + '" aria-label="' + esc(r[1]) + (onr ? ": synced" : ": this iPad only") + '"><i></i></button><span><span>' + esc(r[1]) + '</span><small class="' + (m.warn ? "pf-here" : "") + '">' + esc(m.t) + "</small></span></div>";
+        }).join("") + "</div>";
+      }).join("") + "</div>";
+      h += '<div class="pf-notes"><div class="pf-note"><b>STAYS ON THIS IPAD</b><span>Keys and tokens (Google bridge, NAS relay, Home Assistant) · AI switches · Log and session drafts · unsent saves · measured lengths and other caches</span><small class="muted">Set up a new iPad from a backup.</small></div>' +
+        '<div class="pf-note"><b>IN NOTION</b><span>ENGINEERING upkeep lives in the Upkeep database' + (canUpkeep() ? "" : " once the bridge is 1.36") + ". Check one off in ENGINEERING or in Notion; both iPads see it.</span></div></div>";
+      if (X.join) h += joinHtml();
+      return h + "</section>";
+    }
+    function joinHtml() {
+      var J = X.join, from = Object.keys(J.items).map(function (k) { return J.items[k].by; }).filter(Boolean)[0] || "Your other iPad";
+      var O = [["merge", "MERGE (RECOMMENDED)", "Item by item, the newer change wins. Lists combine: channels, landmarks, ignored events from both iPads. Resume points keep the latest of each."],
+        ["cloud", "USE " + from.toUpperCase() + "'S", "This iPad takes " + from + "'s profile. Its own differences are replaced."],
+        ["mine", "USE THIS IPAD'S", "This iPad's settings replace the profile. " + from + " picks them up the next time it opens."]];
+      return '<div class="pf-modal"><div class="pf-win" role="dialog" aria-modal="true" aria-labelledby="pfJoinT">' + phead('<span id="pfJoinT">' + esc((me() || "THIS IPAD") + " JOINS PROFILE SYNC") + "</span>", "", "chrome-c") +
+        "<p>" + esc(from) + " already keeps its profile in your Google bridge. This iPad has settings of its own, and they differ in places:</p>" +
+        '<div class="pf-diffs">' + J.diff.map(function (d) { return "<span>" + esc(d) + "</span>"; }).join("") + "</div>" +
+        '<div class="pf-opts" role="radiogroup" aria-label="Which settings to keep">' + O.map(function (o) {
+          return '<button type="button" class="pf-opt" role="radio" data-pfpick="' + o[0] + '" aria-checked="' + (J.pick === o[0]) + '"><i></i><span><b>' + esc(o[1]) + "</b><small>" + esc(o[2]) + "</small></span></button>";
+        }).join("") + "</div>" + '<p class="muted">Keys, AI switches and drafts are never part of this. You can pause sync on either iPad later.</p>' +
+        '<div class="btnrow pf-end"><button type="button" class="btn ghost" data-pf="joincancel">NOT NOW</button><button type="button" class="btn" data-pf="join">' + esc(J.pick === "merge" ? "MERGE AND SYNC" : J.pick === "cloud" ? "USE " + from.toUpperCase() + "'S AND SYNC" : "USE THIS IPAD'S AND SYNC") + "</button></div></div></div>";
+    }
+    function paint() { var el = $("sec-sync"); if (el && state.screen === "systems") el.outerHTML = section(); topbar(); }   /* only this section: nothing being typed elsewhere in SYSTEMS is lost */
+    function topbar() { var t = document.querySelector(".topbar > span"); if (!t) return; var base = t.textContent.replace(/ · (HUB|MOBILE)$/, ""); t.textContent = base + (M.name ? " · " + M.name : ""); }
+    function click(b) {
+      var d = b.dataset;
+      if (d.pfname) { M.name = d.pfname; save(); topbar(); paint(); return true; }
+      if (d.pfrow) { M.off[d.pfrow] = !M.off[d.pfrow]; if (!M.off[d.pfrow]) delete M.off[d.pfrow]; save(); paint(); if (!M.off[d.pfrow]) sync(); return true; }
+      if (d.pfpick && X.join) { X.join.pick = d.pfpick; paint(); return true; }
+      if (!d.pf) return false;
+      if (d.pf === "on") turnOn();
+      else if (d.pf === "sync") sync(true);
+      else if (d.pf === "pause") { M.paused = !M.paused; save(); if (!M.paused) sync(); paint(); }
+      else if (d.pf === "join" && X.join) join(X.join.pick);
+      else if (d.pf === "joincancel") { X.join = null; paint(); }
+      return true;
+    }
+    /* when to sync: on opening (once the bridge has answered), on coming back, every 5 minutes while open */
+    function kick() { if (live()) sync().then(reloadWhenSafe); }
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) { kick(); setTimeout(reloadWhenSafe, 1500); }
+      else if (live() && X.t) sync();   /* leaving with a change not yet sent: send it now, for the other iPad */
+    });
+    setInterval(function () { if (!document.hidden) { if (live() && Date.now() - (M.last || 0) > 5 * 60000) sync(); reloadWhenSafe(); } }, 15000);
+    setTimeout(function () {
+      topbar();
+      try { var msg = sessionStorage.getItem("tos.profmsg"); if (msg) { sessionStorage.removeItem("tos.profmsg"); toast(msg); } } catch (e) { /* fine */ }
+    }, 400);
+    return { section: section, click: click, kick: kick, me: me, sync: sync, on: function () { return M.on; } };
+  })();
+
   /* Recent bridge requests: how long each took and how it ended. */
   /* REFRESH NOW spins until every request it set off (and any retries) has finished, then says so. */
   var refreshing = false, refreshTimer = null, refreshDone = false;
@@ -895,8 +1139,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.35.0";
-  var BRIDGE_FEATURES = [["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.36.0";
+  var BRIDGE_FEATURES = [["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -1096,6 +1340,7 @@
       state.bridgeVersion = j.version || null;
       state.caps = j.capabilities || [];
       persist();
+      prof.kick();
       var bad = state.calendars.filter(function (c) { return !c.ok; });
       toast(bad.length ? "Linked. One calendar needs attention, see Systems." : "Linked. Loading your calendars.");
       go(lsGet(LS_START) === "today" ? "today" : "bridge", sod(new Date()));
@@ -6972,7 +7217,7 @@
     document.body.appendChild(a);
     a.addEventListener("loadedmetadata", function () {
       var r = playOf(pl.path);
-      if (r && !r.done && r.p > 5 && r.p < a.duration - 5) a.currentTime = r.p;
+      if (r && !r.done && r.p > 5 && r.p < a.duration - 5) { a.currentTime = r.p; if (r.by && prof.me() && r.by !== prof.me()) toast("Picked up from " + r.by + " at " + mmss(r.p)); }
       pl.ready = true; markPlay(false); paintPlayer();
     });
     a.addEventListener("timeupdate", function () {
@@ -7010,7 +7255,7 @@
     if (!a || !pl.path || (!pl.ready && !ended)) return;   /* not before the file's start point is set, or a resume would be lost */
     var d = isFinite(a.duration) ? a.duration : (playOf(pl.path) || {}).d || 0, p = a.currentTime || 0;
     var done = !!ended || (d > 0 && p >= d - 1) || (d > 60 && p > d - 30);   /* at the very end counts too: a short track handed on stays played */
-    plays[pl.path] = { p: done ? 0 : p, d: d, done: done, at: Date.now() };
+    plays[pl.path] = { p: done ? 0 : p, d: d, done: done, at: Date.now(), by: prof.me() };
     pl.lastSave = Date.now(); savePlays();
   }
   /* The next track, ready before this one ends (2.43.1). iPadOS keeps a home-screen web app running in the background
@@ -7294,7 +7539,7 @@
       nas.dir = parentOf(nas.dir); nas.q = ""; nas.view = nas.dir === "/" ? "home" : "browse"; lsSet(LS_NASDIR, nas.dir); render(false); renderHeader();
     }
     else if (k === "retry") { nas.err = null; nas.ok = null; nasLoad(nas.view === "browse" ? nas.dir : "/", true); render(true); }
-    else if (k === "markplayed" && pl.path) { pl.ready = false; if (pl.el) pl.el.pause(); plays[pl.path] = { p: 0, d: (playOf(pl.path) || {}).d || (pl.el && pl.el.duration) || 0, done: true, at: Date.now() }; savePlays(); toast("Marked played"); var nx = nextUp()[0]; if (nasPref.auto && nx) playPath(nx.path, pl.list); else render(true); }
+    else if (k === "markplayed" && pl.path) { pl.ready = false; if (pl.el) pl.el.pause(); plays[pl.path] = { p: 0, d: (playOf(pl.path) || {}).d || (pl.el && pl.el.duration) || 0, done: true, at: Date.now(), by: prof.me() }; savePlays(); toast("Marked played"); var nx = nextUp()[0]; if (nasPref.auto && nx) playPath(nx.path, pl.list); else render(true); }
     else if (k === "restart" && pl.el) { pl.el.currentTime = 0; pl.el.play().catch(function () {}); }
     else return false;
     return true;
@@ -7552,7 +7797,53 @@
 
   /* ---------- upkeep ---------- */
   function upkeepItems() { return lsGet(LS_UPKEEP) || []; }
-  function saveUpkeep(list) { lsSet(LS_UPKEEP, list); }
+  /* 2.54 (bridge 1.36): upkeep lives in Notion's Upkeep database, so both iPads and Notion see the same list. This iPad
+     keeps a copy to show at once; every change is queued (tos.upkeepq.v1, never in a backup) and sent, an item at a time,
+     found again by its App ID. The first time the bridge has Upkeep, items made on this iPad go up. Without it, upkeep
+     stays on the iPad as before. */
+  var LS_UPKEEPQ = "tos.upkeepq.v1";   /* { ops: [{ op: "save", item } | { op: "remove", id }], mig: true once this iPad's items went up } */
+  var upQ = Object.assign({ ops: [], mig: false }, lsGet(LS_UPKEEPQ) || {}), upX = { busy: false, at: 0, err: "" };
+  function canUpkeep() { return state.caps.indexOf("upkeep") > -1; }
+  function upQueue(op) { upQ.ops = upQ.ops.filter(function (o) { return (o.item ? o.item.id : o.id) !== (op.item ? op.item.id : op.id); }); upQ.ops.push(op); lsSet(LS_UPKEEPQ, upQ); }
+  function saveUpkeep(list) {
+    var old = {}; upkeepItems().forEach(function (u) { old[u.id] = u; });
+    lsSet(LS_UPKEEP, list);
+    if (!canUpkeep()) return;
+    list.forEach(function (u) { if (!old[u.id] || JSON.stringify(old[u.id]) !== JSON.stringify(u)) upQueue({ op: "save", item: u }); delete old[u.id]; });
+    Object.keys(old).forEach(function (id) { upQueue({ op: "remove", id: id }); });
+    flushUpkeep();
+  }
+  function upItem(u) { return { id: u.id, name: u.name, cat: u.cat || "", every: u.every, unit: u.unit, last: u.last || null, lastRead: u.lastRead == null ? null : u.lastRead, read: u.read == null ? null : u.read, hist: u.hist || [] }; }
+  function flushUpkeep() {
+    if (upX.busy || !upQ.ops.length || !canUpkeep() || !navigator.onLine) return Promise.resolve();
+    var op = upQ.ops[0];
+    upX.busy = true;
+    return apiPost(op.op === "save" ? { action: "upkeepsave", item: upItem(op.item) } : { action: "upkeepremove", id: op.id }, 30000).then(function (j) {
+      upQ.ops = upQ.ops.filter(function (o) { return o !== op; }); lsSet(LS_UPKEEPQ, upQ);
+      upX.busy = false; return flushUpkeep();
+    }, function (e) {
+      upX.busy = false; upX.err = describe(e);
+      if (e && e.code === "bad_request") { upQ.ops = upQ.ops.filter(function (o) { return o !== op; }); lsSet(LS_UPKEEPQ, upQ); upX.err = "Notion refused " + (op.item ? op.item.name : "a removal") + ". It stays on this iPad."; }
+    });
+  }
+  function loadUpkeep(force) {
+    if (!canUpkeep() || upX.busy || (!force && Date.now() - upX.at < 60000)) return Promise.resolve();
+    upX.at = Date.now();
+    return api({ action: "upkeep" }).then(function (j) {
+      var got = (j.items || []).map(function (u) { var x = upItem(u); return x; }), ids = {};
+      got.forEach(function (u) { ids[u.id] = 1; });
+      if (!upQ.mig) { upkeepItems().forEach(function (u) { if (!ids[u.id]) upQueue({ op: "save", item: u }); }); upQ.mig = true; lsSet(LS_UPKEEPQ, upQ); }
+      var list = got.slice();
+      upQ.ops.forEach(function (o) {   /* what hasn't gone up yet still shows */
+        list = list.filter(function (u) { return u.id !== (o.item ? o.item.id : o.id); });
+        if (o.op === "save") list.push(o.item);
+      });
+      var before = JSON.stringify(upkeepItems());
+      lsSet(LS_UPKEEP, list); upX.err = "";
+      if (state.screen === "engineering" && JSON.stringify(list) !== before && !document.querySelector("#detailScrim:not([hidden])")) render(true);
+      return flushUpkeep();
+    }, function (e) { upX.err = describe(e); });
+  }
   function byReading(u) { return u.unit === "miles" || u.unit === "hours"; }
   function addInterval(day, n, unit) {
     var d = parseYmd(day);
@@ -7580,6 +7871,7 @@
   function haView() { return lsGet(LS_HAVIEW) === "list" ? "list" : "cards"; }
   function renderEngineering() {
     var ctl = eng.tab === "controls", view = haView();
+    if (!ctl) loadUpkeep(false);
     var html = '<div class="eng"><div class="eng-tabs"><div class="chips">' + [["controls", "CONTROLS"], ["upkeep", "UPKEEP"]].map(function (t) {
       return '<button type="button" class="chip" data-engtab="' + t[0] + '" aria-pressed="' + (eng.tab === t[0]) + '">' + t[1] + "</button>";
     }).join("") + "</div>";
@@ -10296,7 +10588,7 @@
           if (style !== "network") return arrange(l.items, kids);
           return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(function (list) { return lineupOf(list, l.items); });
         });
-      }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); })
+      }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); s.style = style; })   /* 2.54: a folder that can't be listed waits 30 seconds too, not one redraw (it asked the NAS hundreds of times a second) */
         .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
     }
     /* ---- NETWORK: a folder of show folders ---- */
@@ -12283,7 +12575,7 @@
   /* Saves still on their way to Notion or Google (they'd be lost with the app). */
   function bkPending() {
     var n = 0;
-    ["tos.queue.v1", "tos.habitq.v1", "tos.tarotq.v1", "tos.apiaryq.v1", "tos.inboxq.v1", "tos.sciq.v1"].forEach(function (k) { var v = lsGet(k); n += Array.isArray(v) ? v.length : v && typeof v === "object" ? Object.keys(v).length : 0; });
+    ["tos.queue.v1", "tos.habitq.v1", "tos.tarotq.v1", "tos.apiaryq.v1", "tos.inboxq.v1", "tos.sciq.v1", "tos.upkeepq.v1"].forEach(function (k) { var v = lsGet(k); n += Array.isArray(v) ? v.length : v && Array.isArray(v.ops) ? v.ops.length : v && typeof v === "object" ? Object.keys(v).length : 0; });
     return n;
   }
   function bkDrafts() {
@@ -12536,7 +12828,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if ((state.screen === "holodeck" && holo.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if ((state.screen === "holodeck" && holo.click(b)) || (state.screen === "systems" && prof.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

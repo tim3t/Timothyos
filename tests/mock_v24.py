@@ -97,6 +97,19 @@ LEDGERCALLS = []; YCACHE = []; YAT = ["2026-10-10T20:00:00-05:00"]
 UNINDEXED = ["2024-03-11", "2025-11-13", "2025-11-20"]; IDXRUNS = []; LOGASKS = []; INSIGHTS = []
 LOGOTHER = {"2026-10-01"}
 # LOG → SESSIONS (bridge 1.35): invented counseling sessions, behind the same code as the log.
+PROF = {"cap": 0, "items": {}, "rev": 0, "puts": [], "fail": ""}   # 2.54: profile sync (bridge 1.36), off unless profmode cap=1
+UPK = {"cap": 0, "items": [], "saves": [], "removes": [], "fail": ""}   # 2.54: Upkeep in Notion
+def prof_put(items):
+    ch = 0
+    for k, it in items.items():
+        cur = PROF["items"].get(k)
+        if k == "tos.plays.v1" and cur and isinstance(cur.get("v"), dict) and isinstance(it.get("v"), dict):
+            v = dict(cur["v"])
+            for pk, e in it["v"].items():
+                if isinstance(e, dict) and (pk not in v or e.get("at", 0) > (v[pk] or {}).get("at", 0)): v[pk] = e
+            PROF["items"][k] = {"v": v, "at": max(cur.get("at", 0), it["at"]), "by": it.get("by", "") if it["at"] >= cur.get("at", 0) else cur.get("by", "")}; ch += 1
+        elif not cur or it["at"] > cur.get("at", 0): PROF["items"][k] = {"v": it.get("v"), "at": it["at"], "by": it.get("by", "")}; ch += 1
+    if ch: PROF["rev"] += 1
 SES = {"cap": 0, "list": [], "posts": [], "suggests": [], "nexts": [], "fail": "", "n": 0}
 def ses_seed():
     SES["n"] = 0; SES["posts"].clear(); SES["suggests"].clear(); SES["nexts"].clear(); SES["fail"] = ""
@@ -429,8 +442,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -444,6 +457,17 @@ class H(BaseHTTPRequestHandler):
                 dbs[0]["missing"] = [{"name": "Focus Date", "type": "date"}]
                 dbs[6]["wrong"] = [{"name": "Rating", "want": "number", "got": "rich_text"}]
             body = {"ok": True, "version": VER["v"], "at": "2026-10-23T18:00:00Z", "dbs": dbs}
+        elif q.get("action") == "profmode":
+            if "cap" in q: PROF["cap"] = int(q["cap"])
+            if "fail" in q: PROF["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "reset" in q: PROF.update(items={}, rev=0, puts=[], fail="")
+            body = {"ok": True, "rev": PROF["rev"], "items": PROF["items"], "puts": PROF["puts"]}
+        elif q.get("action") == "upkmode":
+            if "cap" in q: UPK["cap"] = int(q["cap"])
+            if "reset" in q: UPK.update(items=[], saves=[], removes=[], fail="")
+            body = {"ok": True, "items": UPK["items"], "saves": UPK["saves"], "removes": UPK["removes"]}
+        elif q.get("action") == "profile" and PROF["cap"]: body = {"ok": False, "error": PROF["fail"]} if PROF["fail"] else {"ok": True, "version": VER["v"], "rev": PROF["rev"], "items": PROF["items"]}
+        elif q.get("action") == "upkeep" and UPK["cap"]: body = {"ok": True, "version": VER["v"], "items": sorted(UPK["items"], key=lambda x: x["name"]), "url": "https://www.notion.so/upkeep"}
         elif q.get("action") == "sesmode":
             if "cap" in q: SES["cap"] = int(q["cap"])
             if "fail" in q: SES["fail"] = "" if q["fail"] == "0" else q["fail"]
@@ -760,6 +784,18 @@ class H(BaseHTTPRequestHandler):
                         ne = sci_ev(SCI["next"], e["key"], dt.datetime.fromisoformat(e["at"].replace("Z", "+00:00")).astimezone(TZ).isoformat(), e["dept"], e["kind"], e["title"], e.get("starred") is True); SCI["next"] += 1
                         ne.update(detail=e.get("detail", ""), value=e.get("value")); SCI["events"].append(ne); bykey[e["key"]] = ne; added.append({"key": e["key"], "id": ne["id"]})
                     body = {"ok": True, "added": added, "skipped": skipped}
+            elif act == "profileput" and PROF["cap"]:
+                PROF["puts"].append(sorted((b.get("items") or {}).keys()))
+                if PROF["fail"]: body = {"ok": False, "error": PROF["fail"]}
+                else: prof_put(b.get("items") or {}); body = {"ok": True, "version": VER["v"], "rev": PROF["rev"], "items": PROF["items"]}
+            elif act == "upkeepsave" and UPK["cap"]:
+                u = dict(b.get("item") or {}); UPK["saves"].append(u.get("id"))
+                if not u.get("id") or not str(u.get("name", "")).strip(): body = {"ok": False, "error": "bad_request"}
+                else:
+                    u["page"] = "pg-" + u["id"]; UPK["items"][:] = [x for x in UPK["items"] if x["id"] != u["id"]] + [u]
+                    body = {"ok": True, "version": VER["v"], "item": u}
+            elif act == "upkeepremove" and UPK["cap"]:
+                UPK["removes"].append(b.get("id")); UPK["items"][:] = [x for x in UPK["items"] if x["id"] != b.get("id")]; body = {"ok": True, "removed": b.get("id")}
             elif act in ("inboxadd", "inboxset", "inboxremove"):
                 INBOX["posts"].append(act)
                 byid = {n["id"]: n for n in INBOX["notes"]}

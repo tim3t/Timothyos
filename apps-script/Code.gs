@@ -99,17 +99,19 @@ var CONFIG = {
   NOTION_SCIENCE_DATABASE: '497256af405747a3a9bb064759865cf6',
 
   // Your Notion Session Notes: counseling sessions from LOG → SESSIONS, one page per session. Behind LOG_PIN.
-  NOTION_SESSIONS_DATABASE: 'c0e793436cfd43c9962e3a82fe62dc07'
+  NOTION_SESSIONS_DATABASE: 'c0e793436cfd43c9962e3a82fe62dc07',
+  // Your Notion Upkeep: ENGINEERING → UPKEEP's recurring maintenance, shared by every iPad (bridge 1.36).
+  NOTION_UPKEEP_DATABASE: '333517b8dff9454f979cfd234847c917'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.35.0';
+var VERSION = '1.36.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -145,7 +147,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog'];
+var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'profile'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -162,6 +164,8 @@ function read_(p) {
   if (p.action === 'tarotbooks') return tarotBooks_();
   if (p.action === 'apiary') return apiary_();
   if (p.action === 'inbox') return inbox_();
+  if (p.action === 'upkeep') return upkeep_();
+  if (p.action === 'profile') return profile_();
   if (p.action === 'sky') return sky_(p.lat, p.lon);
   if (p.action === 'sciencefeeds') return sciFeeds_(p.lat, p.lon);
   if (p.action === 'sciencelog') return scienceLog_(String(p.from || ''), String(p.to || ''));
@@ -216,6 +220,9 @@ function doPost(e) {
     if (body.action === 'sciencestar') return json_(scienceStar_(String(body.id || ''), body.starred === true));
     if (body.action === 'inboxset') return json_(inboxSet_(String(body.id || ''), String(body.status || ''), body.as === null || body.as === undefined ? null : String(body.as)));
     if (body.action === 'inboxremove') return json_(inboxRemove_(String(body.id || '')));
+    if (body.action === 'upkeepsave') return json_(upkeepSave_(body.item));
+    if (body.action === 'upkeepremove') return json_(upkeepRemove_(String(body.id || '')));
+    if (body.action === 'profileput') return json_(profilePut_(body.items));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
     if (body.action === 'habitset') return json_(habitSet_(body.day));
     if (body.action === 'booksave') return json_(bookSave_(body.book));
@@ -284,6 +291,8 @@ function setup() {
   console.log('Notion inbox: ' + inboxStatus_());
   console.log('Notion science log: ' + scienceStatus_());
   console.log('Notion session notes: ' + sessionsStatus_());
+  console.log('Notion upkeep: ' + upkeepStatus_());
+  console.log('Profile sync: ' + profileStatus_());
   console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
@@ -682,6 +691,7 @@ function schemaSpec_() {
     { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
     { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] },
     { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] },
+    { key: 'upkeep', name: 'Upkeep', src: upkeepSource_, need: [['Name', 'title'], ['Category', 'rich_text'], ['Every', 'number'], ['Unit', 'select'], ['Last Done', 'date'], ['Last Reading', 'number'], ['Reading', 'number'], ['History', 'rich_text'], ['App ID', 'rich_text']] },
     { key: 'sessions', name: 'Session Notes', src: sessionsSource_, need: [['Session', 'title'], ['Type', 'select'], ['Date', 'date'], ['Where', 'select'], ['Topics', 'multi_select'], ['Arriving', 'number'], ['Leaving', 'number'], ['Felt', 'select'], ['Next Session', 'date'], ['Data', 'rich_text']].concat(t(vals(SES_TEXT), 'rich_text')) }
   ];
 }
@@ -2177,6 +2187,138 @@ function inboxRemove_(id) {
 function inboxStatus_() {
   try { var b = inbox_(); return 'OK (' + b.waiting.length + ' waiting, ' + b.kept.length + ' kept)'; }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Inbox (... > Connections)' : ''); }
+}
+
+// ---- Upkeep (bridge 1.36) -----------------------------------------------------------
+// ENGINEERING → UPKEEP's recurring maintenance, one page per item: Name, Category, Every and Unit (days to years, or
+// a reading in miles or hours), Last Done, Last Reading, Reading, History (the days it was done, as JSON) and App ID
+// (the app's own id for the item, so a save lands on the same page from either iPad). Save writes the whole item;
+// remove moves it to Notion's trash. Only pages in Upkeep can be changed.
+var UPKEEP_UNITS = ['days', 'weeks', 'months', 'years', 'miles', 'hours'];
+function upkeepSource_() { return sourceFor_(CONFIG.NOTION_UPKEEP_DATABASE, 'NOTION_UPKEEP_SOURCE'); }
+function upkeepGen_() { return CacheService.getScriptCache().get('ugen') || '0'; }
+function upkeepBump_() { CacheService.getScriptCache().put('ugen', Utilities.getUuid().slice(0, 8), 21600); }
+function upkeepNum_(prop) { return prop && typeof prop.number === 'number' ? prop.number : null; }
+function toUpkeep_(pg) {
+  var p = pg.properties || {}, hist = [];
+  try { hist = JSON.parse(plain_(p.History && p.History.rich_text) || '[]'); } catch (e) { hist = []; }
+  if (!Array.isArray(hist)) hist = [];
+  var last = p['Last Done'] && p['Last Done'].date && p['Last Done'].date.start;
+  return { id: plain_(p['App ID'] && p['App ID'].rich_text) || pg.id, page: pg.id, name: plain_(p.Name && p.Name.title), cat: plain_(p.Category && p.Category.rich_text),
+    every: upkeepNum_(p.Every) || 1, unit: UPKEEP_UNITS.indexOf(sel_(p.Unit)) > -1 ? sel_(p.Unit) : 'months', last: last ? String(last).slice(0, 10) : null,
+    lastRead: upkeepNum_(p['Last Reading']), read: upkeepNum_(p.Reading), hist: hist.filter(function (d) { return realDay_(String(d)); }) };
+}
+/** Every item, by name. */
+function upkeep_() {
+  var cache = CacheService.getScriptCache(), k = 'upkeep:' + upkeepGen_(), hit = cache.get(k);
+  if (hit) return JSON.parse(hit);
+  var items = queryAll_(upkeepSource_(), null, 5, [{ property: 'Name', direction: 'ascending' }]).map(toUpkeep_);
+  var out = { ok: true, version: VERSION, items: items, url: 'https://www.notion.so/' + String(CONFIG.NOTION_UPKEEP_DATABASE).replace(/-/g, '') };
+  try { cache.put(k, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function upkeepFind_(key) { return queryAll_(upkeepSource_(), { property: 'App ID', rich_text: { equals: key } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; })[0] || null; }
+var UPKEEP_KEY = /^[A-Za-z0-9_-]{1,64}$/;
+/** Save one item, whole: { id (the app's), name, cat, every, unit, last, lastRead, read, hist }. New or changed; safe to repeat. */
+function upkeepSave_(it) {
+  it = it || {};
+  var key = String(it.id || ''), name = String(it.name || '').trim(), cat = String(it.cat || '').trim(), every = Number(it.every), unit = String(it.unit || '');
+  var num = function (v) { return v === null || v === undefined || v === '' ? null : Number(v); }, lastRead = num(it.lastRead), read = num(it.read), last = it.last ? String(it.last) : null;
+  var hist = Array.isArray(it.hist) ? it.hist.map(String).filter(realDay_).slice(-400) : [];
+  if (!UPKEEP_KEY.test(key) || !name || name.length > 200 || cat.length > 100 || !(every > 0 && every <= 1000000) || UPKEEP_UNITS.indexOf(unit) === -1 || (last && !realDay_(last)) ||
+    [lastRead, read].some(function (v) { return v !== null && !(isFinite(v) && v >= 0 && v <= 1e9); })) return { ok: false, error: 'bad_request' };
+  var props = { Name: { title: rt_(name) }, Category: { rich_text: cat ? rt_(cat) : [] }, Every: { number: every }, Unit: { select: { name: unit } }, 'Last Done': { date: last ? { start: last } : null },
+    'Last Reading': { number: lastRead }, Reading: { number: read }, History: { rich_text: rtLong_(JSON.stringify(hist)) }, 'App ID': { rich_text: rt_(key) } };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = upkeepFind_(key), pg = have ? notion_('patch', '/pages/' + have.id, { properties: props }) : notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: upkeepSource_() }, properties: props });
+    upkeepBump_();
+    return { ok: true, version: VERSION, item: toUpkeep_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function upkeepRemove_(key) {
+  if (!UPKEEP_KEY.test(key)) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = upkeepFind_(key);
+    if (have) { notion_('patch', '/pages/' + have.id, { in_trash: true }); upkeepBump_(); }
+    return { ok: true, version: VERSION, removed: key };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function upkeepStatus_() {
+  try { var u = upkeep_(); return 'OK (' + u.items.length + (u.items.length === 1 ? ' item)' : ' items)'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Upkeep (... > Connections)' : ''); }
+}
+
+// ---- Profile sync (bridge 1.36) -----------------------------------------------------
+// The settings and state each iPad keeps (HOLODECK's channels, AUDIO's places, pins, intents, landmarks and the rest),
+// so Hub and Mobile match. Kept in this bridge's own private storage in your Google account (User Properties,
+// compressed, in pieces), which needs no new permission. Each item is { v (the value), at (when it changed, ms),
+// by (which iPad) }; a newer change wins, item by item, and AUDIO's places merge episode by episode. Keys, tokens,
+// drafts and the AI switches are refused: they never leave the iPad.
+var PROFILE_KEY = /^tos\.[a-z0-9]+\.v\d$/;
+var PROFILE_NEVER = ['tos.conn.v1', 'tos.nas.v1', 'tos.ha.v1', 'tos.ldraft.v1', 'tos.sndraft.v1', 'tos.rdraft.v1', 'tos.tarotdraft.v1', 'tos.apdraft.v1', 'tos.logai.v1', 'tos.aifin.v1', 'tos.aitarot.v1', 'tos.aiapiary.v1', 'tos.snai.v1', 'tos.profile.v1'];
+var PROFILE_PLAYS = 'tos.plays.v1', PROFILE_MAX = 450000, PROFILE_CHUNK = 8500;
+function profStore_() { return PropertiesService.getUserProperties(); }
+function profLoad_() {
+  var ps = profStore_(), n = Number(ps.getProperty('prof_n') || 0), s = '';
+  for (var i = 0; i < n; i++) s += ps.getProperty('prof_' + i) || '';
+  var rev = Number(ps.getProperty('prof_rev') || 0);
+  if (!s) return { items: {}, rev: rev };
+  var json = Utilities.ungzip(Utilities.newBlob(Utilities.base64Decode(s), 'application/x-gzip')).getDataAsString();
+  var d = JSON.parse(json) || {};
+  return { items: d.items && typeof d.items === 'object' ? d.items : {}, rev: rev };
+}
+function profSave_(d) {
+  var s = Utilities.base64Encode(Utilities.gzip(Utilities.newBlob(JSON.stringify({ items: d.items }), 'application/json')).getBytes());
+  if (s.length > PROFILE_MAX) return false;
+  var ps = profStore_(), old = Number(ps.getProperty('prof_n') || 0), n = Math.ceil(s.length / PROFILE_CHUNK), map = { prof_n: String(n), prof_rev: String(d.rev) };
+  for (var i = 0; i < n; i++) map['prof_' + i] = s.slice(i * PROFILE_CHUNK, (i + 1) * PROFILE_CHUNK);
+  ps.setProperties(map);
+  for (var j = n; j < old; j++) ps.deleteProperty('prof_' + j);
+  return true;
+}
+/** The whole profile: { rev, items }. */
+function profile_() { var d = profLoad_(); return { ok: true, version: VERSION, rev: d.rev, items: d.items }; }
+/** AUDIO's places: each episode keeps its newer place; at most 1500, the most recent. */
+function profMergePlays_(cur, inc) {
+  var out = {}, k;
+  for (k in cur) if (cur[k] && typeof cur[k] === 'object') out[k] = cur[k];
+  for (k in inc) if (inc[k] && typeof inc[k] === 'object' && typeof inc[k].at === 'number' && (!out[k] || inc[k].at > (out[k].at || 0))) out[k] = inc[k];
+  var keys = Object.keys(out);
+  if (keys.length > 1500) keys.sort(function (a, b) { return (out[a].at || 0) - (out[b].at || 0); }).slice(0, keys.length - 1500).forEach(function (x) { delete out[x]; });
+  return out;
+}
+/** Send changed items: { key: { v, at, by } }. Each is kept if it's newer than what's stored; the whole profile comes back. */
+function profilePut_(items) {
+  if (!items || typeof items !== 'object' || Array.isArray(items)) return { ok: false, error: 'bad_request' };
+  var keys = Object.keys(items);
+  if (keys.length > 80 || keys.some(function (k) { var it = items[k]; return !PROFILE_KEY.test(k) || PROFILE_NEVER.indexOf(k) > -1 || !it || typeof it.at !== 'number' || !(it.at > 0); })) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var d = profLoad_(), changed = 0;
+    keys.forEach(function (k) {
+      var it = items[k], cur = d.items[k], by = String(it.by || '').slice(0, 20);
+      if (k === PROFILE_PLAYS && cur && cur.v && it.v && typeof cur.v === 'object' && typeof it.v === 'object') {
+        d.items[k] = { v: profMergePlays_(cur.v, it.v), at: Math.max(cur.at || 0, it.at), by: it.at >= (cur.at || 0) ? by : cur.by }; changed++;
+      } else if (!cur || it.at > (cur.at || 0)) { d.items[k] = { v: it.v === undefined ? null : it.v, at: it.at, by: by }; changed++; }
+    });
+    if (changed) { d.rev++; if (!profSave_(d)) return { ok: false, error: 'too_large' }; }
+    return { ok: true, version: VERSION, rev: d.rev, items: d.items };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function profileStatus_() {
+  try { var d = profLoad_(), n = Object.keys(d.items).length; return 'OK (' + (n ? n + (n === 1 ? ' setting' : ' settings') + ', change ' + d.rev : 'nothing synced yet; turn it on in SYSTEMS on an iPad') + ')'; }
+  catch (e) { return 'NOT READY: ' + e.message; }
 }
 
 // ---- SCIENCE (bridge 1.34) ----------------------------------------------------------

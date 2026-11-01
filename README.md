@@ -144,6 +144,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 📥 Inbox | CAPTURE → NOTE, INBOX | Read; add notes; mark them Sorted or Kept; move to Notion's trash |
 | 🔭 Science Log | SCIENCE, ASTROMETRICS | Read; add events; star them |
 | 🛋️ Session Notes | LOG → SESSIONS | Read and write sessions, behind your authorization code; move to Notion's trash |
+| 🛠 Upkeep | ENGINEERING → UPKEEP | Read; add; change; move to Notion's trash |
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
@@ -155,6 +156,7 @@ After connecting, **run setup**: the log shows `OK` for each connected database 
 - **Library:** Title, Author, Status, Started, Finished, Rating, Notes, Cover, Open Library, Published.
 - **Tarot:** Title, Date, Kind, Weekly, Spread, Cards, Interpretation, Card, Data.
 - **Apiary:** Name, Kind (Yard, Hive, Check), Date, Hive, the text columns (Queen, Frames, Feed, Did, Next…), Mites (%), Honey (lb), Data. Edit the text columns freely; leave **Data** to the app.
+- **Upkeep:** Name, Category, Every, Unit (days, weeks, months, years, miles, hours), Last Done, Last Reading, Reading, History, App ID. Edit names, intervals and dates freely; leave **History** and **App ID** to the app.
 - **Science Log:** Event, When, Department, Kind, Detail, Value, Starred, Key. Star or annotate events freely; leave **Key** to the app (it stops an event being logged twice).
 
 ## Script Properties
@@ -665,12 +667,12 @@ Folders on the NAS, through the relay, with an audio player for podcasts, music 
 
 ### ENGINEERING
 
-Two tabs. **CONTROLS** shows only the Home Assistant devices you add; **UPKEEP** tracks recurring maintenance. Both start empty, and everything you set up here is kept on this iPad (and in your backups).
+Two tabs. **CONTROLS** shows only the Home Assistant devices you add; **UPKEEP** tracks recurring maintenance. Both start empty. Devices and rooms are kept on the iPad (and in backups, and with PROFILE SYNC on the other iPad too); upkeep lives in Notion's 🛠 Upkeep database from 2.54 (bridge 1.36), so both iPads and Notion show the same list.
 
 - **Adding a device:** **+ ADD DEVICE**, search, **NEXT**, pick how it looks and which room, **ADD TO ENGINEERING**.
 - **Layout:** LIGHTS AND SWITCHES (your rooms as chips: ALL, a room, OTHER), CLIMATE (thermostats: target with + and −, modes) and SENSORS. **ROOMS** renames, reorders and deletes rooms; they're separate from the areas set up in Home Assistant.
 - **Each device** has a card style (TOGGLE, DIMMER, COLOR, COMPACT, READING) and a room, set from its **⋯** button. Lights open a panel with the controls they actually have: color wheel and quick colors, white warm-to-cool, brightness, effects. **CARDS / LIST** switches the whole screen; **ALL OFF** turns off what the chosen room shows. Switches and lights toggle, sensors show their reading, refreshed every 30 seconds while open.
-- **UPKEEP:** items due by time (days to years) or by a reading (miles, hours). Overdue items also show in the Bridge's Condition.
+- **UPKEEP:** items due by time (days to years) or by a reading (miles, hours). Overdue items also show in the Bridge's Condition. MARK DONE on either iPad (or a new Last Done date in Notion) reaches the other the next time UPKEEP opens. Changes made offline wait on the iPad and go when it's back online.
 - A non-admin Home Assistant user can still switch every device in that Home Assistant. The list on ENGINEERING is what's shown, not a lock; the protection is Tailscale plus the two tokens. **FORGET** in Systems removes the address and token from the iPad; deleting the token in Home Assistant cuts it off everywhere.
 
 ### APIARY
@@ -736,6 +738,14 @@ Tap **STANDBY** at the right end of the top bar any time, or let it start after 
 
 Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there. It holds the connection and **REFRESH NOW**, **NEEDS YOU** cards for anything broken (with the steps for that exact problem), **BACKUP AND RESTORE**, recent requests, calendars (with **IGNORED EVENTS** and **BREAKS**), each database's status with its **SHARE WITH ASK** switch where there is one, the NAS relay, Home Assistant, Balance targets, Standby and the version you're on.
 
+**PROFILE SYNC** (2.54, bridge 1.36) keeps HUB and MOBILE alike: HOLODECK's channels, AUDIO's places, pins, intent lines and bearings, ignored events, balance targets, Home Assistant devices, session topic lists, landmarks, Standby and the rest of the iPad-only settings. It goes through your Google bridge and is kept in the bridge's own private storage in your Google account.
+
+1. On the iPad you use most: **SYSTEMS → PROFILE SYNC → THIS IPAD IS → HUB**, then **TURN ON**. Its settings become the profile.
+2. On the other: **MOBILE**, **TURN ON**. It lists where the two iPads differ: **MERGE** (recommended: channels, landmarks and ignored events from both, otherwise the newer change), **USE HUB'S** or **USE THIS IPAD'S**. It reloads with the result.
+3. From then on a change on one iPad reaches the other the next time it's opened or come back to (or within five minutes while open). It reloads to show what came in only when nothing would be lost, and says **Updated from HUB**. AUDIO resumes where the other iPad stopped.
+
+Each item has a switch: off, it stays on that iPad only. **PAUSE ON THIS IPAD** stops sending and receiving. Keys and tokens, the AI switches, drafts and caches never sync; a new iPad is still set up from a backup.
+
 **Ignored events:** booking blocks (a weekend out-of-office, say) can be left out of every view and total: tap the event → **IGNORE THIS TITLE**, or edit the list under CALENDARS. Kept on this iPad; your calendars aren't changed.
 
 **Breaks:** **SYSTEMS → CALENDARS → BREAKS** holds titles (Lunch to start; add Walk or anything else). A timed event whose **whole title** is one of them (capitals and an "Out of office" in front aside) shows as a break even if its title is ignored: "Lunch" and "Out of office — Lunch" are breaks, a meeting called "Team Lunch" is not. Add a longer title to the list if it should count as a break too. Breaks show on Today, Week and the Bridge but never count as Work hours, meetings, BALANCE or Review hours.
@@ -789,7 +799,7 @@ Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YO
 
 ## Backup, restore and reinstalling
 
-Everything the app keeps only on this iPad goes into one file you keep: the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, HOLODECK's channels, AUDIO's places, RESSIKAN's settings, the session topic lists and the other settings.
+Everything the app keeps on this iPad goes into one file you keep (with PROFILE SYNC on, most of it is also on your other iPad, but the keys and links are only here and in the backup): the Google bridge, NAS and Home Assistant links (with their keys), ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, location, SCIENCE's landmarks, HOLODECK's channels, AUDIO's places, RESSIKAN's settings, the session topic lists and the other settings.
 
 - **Make one:** **SYSTEMS → BACKUP AND RESTORE**, type a passphrase twice (8 characters or more), **MAKE BACKUP**, then **SAVE TO FILES** and choose **Save to Files** (iCloud Drive or On My iPad). The header shows when you last made one. Make a fresh one after any big setup change.
 - **The passphrase locks the file** (AES-GCM, with a key derived from your passphrase). It is never stored anywhere: without it the file can't be opened, so keep it in your password manager. The file holds your keys, so treat it like one.
