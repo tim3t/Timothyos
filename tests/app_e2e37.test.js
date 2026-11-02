@@ -4,7 +4,8 @@
 // Home Assistant, then a card style and an iPad-only group (new groups made on the way); a switch toggles;
 // Skylight 2's panel sends brightness, colour from the wheel (throttled), a quick color, white and an
 // effect; a DIMMER card's bar; ALL OFF, folding, LIST view, GROUPS (rename, reorder, delete); REMOVE.
-// UPKEEP starts empty; items by time and by miles, overdue ones in the Bridge's CONDITION, MARK DONE, edit, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
+// UPKEEP starts empty; items by time and by miles, overdue ones in the Bridge's CONDITION; GROUPS (by category and by status,
+// NEEDS ATTENTION) and HORIZON (lanes, overdue bay, BY READING, ranges) (2.55); MARK DONE, edit with category chips, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
@@ -217,12 +218,35 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await add({ name: 'Blade sharpen', cat: 'Mower', every: 4, unit: 'weeks', last: '2026-09-21' });
   const rows = await p.$$eval('.up-row', n => n.map(x => [x.className.replace('up-row ', ''), x.querySelector('.nm').firstChild.textContent, x.querySelector('.due').textContent]));
   console.log(rows);
-  assert.deepStrictEqual(rows, [
+  assert.deepStrictEqual(rows, [   // 2.55 GROUPS: a panel per category, the most pressing first; soonest first inside
     ['bad', 'Furnace filter', '44 DAYS OVER'],
+    ['ok', 'Clean gutters', '01 OCT 2027'],
     ['bad', 'Oil change', '200 MI OVER'],
     ['warn', 'Blade sharpen', 'IN 4 DAYS'],
-    ['ok', 'Clean gutters', '01 OCT 2027'],
   ]);
+  assert.deepStrictEqual(await p.$$eval('.up-grp h3', n => n.map(x => x.textContent)), ['HOUSE', 'CAR', 'MOWER']);
+  assert.ok((await txt(p, '.up-grp:has-text("HOUSE") .up-gh')).includes('1 OVERDUE'));
+  assert.deepStrictEqual(await p.$$eval('.up-card b', n => n.map(x => x.textContent)), ['Furnace filter', 'Oil change', 'Blade sharpen'], 'NEEDS ATTENTION');
+  assert.strictEqual(await p.getAttribute('[data-upview="groups"]', 'aria-pressed'), 'true', 'GROUPS is the default');
+  // GROUP BY STATUS
+  await p.click('[data-upby="status"]'); await p.waitForTimeout(150);
+  assert.deepStrictEqual(await p.$$eval('.up-grp h3', n => n.map(x => x.textContent)), ['OVERDUE', 'NEXT 14 DAYS', 'LATER']);
+  assert.strictEqual(await p.locator('.up-card').count(), 0, 'no attention cards when grouped by status');
+  assert.ok((await txt(p, '.up-grp:has-text("OVERDUE")')).includes('House · every 3 months'), 'each row names its category');
+  // HORIZON: a lane per category with dated items, overdue in the bay, mileage below
+  await p.click('[data-upview="horizon"]'); await p.waitForTimeout(150);
+  assert.deepStrictEqual(await p.$$eval('.up-lane:not(.up-axis) .up-ln b', n => n.map(x => x.textContent)), ['HOUSE', 'MOWER']);
+  assert.ok((await txt(p, '.up-lane:has-text("HOUSE") .up-bay')).includes('Furnace filter'));
+  assert.ok((await txt(p, '.up-lane:has-text("HOUSE") .up-trk')).includes('+1 LATER'), 'a year away: past 90 days');
+  assert.ok((await txt(p, '.up-readg')).includes('Oil change') && (await txt(p, '.up-readg')).includes('200 MI OVER'));
+  await p.click('[data-uprange="365"]'); await p.waitForTimeout(150);
+  assert.ok((await txt(p, '.up-lane:has-text("HOUSE") .up-trk')).includes('Clean gutters'));
+  await p.click('.up-mk:has-text("Blade sharpen")'); await p.waitForSelector('#upName');
+  assert.strictEqual(await p.inputValue('#upName'), 'Blade sharpen', 'a marker opens its item');
+  await p.click('#detailClose'); await p.waitForTimeout(250);
+  await p.screenshot({ path: D + 'eng-upkeep-horizon.png' });
+  assert.deepStrictEqual(JSON.parse(await p.evaluate(() => localStorage.getItem('tos.upview.v1'))), { view: 'horizon', by: 'status', range: 365, cols: { car: 0, house: 1, mower: 2 } });   // colors in the order categories first appeared
+  await p.click('[data-upview="groups"]'); await p.click('[data-upby="cat"]'); await p.waitForTimeout(150);
   assert.ok((await txt(p, '.eng-sum')).includes('2 OVERDUE 1 DUE SOON 1 ON SCHEDULE'));
   assert.ok((await txt(p, '#eyebrow')).includes('UPKEEP · 2 OVERDUE'));
   await p.screenshot({ path: D + 'eng-upkeep.png' });
@@ -247,7 +271,10 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await p.click('.up-row:has-text("Blade sharpen") .up-main'); await p.waitForSelector('#upName');
   assert.strictEqual(await p.inputValue('#upName'), 'Blade sharpen');
   assert.strictEqual(await p.getAttribute('[data-upunit="weeks"]', 'aria-pressed'), 'true');
+  assert.deepStrictEqual(await p.$$eval('[data-upcatpick]', n => n.map(x => x.textContent + ':' + x.getAttribute('aria-pressed'))), ['Car:false', 'House:false', 'Mower:true'], 'categories in use, as chips');
+  await p.click('[data-upcatpick="House"]'); assert.strictEqual(await p.inputValue('#upCat'), 'House');
   await p.fill('#upName', 'Blade sharpening'); await p.click('[data-upsave]'); await p.waitForTimeout(200);
+  assert.ok((await txt(p, '.up-grp:has-text("HOUSE")')).includes('Blade sharpening'), 'moved to House');
   await p.click('.up-row:has-text("Blade sharpening") .up-main'); await p.waitForSelector('[data-updel]');
   await p.click('[data-updel]'); assert.strictEqual(await txt(p, '[data-updel]'), 'TAP AGAIN TO DELETE');
   await p.click('[data-updel]'); await p.waitForTimeout(250);

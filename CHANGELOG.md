@@ -2,6 +2,13 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.55.0 · 2026-11-02
+- **ENGINEERING → UPKEEP has two views** (Timothy's pick of three mockups), switched beside **+ ITEM** and remembered (PROFILE SYNC carries the choice to the other iPad).
+- **GROUPS** (the default): **NEEDS ATTENTION** on top, up to three cards (overdue first, then the next 14 days) with MARK DONE; then a panel per category, the most pressing first, each with its own color. Inside a panel, items run soonest first; the tick marks one done and the name opens it. **GROUP BY STATUS** swaps the panels for OVERDUE, NEXT 14 DAYS, NEXT 3 MONTHS and LATER, each row naming its category.
+- **HORIZON**: a lane per category from today across the next **30 DAYS**, **90 DAYS** or **YEAR**; overdue items wait in a bay before today, and anything past the range reads **+N LATER**. Tap a marker to open the item. Mileage and hours items have no date, so they sit below as gauges under **BY READING**.
+- Categories match regardless of capitals, and a blank one is **OTHER**. Editing an item offers the categories already in use as chips, so "House" stays one category.
+- The note under UPKEEP and the item sheet now say **In Notion, on both iPads** once bridge 1.36 is live (they still said "Saved on this iPad").
+
 ## 2.54.1 · 2026-11-01 (needs bridge 1.36.1)
 - **Fixed: an emoji picked on the iPad keyboard sometimes went nowhere.** Once a minute (and when a sync landed) Bridge redrew the screen, swapping the field you were writing in for a fresh copy. Letters typed in that instant were kept, but an emoji chosen from the emoji keyboard could arrive just after the swap and be lost. Now a redraw waits until you leave the field. Search boxes still update while you type.
 - **Fixed: the Time Loom dropped the emoji from event titles** (its list and the loom itself), while Today and Week showed them. What you write keeps its emoji everywhere; only Notion's labels (areas, statuses, types) are shown as plain text, as before.

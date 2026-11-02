@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.54.1";
+  var VERSION = "2.55.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -898,7 +898,7 @@
     ["HOLODECK", [["holo", "Channels, styles, BREAKS, Commercials folder, look", ["tos.holo.v1"]]]],
     ["BRIDGE AND TODAY", [["log", "Intent lines (30 days) and bearings", ["tos.log.v1", "tos.bearings.v1"]], ["pins", "Pins, start screen, open panels", ["tos.pins.v1", "tos.start.v1", "tos.bopen.v1"]], ["hidden", "Calendars hidden on Today", ["tos.hidden.v1"]]]],
     ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
-    ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups", ["tos.hadev.v1", "tos.hagroups.v1"]], ["engview", "Tab, room and view", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1"]]]],
+    ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups", ["tos.hadev.v1", "tos.hagroups.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
     ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
     ["SCIENCE AND ASTROMETRICS", [["scilm", "Landmarks and overlays", ["tos.scilm.v1", "tos.scilmoff.v1", "tos.scilineoff.v1"]], ["ship", "Ship's Year", ["tos.shipyear.v1"]]]],
     ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
@@ -7880,7 +7880,9 @@
     if (ctl && haConf()) html += '<div class="eng-tools"><div class="hseg" role="group" aria-label="View">' + [["cards", "CARDS"], ["list", "LIST"]].map(function (v) {
       return '<button type="button" data-haview="' + v[0] + '" aria-pressed="' + (view === v[0]) + '">' + v[1] + "</button>";
     }).join("") + '</div><button type="button" class="btn sm ghost" data-eng="groups">ROOMS</button><button type="button" class="btn sm" data-eng="add">+ ADD DEVICE</button></div>';
-    else if (!ctl) html += '<button type="button" class="btn sm" data-eng="newitem">+ ITEM</button>';
+    else if (!ctl) html += '<div class="eng-tools"><div class="hseg" role="group" aria-label="Upkeep view">' + [["groups", "GROUPS"], ["horizon", "HORIZON"]].map(function (x) {
+      return '<button type="button" data-upview="' + x[0] + '" aria-pressed="' + ((upView().view === "horizon" ? "horizon" : "groups") === x[0]) + '">' + x[1] + "</button>";
+    }).join("") + '</div><button type="button" class="btn sm" data-eng="newitem">+ ITEM</button></div>';
     html += "</div>" + (ctl ? haControlsHtml(view) : upkeepHtml());
     $("content").innerHTML = html + "</div>";
   }
@@ -7996,20 +7998,101 @@
     return '<div class="hr' + (on ? " on" : "") + '" style="--lc: ' + (lampCss(d.id, s) || "var(--chrome-d)") + '"><button type="button" class="hr-main" data-hadev="' + esc(d.id) + '"><span class="lamp" aria-hidden="true"></span><span class="nm">' + esc(d.name) + '</span><span class="st tnum">' + esc(haStateTxt(d, s)) + "</span></button>" +
       (c.sw ? '<button type="button" class="hsw" data-hatoggle="' + esc(d.id) + '" aria-pressed="' + on + '" aria-label="' + esc(d.name) + (on ? ", on" : ", off") + '"' + (dead ? " disabled" : "") + "></button>" : '<span class="hsw-ph"></span>') + "</div>";
   }
+  /* 2.55: two ways to see UPKEEP (Timothy chose them from three mockups). GROUPS, the default: what needs you on top
+     (up to three cards: overdue, then the next 14 days), then a panel per category, the most pressing first; GROUP BY
+     STATUS swaps the panels for OVERDUE / NEXT 14 DAYS / NEXT 3 MONTHS / LATER. HORIZON: a lane per category from today
+     across the next 30 days, 90 days or year, overdue items in a bay before today, mileage and hours items below as
+     gauges (they have no date). Every name opens its sheet; MARK DONE everywhere. tos.upview.v1 holds the view, the
+     grouping, the range and each category's color (given in the order categories first appear, so it never moves);
+     PROFILE SYNC carries it. Categories match without regard to capitals; blank is OTHER. */
+  var LS_UPVIEW = "tos.upview.v1";   /* { view: "groups" | "horizon", by: "cat" | "status", range: 30 | 90 | 365, cols: { category (lower case): palette index } } */
+  var UP_COLS = ["chrome-b", "work", "chrome-a", "personal", "chrome-d", "chrome-c", "hobby"];
+  function upView() { return Object.assign({ view: "groups", by: "cat", range: 90, cols: {} }, lsGet(LS_UPVIEW) || {}); }
+  function upSet(patch) { lsSet(LS_UPVIEW, Object.assign(upView(), patch)); render(true); }
+  function upCatOf(u) { return String(u.cat || "").trim() || "Other"; }
+  function upColor(v, cat) {   /* a category's color, kept once given */
+    var k = cat.toLowerCase();
+    if (v.cols[k] == null) { v.cols[k] = Object.keys(v.cols).length % UP_COLS.length; lsSet(LS_UPVIEW, v); }
+    return UP_COLS[v.cols[k]];
+  }
+  function upCadence(u) { return u.every === 1 ? "every " + u.unit.replace(/s$/, "") : "every " + Number(u.every).toLocaleString() + " " + u.unit; }
+  function upRowHtml(x, small) {
+    var u = x.u, s = x.s;
+    return '<div class="up-row ' + s.lvl + '"><button type="button" class="up-main" data-upedit="' + esc(u.id) + '"><span class="nm">' + esc(u.name) + "<small>" + esc(small) + "</small></span>" +
+      '<span class="meter"><span class="tr"><i style="width:' + Math.round(s.pct) + '%"></i></span></span><span class="due tnum">' + s.due + "</span></button>" +
+      '<button type="button" class="up-tick" data-updone="' + esc(u.id) + '" aria-label="Mark ' + esc(u.name) + ' done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button></div>';
+  }
   function upkeepHtml() {
-    var today = ymd(new Date()), list = upkeepItems().map(function (u) { return { u: u, s: upkeepStatus(u, today) }; });
+    var today = ymd(new Date()), v = upView(), list = upkeepItems().map(function (u) { return { u: u, s: upkeepStatus(u, today) }; });
     if (!list.length) return '<div class="empty">Nothing tracked yet. Tap <b>+ ITEM</b> to add something that needs doing every so often, like an oil change every 5,000 miles or a furnace filter every 3 months.</div>';
     list.sort(function (a, b) { return a.s.sort - b.s.sort; });
+    list.forEach(function (x) { x.cat = upCatOf(x.u); x.c = upColor(v, x.cat); });
     var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, soon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
-    var html = '<div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (soon ? " warn" : "") + '">' + soon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - soon) + " ON SCHEDULE</span></div>";
-    html += '<div class="eng-up">' + list.map(function (x) {
-      var u = x.u, s = x.s;
-      return '<div class="up-row ' + s.lvl + '"><button type="button" class="up-main" data-upedit="' + esc(u.id) + '"><span class="nm">' + esc(u.name) + "<small>" + esc([u.cat, u.every === 1 ? "every " + u.unit.replace(/s$/, "") : "every " + Number(u.every).toLocaleString() + " " + u.unit].filter(Boolean).join(" · ")) + "</small></span>" +
-        '<span class="meter"><span class="tr"><i style="width:' + Math.round(s.pct) + '%"></i></span><small>' + (byReading(u) ? (u.read != null ? "NOW " + Number(u.read).toLocaleString() + " " + (u.unit === "miles" ? "MI" : "H") : "") : u.last ? "LAST " + esc(shortDay(u.last)) : "") + "</small></span>" +
-        '<span class="due tnum">' + s.due + "</span></button>" +
-        '<button type="button" class="chip sm" data-updone="' + esc(u.id) + '">MARK DONE</button></div>';
+    var chip = function (attr, val, label, on) { return '<button type="button" class="chip sm" ' + attr + '="' + val + '" aria-pressed="' + on + '">' + label + "</button>"; };
+    var html = '<div class="up-head"><div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (soon ? " warn" : "") + '">' + soon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - soon) + " ON SCHEDULE</span></div>" +
+      (v.view === "horizon" ? '<div class="up-opts"><span class="ov-sub">LOOK AHEAD</span>' + [[30, "30 DAYS"], [90, "90 DAYS"], [365, "YEAR"]].map(function (r) { return chip("data-uprange", r[0], r[1], v.range === r[0]); }).join("") + "</div>"
+        : '<div class="up-opts"><span class="ov-sub">GROUP BY</span>' + chip("data-upby", "cat", "CATEGORY", v.by !== "status") + chip("data-upby", "status", "STATUS", v.by === "status") + "</div>") + "</div>";
+    html += v.view === "horizon" ? upHorizonHtml(list, v, today) : upGroupsHtml(list, v);
+    return html + '<small class="muted">' + (canUpkeep() ? "In Notion, on both iPads." : "Saved on this iPad.") + " Overdue items also show in CONDITION on the Bridge.</small>";
+  }
+  function upGroupsHtml(list, v) {
+    var html = "", groups;
+    if (v.by !== "status") {
+      var attn = list.filter(function (x) { return x.s.lvl !== "ok"; }).slice(0, 3);
+      if (attn.length) html += '<div class="up-attn"><span class="ov-sub">NEEDS ATTENTION</span><div class="up-cards">' + attn.map(function (x) {
+        return '<div class="up-card ' + x.s.lvl + '" style="--c: var(--' + x.c + ')"><button type="button" class="up-cmain" data-upedit="' + esc(x.u.id) + '"><small><i></i>' + esc(x.cat.toUpperCase()) + "</small><b>" + esc(x.u.name) + '</b><span class="due tnum">' + x.s.due + "</span></button>" +
+          '<button type="button" class="chip sm" data-updone="' + esc(x.u.id) + '">MARK DONE</button></div>';
+      }).join("") + "</div></div>";
+      var by = {};
+      list.forEach(function (x) { var k = x.cat.toLowerCase(); (by[k] = by[k] || { title: x.cat, c: x.c, rows: [] }).rows.push(x); });
+      var RANK = { bad: 0, warn: 1, ok: 2 };
+      groups = Object.keys(by).map(function (k) { return by[k]; });   /* the list is soonest first; a group with something overdue, then due soon, comes first */
+      groups.forEach(function (g) { g.rank = Math.min.apply(null, g.rows.map(function (x) { return RANK[x.s.lvl]; })); });
+      groups.sort(function (a, b) { return a.rank - b.rank || a.rows[0].s.sort - b.rows[0].s.sort; });
+      groups.forEach(function (g) {
+        var o = g.rows.filter(function (x) { return x.s.lvl === "bad"; }).length, w = g.rows.filter(function (x) { return x.s.lvl === "warn"; }).length;
+        g.meta = o ? o + " OVERDUE" : w ? w + " DUE SOON" : "ALL ON SCHEDULE"; g.lvl = o ? "bad" : w ? "warn" : "";
+        g.small = function (x) { return upCadence(x.u); };
+      });
+    } else {
+      groups = [["OVERDUE", "bad", function (x) { return x.s.lvl === "bad"; }], ["NEXT 14 DAYS", "warn", function (x) { return x.s.lvl === "warn"; }],
+        ["NEXT 3 MONTHS", "ok", function (x) { return x.s.lvl === "ok" && x.s.sort <= 92; }], ["LATER", "dim", function (x) { return x.s.lvl === "ok" && x.s.sort > 92; }]].map(function (b) {
+        var rows = list.filter(b[2]);
+        return { title: b[0], c: b[1], rows: rows, meta: rows.length + (rows.length === 1 ? " ITEM" : " ITEMS"), lvl: "", small: function (x) { return x.cat + " · " + upCadence(x.u); } };
+      }).filter(function (g) { return g.rows.length; });
+    }
+    return html + '<div class="up-grps">' + groups.map(function (g) {
+      return '<section class="up-grp" style="--c: var(--' + g.c + ')"><div class="up-gh"><span class="cap"></span><h3>' + esc(g.title.toUpperCase()) + '</h3><span class="rule"></span><small class="' + g.lvl + '">' + g.meta + "</small></div>" +
+        '<div class="eng-up">' + g.rows.map(function (x) { return upRowHtml(x, g.small(x)); }).join("") + "</div></section>";
     }).join("") + "</div>";
-    return html + '<small class="muted">Saved on this iPad. Overdue items also show in CONDITION on the Bridge.</small>';
+  }
+  function upHorizonHtml(list, v, today) {
+    var R = v.range === 30 || v.range === 365 ? v.range : 90, t0 = parseYmd(today), at = function (day) { return daysBetween(today, day) / R * 100; }, ticks = [], d;
+    var narrow = innerWidth <= 640, trkW = Math.max(120, ($("content").clientWidth || 900) - (narrow ? 84 : 224) - 50), gap = function (px) { return px / trkW * 100; };   /* spacing in % of the track, from its width now */
+    if (R === 30) for (d = addDays(t0, (8 - t0.getDay()) % 7 || 7); daysBetween(today, ymd(d)) < R; d = addDays(d, 7)) ticks.push([ymd(d), shortDay(ymd(d))]);
+    else for (d = addDays(t0, 1); daysBetween(today, ymd(d)) < R; d = addDays(d, 1)) if (d.getDate() === 1 || (R === 90 && d.getDate() === 15)) ticks.push([ymd(d), R === 365 ? MON[d.getMonth()] : shortDay(ymd(d))]);
+    var lines = ticks.map(function (k) { return '<span class="up-tl" style="left:' + at(k[0]).toFixed(2) + '%"></span>'; }).join("");
+    var cats = [], by = {};
+    list.forEach(function (x) { var k = x.cat.toLowerCase(); if (!by[k]) { by[k] = { title: x.cat, c: x.c, xs: [] }; cats.push(by[k]); } by[k].xs.push(x); });
+    var html = '<div class="up-hz"><div class="up-lane up-axis"><span></span><span class="up-bayh">OVERDUE</span><div class="up-trk"><span class="up-now">TODAY</span>' +
+      ticks.filter(function (k) { var p = at(k[0]), ok = p > gap(50) && p < 100 - gap(26) && p - (ticks.lastAt || -99) > gap(56); if (ok) ticks.lastAt = p; return ok; }).map(function (k) { return '<span class="up-tk" style="left:' + at(k[0]).toFixed(2) + '%">' + k[1] + "</span>"; }).join("") + "</div></div>";   /* none under TODAY or past the edge */
+    cats.forEach(function (g) {
+      var dated = g.xs.filter(function (x) { return !byReading(x.u); });
+      if (!dated.length) return;
+      var bay = dated.filter(function (x) { return x.s.lvl === "bad" || !x.s.dueDay; }), inR = dated.filter(function (x) { return x.s.lvl !== "bad" && x.s.dueDay && daysBetween(today, x.s.dueDay) < R; }),
+        later = dated.length - bay.length - inR.length, last = [-99, -99];
+      html += '<div class="up-lane" style="--c: var(--' + g.c + ')"><span class="up-ln"><b>' + esc(g.title.toUpperCase()) + "</b><small>" + dated.length + (dated.length === 1 ? " item" : " items") + "</small></span>" +
+        '<span class="up-bay">' + bay.map(function (x) { return '<button type="button" data-upedit="' + esc(x.u.id) + '">' + esc(x.u.name) + "<small>" + x.s.due + "</small></button>"; }).join("") + "</span>" +
+        '<div class="up-trk">' + lines + inR.map(function (x) {
+          var p = Math.max(0, at(x.s.dueDay)), w = gap(narrow ? 140 : 190), row = p - last[0] > w ? 0 : p - last[1] > w ? 1 : last[0] <= last[1] ? 0 : 1; last[row] = p;
+          return '<button type="button" class="up-mk ' + x.s.lvl + (row ? " low" : "") + (p > 100 - gap(narrow ? 130 : 180) ? " end" : "") + '" style="left:' + p.toFixed(2) + "%;max-width:" + Math.round(Math.min(narrow ? 150 : 190, p > 100 - gap(narrow ? 130 : 180) ? p / 100 * trkW + 7 : (100 - p) / 100 * trkW + 7)) + 'px" data-upedit="' + esc(x.u.id) + '"><i></i><span><b>' + esc(x.u.name) + "</b><small>" + x.s.due + "</small></span></button>";
+        }).join("") + (later > 0 ? '<span class="up-later">+' + later + " LATER</span>" : "") + "</div></div>";
+    });
+    html += "</div>";
+    var read = list.filter(function (x) { return byReading(x.u); });
+    if (read.length) html += '<div class="up-grp up-readg" style="--c: var(--chrome-b)"><div class="up-gh"><span class="cap"></span><h3>BY READING</h3><span class="rule"></span><small>NO DATE TO PLACE</small></div><div class="eng-up">' +
+      read.map(function (x) { return upRowHtml(x, x.cat + " · " + upCadence(x.u)); }).join("") + "</div></div>";
+    return html;
   }
 
   /* ---------- sheets ---------- */
@@ -8070,9 +8153,9 @@
   function openUpkeepItem(id) {
     var u = id ? upkeepItems().filter(function (x) { return x.id === id; })[0] : null, today = ymd(new Date());
     var unit = u ? u.unit : "months";
-    engSheet("up-sheet", '<div class="sbar"><span>' + (u ? "EDIT ITEM" : "+ UPKEEP ITEM") + "</span><span>SAVED ON THIS IPAD</span></div><div class=\"sbody\">" +
+    engSheet("up-sheet", '<div class="sbar"><span>' + (u ? "EDIT ITEM" : "+ UPKEEP ITEM") + "</span><span>" + (canUpkeep() ? "IN NOTION" : "SAVED ON THIS IPAD") + "</span></div><div class=\"sbody\">" +
       '<label class="ov-sub" for="upName">WHAT</label><input type="text" id="upName" maxlength="80" placeholder="e.g. Oil change" value="' + esc(u ? u.name : "") + '">' +
-      '<label class="ov-sub" for="upCat">FOR</label><input type="text" id="upCat" maxlength="40" placeholder="e.g. Car, House, Tractor" value="' + esc(u ? u.cat || "" : "") + '">' +
+      '<label class="ov-sub" for="upCat">FOR</label><input type="text" id="upCat" maxlength="40" placeholder="e.g. Car, House, Tractor" value="' + esc(u ? u.cat || "" : "") + '">' + upCatChips(u ? u.cat : "") +
       '<label class="ov-sub" for="upEvery">EVERY</label><div class="up-every"><input type="number" id="upEvery" inputmode="numeric" min="1" step="1" value="' + (u ? u.every : 3) + '"><div class="chips" id="upUnit">' +
         UNITS.map(function (x) { return '<button type="button" class="chip sm" data-upunit="' + x[0] + '" aria-pressed="' + (unit === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div></div>" +
       '<div id="upTimeRow"' + (byReading({ unit: unit }) ? " hidden" : "") + '><label class="ov-sub" for="upLast">LAST DONE</label><input type="date" id="upLast" value="' + esc(u ? u.last || "" : today) + '"></div>' +
@@ -8081,6 +8164,12 @@
       '<div class="err" id="upErr" role="alert"></div></div><div class="sfoot btnrow">' + (u ? '<button type="button" class="btn ghost" data-updel="' + esc(u.id) + '">DELETE</button>' : "") +
       '<button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-upsave="' + esc(u ? u.id : "") + '">SAVE</button></div>');
     $("detailSheet").dataset.unit = unit;
+  }
+  function upCatChips(cur) {   /* the categories already in use, so House and house stay one */
+    var seen = {}, cats = [];
+    upkeepItems().forEach(function (x) { var c = String(x.cat || "").trim(); if (c && !seen[c.toLowerCase()]) { seen[c.toLowerCase()] = 1; cats.push(c); } });
+    if (!cats.length) return "";
+    return '<div class="chips up-cats">' + cats.sort().map(function (c) { return '<button type="button" class="chip sm" data-upcatpick="' + esc(c) + '" aria-pressed="' + (String(cur || "").trim().toLowerCase() === c.toLowerCase()) + '">' + esc(c) + "</button>"; }).join("") + "</div>";
   }
   function saveUpkeepItem(id) {
     var name = $("upName").value.trim(), every = parseInt($("upEvery").value, 10), unit = $("detailSheet").dataset.unit, err = $("upErr");
@@ -8116,6 +8205,7 @@
       return true;
     }
     if (d.upsave !== undefined) { saveUpkeepItem(d.upsave); return true; }
+    if (d.upcatpick !== undefined) { $("upCat").value = d.upcatpick; document.querySelectorAll("[data-upcatpick]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); }); return true; }
     if (d.updel) {
       if (eng.arm === "up:" + d.updel && Date.now() - eng.armAt < 4000) { saveUpkeep(upkeepItems().filter(function (x) { return x.id !== d.updel; })); eng.arm = null; closeDetail(); toast("Deleted"); render(true); }
       else { eng.arm = "up:" + d.updel; eng.armAt = Date.now(); b.textContent = "TAP AGAIN TO DELETE"; }
@@ -8135,6 +8225,9 @@
     if (d.engtab) { eng.tab = d.engtab; lsSet(LS_ENGTAB, eng.tab); render(false); return true; }
     if (haScreenClick(b)) return true;
     if (d.upedit) { openUpkeepItem(d.upedit); return true; }
+    if (d.upview) { upSet({ view: d.upview }); return true; }
+    if (d.upby) { upSet({ by: d.upby }); return true; }
+    if (d.uprange) { upSet({ range: +d.uprange }); return true; }
     if (d.updone) { markDone(d.updone); return true; }
     if (!d.eng) return false;
     if (d.eng === "add") openAddDevice();
@@ -12561,7 +12654,7 @@
      writes only keys on BK_KEYS, then reloads. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
-    "tos.upkeep.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
+    "tos.upkeep.v1", "tos.upview.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
     "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];
