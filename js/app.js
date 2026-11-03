@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.55.0";
+  var VERSION = "2.56.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -900,8 +900,9 @@
     ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
     ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups", ["tos.hadev.v1", "tos.hagroups.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
     ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
+    ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],
     ["SCIENCE AND ASTROMETRICS", [["scilm", "Landmarks and overlays", ["tos.scilm.v1", "tos.scilmoff.v1", "tos.scilineoff.v1"]], ["ship", "Ship's Year", ["tos.shipyear.v1"]]]],
-    ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
+    ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing, headlines and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.newsoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
   ];
   var prof = (function () {
     var M = Object.assign({ on: false, name: "", paused: false, at: {}, by: {}, sent: {}, off: {}, h: {}, last: 0, rev: 0 }, lsGet(LS_PROFILE) || {});
@@ -1141,8 +1142,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.36.1";
-  var BRIDGE_FEATURES = [["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.37.0";
+  var BRIDGE_FEATURES = [["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -2480,6 +2481,35 @@
     });
   }
   /* Best stretch for opening hives: warm, calm and dry, between 10:00 and 17:00. */
+  /* 2.56: the hive rhythm. Checks happen every 10 days at most in the active season and less often as it cools, so the
+     weather's hive window only matters when a check is due. From the newest check on any hive (APIARY) and the days
+     between checks for the season (tos.hiverhythm.v1, set in APIARY → THIS YEAR; PROFILE SYNC carries it): due means
+     within 2 days or overdue. Winter has no inspections, only an outside look about monthly, so the window doesn't apply.
+     Without APIARY (or with no hives) there is no rhythm and the hive check shows as before. */
+  var LS_HIVERHYTHM = "tos.hiverhythm.v1";   /* { active, shoulder, winter }: days between checks */
+  var HIVE_SEASON = ["winter", "winter", "shoulder", "active", "active", "active", "active", "active", "active", "shoulder", "shoulder", "winter"];   /* Jan to Dec */
+  var HIVE_SEASON_NAME = { active: "active season, April to September", shoulder: "shoulder season, March, October and November", winter: "winter, December to February" };
+  function hiveRhythm() { return Object.assign({ active: 10, shoulder: 21, winter: 30 }, lsGet(LS_HIVERHYTHM) || {}); }
+  function hiveDue(now) {
+    if (!canApiary() || !ap.data) return null;
+    var hs = apHives();
+    if (!hs.length) return null;
+    var last = "";
+    hs.forEach(function (h) { var c = apChecks(h.id)[0]; if (c && c.day > last) last = c.day; });
+    var today = ymd(now), season = HIVE_SEASON[now.getMonth()], every = hiveRhythm()[season], winter = season === "winter";
+    if (!last) return { due: true, over: false, winter: winter, season: season, every: every, last: null, next: today, n: 0, ago: null };
+    var next = ymd(addDays(parseYmd(last), every)), n = daysBetween(today, next);
+    return { due: n <= 2, over: n < 0, winter: winter, season: season, every: every, last: last, next: next, n: n, ago: daysBetween(last, today) };
+  }
+  /* For Claude: one line, always, so it knows the rhythm and doesn't treat the hives as daily work. */
+  function hiveLine(now) {
+    var r = hiveDue(now);
+    if (!r) return "";
+    var when = r.n < 0 ? (-r.n) + (r.n === -1 ? " day" : " days") + " overdue" : r.n === 0 ? "today" : r.n === 1 ? "tomorrow" : "in " + r.n + " days";
+    return "HIVES: " + (r.last ? "last checked " + r.last + " (" + r.ago + (r.ago === 1 ? " day" : " days") + " ago)" : "no check on record") + "; " +
+      (r.winter ? "winter: no inspections, an outside look about every " + r.every + " days" : "a check every " + r.every + " days in the " + HIVE_SEASON_NAME[r.season]) + "; " +
+      (r.due ? (r.winter ? "an outside look is due " : "a check is due ") + (r.last ? when : "now") + "." : "next due about " + r.next + ". Nothing to do for the hives today.");
+  }
   function hiveCheck(now) {
     var j = wxData();
     if (!j) return null;
@@ -2519,8 +2549,11 @@
       Math.round(dly.temperature_2m_max[di]) + "° · Low " + Math.round(dly.temperature_2m_min[di]) + "°</small></span></div>" +
       '<div class="ov-facts ov-extra tnum"><span>WIND <b>' + Math.round(c.wind_speed_10m) + " MPH</b></span><span>RAIN <b>" + (dly.precipitation_probability_max[di] == null ? "–" : dly.precipitation_probability_max[di] + "%") +
       "</b></span><span>SUNRISE <b>" + dly.sunrise[di].slice(11, 16) + "</b></span><span>SUNSET <b>" + dly.sunset[di].slice(11, 16) + "</b></span></div>";
-    var hv = hiveCheck(now), fr = frost(now);
-    if (hv) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · ' + hv.label + '</span><span class="tx"><b>' + hv.text + '</b><small class="ov-extra">' + hv.sub + '</small></span><span class="pill ' + (hv.go ? "ok" : "warn") + '">' + (hv.go ? "GO" : "HOLD") + "</span></div>";
+    var hv = hiveCheck(now), fr = frost(now), rh = hiveDue(now);
+    if (rh && !rh.due) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · NEXT ~' + esc(shortDay(rh.next)) + '</span><span class="tx"><b>Last checked ' + esc(shortDay(rh.last)) + "</b><small class=\"ov-extra\">" +
+      (rh.winter ? "Winter: an outside look about every " + rh.every + " days" : "Every " + rh.every + " days this time of year") + '</small></span><span class="pill">REST</span></div>';
+    else if (rh && rh.winter) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · OUTSIDE LOOK</span><span class="tx"><b>' + (rh.last ? "Last checked " + esc(shortDay(rh.last)) : "No check on record") + '</b><small class="ov-extra">Winter: no inspections. A look at the entrance and the weight.</small></span><span class="pill warn">DUE</span></div>';
+    else if (hv) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · ' + hv.label + (rh ? (rh.over ? " · OVERDUE" : " · DUE") : "") + '</span><span class="tx"><b>' + hv.text + '</b><small class="ov-extra">' + hv.sub + (rh && rh.last ? " · last checked " + esc(shortDay(rh.last)) : "") + '</small></span><span class="pill ' + (hv.go ? "ok" : "warn") + '">' + (hv.go ? "GO" : "HOLD") + "</span></div>";
     if (fr) {
       var lvl = fr.low <= 32 ? "bad" : fr.low <= 36 ? "warn" : "ok";
       html += '<div class="ov-envrow"><span class="k">FROST WATCH · TONIGHT</span><span class="tx"><b>Low ' + Math.round(fr.low) + "°F around " + fr.at + '</b><small class="ov-extra">' +
@@ -2675,6 +2708,15 @@
   var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
   var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
   function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
+  /* 2.56 (bridge 1.37): NEWS, the two newest US headlines from NPR's National feed, added by the app after Claude's
+     paragraphs exactly as NPR wrote them, with links to read on. Never sent to Claude. Off in SYSTEMS → MORNING BRIEFING. */
+  var LS_NEWSOFF = "tos.newsoff.v1";
+  function canNews() { return state.caps.indexOf("news") > -1 && !lsGet(LS_NEWSOFF); }
+  function newsSetLine() {
+    var on = !lsGet(LS_NEWSOFF);
+    return '<div class="br-newsset"><span>' + (state.caps.indexOf("news") < 0 ? "Headlines: need the Google bridge updated to 1.37." : "Headlines: " + (on ? "the two newest from NPR's National news, as NPR wrote them, never sent to Claude." : "off.")) + "</span>" +
+      (state.caps.indexOf("news") < 0 ? "" : '<button type="button" class="chip sm" data-brief="' + (on ? "newsoff" : "newson") + '">' + (on ? "NO HEADLINES" : "ADD HEADLINES") + "</button>") + "</div>";
+  }
   function minsOf(d) { return d.getHours() * 60 + d.getMinutes(); }
   function briefToday(now) { return br.b && br.b.day === ymd(now || new Date()) ? br.b : null; }
   function briefSave() { lsSet(LS_BRIEF, br.b); }
@@ -2682,7 +2724,8 @@
   /* Today's facts are in: events, today's tasks, the weather (once a location is set) and the habits. */
   function briefReady() {
     var t = ymd(new Date());
-    return hasData(bridgeRange()) && (!canPlan() || !!state.tasks[t]) && (!lsGet(LS_PLACE) || !!wxData());
+    return hasData(bridgeRange()) && (!canPlan() || !!state.tasks[t]) && (!lsGet(LS_PLACE) || !!wxData()) &&
+      (!canApiary() || !!(ap.data && Date.now() - ap.data.fetched < 6 * 3600000));   /* the hive rhythm needs the newest check (2.56) */
   }
   function briefMaybe() {
     var now = new Date();
@@ -2706,6 +2749,7 @@
     }
     if (canPlan()) loadTasks(today, false);
     loadWeather(false);
+    loadApiary(false);   /* the hive rhythm counts from the newest check (2.56) */
   }
   function briefSteps() {
     var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], ["Sonnet writing the briefing"]);
@@ -2721,10 +2765,17 @@
     /* Timothy (2.36.1): shorter, and no habits, apiary or tarot. Those parts stay out of the snapshot, and the ask asks for brevity. */
     var ctx = briefing(true).filter(function (x) { return BRIEF_SKIP.indexOf(x.k) < 0; }).map(function (x) { return x.t; }).join("\n\n");
     var skyLine = sciBrief(); if (skyLine) ctx += "\n\n" + skyLine;   /* 2.42: only what's worth knowing from SCIENCE today */
-    return apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList }, 150000).then(function (j) {
+    var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n.items || []; }, function () { return []; }) : Promise.resolve([]);   /* no headlines is no reason to fail the briefing */
+    return Promise.all([apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList }, 150000), newsP]).then(function (res) {
+      var j = res[0];
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       var b = briefParse(j.reply);
       if (!b) throw { code: "brief_shape" };
+      var hl = res[1].filter(function (x) { return x && x.title && /^https:\/\//.test(x.link || ""); }).slice(0, 2);
+      if (hl.length) {
+        b.news = hl.map(function (x) { return { t: String(x.title).slice(0, 200), u: String(x.link) }; });
+        b.paras.push({ label: "NEWS · NPR", text: b.news.map(function (x) { return /[.?!…]$/.test(x.t) ? x.t : x.t + "."; }).join(" ") });
+      }
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
       b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
       br.b = b; briefSave();
@@ -2802,6 +2853,7 @@
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
       '<button type="button" class="ov-more" data-brief="fold" aria-expanded="true" aria-label="Fold the briefing to one line"></button>') +
       '<div class="br-paper" id="brPaper">' + briefHtml(segs, n) + "</div>" +
+      (b.news && b.news.length ? '<div class="br-news"><span class="ov-sub">READ AT NPR</span>' + b.news.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener noreferrer">' + esc(x.t) + "</a>"; }).join("") + "</div>" : "") +
       '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (va.prep ? "PREPARING VOICE…" : br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
       '<button type="button" class="btn sm ghost" data-brief="again">REFRESH</button>' +
       (today && b.fold == null && minsOf(now) < BRIEF_FOLD ? '<span class="muted">Folds to one line at 10:30, or tap −.</span>' : "") + "</div></section>";
@@ -3045,6 +3097,7 @@
     }
     var d = b.dataset.brief;
     if (!d) return false;
+    if (d === "newsoff" || d === "newson") { if (d === "newsoff") lsSet(LS_NEWSOFF, true); else lsDel(LS_NEWSOFF); render(true); return true; }
     if (d === "off" || d === "on") { if (d === "off") { lsSet(LS_BRIEFOFF, true); briefQuiet(); } else lsDel(LS_BRIEFOFF); render(true); return true; }
     if (d === "say") { if (br.b) briefSay(); return true; }
     if (d === "test") { briefTestSay(briefVoice()); return true; }
@@ -3709,10 +3762,14 @@
     }
     var j = wxData();
     if (j) {
-      var c = j.current || {}, dl = j.daily, di = Math.max(0, dl.time.indexOf(today)), hv = hiveCheck(now), fr = frost(now);
+      var c = j.current || {}, dl = j.daily, di = Math.max(0, dl.time.indexOf(today)), rh = hiveDue(now), hv = !rh || (rh.due && !rh.winter) ? hiveCheck(now) : null, fr = frost(now);   /* the hive window only when a check is due (2.56) */
       add("WEATHER: " + Math.round(c.temperature_2m) + "°F " + wxText(c.weather_code).toLowerCase() + ", high " + Math.round(dl.temperature_2m_max[di]) + " low " + Math.round(dl.temperature_2m_min[di]) +
         (hv ? "; hive check " + (hv.go ? "GO, " : "HOLD, ") + hv.text.toLowerCase() + " (" + hv.label.toLowerCase() + ")" : "") + (fr ? "; tonight's low " + Math.round(fr.low) + "°F" : ""), "weather");
     }
+    var hl = hiveLine(now);
+    if (hl) add(hl, "hive rhythm");
+    var upd = upkeepItems().map(function (u) { return { u: u, s: upkeepStatus(u, today) }; }).filter(function (x) { return x.s.lvl === "bad" || (x.s.dueDay && daysBetween(today, x.s.dueDay) <= 0); });
+    if (upd.length) add("UPKEEP DUE: " + upd.map(function (x) { return x.u.name + (x.u.cat ? " (" + x.u.cat + ")" : "") + ", " + x.s.due.toLowerCase(); }).join("; "), "upkeep");
     var log = (lsGet(LS_LOG) || {})[today], b = bearingFor(today);
     if (log) add("TODAY'S INTENT: " + log);
     if (b) add("TODAY'S BEARING: " + b);
@@ -3737,13 +3794,15 @@
     var f = function (k) { if (k === "bearing" && $("rv-bear-0")) return bearJoin(bearNames()); var el = $("rv-" + k); return el ? el.value.trim() : d[k] || (saved && saved[k]) || ""; };
     var lines = [weekLabel(w0) + (st.cur ? " (in progress, numbers so far)" : ""),
       "Hours: Work " + hrsLabel(st.work) + (st.cur ? "" : " (week before " + hrsLabel(st.prevWork) + ")") + ", Personal " + hrsLabel(st.personal) + (st.cur ? "" : " (week before " + hrsLabel(st.prevPersonal) + ")") +
-        (hasFarm() ? ", " + areaName("farm") + " (farm and bees) " + hrsLabel(st.farm) + (st.cur ? "" : " (week before " + hrsLabel(st.prevFarm) + ")") : "") +
+        (hasFarm() ? ", " + areaName("farm") + " " + hrsLabel(st.farm) + (st.cur ? "" : " (week before " + hrsLabel(st.prevFarm) + ")") : "") +
         (hasGrowth() ? ", Growth " + hrsLabel(st.hobby) + (st.cur ? "" : " (week before " + hrsLabel(st.prevHobby) + ")") : "") +
         ". Busiest day " + (st.busiest && st.busiest.h ? DOW[st.busiest.d.getDay()] + " " + hrsLabel(st.busiest.h) : "none") + ". Open time 07:00 to 21:00: " + hrsLabel(st.open) + " of 98H. Work events: " + st.meetings + "."];
     if (w) {
       lines.push("Finished (" + st.done + "): " + (w.done.map(function (t) { return t.title + " [" + (bare(t.area) || "no area") + "]"; }).join("; ") || "none"));
       lines.push("Priorities: " + st.pickedDone + " of " + st.picked + " done. Still open: " + (w.picked.filter(function (t) { return t.status !== DONE; }).map(function (t) { return t.title; }).join("; ") || "none"));
     }
+    var hl = hiveLine(new Date());
+    if (hl) lines.push(hl.replace(/ Nothing to do for the hives today\.$/, "") + " Hives are checked on this rhythm, not daily; mention them only if a check was missed or something stood out.");
     var ins = intents(w0).filter(function (x) { return x.text; });
     if (ins.length) lines.push("Daily intents: " + ins.map(function (x) { return DOW[x.d.getDay()] + " " + x.text; }).join("; "));
     lines.push("His reflection so far. What went well: " + (f("wentWell") || "(blank)") + ". What drained me: " + (f("drained") || "(blank)") + ". Next focus: " + (f("nextFocus") || "(blank)") + ". Where I held my bearing: " + (f("bearing") || "(blank)") + ".");
@@ -3932,7 +3991,7 @@
     html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
       "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs the Google bridge updated (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
-        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine()) + "</dd>" +
+        '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine() + newsSetLine()) + "</dd>" +
       "<dt>SAFEGUARDS</dt><dd>Pauses at the reminder (AI_BUDGET_USD) with CONTINUE for the rest of the month. The hard stop is the Claude Console: prepaid credit, auto-reload off. Every change waits for CONFIRM.</dd>" +
       '<dt>MATCH THE CONSOLE</dt><dd><div class="ai-match"><input type="text" id="aiMatch" inputmode="decimal" placeholder="$ this month in the Console" aria-label="This month\'s spend shown in the Claude Console"><button type="button" class="btn sm" data-act="aimatch">MATCH</button></div>' +
       '<small class="muted">The count here is worked out from each answer\'s tokens at list prices. Enter the Console\'s figure to line the two up; new questions add on from there.</small></dd></dl>';
@@ -9470,11 +9529,12 @@
 
   /* level 1: the yard */
   function apYardHtml() {
-    var hs = apHives(), y = String(new Date().getFullYear()), hv = hiveCheck(new Date()), yard = apYard();
+    var hs = apHives(), y = String(new Date().getFullYear()), rh = hiveDue(new Date()), hv = !rh || (rh.due && !rh.winter) ? hiveCheck(new Date()) : null, yard = apYard();
     var honey = 0, mites = hs.length ? 99 : 0;
     hs.forEach(function (h) { var s = apYear(h.id, y); honey += s.honey; mites = Math.min(mites, s.mites); });
     var html = apCrumbs([["APIARY"]]);
     html += '<section class="ap-yard" aria-label="The yard"><div class="ap-sky"><div class="ap-quiet">' +
+      (rh && !rh.due ? "<span>NEXT CHECK <b>~" + esc(shortDay(rh.next)) + "</b></span>" : rh && rh.winter ? '<span>OUTSIDE LOOK <b class="hold">DUE</b></span>' : "") +
       (hv ? "<span>HIVE CHECK " + esc(hv.label) + ' <b class="' + (hv.go ? "go" : "hold") + '">' + (hv.go ? "GO" : "HOLD") + " · " + esc(hv.text.toUpperCase()) + "</b></span>" : "") +
       "<span>HONEY " + y + " <b>" + (Math.round(honey * 10) / 10) + " LB</b></span>" +
       (hs.length ? "<span>MITE CHECKS <b class=\"" + (mites >= AP_MITES_YEAR ? "go" : "bad") + "\">" + Math.min(mites, AP_MITES_YEAR) + " OF " + AP_MITES_YEAR + "</b></span>" : "") + "</div>" +
@@ -9487,7 +9547,7 @@
     });
     html += '<button type="button" class="ap-addslot" data-apact="addhive">+ ADD HIVE<small>a package, a nuc or a split</small></button></div><div class="ap-mat" aria-hidden="true"></div>' +
       (yard && yard.notes ? '<span class="ap-site">' + esc(yard.notes) + "</span>" : "") + "</section>";
-    html += '<details class="ap-year" id="apYear"' + (ap.yearOpen ? " open" : "") + "><summary>THIS YEAR · HONEY, MITES, THE YARD LIST</summary><div class=\"ap-yeargrid\">";
+    html += '<details class="ap-year" id="apYear"' + (ap.yearOpen ? " open" : "") + "><summary>THIS YEAR · HONEY, MITES, CHECK RHYTHM, THE YARD LIST</summary><div class=\"ap-yeargrid\">";
     var top = 1; hs.forEach(function (h) { top = Math.max(top, apYear(h.id, y).honey); });
     html += '<div><h3 class="ap-h honey">HONEY ' + y + '</h3><div class="ap-bars">' + (hs.length ? hs.map(function (h) { var lb = apYear(h.id, y).honey; return "<span>" + esc(h.name) + '</span><span class="b"><i style="width:' + Math.max(lb ? 6 : 0, lb / top * 100) + '%"></i></span><span class="tnum">' + lb + " lb</span>"; }).join("") : '<span class="muted">No hives yet.</span>') + "</div></div>";
     html += '<div><h3 class="ap-h mites">MITE CHECKS</h3><div class="ap-mrows">' + hs.map(function (h) {
@@ -9495,6 +9555,10 @@
       for (var i = 0; i < AP_MITES_YEAR; i++) dots += '<i class="' + (i < n ? "on" : "") + '"></i>';
       return "<span>" + esc(h.name) + '</span><span class="ap-dots" aria-label="' + Math.min(n, AP_MITES_YEAR) + " of " + AP_MITES_YEAR + '">' + dots + "</span>";
     }).join("") + '</div><small class="muted">Four a year at least. A check with a mite count lights one.</small></div>';
+    var R = hiveRhythm(), cur = HIVE_SEASON[new Date().getMonth()];
+    html += '<div><h3 class="ap-h rhythm">CHECK RHYTHM</h3><div class="ap-rhythm">' + [["active", "APR TO SEP"], ["shoulder", "MAR · OCT · NOV"], ["winter", "DEC TO FEB · OUTSIDE LOOK"]].map(function (x) {
+      return '<div class="ap-rrow' + (x[0] === cur ? " ap-rnow" : "") + '"><span>' + x[1] + (x[0] === cur ? " · NOW" : "") + '</span><span class="ap-rstep"><button type="button" class="chip sm" data-aprhythm="' + x[0] + ':-1" aria-label="Fewer days, ' + x[1] + '">−</button><b class="tnum">' + R[x[0]] + ' DAYS</b><button type="button" class="chip sm" data-aprhythm="' + x[0] + ':1" aria-label="More days, ' + x[1] + '">+</button></span></div>';
+    }).join("") + '</div><small class="muted">Days between checks, counted from the newest check on any hive. The hive window shows on the Bridge, and the briefing mentions the hives, only when a check is due.</small></div>';
     var list = (yard && yard.data.list) || [];
     html += '<div><h3 class="ap-h list">THE YARD LIST</h3><ul class="ap-list">' + list.map(function (it, i) {
       return '<li><button type="button" class="ap-tick' + (it.done ? " done" : "") + '" data-aplist="' + i + '" aria-pressed="' + !!it.done + '">' + esc(it.t) + '</button><button type="button" class="ap-x" data-aplistx="' + i + '" aria-label="Remove ' + esc(it.t) + '">✕</button></li>';
@@ -9719,6 +9783,12 @@
     var d = b.dataset;
     if (d.aiapiary) { if (d.aiapiary === "1") lsSet(LS_AIAPIARY, true); else lsDel(LS_AIAPIARY); askReshare(); render(true); return true; }
     if (d.apretry) { ap.qErr = null; flushApiary(); render(true); return true; }
+    if (d.aprhythm) {   /* days between checks, in steps that fit the size: 3 to 14 by one, then 16, 18, 21, then by weeks to 90 */
+      var rp = d.aprhythm.split(":"), R = hiveRhythm(), S = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84, 90], v = R[rp[0]], i = 0;
+      while (i < S.length - 1 && S[i] < v) i++;
+      R[rp[0]] = +rp[1] > 0 ? S[Math.min(S.length - 1, S[i] > v ? i : i + 1)] : S[Math.max(0, i - 1)];
+      lsSet(LS_HIVERHYTHM, R); ap.yearOpen = true; render(true); return true;
+    }
     if (state.screen !== "apiary") return false;
     var D = ap.draft, F = ap.form;
     if (d.aphive) { ap.hive = d.aphive; ap.box = null; ap.fresh = null; apNav("hive", b.querySelector(".ap-stack")); return true; }
@@ -12654,7 +12724,7 @@
      writes only keys on BK_KEYS, then reloads. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
-    "tos.upkeep.v1", "tos.upview.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
+    "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
     "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];

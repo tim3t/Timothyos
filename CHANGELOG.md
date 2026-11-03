@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.56.0 · 2026-11-03 (needs bridge 1.37)
+- **The hives have a rhythm, so they stop showing up every day.** Bridge counts from your newest hive check (APIARY) and the days between checks for the season: every **10 days April to September**, **21 days in March, October and November**, and in **winter (December to February)** no inspections, only an outside look about monthly. Set them in **APIARY → THIS YEAR → CHECK RHYTHM**; PROFILE SYNC carries them.
+- **On a rest day** the Morning Briefing, ASK and the weekly summary are told when you last checked and when the next is due, and that nothing is needed today, without the weather's hive window. The Bridge shows **HIVE CHECK · NEXT ~date**, marked REST. **When a check is due** (within 2 days, or overdue) the window and GO or HOLD come back; in winter it says an outside look is due.
+- **The briefing is told to report only what is due, changed or unusual today**, and now names upkeep that is due or overdue. The weekly summary no longer labels the farm hours "(farm and bees)".
+- **NEWS · NPR:** the two newest US headlines from NPR's National news, added after Claude's paragraphs exactly as NPR wrote them, with links under the briefing to read on (Nova reads them too). They are never sent to Claude. **NO HEADLINES** in SYSTEMS → MORNING BRIEFING turns them off; if the feed is down, the briefing comes without them.
+
 ## 2.55.0 · 2026-11-02
 - **ENGINEERING → UPKEEP has two views** (Timothy's pick of three mockups), switched beside **+ ITEM** and remembered (PROFILE SYNC carries the choice to the other iPad).
 - **GROUPS** (the default): **NEEDS ATTENTION** on top, up to three cards (overdue first, then the next 14 days) with MARK DONE; then a panel per category, the most pressing first, each with its own color. Inside a panel, items run soonest first; the tick marks one done and the name opens it. **GROUP BY STATUS** swaps the panels for OVERDUE, NEXT 14 DAYS, NEXT 3 MONTHS and LATER, each row naming its category.

@@ -734,6 +734,11 @@ The ship's computer: questions about your days, tasks and dates, answered by Cla
 
 Tap **STANDBY** at the right end of the top bar any time, or let it start after 15 minutes without a touch (change or turn off in **SYSTEMS → STANDBY**). It never starts on its own on HOLODECK or while the HOLODECK TV is on air, until a sleep timer there has run out. A dim clock with weather, next up, the condition and the next key date; amber at night (22:00 to 06:00). Tap anywhere to wake: that tap only wakes the screen.
 
+### Morning Briefing: hives and headlines
+
+- **Hives:** the briefing, ASK and the weekly summary know your check rhythm: every 10 days April to September, 21 in March, October and November, and only an outside look about monthly in winter, counted from your newest check in APIARY. Change the days in **APIARY → THIS YEAR → CHECK RHYTHM**. The hive window (GO or HOLD) shows only when a check is due; otherwise the Bridge shows the next check date.
+- **Headlines:** the two newest US stories from NPR's National news close the briefing, exactly as NPR wrote them, with links to read on. Claude never sees them. **SYSTEMS → MORNING BRIEFING → NO HEADLINES** turns them off. Needs bridge 1.37.
+
 ### SYSTEMS
 
 Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems is open. Wherever these steps say **SYSTEMS →**, start there. It holds the connection and **REFRESH NOW**, **NEEDS YOU** cards for anything broken (with the steps for that exact problem), **BACKUP AND RESTORE**, recent requests, calendars (with **IGNORED EVENTS** and **BREAKS**), each database's status with its **SHARE WITH ASK** switch where there is one, the NAS relay, Home Assistant, Balance targets, Standby and the version you're on.

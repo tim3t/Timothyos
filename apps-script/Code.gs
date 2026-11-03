@@ -105,13 +105,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.36.1';
+var VERSION = '1.37.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -147,7 +147,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'profile'];
+var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'profile'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -166,6 +166,7 @@ function read_(p) {
   if (p.action === 'inbox') return inbox_();
   if (p.action === 'upkeep') return upkeep_();
   if (p.action === 'profile') return profile_();
+  if (p.action === 'news') return news_();
   if (p.action === 'sky') return sky_(p.lat, p.lon);
   if (p.action === 'sciencefeeds') return sciFeeds_(p.lat, p.lon);
   if (p.action === 'sciencelog') return scienceLog_(String(p.from || ''), String(p.to || ''));
@@ -293,6 +294,7 @@ function setup() {
   console.log('Notion session notes: ' + sessionsStatus_());
   console.log('Notion upkeep: ' + upkeepStatus_());
   console.log('Profile sync: ' + profileStatus_());
+  console.log('Headlines: NPR National news, for the Morning Briefing (no key needed)');
   console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
@@ -2847,6 +2849,38 @@ function tarotSuggest_(body) {
   return { ok: true, version: VERSION, mode: mode, text: text, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
 }
 
+// ---- Headlines (bridge 1.37) --------------------------------------------------------
+// The Morning Briefing's NEWS: the newest items of NPR's National feed (personal, noncommercial use, as NPR's terms allow),
+// shown by the app exactly as NPR wrote them, with links; never sent to Claude. Cached 30 minutes. No key.
+var NEWS_FEED = 'https://feeds.npr.org/1003/rss.xml';
+function news_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('news:1');
+  if (hit) return JSON.parse(hit);
+  var res;
+  try { res = UrlFetchApp.fetch(NEWS_FEED, { muteHttpExceptions: true, followRedirects: true }); } catch (e) { return { ok: false, error: 'news_unavailable' }; }
+  if (res.getResponseCode() !== 200) return { ok: false, error: 'news_unavailable' };
+  var items = newsItems_(res.getContentText()).slice(0, 5);
+  if (!items.length) return { ok: false, error: 'news_unavailable' };
+  var out = { ok: true, version: VERSION, source: 'NPR', items: items };
+  try { cache.put('news:1', JSON.stringify(out), 1800); } catch (x) { /* fine */ }
+  return out;
+}
+/** RSS items as {title, link, at}: plain text, entities decoded, https links only. */
+function newsItems_(xml) {
+  var out = [], re = /<item\b[\s\S]*?<\/item>/g, m;
+  var tag = function (block, name) { var t = block.match(new RegExp('<' + name + '\\b[^>]*>([\\s\\S]*?)<\\/' + name + '>')); return t ? t[1] : ''; };
+  var text = function (x) {
+    return String(x || '').replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, '$1').replace(/<[^>]+>/g, '')
+      .replace(/&#(\d+);/g, function (_, n) { return String.fromCodePoint(+n); }).replace(/&#x([0-9a-f]+);/gi, function (_, n) { return String.fromCodePoint(parseInt(n, 16)); })
+      .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  };
+  while ((m = re.exec(xml)) && out.length < 20) {
+    var title = text(tag(m[0], 'title')).slice(0, 200), link = text(tag(m[0], 'link')), at = text(tag(m[0], 'pubDate'));
+    if (title && /^https:\/\/[^\s"<>]+$/.test(link)) out.push({ title: title, link: link, at: at });
+  }
+  return out;
+}
+
 // ---- Apiary (bridge 1.26) ------------------------------------------------------
 // 🐝 Apiary: one Yard page (site notes, supply list), one page per hive, one page per hive check
 // (Hive relation to its hive). Text columns are plain and editable in Notion; Data holds what the app
@@ -3046,8 +3080,9 @@ var BRIEF_RULES = [
   "This task replaces the style line above: answer with one JSON object and nothing else, shaped {\"headline\": \"...\", \"paras\": [{\"label\": \"...\", \"text\": \"...\"}], \"action\": \"...\"}.",
   "paras, in this order, leaving out any with nothing worth saying: label \"\" opening with 'Good morning, Captain.', the weekday and date, then the condition level and why in one sentence;",
   "TODAY (how many meetings, the first and the last, the longest open stretch between 07:00 and 21:00, whether priorities are picked; BREAK entries are breaks, not meetings; HOLIDAY is not an event);",
-  "OUTSIDE (temperature now and the high, wind or rain if notable, the hive check window, frost tonight); AHEAD (heavy days and key dates in the next 7 days);",
+  "OUTSIDE (temperature now and the high, wind or rain if notable, frost tonight; hives only when the snapshot's HIVES line says a check or an outside look is due, then its window or why to wait; on other days say nothing about hives); AHEAD (heavy days and key dates in the next 7 days);",
   "YESTERDAY (habits, if the snapshot has them); and only when the snapshot includes them: APIARY, TAROT (this week's card), LEDGER (the fund and the queue), SKY (a visible space station pass tonight, an aurora chance, a nearby earthquake: one or two sentences).",
+  "Report only what is due, changed or unusual today; leave out what is routine. In TODAY, name any UPKEEP DUE items. Don't write about the news: the app adds the headlines itself.",
   "Each text: 1 to 3 short sentences, plain words, 24-hour times, degrees as °F, no lists, no emoji, no em dashes, no markdown. Never mention the snapshot itself.",
   "action: one recommended first action, one sentence, starting with a verb. headline: under 90 characters, the 3 or 4 facts that matter most today joined by ' · ', without the condition level (the Condition panel sits just below it)."
 ].join('\n');

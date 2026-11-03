@@ -2035,9 +2035,9 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .ap-year summary::-webkit-details-marker, .ap-about summary::-webkit-details-marker { display: none; }
 .ap-year summary::after { content: "SHOW"; font-size: var(--t-label); color: var(--dim); }
 .ap-year[open] summary::after { content: "HIDE"; }
-.ap-yeargrid { padding: 0 18px 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.ap-yeargrid { padding: 0 18px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; }
 .ap-h { margin: 0 0 8px; font-family: var(--display); font-weight: 600; font-size: var(--t-sub); letter-spacing: var(--ls-label); }
-.ap-h.honey { color: var(--honey); } .ap-h.mites { color: var(--bad); } .ap-h.list { color: var(--chrome-c); }
+.ap-h.honey { color: var(--honey); } .ap-h.mites { color: var(--bad); } .ap-h.list { color: var(--chrome-c); } .ap-h.rhythm { color: var(--chrome-b); }
 .ap-bars { display: grid; grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 54px; gap: 8px 10px; align-items: center; font-size: var(--t-sub); }
 .ap-bars .b { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
 .ap-bars .b i { display: block; height: 100%; background: var(--honey); border-radius: 6px; }
@@ -2864,3 +2864,17 @@ body:has(.hd-tv.big) { overflow: hidden; }
   .up-lane.up-axis > span:first-child { display: none; }
   .up-mk b { font-size: 13px; }
 }
+
+/* APIARY check rhythm (2.56) */
+.ap-rhythm { display: grid; gap: 6px; margin-bottom: 8px; }
+.ap-rrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--display); font-size: 13px; letter-spacing: .12em; color: var(--dim); }
+.ap-rrow.ap-rnow { color: var(--fg); }
+.ap-rstep { display: flex; align-items: center; gap: 6px; }
+.ap-rstep b { min-width: 62px; text-align: center; font-weight: 400; color: var(--fg); }
+.ap-rstep .chip { min-width: 44px; justify-content: center; }
+
+/* Morning Briefing headlines (2.56) */
+.br-news { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding: 10px 14px; border-left: 3px solid var(--chrome-b); background: var(--quiet); border-radius: 0 12px 12px 0; }
+.br-news .ov-sub { margin: 0; }
+.br-news a { color: var(--chrome-b); font-size: 16px; line-height: 1.35; text-decoration: underline; text-underline-offset: 3px; min-height: 28px; }
+.br-newsset { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
