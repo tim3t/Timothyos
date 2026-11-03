@@ -1,13 +1,16 @@
 // HOLODECK, commercial breaks (2.52): one Commercials folder for every channel, BREAKS on or off per channel. A break
 // (1 or 2 commercials) follows each episode; anything over 3 minutes is skipped; during a break there's no credit and
-// the guide shows one COMMERCIAL BREAK row with its length. The breaks are computed from the clock, so a reload shows
+// the guide folds each break into the show before it (2.57: the show's block runs to the break's end; no commercial is named). The breaks are computed from the clock, so a reload shows
 // the same guide. Simulated relay; invented files. Lengths are rewritten after measuring so episodes and commercials
 // are long enough to land inside a break.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
+/* 2.57: a channel's row in the guide: each block's times, what it holds, and whether it's on now */
+const cells = (p, n) => p.$$eval('.hd-grow', (rs, n) => [...rs[n - 1].querySelectorAll('.hd-gc:not(.wait)')].map(c => ({ live: c.classList.contains('live'), range: c.title.split('\n')[0], what: c.title.split('\n').slice(1).join(' | ') })), n);
+const mins = r => { const [a, b] = r.split('–').map(t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }); return (b - a + 1440) % 1440; };
+const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 2 && c.every(x => mins(x.range) === 10); };
 
 (async () => {
   await fetch(R + '/__reset'); await fetch(R + '/__mkdir?d=' + encodeURIComponent('/Video/Commercials'));
@@ -18,7 +21,7 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
-    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 3600e3 }, { id: 2, name: 'Test Network', dir: '/Video/Test Network', premiere: Date.now() - 3600e3, style: 'network' }], ch: 1, look: 'clean', muted: true })); }, [K, R]);
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 3600e3 }, { id: 2, name: 'Test Network', dir: '/Video/Test Network', premiere: Date.now() - 3600e3, style: 'network' }], ch: 1, look: 'clean', muted: true, copen: true })); }, [K, R]);
   await p.reload(); await visual();
 
   // no folder yet: BREAKS can't be turned on
@@ -63,15 +66,15 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   }, short);
   await p.reload(); await visual();
 
-  // 10 s into the first break: one row for the whole break, with its length; the episodes either side
-  await p.waitForFunction(() => /COMMERCIAL BREAK/.test((document.getElementById('hdGuide') || {}).innerText || ''), null, { timeout: 30000 });
-  let g = await rows(p);
-  assert.strictEqual(g.length, 4, g.join(' | '));
-  assert.ok(/^NOW COMMERCIAL BREAK 0:1\d of (2:50|5:40)/.test(g[0]), g[0]);
-  assert.ok(!/COMMERCIAL/.test(g[1]) && /10:00$/.test(g[1]), g[1]);
-  assert.ok(/COMMERCIAL BREAK (2:50|5:40)$/.test(g[2]), g[2]);
-  assert.ok(!/COMMERCIAL/.test(g[3]), g[3]);
-  assert.ok(!/Long Infomercial|Fizzy|Moon Mops|Pocket Rocket/.test(g.join(' ')), 'a break never names its commercials');
+  // 10 s into the first break: the guide folds it into the episode before, which runs to the break's end; the next follows on
+  await p.waitForFunction(() => /COMMERCIAL BREAK/.test((document.getElementById('hdNow') || {}).innerText || ''), null, { timeout: 30000 });
+  await p.waitForFunction(() => document.querySelector('.hd-grow .hd-gc.live'), null, { timeout: 15000 });
+  let g = await cells(p, 1);
+  const lv = g.findIndex(x => x.live);
+  assert.ok(lv > -1 && [12, 13, 15, 16].includes(mins(g[lv].range)), 'the episode and its break of 2:50 or 5:40: ' + JSON.stringify(g));
+  assert.ok(!/COMMERCIAL/.test(g[lv].what) && g[lv + 1].range.split('–')[0] === g[lv].range.split('–')[1], 'the next episode starts as the break ends: ' + JSON.stringify(g));
+  const gt = await p.innerText('.hd-tg') + JSON.stringify(g);
+  assert.ok(!/COMMERCIAL|Long Infomercial|Fizzy|Moon Mops|Pocket Rocket/.test(gt), 'a break never names its commercials, nor shows as one');
 
   // on air in the break: the commercial plays, no credit, no UP NEXT; LIVE and the bug stay
   await p.click('#hdTune');
@@ -83,19 +86,17 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   assert.ok(await p.$eval('#hdUpNext', e => e.hidden));
   assert.ok((await txt(p, '.hd-bug')).startsWith('HOLODECK'));
 
-  // NETWORK with breaks: a break after every 10-minute episode, so the guide alternates
+  // NETWORK with breaks: a break after every 10-minute episode, each folded into its episode
   await p.click('[data-hd="tune"]');   // off
-  await p.click('[data-hdch="2"]');
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4);
-  g = await rows(p);
-  const brk = g.map(r => /COMMERCIAL BREAK/.test(r));
-  assert.ok(brk.filter(Boolean).length === 2 && brk[0] !== brk[1] && brk[1] !== brk[2] && brk[2] !== brk[3], g.join(' | '));
-  const later = g.slice(1).map(r => r.slice(0, 5));
+  await p.click('[data-hdkey="2"]'); await p.click('[data-hdkey="ok"]');
+  g = await cells(p, 2);
+  assert.ok(g.length >= 5 && g.every(x => [12, 13, 15, 16].includes(mins(x.range))), 'every episode with its break: ' + JSON.stringify(g));
+  const later = g.map(x => x.range + ' ' + x.what);
 
   // from the clock: the same guide after a reload
   await p.reload(); await visual();
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4);
-  assert.deepStrictEqual((await rows(p)).slice(1).map(r => r.slice(0, 5)), later);
+  await p.waitForFunction(() => document.querySelectorAll('.hd-grow').length === 2 && document.querySelectorAll('.hd-grow')[1].querySelectorAll('.hd-gc:not(.wait)').length >= 5, null, { timeout: 15000 });
+  assert.deepStrictEqual((await cells(p, 2)).map(x => x.range + ' ' + x.what), later);
 
   // a length measured under 2.52.0 (kept with the episodes) moves to the commercials' own store
   const na = await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); l['/Video/Commercials/Older One.webm'] = { s: 5, z: 1 }; localStorage.setItem('tos.hololen.v1', JSON.stringify(l)); return Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length; });
@@ -104,7 +105,7 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
 
   // BREAKS off: channel 2's guide has no breaks
   await p.click('[data-hdopen="2"]'); await p.click('[data-hdbrk="2"]');
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4 && !/COMMERCIAL/.test(document.getElementById('hdGuide').innerText));
+  for (let i = 0; !(await plain(p, 2)); i++) { assert.ok(i < 40, 'channel 2 without breaks: ' + JSON.stringify(await cells(p, 2))); await p.waitForTimeout(250); }
 
   // CLEAR: no folder, BREAKS waits again; the channels' own setting is kept
   await p.click('[data-hdopen="ads"]'); await p.click('[data-hd="adclear"]');
@@ -112,8 +113,7 @@ const rows = p => p.$$eval('#hdGuide .hd-slot', a => a.map(e => e.innerText.repl
   assert.ok(await p.$eval('[data-hdbrk="1"]', e => e.disabled));
   const cfg = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')));
   assert.strictEqual(cfg.ads, ''); assert.strictEqual(cfg.chans[0].breaks, true);
-  await p.click('[data-hdch="1"]');
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4 && !/COMMERCIAL/.test(document.getElementById('hdGuide').innerText));
+  for (let i = 0; !(await plain(p, 1)); i++) { assert.ok(i < 40, 'channel 1 without breaks: ' + JSON.stringify(await cells(p, 1))); await p.waitForTimeout(250); }
   assert.ok((await txt(p, '#hdInfo1')).includes('breaks on, no commercials folder yet'));
 
   await fetch(R + '/__reset');

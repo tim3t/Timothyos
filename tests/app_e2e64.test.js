@@ -17,7 +17,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
-    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, look: 'clean', muted: true })); }, [K, R]);
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, copen: true, look: 'clean', muted: true })); }, [K, R]);
   await p.reload(); await visual();
 
   // the trap: all seven measure, so all seven are on the schedule
@@ -62,7 +62,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await q.goto('http://localhost:8080/');
   await q.evaluate(([k, r, l]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck'])); localStorage.setItem('tos.hololen.v1', l);   /* lengths known, as on the iPad that measured them */
-    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, look: 'clean', muted: true })); }, [K, R, lensNow]);
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, copen: true, look: 'clean', muted: true })); }, [K, R, lensNow]);
   await q.reload(); await q.click('[data-screen="holodeck"].nav'); await q.waitForSelector('.hd-arch'); await q.click('[data-hdprog="visual"]');
   await q.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 }); await q.click('.hd-tune');
   await q.waitForFunction(() => /Five videos in a row didn't load|None of this channel's videos would load/.test(document.getElementById('content').innerText), null, { timeout: 30000 });

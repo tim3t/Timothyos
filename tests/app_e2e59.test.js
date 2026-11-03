@@ -14,7 +14,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
-    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Broken Rips', dir: '/Video/Broken Rips', premiere: Date.now() - 3600e3 }], ch: 1, look: 'clean', muted: true })); }, [K, R]);
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Broken Rips', dir: '/Video/Broken Rips', premiere: Date.now() - 3600e3 }], ch: 1, copen: true, look: 'clean', muted: true })); }, [K, R]);
   await p.reload(); await p.waitForSelector('[data-screen="holodeck"].nav');
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
 

@@ -3,7 +3,7 @@
 // skipped, lengths measured once and kept, in order from when it was added, TUNE IN joins mid-broadcast at the clock's
 // position, the guide, the next video when one ends, the credit, CRT/CLEAN, mute. Channel 2 from a series in season
 // folders: seasons by number, episodes by number, specials and extras last, the MKV skipped; changing channel with the
-// buttons, the dial and the guide's other-channel line; rename, remove; leaving
+// buttons, the keypad (2.57: digits, ENTER, LAST, a keyboard) and the guide; the channels folded; rename, remove; leaving
 // turns it off, STORAGE no longer lists /Video, COMPUTER, phone width. 2.47: HOLODECK opens on the arch (VISUAL or
 // AUDIO, which is STORAGE now); ◇ ARCH from either; one at a time (the TV pauses audio, audio turns the TV off); the
 // radio band's needle; STORAGE gone from ALL STATIONS. 2.48: a NETWORK channel (show folders, two levels, programmed
@@ -13,6 +13,9 @@ const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const visual = async p => { await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd'); };
+/* 2.57: the on-screen row of the guide, from what's on now: each programme's line, in order (a block of short videos lists its own) */
+const AIR = () => { const row = document.querySelector('.hd-grow[aria-current="true"]'); if (!row) return []; const cells = [...row.querySelectorAll('.hd-gc:not(.wait)')], i = cells.findIndex(c => c.classList.contains('live')); return i < 0 ? [] : cells.slice(i).flatMap(c => c.title.split('\n').slice(1).filter(l => !/^and \d+ more$/.test(l))); };
+const air = p => p.evaluate(AIR), airFor = (p, n, timeout = 20000) => p.waitForFunction('(' + AIR + ')().length >= ' + n, null, { timeout });
 const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo'); return v ? { src: decodeURIComponent(v.getAttribute('src') || ''), t: v.currentTime, paused: v.paused, inScreen: !!v.closest('#hdScreen'), muted: v.muted } : null; });
 
 (async () => {
@@ -62,18 +65,27 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.deepStrictEqual(saved.chans.map(c => [c.id, c.name, c.dir]), [[1, 'Test Channel', '/Video/Test Channel']]);
   assert.ok(saved.chans[0].premiere === T0 && saved.ch === 1, 'premiered at the clock: ' + saved.chans[0].premiere);
 
-  // ---- the guide: computed from the clock; NOW then the next three, in file order, round again
+  // ---- the guide (2.57): full width, a row per channel, half-hour columns from the clock, a line for now; short videos
+  // one block per half hour, listing what plays from now, in file order, round again
   const ORDER = ['Neon Harbor · Midnight Signal', 'The Velvet Static · Satellite Heart', 'Juniper Drive · Polaroid Weekend'];
-  const g = await p.$$eval('#hdGuide .hd-slot', e => e.map(x => x.innerText.replace(/\s+/g, ' ').trim()));
-  assert.strictEqual(g.length, 4, g.join(' | '));
-  assert.ok(g[0].startsWith('NOW ') && /\d:\d\d of 0:0[5-7] · \d:\d\d left/.test(g[0]), g[0]);
-  assert.ok(g.slice(1).every(x => /^\d\d:\d\d /.test(x)), g.join(' | '));
-  assert.strictEqual(await p.$eval('#hdGuide .hd-slot', e => getComputedStyle(e).position), 'static', 'the NOW row stays in the guide (no global .now)');
-  assert.strictEqual(await p.$('#hdGuide .now'), null);
-  const k0 = ORDER.findIndex(o => g[0].includes(o));
+  await airFor(p, 6);
+  assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['14:00', '14:30', '15:00', '15:30']);
+  assert.strictEqual(await txt(p, '.hd-gday'), 'WED, OCT 28');
+  assert.strictEqual(await txt(p, '#hdTgWhen'), 'NOW · 14:00');
+  assert.ok(await p.$eval('#hdGNow', e => !e.hidden && e.style.getPropertyValue('--p') === '0.0000'), 'the line for now, at the start of the half hour');
+  assert.ok(/^MUSIC VIDEOS \d+ videos$/.test(await txt(p, '.hd-gc.live')), 'short videos: one block per half hour: ' + await txt(p, '.hd-gc.live'));
+  assert.strictEqual(await p.$$eval('.hd-grow .hd-gc', e => e.length), 4, 'four half hours');
+  const g = await air(p);
+  const k0 = ORDER.indexOf(g[0]);
   assert.ok(k0 > -1, 'a name and a line from the file name: ' + g[0]);
-  for (let i = 1; i < 4; i++) assert.ok(g[i].includes(ORDER[(k0 + i) % 3]), 'in order: ' + g.join(' | '));
-  assert.strictEqual(await txt(p, '#hdOthers'), '', 'no other channels yet');
+  for (let i = 1; i < 6; i++) assert.strictEqual(g[i], ORDER[(k0 + i) % 3], 'in order: ' + g.join(' | '));
+  assert.ok(/^ON CH 1 .+ \d:\d\d left · next: /.test(await txt(p, '#hdNow')), await txt(p, '#hdNow'));
+  assert.strictEqual(await p.$$eval('.hd-grow', e => e.length), 1, 'one channel, one row');
+  assert.ok(await p.isDisabled('[data-hd="gback"]'), 'the guide starts at now');
+  await p.click('[data-hd="gnext"]'); assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['15:00', '15:30', '16:00', '16:30']);
+  assert.strictEqual(await txt(p, '#hdTgWhen'), 'FROM 15:00'); assert.ok(await p.$eval('#hdGNow', e => e.hidden), 'no line for now an hour on');
+  await p.click('[data-hd="gback"]'); assert.strictEqual(await txt(p, '#hdTgWhen'), 'NOW · 14:00');
+  assert.strictEqual(await p.$('[data-hd="gauto"]'), null, 'AUTO-SCROLL only once there are more channels than fit');
   assert.ok(await p.isDisabled('[data-hd="up"]'), 'one channel: nothing to change to');
 
   // ---- TUNE IN: mid-stream, at the clock's position in what's on now
@@ -81,7 +93,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
   const v1 = await vid(p);
   assert.ok(v1.inScreen && v1.src.includes('/Video/Test Channel/') && v1.src.includes('k=relay-test-token'), JSON.stringify(v1));
-  const now = (await txt(p, '.hd-slot.hd-now')).replace(/^NOW /, '');
+  const now = (await air(p))[0];
   assert.ok(v1.src.includes(now.split(' · ')[0]), 'playing what the guide says is on: ' + now + ' / ' + v1.src);
   assert.ok((await txt(p, '#eyebrow')).endsWith('· ON AIR'));
   assert.ok((await txt(p, '#hdLive')).startsWith('● LIVE ·'));
@@ -154,26 +166,41 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok((await vid(p)).src.includes('Season 1, Episode 1 - Updated Full Episode'), 'season 1, episode 1 first');
   const credit = (await p.innerText('#hdCredit')).replace(/\s+/g, ' ').trim();
   assert.strictEqual(credit, 'Test Series Season 1, Episode 1', 'the credit: the channel, the season and episode (no "Full Episode", no id)');
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4 && / round/.test(document.getElementById('hdInfo2').textContent), null, { timeout: 20000 });
-  const g2 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
+  await p.waitForFunction(() => / round/.test(document.getElementById('hdInfo2').textContent), null, { timeout: 20000 }); await airFor(p, 4);
+  const g2 = (await air(p)).slice(0, 4);
   const ORD = ['S1 E1', 'S1 E2', 'S1 E10', 'S2 E1', 'S10 E1 · The Last Case'], k2 = ORD.indexOf(g2[0]);   /* measuring is paced (2.53.1), so a 5-second first episode may be over by now */
   assert.ok(k2 >= 0 && k2 <= 1, g2.join(' | ')); assert.deepStrictEqual(g2, ORD.slice(k2, k2 + 4), 'episodes by number, seasons by number');
   assert.ok(/^3 seasons \+ specials · 7 episodes · 1 MKV skipped · in order · 40 s round · on air since /.test(await txt(p, '#hdInfo2')), await txt(p, '#hdInfo2'));
-  const oth = await txt(p, '#hdOthers');
-  assert.ok(/^CH 1 .+ Test Channel · until \d\d:\d\d · tap to switch$/.test(oth), oth);
+  assert.deepStrictEqual(await p.$$eval('.hd-gch', e => e.map(x => x.getAttribute('aria-label'))), ['Channel 1, Test Channel, tune in', 'Channel 2, Test Series, on screen']);
+  assert.strictEqual(await p.$$eval('.hd-grow[aria-current="true"] .hd-gc.live', e => e.length), 1, 'what plays now, lit');
 
-  // ---- changing channel: CH ▼, the guide's line, the dial (a turn, a tap)
+  // ---- changing channel: CH ▼, the guide (a channel, a show), the keypad
+  const ch = async () => (await txt(p, '#eyebrow')).replace(/^RESOURCES · HOLODECK · VISUAL · (CH \d+).*$/, '$1');
   await p.click('[data-hd="down"]');
-  assert.strictEqual(await txt(p, '.hd-chnum'), 'CH 1');
+  assert.strictEqual(await ch(), 'CH 1');
   await p.waitForFunction(() => /Test Channel/.test(decodeURIComponent((document.getElementById('hdVideo') || {}).getAttribute('src') || '')), null, { timeout: 8000 });
-  await p.click('#hdOthers .hd-other');
-  assert.strictEqual(await txt(p, '.hd-chnum'), 'CH 2');
-  await p.$eval('#hdDial', e => e.scrollIntoView({ block: 'center' })); await p.waitForTimeout(150); const bb = await (await p.$('#hdDial')).boundingBox();
-  await p.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await p.mouse.down();
-  await p.mouse.move(bb.x + bb.width / 2 - 50, bb.y + bb.height / 2 - 10, { steps: 6 }); await p.mouse.up();
-  assert.strictEqual(await txt(p, '.hd-chnum'), 'CH 1', 'turned to the left: channel 1');
-  await p.click('#hdDial');
-  assert.strictEqual(await txt(p, '.hd-chnum'), 'CH 2', 'a tap: the next channel');
+  await p.click('.hd-grow:not([aria-current="true"]) .hd-gc.live');
+  assert.strictEqual(await ch(), 'CH 2', 'a show in the guide: its channel');
+  await p.click('.hd-grow:not([aria-current="true"]) .hd-gch');
+  assert.strictEqual(await ch(), 'CH 1', 'a channel in the guide');
+  // the keypad: a digit shows its channel and tunes after a pause; ENTER at once; LAST and back; a number with no channel
+  assert.strictEqual(await txt(p, '#hdLcd'), 'CH 1 TEST CHANNEL');
+  await p.click('[data-hdkey="2"]');
+  assert.strictEqual(await txt(p, '#hdLcd'), 'CH 2 TEST SERIES · ENTER OR WAIT');
+  assert.strictEqual(await txt(p, '#hdOsd'), '2', 'the number on the screen too');
+  assert.strictEqual(await ch(), 'CH 1', 'not yet');
+  await p.waitForFunction(() => /· CH 2 ·/.test(document.getElementById('eyebrow').textContent), null, { timeout: 3000 });
+  assert.ok(await p.isHidden('#hdOsd')); assert.strictEqual(await txt(p, '#hdLcd'), 'CH 2 TEST SERIES');
+  await p.click('[data-hdkey="1"]'); await p.click('[data-hdkey="ok"]');
+  assert.strictEqual(await ch(), 'CH 1', 'ENTER: at once');
+  await p.click('[data-hdkey="last"]'); assert.strictEqual(await ch(), 'CH 2', 'LAST: the one before');
+  await p.click('[data-hdkey="last"]'); assert.strictEqual(await ch(), 'CH 1', 'and back');
+  await p.click('[data-hdkey="7"]'); await p.click('[data-hdkey="ok"]');
+  assert.strictEqual(await txt(p, '#hdLcd'), 'NO CHANNEL 7 CHANNELS 1 TO 2'); assert.strictEqual(await ch(), 'CH 1');
+  await p.waitForFunction(() => /^CH 1/.test(document.getElementById('hdLcd').textContent), null, { timeout: 3000 });
+  await p.evaluate(() => document.activeElement && document.activeElement.blur());
+  await p.keyboard.press('2'); assert.strictEqual(await txt(p, '#hdOsd'), '2', 'a keyboard\'s digits work it too');
+  await p.keyboard.press('Enter'); assert.strictEqual(await ch(), 'CH 2');
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).ch), 2);
 
   // ---- the end of the series: the specials, then the extra without a number, then round to the start
@@ -182,9 +209,9 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
     const ep = n => Object.keys(l).find(k => k.includes(n)); const pre = ['Season 1, Episode 1', 'Episode 2 -', 'Episode 10', 'Season 2 Episode 1'].reduce((s, n) => s + l[ep(n)].s, 0);
     c.chans[1].premiere = Date.now() - (pre + 1) * 1000; localStorage.setItem('tos.holo.v1', JSON.stringify(c)); });
   await p.reload(); await p.waitForSelector('#allBtn'); await p.click('#allBtn'); await p.click('[data-station="holodeck"]'); await visual(p);
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 15000 });
+  await airFor(p, 4, 15000);
   const RUN = ['S1 E1', 'S1 E2', 'S1 E10', 'S2 E1', 'S10 E1 · The Last Case', 'Special · Christmas Special', 'Special · Behind the Scenes'];
-  const g3 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent)), k3 = RUN.indexOf(g3[0]);
+  const g3 = (await air(p)).slice(0, 4), k3 = RUN.indexOf(g3[0]);
   assert.ok(k3 >= 4, 'near the end of the run: ' + g3.join(' | '));
   g3.forEach((x, i) => assert.strictEqual(x, RUN[(k3 + i) % RUN.length], 'the last season, the specials, the extra, then round again: ' + g3.join(' | ')));
 
@@ -200,6 +227,14 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   const kept = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).chans.map(c => c.name));
   assert.deepStrictEqual(kept, ['Mystery Hour'], 'the rename and the removal are kept on the iPad');
 
+  // ---- 2.57: the channels fold to one line, and stay as left
+  await p.click('[data-hd="chans"]');
+  assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 0, 'folded');
+  assert.strictEqual(await txt(p, '#hdCSum'), '1 CHANNEL · NO COMMERCIALS');
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).copen), false);
+  await p.click('[data-hd="chans"]'); assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);
+  assert.strictEqual(await p.getAttribute('[data-hd="chans"]', 'aria-expanded'), 'true');
+
   // ---- 2.48: NETWORK. A folder of show folders, programmed like TV
   await p.click('[data-hd="pick"]'); await p.waitForSelector('[data-hdpick="/Video/Test Network"]'); await p.click('[data-hdpick="/Video/Test Network"]');
   await p.waitForSelector('[data-hd="use"]'); await p.click('[data-hd="use"]');
@@ -208,14 +243,14 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.waitForFunction(() => /network/.test((document.querySelector('.hd-chan[aria-current="true"] [id^="hdInfo"]') || {}).textContent || ''), null, { timeout: 10000 });
   assert.ok(/^3 shows · 8 episodes · network · a new lineup every day at 6:00/.test(await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]')), await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]'));
   assert.strictEqual(await p.getAttribute('.hd-chan[aria-current="true"] [data-hdstyle$="|network"]', 'aria-pressed'), 'true');
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 10000 });
+  await airFor(p, 4, 10000);
   const SHOWS = ['Angry Test', 'Show Two', 'Third Show'];
-  const g4 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
+  const g4 = (await air(p)).slice(0, 4);
   const sh4 = g4.map(x => SHOWS.find(n => x.startsWith(n + ' · ')));
   assert.ok(sh4.every(Boolean), 'each slot names its show: ' + g4.join(' | '));
   for (let i = 0; i + 1 < sh4.length; i++) assert.ok(sh4[i] !== sh4[i + 1], 'never the same show twice in a row (2.53.5: no blocks of two): ' + g4.join(' | '));
   assert.ok(g4.every(x => !/Full Episode|\[|\.f\d|\.part/.test(x)), 'no "Full Episode", ids or leftovers: ' + g4.join(' | '));
-  const all = await p.evaluate(() => [...document.querySelectorAll('#hdGuide .hd-slot b')].map(x => x.textContent).join(' | '));
+  const all = (await air(p)).join(' | ');
   assert.ok(!/Unfinished/.test(all), 'a .part download never airs');
   await p.click('.hd-tune');
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
@@ -234,8 +269,8 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.click('.hd-chan[aria-current="true"] [data-hdstyle$="|network"]');
   await p.waitForFunction(() => /network/.test((document.querySelector('.hd-chan[aria-current="true"] [id^="hdInfo"]') || {}).textContent || ''), null, { timeout: 10000 });
   assert.ok(/^3 videos · 1 AVI skipped · network · a new shuffle every day at 6:00/.test(await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]')), await txt(p, '.hd-chan[aria-current="true"] [id^="hdInfo"]'));
-  await p.waitForFunction(() => document.querySelectorAll('#hdGuide .hd-slot').length === 4, null, { timeout: 10000 });
-  const g5 = await p.$$eval('#hdGuide .hd-slot b', e => e.map(x => x.textContent));
+  await airFor(p, 4, 10000);
+  const g5 = (await air(p)).slice(0, 4);
   assert.ok(g5.every(x => ['Neon Harbor · Midnight Signal', 'The Velvet Static · Satellite Heart', 'Juniper Drive · Polaroid Weekend'].includes(x)), 'artist · title, as a music video: ' + g5.join(' | '));
   await p.click('.hd-chan[aria-current="true"] [data-hdrm]'); await p.click('.hd-chan[aria-current="true"] [data-hdrm]');
   assert.strictEqual(await p.$$eval('.hd-chan', e => e.length), 1);

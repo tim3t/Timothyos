@@ -17,7 +17,7 @@ const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
-    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 10 * 86400e3, breaks: true }, { id: 2, name: 'Test Network', dir: '/Video/Test Network', premiere: Date.now() - 86400e3, style: 'network', breaks: true }], ch: 2, look: 'crt', muted: true, ads: '/Video/Commercials' })); }, [K, R]);
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 10 * 86400e3, breaks: true }, { id: 2, name: 'Test Network', dir: '/Video/Test Network', premiere: Date.now() - 86400e3, style: 'network', breaks: true }], ch: 2, copen: true, look: 'crt', muted: true, ads: '/Video/Commercials' })); }, [K, R]);
   await p.reload(); await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch');
   await p.waitForTimeout(3000);
   await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd-rail');

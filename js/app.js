@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.56.2";
+  var VERSION = "2.57.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10716,7 +10716,7 @@
     var adLens = lsGet(LS_HOLOADLEN) || {};
     if (cfg.ads) { var moved = 0; Object.keys(lens).forEach(function (k) { if (k.indexOf(cfg.ads + "/") === 0) { adLens[adKey(k)] = lens[k]; delete lens[k]; moved++; } }); if (moved) { lsSet(LS_HOLOLEN, lens); lsSet(LS_HOLOADLEN, adLens); } }   /* measured under 2.52.0 */
     var F = {};   /* each channel's folder as read, by folder: { play, skip, series, seasons, specials, at, busy, err } */
-    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", open: {}, sleepOpen: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", oth: "" };
+    var X = { sleep: null, sleepAt: 0, sleepT: 0, lv: 0, pt: 0, pw: {}, prog: null, fade: 0, fails: 0, on: false, pick: false, pickFor: "", open: {}, sleepOpen: false, pickDir: "/Video", pickErr: "", probing: false, tuneAt: 0, cur: null, v: null, keep: null, timer: 0, wait: 0, rm: 0, ren: 0, note: "", typed: "", kmsg: "", kt: 0, last: 0, gw: 0, gh: "", gk: "", gAt: 0, asT: 0, asHold: 0, asWrap: false };
     var KINDS = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm" }, VIDEO = /\.(mp4|m4v|mov|webm|avi|mkv|wmv|flv|mpe?g|vob|divx|3gp|ts|m2ts)$/i;
     var PARTIAL = /\.(f\d+|temp)\.[a-z0-9]+$/i;   /* yt-dlp's pieces of an unfinished download ("….f136.mp4" is video without sound, "….temp.mp4" a merge in progress): never episodes (2.51.4) */
     if (!chById(cfg.ch) && cfg.chans.length) { cfg.ch = cfg.chans[0].id; save(); }   /* the channel shown was removed: the first one */
@@ -11123,7 +11123,7 @@
       var a = X.au; if (a && a.getAttribute("src") && a.getAttribute("src") !== VA_SILENT) { a.pause(); a.removeAttribute("src"); a.load(); }
     }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
-      if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
+      if (!chById(id)) return; var moved = id !== cfg.ch; if (moved) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
       render();
     }
@@ -11166,32 +11166,124 @@
       }
       return "MEASURING " + s.play.filter(function (it) { return !unknown(it); }).length + " OF " + s.play.length + " VIDEOS…";
     }
-    function ang(k) { var n = cfg.chans.length; return n > 1 ? -100 + k * 200 / (n - 1) : 0; }   /* the channels spread evenly across the dial's face */
-    function rail() {   /* 2.53, layout C: an LCARS rail beside the screen: the look, the channel, the view, the sleep timer */
-      var n = cfg.chans.length, i = cfg.chans.indexOf(cur()), to = cfg.look === "crt" ? "clean" : "crt", sl = SLEEPS.filter(function (o) { return o[0] === "off" ? !X.sleep : String(X.sleep) === o[0]; })[0];
+    /* ---- the remote (2.57): a keypad where the dial was ---- */
+    function padHtml() {   /* the green display: the number being typed and its channel, else the channel on */
+      var t = X.typed, n = cfg.chans.length, c = t ? cfg.chans[+t - 1] : cur(), more = t.length === 1 && n >= +t * 10;
+      if (X.kmsg) return '<b class="hd-chnum">' + esc(X.kmsg) + "</b><small>" + (n ? "CHANNELS 1 TO " + n : "NO CHANNELS YET") + "</small>";
+      if (t) return '<b class="hd-chnum">CH ' + t + (more ? "_" : "") + "</b><small>" + (c ? esc(c.name.toUpperCase()) + " · ENTER OR WAIT" : "…") + "</small>";
+      return '<b class="hd-chnum">CH ' + (c ? num(c) : "–") + "</b><small>" + esc(c ? c.name.toUpperCase() : "NO CHANNELS YET") + "</small>";
+    }
+    function padShow() {   /* the display and the number on the screen, in place: no redraw while typing */
+      var e = $("hdLcd"); if (e) e.innerHTML = padHtml();
+      var o = $("hdOsd"); if (o) { o.textContent = X.typed ? X.typed + (X.typed.length === 1 && cfg.chans.length >= +X.typed * 10 ? "_" : "") : ""; o.hidden = !X.typed; }
+    }
+    function padKey(k) {   /* a digit waits 1.5 s for ENTER or a second digit; two digits tune at once */
+      clearTimeout(X.kt); X.kmsg = "";
+      if (k === "last") { X.typed = ""; if (X.last && chById(X.last)) switchTo(X.last); else padShow(); return; }
+      if (k === "ok") { padGo(); return; }
+      X.typed = (X.typed + k).slice(-2);
+      if (X.typed.length === 2) { padGo(); return; }
+      padShow(); X.kt = setTimeout(padGo, 1500);
+    }
+    function padGo() {   /* tune to the number typed; a number with no channel says so, then clears */
+      clearTimeout(X.kt); var t = X.typed; X.typed = ""; if (!t) { padShow(); return; }
+      var c = cfg.chans[+t - 1];
+      if (!c) { X.kmsg = "NO CHANNEL " + +t; padShow(); X.kt = setTimeout(function () { X.kmsg = ""; padShow(); }, 1500); return; }
+      if (c.id !== cfg.ch) switchTo(c.id); else padShow();
+    }
+    function rail() {   /* 2.53, layout C: an LCARS rail beside the screen: the look, the keypad (2.57), the view, the sleep timer */
+      var n = cfg.chans.length, to = cfg.look === "crt" ? "clean" : "crt", back = !!(X.last && chById(X.last));
       return '<div class="hd-rail">' +
         '<button type="button" class="hd-look" data-hdlook="' + to + '" aria-label="Look: ' + cfg.look.toUpperCase() + ". Tap for " + to.toUpperCase() + '"><small>LOOK</small><span>' + cfg.look.toUpperCase() + "</span></button>" +
-        '<div class="hd-dialbox"><span class="hd-chnum">CH ' + (i > -1 ? i + 1 : "–") + '</span><div class="hd-dial" id="hdDial" role="slider" tabindex="0" aria-label="Channel dial" aria-valuemin="1" aria-valuemax="' + Math.max(1, n) + '" aria-valuenow="' + Math.max(1, i + 1) + '">' +
-        '<span class="hd-ptr" id="hdPtr" style="transform: rotate(' + (ang(Math.max(0, i)) + 180) + 'deg)"></span>' +
-        cfg.chans.map(function (c, k) { var a = (ang(k) - 90) * Math.PI / 180; return '<span class="hd-tick' + (k === i ? " on" : "") + '" style="left: calc(50% + ' + (Math.cos(a) * 64).toFixed(1) + "px); top: calc(50% + " + (Math.sin(a) * 64).toFixed(1) + 'px)">' + (k + 1) + "</span>"; }).join("") + "</div></div>" +
+        '<div class="hd-pad"><div class="hd-lcd" id="hdLcd" aria-live="polite">' + padHtml() + '</div><div class="hd-keys" role="group" aria-label="Channel keypad">' +
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "last", "0", "ok"].map(function (k) {
+          var off = !n || (k === "last" && !back);
+          return '<button type="button" class="hd-key' + (k === "ok" ? " ok" : k === "last" ? " fn" : "") + '" data-hdkey="' + k + '"' + (k === "last" ? ' aria-label="Last channel"' : k === "ok" ? ' aria-label="Enter"' : "") + (off ? " disabled" : "") + ">" + (k === "last" ? "↺ LAST" : k === "ok" ? "ENTER" : k) + "</button>";
+        }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
         '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
         '<button type="button" class="hd-sleepb' + (X.sleep ? " set" : "") + '" data-hd="sleep" aria-haspopup="dialog" aria-expanded="' + X.sleepOpen + '"><small>SLEEP</small><span>' + (typeof X.sleep === "number" ? '<span id="hdSleepLeft">' + sleepLeft() + "</span> MIN LEFT" : X.sleep === "end" ? "END OF SHOW" : "OFF") + "</span></button>" +
         "</div>";
     }
-    function bindDial() {   /* turn it with a finger and let go near a channel; a tap moves on one */
-      var dl = $("hdDial"), ptr = $("hdPtr"), drag = null; if (!dl) return;
-      var angle = function (e) { var r = dl.getBoundingClientRect(); return Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI; };
-      dl.addEventListener("pointerdown", function (e) { e.preventDefault(); try { dl.setPointerCapture(e.pointerId); } catch (x) { /* fine without */ } drag = { x: e.clientX, y: e.clientY, a: null }; });
-      dl.addEventListener("pointermove", function (e) { if (!drag) return; if (drag.a == null && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 10) return; drag.a = Math.max(-130, Math.min(130, angle(e))); ptr.style.transform = "rotate(" + (drag.a + 180) + "deg)"; });
-      dl.addEventListener("pointerup", function () {
-        if (!drag) return; var a = drag.a; drag = null;
-        if (a == null) { step(1); return; }
-        var best = 0; cfg.chans.forEach(function (c, k) { if (Math.abs(ang(k) - a) < Math.abs(ang(best) - a)) best = k; });
-        if (cfg.chans[best] && cfg.chans[best].id !== cfg.ch) switchTo(cfg.chans[best].id); else render();
-      });
-      dl.addEventListener("pointercancel", function () { drag = null; render(); });
-      dl.addEventListener("keydown", function (e) { var d = e.key === "ArrowUp" || e.key === "ArrowRight" ? 1 : e.key === "ArrowDown" || e.key === "ArrowLeft" ? -1 : 0; if (d) { e.preventDefault(); step(d); var n = $("hdDial"); if (n) n.focus(); } });
+
+    /* ---- the guide (2.57): every channel, now and the next two hours, like the TV Guide channel ---- */
+    var TG_SPAN = 2 * 3600e3, TG_HALF = 1800e3, TG_SHORT = 600, TG_CAP = 3000;
+    function tgFrom(now) { var d = new Date(now); d.setMinutes(d.getMinutes() < 30 ? 0 : 30, 0, 0); return d.getTime() + X.gw * 3600e3; }   /* the half hour now began, then ◀ ▶ an hour at a time */
+    function tgName(list) {   /* a block of short videos: their show if they share one, else what they are */
+      var sh = list[0].it.show; if (sh && list.every(function (u) { return u.it.show === sh; })) return sh;
+      if (list.every(function (u) { return !u.it.show && u.it.s == null && !u.it.sp; })) return "MUSIC VIDEOS";
+      return tgEps(list) ? "EPISODES" : "SHORT VIDEOS";
+    }
+    function tgEps(list) { return list.every(function (u) { return u.it.s != null || u.it.sp || (u.it.show && (u.it.ep != null || u.it.e != null)); }); }
+    function tgWhy(c) { var s = F[c.dir]; return !s || (!s.play && !s.err) ? "READING THE FOLDER…" : !s.play ? "CAN'T REACH THE FOLDER" : !s.play.length ? "NO VIDEOS THE IPAD CAN PLAY" : breaks(c) === false ? "READING THE COMMERCIALS…" : "MEASURING…"; }
+    function tgBlocks(c, W0, W1) {   /* blocks from W0 to W1: a programme each, short videos together per half hour, a break folded into the show before it */
+      var out = [], q = null, carry = 0, k = 0, u = at(c, net(c) ? W0 : Math.max(W0, c.premiere)), capped = false;
+      while (u) {
+        if (++k > TG_CAP) { capped = true; break; }
+        if (u.brk) { if (q) q.b = endMs(u); else carry = carry || u.brk.startMs; var nb = pastBreak(u); if (!nb || nb.startMs <= u.startMs) { u = null; break; } u = nb; continue; }
+        var st = u.startMs; if (st >= W1) break;
+        var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slot = Math.floor((st - W0) / TG_HALF);
+        if (short && q && q.short && q.slot === slot) { q.list.push(u); q.b = en; }
+        else { if (q) out.push(q); q = { a: carry || st, b: en, short: short, slot: slot, list: [u] }; carry = 0; }
+        var n = after(u); if (!n || n.startMs <= st) { u = null; break; } u = n;
+      }
+      if (q) out.push(q);
+      var last = out.length ? out[out.length - 1].b : W0;
+      if (capped && out.length) out[out.length - 1].b = Math.max(last, W1);
+      else if (!u && last < W1) out.push({ a: last, b: W1, wait: true });
+      return out;
+    }
+    function tgRow(c, W0, W1, now) {
+      var on = c.id === cfg.ch, pct = function (ms) { return ((ms - W0) / TG_SPAN * 100).toFixed(3); };
+      var cells = tgBlocks(c, W0, W1).map(function (q) {
+        var a = Math.max(q.a, W0), b = Math.min(q.b, W1); if (b <= a) return "";
+        var pos = 'style="left: ' + pct(a) + "%; width: calc(" + ((b - a) / TG_SPAN * 100).toFixed(3) + '% - 4px)"';
+        if (q.wait) return '<button type="button" class="hd-gc wait" data-hdg="' + c.id + '" ' + pos + "><b>" + esc(q.a === W0 ? tgWhy(c) : "MEASURING…") + "</b></button>";
+        var one = !q.short || q.list.length === 1, l = label(q.list[0].it), live = now >= q.a && now < q.b;
+        var shown = live ? q.list.filter(function (u) { return u.startMs + u.dur * 1000 > now; }) : q.list;
+        var tip = hm(new Date(q.a)) + "–" + hm(new Date(q.b)) + "\n" + shown.slice(0, 12).map(function (u) { return line(label(u.it)); }).join("\n") + (shown.length > 12 ? "\nand " + (shown.length - 12) + " more" : "");
+        return '<button type="button" class="hd-gc' + (live ? " live" : "") + (q.b <= now ? " past" : "") + '" data-hdg="' + c.id + '" ' + pos + ' title="' + esc(tip) + '"><b>' + (q.a < W0 ? "◂ " : "") + esc(one ? l.a : tgName(q.list)) + "</b><small>" + esc(one ? l.t || (q.short ? "" : mmss((q.list[0].dur))) : q.list.length + (tgEps(q.list) ? " episodes" : " videos")) + (q.b > W1 ? " ▸" : "") + "</small></button>";
+      }).join("");
+      return '<div class="hd-grow" aria-current="' + on + '"><button type="button" class="hd-gch" data-hdg="' + c.id + '" aria-label="Channel ' + num(c) + ", " + esc(c.name) + (on ? ", on screen" : ", tune in") + '"><b>' + num(c) + '</b><span><span class="hd-gnm">' + esc(c.name) + "</span><small>" + (net(c) ? "NETWORK" : "IN ORDER") + (c.breaks && cfg.ads ? " · BREAKS" : "") + '</small></span></button><div class="hd-gtl">' + cells + "</div></div>";
+    }
+    function tgHtml(now) {
+      var W0 = tgFrom(now), W1 = W0 + TG_SPAN;
+      if (!cfg.chans.length) return '<p class="hd-gempty">The guide fills in once there\'s a channel: add one under CHANNELS.</p>';
+      return '<div class="hd-gh"><span class="hd-gday">' + esc(new Date(W0).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase()) + '</span><div class="hd-gtimes">' +
+        [0, 1, 2, 3].map(function (i) { return '<span style="left: ' + i * 25 + '%">' + hm(new Date(W0 + i * TG_HALF)) + "</span>"; }).join("") + "</div></div>" +
+        cfg.chans.map(function (c) { return tgRow(c, W0, W1, now); }).join("") + '<span class="hd-gnow" id="hdGNow" aria-hidden="true"></span>';
+    }
+    function tgKey(now) { return [tgFrom(now), cfg.ch, X.lv, A.at || 0, A.dir, cfg.ads, cfg.chans.map(function (c) { var s = F[c.dir]; return [c.id, c.name, c.style, c.breaks, c.premiere, s ? (s.at || 0) + (s.err ? "e" : "") : "-"].join(","); }).join(";")].join("|"); }
+    function tgPaint(force) {   /* worked out again every 15 ticks, or two ticks after anything it shows changes; redrawn only when it differs, so taps land; the line for now moves each second */
+      var g = $("hdTg"); if (!g) return; var now = Date.now(), k = tgKey(now); X.gAt++;   /* counted in ticks, so a paused clock can't hold it */
+      if (force || X.gAt >= 15 || (k !== X.gk && X.gAt >= 2)) {
+        X.gAt = 0; X.gk = k; var h = tgHtml(now);
+        if (h !== X.gh) { var b = $("hdTgBody"), st = b ? b.scrollTop : 0, sl = b ? b.scrollLeft : 0; g.innerHTML = h; X.gh = h; if (b) { b.scrollTop = st; b.scrollLeft = sl; } }
+      }
+      var W0 = tgFrom(now), nl = $("hdGNow"), p = (now - W0) / TG_SPAN; if (nl) { nl.hidden = p < 0 || p > 1; nl.style.setProperty("--p", Math.max(0, Math.min(1, p)).toFixed(4)); }
+      var w = $("hdTgWhen"), t = X.gw ? "FROM " + hm(new Date(W0)) : "NOW · " + hm(new Date(now)); if (w && w.textContent !== t) w.textContent = t;
+    }
+    function tgShell() {
+      return '<section class="hd-tg" aria-label="Guide"><div class="hd-tgbar"><b>GUIDE</b><span id="hdTgWhen"></span><span class="hd-tgsp"></span>' +
+        (cfg.chans.length > 5 ? '<button type="button" class="hd-tgb" data-hd="gauto" aria-pressed="' + !!cfg.gauto + '">AUTO-SCROLL</button>' : "") +
+        '<button type="button" class="hd-tgb" id="hdGBack" data-hd="gback" aria-label="An hour earlier"' + (X.gw ? "" : " disabled") + '>◀</button><button type="button" class="hd-tgb" id="hdGNext" data-hd="gnext" aria-label="An hour later"' + (X.gw < 6 ? "" : " disabled") + ">▶</button></div>" +
+        '<div class="hd-tgbody" id="hdTgBody"><div class="hd-tgin" id="hdTg"></div></div></section>';
+    }
+    function tgAuto() {   /* AUTO-SCROLL: the rows roll up slowly, like the guide channel; a touch holds it for 30 s; at the foot, a pause, then the top */
+      clearInterval(X.asT); X.asT = 0; if (!cfg.gauto) return;
+      X.asT = setInterval(function () {
+        var b = $("hdTgBody"); if (!b || state.screen !== "holodeck" || !cfg.gauto) { clearInterval(X.asT); X.asT = 0; return; }
+        if (document.hidden || Date.now() < X.asHold || b.scrollHeight <= b.clientHeight + 2) return;
+        if (X.asWrap) { X.asWrap = false; b.scrollTop = 0; X.asHold = Date.now() + 3000; return; }
+        if (b.scrollTop + b.clientHeight >= b.scrollHeight - 1) { X.asWrap = true; X.asHold = Date.now() + 3000; return; }
+        b.scrollTop += 1;
+      }, 60);
+    }
+    function tgBind() { var b = $("hdTgBody"); if (!b) return; ["pointerdown", "wheel", "touchstart"].forEach(function (ev) { b.addEventListener(ev, function () { X.asHold = Date.now() + 30000; X.asWrap = false; }, { passive: true }); }); }
+    function foldSum() {   /* the channels folded: how many, the commercials, breaks, and anything that needs a look */
+      var n = cfg.chans.length, bk = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      var look = cfg.chans.filter(function (x) { var s = F[x.dir]; return s && ((s.err && !s.play) || (s.play && s.play.some(unreadable))); }).length + (cfg.ads && A.dir === cfg.ads && A.err && !A.play ? 1 : 0);
+      return n + (n === 1 ? " CHANNEL" : " CHANNELS") + " · " + (cfg.ads ? "COMMERCIALS SET" : "NO COMMERCIALS") + (bk ? " · " + bk + " WITH BREAKS" : "") + (look ? ' · <span class="hd-att">' + look + (look === 1 ? " NEEDS" : " NEED") + " A LOOK</span>" : "");
     }
     /* ---- the arch: pick a program ---- */
     function archBtn() { return '<div class="hd-archrow"><button type="button" class="chip hd-archb" data-hdgo="arch">◇ ARCH</button></div>'; }
@@ -11256,7 +11348,7 @@
       var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
-      var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + "</span>" +
+      var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + '</span><span class="hd-osd" id="hdOsd" aria-hidden="true" hidden></span>' +
         (X.on ? '<button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
@@ -11276,11 +11368,13 @@
         (s && s.skip && s.skip.length ? '<p class="muted">The iPad can\'t play ' + esc(kinds(s.skip).replace(/\d+ /g, "")) + " files, so the channel skips them. README → HOLODECK has a one-time fix on the NAS.</p>" : "") +
         adsRow() + (X.pick && X.pickFor === "ads" ? picker() : "") +
         '<div class="btnrow"><button type="button" class="chip sm" data-hd="pick" aria-expanded="' + X.pick + '">+ ADD CHANNEL</button>' + (rows ? '<button type="button" class="chip sm" data-hd="rescan">LOOK AGAIN</button>' : "") + (anyOpen ? '<button type="button" class="chip sm" data-hd="collapse">COLLAPSE ALL</button>' : "") + "</div>" + (X.pick && X.pickFor !== "ads" ? picker() : "");
-      X.oth = "";
-      $("content").innerHTML = '<div class="hd">' + archBtn() + tv +
-        '<div class="hd-two">' + panel("chrome-b", "GUIDE", "NOW · NEXT · ON THE OTHER CHANNELS", '<div class="hd-guide" id="hdGuide">' + guide() + '</div><div class="hd-guide" id="hdOthers"></div>') + panel("chrome-c", "CHANNELS", "ONE NAS FOLDER EACH · IN ORDER OR NETWORK", src) + "</div>" + sleepWin() + "</div>";
+      var copen = !!cfg.copen || !cfg.chans.length || X.pick;   /* 2.57: folded to one line unless opened (remembered), empty, or choosing a folder */
+      var fold = '<section class="hd-cfold' + (copen ? " open" : "") + '">' + (cfg.chans.length ? '<button type="button" class="hd-cfh" data-hd="chans" aria-expanded="' + copen + '"><i aria-hidden="true"></i><b>CHANNELS</b><small id="hdCSum">' + foldSum() + '</small><span class="hd-cfs" aria-hidden="true">' + (copen ? "−" : "+") + "</span></button>" : '<div class="hd-cfh"><i aria-hidden="true"></i><b>CHANNELS</b><small>ONE NAS FOLDER EACH · IN ORDER OR NETWORK</small></div>') + (copen ? '<div class="hd-cfb">' + src + "</div>" : "") + "</section>";
+      var gb = $("hdTgBody"), gs = gb ? [gb.scrollTop, gb.scrollLeft] : null;
+      $("content").innerHTML = '<div class="hd">' + archBtn() + tv + tgShell() + fold + sleepWin() + "</div>";
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
-      bindDial(); paint();
+      X.gh = ""; tgPaint(true); gb = $("hdTgBody"); if (gb && gs) { gb.scrollTop = gs[0]; gb.scrollLeft = gs[1]; }
+      tgBind(); tgAuto(); padShow(); paint();
       clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
       if (X.on && Date.now() - X.tuneAt < 700) noise();
     }
@@ -11305,26 +11399,9 @@
       return pickBox(crumbs, l, dirs, act);
     }
     function pickBox(crumbs, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
-    function guide() {
-      var ch = cur(), c = X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()); if (!c) return '<div class="empty">' + (ch ? "The guide fills in once the first lengths are measured." : "Add a channel first.") + "</div>";
-      var out = [c], n = c; for (var i = 0; i < 3; i++) { n = n && (n.brk ? pastBreak(n) : after(n)); if (n) out.push(n); }   /* a break is one row, however many commercials */
-      var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
-      return out.map(function (u, k) {
-        var st = u.brk ? u.brk.startMs : u.startMs, dur = u.brk ? u.brk.dur : u.dur, p = u.brk ? (u.startMs - u.brk.startMs) / 1000 + pos : pos;
-        return '<div class="hd-slot' + (k ? "" : " hd-now") + (u.brk ? " hd-brk" : "") + '"><span class="t">' + (k ? hm(new Date(st)) : "NOW") + "</span><span><b>" + esc(line(label(u.it))) + "</b><small>" + (k ? mmss(dur) : mmss(p) + " of " + mmss(dur) + " · " + mmss(dur - p) + " left") + "</small>" + (k ? "" : '<span class="hd-prog"><i style="width:' + Math.min(100, p / dur * 100).toFixed(1) + '%"></i></span>') + "</span></div>";
-      }).join("");
-    }
-    function others() {   /* one line per other channel; it changes only when their programme does, so a tap always lands */
-      var now = Date.now();
-      return cfg.chans.filter(function (x) { return x.id !== cfg.ch; }).map(function (x) {
-        var o = at(x, now), s = F[x.dir];
-        return '<button type="button" class="hd-other" data-hdch="' + x.id + '"><span class="t">CH ' + num(x) + "</span><span><b>" + esc(o ? line(label(o.it)) : x.name) + "</b><small>" + esc(x.name) + " · " + (o ? "until " + hm(new Date(endMs(o))) : s && s.err ? "can't reach the folder" : "measuring…") + " · tap to switch</small></span></button>";
-      }).join("");
-    }
     function tick() {
       if (state.screen !== "holodeck") return;
-      var g = $("hdGuide"); if (g) g.innerHTML = guide();
-      var o = $("hdOthers"), h = others(); if (o && h !== X.oth) { o.innerHTML = h; X.oth = h; }
+      tgPaint(false);
       var np = $("hdNow"); if (np) np.innerHTML = nowHtml();
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
@@ -11340,6 +11417,7 @@
       if (tb) tb.disabled = !ready; if (ts) ts.textContent = tuneSub(); if (pw && !X.on) pw.disabled = !ready;
       cfg.chans.forEach(function (x) { var e = $("hdInfo" + x.id), h = chanInfo(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
       var ai = $("hdAdsInfo"); if (ai) { var ah = adsInfo(); if (ai.innerHTML !== ah) ai.innerHTML = ah; }
+      var cs = $("hdCSum"); if (cs) { var csh = foldSum(); if (cs.innerHTML !== csh) cs.innerHTML = csh; }
       var as = $("hdAdsSum"); if (as) { var sh = adsSum(); if (as.innerHTML !== sh) as.innerHTML = sh; }
       cfg.chans.forEach(function (x) { var e = $("hdSum" + x.id), h = chanSum(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
       ["hdSleepLeft", "hdSleepLeft2"].forEach(function (id) { var sl = $(id); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft(); });
@@ -11353,7 +11431,12 @@
     }
     function click(b) {
       var d = b.dataset;
-      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined && d.hdopen === undefined) return false;
+      if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined && d.hdopen === undefined && d.hdkey === undefined && d.hdg === undefined) return false;
+      if (d.hdkey) { padKey(d.hdkey); return true; }
+      if (d.hdg) { var gid = +d.hdg; if (gid !== cfg.ch) switchTo(gid); if (!X.on && at(cur(), Date.now())) tune(); return true; }   /* the guide: a channel or a show tunes to that channel (2.57) */
+      if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); render(); return true; }
+      if (d.hd === "gback" || d.hd === "gnext") { X.gw = Math.max(0, Math.min(6, X.gw + (d.hd === "gnext" ? 1 : -1))); tgPaint(true); var gk0 = $("hdGBack"), gk1 = $("hdGNext"); if (gk0) gk0.disabled = !X.gw; if (gk1) gk1.disabled = X.gw >= 6; return true; }
+      if (d.hd === "gauto") { cfg.gauto = !cfg.gauto; save(); b.setAttribute("aria-pressed", String(cfg.gauto)); X.asHold = 0; tgAuto(); return true; }
       if (d.hdsleep) { setSleep(d.hdsleep); X.sleepOpen = false; render(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
       if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } render(); return true; }   /* + / − on a row (2.53) */
       if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; render(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
@@ -11388,7 +11471,7 @@
       else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
-        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; X.open[id] = true; save(); switchTo(id);
+        cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; X.open[id] = true; cfg.copen = true; save(); switchTo(id);
       }
       else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
       else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
@@ -11402,8 +11485,14 @@
       else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
       return true;
     }
-    document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || state.screen !== "holodeck") return; if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); });
-    function leave() { X.sleepOpen = false; if (X.on) off(); }   /* leaving: off */
+    document.addEventListener("keydown", function (e) {
+      if (state.screen !== "holodeck") return;
+      if (e.key === "Escape") { if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); return; }
+      var t = e.target || {}; if (X.prog !== "visual" || X.sleepOpen || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "") || t.isContentEditable || !nasConf()) return;
+      if (/^\d$/.test(e.key)) { e.preventDefault(); padKey(e.key); }   /* a keyboard's digits work the keypad (2.57) */
+      else if (e.key === "Enter" && X.typed && t.tagName !== "BUTTON") { e.preventDefault(); padGo(); }
+    });
+    function leave() { X.sleepOpen = false; clearTimeout(X.kt); X.typed = ""; X.kmsg = ""; X.gw = 0; clearInterval(X.asT); X.asT = 0; if (X.on) off(); }   /* leaving: off */
     document.addEventListener("visibilitychange", function () {   /* away: the sound goes on as audio (2.56.2); back to the app: catch up with the broadcast */
       X.tp = Date.now();   /* time away isn't a stall */
       if (document.hidden) { if (X.on) toRadio(); return; }
