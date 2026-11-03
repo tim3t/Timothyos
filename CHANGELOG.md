@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.56.2 · 2026-11-03
+- **Fixed: HOLODECK went quiet when you left Bridge.** iPadOS keeps an audio player going when a Home Screen app goes to the background (as AUDIO does), but it stops an ordinary video. Until 2.53.3, FULL SCREEN used the iPad's own video player, which carries on, so leaving from full screen kept the sound; since Bridge draws full screen itself, every exit went silent. Now, when you go to the Home Screen, switch apps or lock the iPad with the TV on, its sound moves to an audio player at the same point and keeps following the channel's schedule, show after show (named on the lock screen). Coming back, the picture takes over at the live point. A muted TV stays silent; the sleep timer and OFF work as before.
+- While Bridge is in the background, HOLODECK no longer measures new videos' lengths; it picks up when you return.
+
 ## 2.56.1 · 2026-11-03
 - **Fixed: PLAN TODAY stopped responding in portrait.** In portrait the Bridge is taller than the screen, so the page itself scrolls. Clicking into "New task" made iPadOS scroll that page to show the field, and from then on it aimed clicks in the sheet as if the sheet had moved with it: ADD, SET PRIORITIES, CANCEL and the Life Area and Priority lists did nothing, and text beside them was selected instead. Only the dark backdrop still closed the sheet. Now the page is held still while any sheet is open (PLAN, CAPTURE, ASK, COMPUTER, details), and released exactly where it was when the sheet closes.
 

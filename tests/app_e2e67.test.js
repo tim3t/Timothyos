@@ -78,6 +78,7 @@ const reset = () => Promise.all([mode('briefmode', 'cap=0&fail=0&shape=0'), mode
   await p.evaluate(() => localStorage.setItem('tos.hiverhythm.v1', JSON.stringify({ active: 1, shoulder: 1, winter: 1 })));
   await p.click('.elbow'); await p.waitForSelector('[data-brief="again"]'); await p.click('[data-brief="again"]');
   s = await until(async () => { const x = await stats(); return x.n === 2 && x; });
+  await p.waitForSelector('#brPaper', { timeout: 15000 });   // compiled, headlines included: nothing of this one still on its way
   const winter = [11, 0, 1].includes(new Date(TODAY + 'T12:00:00Z').getUTCMonth());
   const n = 1 - ago, when = n < 0 ? (-n) + (n === -1 ? ' day' : ' days') + ' overdue.' : n === 0 ? 'today.' : n === 1 ? 'tomorrow.' : 'in ' + n + ' days.';   // every day: due whatever check came before
   assert.ok(s.ctx.includes((winter ? 'an outside look is due ' : 'a check is due ') + when), s.ctx.split('\n').filter(l => /HIVE/.test(l)).join(' | '));

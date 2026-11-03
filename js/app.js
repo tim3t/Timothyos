@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.56.1";
+  var VERSION = "2.56.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10962,6 +10962,7 @@
     }
     function probe() {   /* each new file's length, one at a time, from its header only: this channel first */
       if (X.probing) return;
+      if (document.hidden) { X.probeLater = true; return; }   /* not while Bridge is in the background: no second player loading beside the sound (2.56.2) */
       var list = [cur()].concat(cfg.chans), it = null;
       [false, true].forEach(function (wide) { for (var i = 0; i < list.length && !it; i++) it = want(list[i], wide); if (!it && !wide) it = adWant(); });   /* the commercials after the channels' lineups (2.52) */
       if (!it) { paint(); return; }
@@ -11076,9 +11077,51 @@
     function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
-      X.on = true; X.tuneAt = Date.now(); X.note = ""; burst(); start(c, true); render();
+      X.on = true; X.tuneAt = Date.now(); X.note = ""; radioUnlock(); burst(); start(c, true); render();
     }
-    function off() { clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
+       iPadOS keeps an audio player going when a Home Screen app goes to the background (AUDIO does), but stops an
+       inline video. Until 2.53.3 FULL SCREEN used the iPad's own player, which carries on, so leaving the app from full
+       screen kept the sound; since Bridge draws full screen itself, every exit went quiet. Now, leaving the app (Home,
+       another app, the lock), the broadcast moves to an audio player at the same point, follows the schedule show after
+       show, and shows on the lock screen; coming back, the picture takes over at the live point. The player is unlocked
+       by the tap that tunes in (iPadOS only lets a tap start sound). A muted TV stays silent. */
+    function radio() {
+      if (X.au) return X.au;
+      vid();
+      var a = document.createElement("audio"); a.id = "hdRadio"; a.preload = "auto"; X.keep.appendChild(a);
+      a.addEventListener("ended", function () {
+        if (!X.radio || !X.on || !X.cur) return;
+        if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; }
+        var n = next(X.cur) || at(cur(), Date.now()); if (n) radioPlay(n);
+      });
+      a.addEventListener("error", function () {   /* one that won't play as sound: on to what's on next, without marking it (the picture may still be fine) */
+        if (!X.radio || !X.on || !X.cur || !a.getAttribute("src") || a.getAttribute("src") === VA_SILENT) return;
+        clearTimeout(X.rw); var c = X.cur; X.rw = setTimeout(function () { if (X.radio && X.cur === c) { var n = next(c); if (n) radioPlay(n); } }, 1500);
+      });
+      return (X.au = a);
+    }
+    function radioUnlock() { var a = radio(); if (a.getAttribute("src") && a.getAttribute("src") !== VA_SILENT) return; a.src = VA_SILENT; var p = a.play(); if (p && p.catch) p.catch(function () { /* unlocked or not, the picture plays */ }); }
+    function radioPlay(c) {
+      var a = radio(); X.cur = c;
+      a.onloadedmetadata = function () { var pos = (Date.now() - c.startMs) / 1000; if (pos > .5 && isFinite(a.duration)) a.currentTime = Math.min(pos, Math.max(0, a.duration - 1)); };
+      a.src = url(c.it.f.path); a.muted = false;
+      var p = a.play(); if (p && p.catch) p.catch(function () { /* iPadOS said no: the picture catches up on return */ });
+      if ("mediaSession" in navigator && window.MediaMetadata) {
+        try { var lb = label(c.it); navigator.mediaSession.metadata = new MediaMetadata({ title: line(lb), artist: (c.c && c.c.name) || "HOLODECK", album: "TimothyOS · HOLODECK" }); navigator.mediaSession.playbackState = "playing"; } catch (e) { /* not offered here */ }
+      }
+    }
+    function toRadio() {
+      if (!X.on || X.radio || cfg.muted) return;
+      var c = at(cur(), Date.now()) || X.cur; if (!c) return;
+      X.radio = true; clearInterval(X.wd); clearTimeout(X.wait); if (X.v) X.v.pause();
+      radioPlay(c);
+    }
+    function radioStop() {
+      clearTimeout(X.rw); X.radio = false;
+      var a = X.au; if (a && a.getAttribute("src") && a.getAttribute("src") !== VA_SILENT) { a.pause(); a.removeAttribute("src"); a.load(); }
+    }
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -11361,9 +11404,12 @@
     }
     document.addEventListener("keydown", function (e) { if (e.key !== "Escape" || state.screen !== "holodeck") return; if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); });
     function leave() { X.sleepOpen = false; if (X.on) off(); }   /* leaving: off */
-    document.addEventListener("visibilitychange", function () {   /* back to the app: catch up with the broadcast */
+    document.addEventListener("visibilitychange", function () {   /* away: the sound goes on as audio (2.56.2); back to the app: catch up with the broadcast */
       X.tp = Date.now();   /* time away isn't a stall */
-      if (document.hidden || !X.on || state.screen !== "holodeck") return;
+      if (document.hidden) { if (X.on) toRadio(); return; }
+      if (X.probeLater) { X.probeLater = false; probe(); }
+      if (X.radio) { radioStop(); if (X.on) { X.cur = null; resume(); } return; }
+      if (!X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });
     return { render: render, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
