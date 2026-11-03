@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.56.1 · 2026-11-03
+- **Fixed: PLAN TODAY stopped responding in portrait.** In portrait the Bridge is taller than the screen, so the page itself scrolls. Clicking into "New task" made iPadOS scroll that page to show the field, and from then on it aimed clicks in the sheet as if the sheet had moved with it: ADD, SET PRIORITIES, CANCEL and the Life Area and Priority lists did nothing, and text beside them was selected instead. Only the dark backdrop still closed the sheet. Now the page is held still while any sheet is open (PLAN, CAPTURE, ASK, COMPUTER, details), and released exactly where it was when the sheet closes.
+
 ## 2.56.0 · 2026-11-03 (needs bridge 1.37)
 - **The hives have a rhythm, so they stop showing up every day.** Bridge counts from your newest hive check (APIARY) and the days between checks for the season: every **10 days April to September**, **21 days in March, October and November**, and in **winter (December to February)** no inspections, only an outside look about monthly. Set them in **APIARY → THIS YEAR → CHECK RHYTHM**; PROFILE SYNC carries them.
 - **On a rest day** the Morning Briefing, ASK and the weekly summary are told when you last checked and when the next is due, and that nothing is needed today, without the weather's hive window. The Bridge shows **HIVE CHECK · NEXT ~date**, marked REST. **When a check is due** (within 2 days, or overdue) the window and GO or HOLD come back; in winter it says an outside look is due.

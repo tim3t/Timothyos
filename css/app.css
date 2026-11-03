@@ -2878,3 +2878,7 @@ body:has(.hd-tv.big) { overflow: hidden; }
 .br-news .ov-sub { margin: 0; }
 .br-news a { color: var(--chrome-b); font-size: 16px; line-height: 1.35; text-decoration: underline; text-underline-offset: 3px; min-height: 28px; }
 .br-newsset { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+
+/* 2.56.1: while a sheet is open the page underneath can't scroll (iPadOS mis-aimed taps in a sheet after scrolling the page to a focused field) */
+html.sheet-lock { overflow: hidden; }
+html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }

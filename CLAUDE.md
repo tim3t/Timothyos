@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.56.0**, **bridge 1.37.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.56.1**, **bridge 1.37.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -330,6 +330,8 @@ Chrome (2.8): `--chrome-a` orchid, `--chrome-b` tan, `--chrome-c` lavender, `--c
 App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral, labelled **GROWTH** since 2.20; the key stays `hobby` in code, the API and storage). Notion Life Areas map via `taskArea()` in `js/app.js` by keyword, Timothy's choice (no mapping picker): a name containing Work → work; Farm or Bee → farm; Growth, Creative or Hobb → hobby; everything else → personal. Never write his real Life Area names here or in tests (tests use invented ones with the same keywords). The farm calendar is live once linked (bridge 1.8, `FARM_CALENDAR_ID`); the Growth calendar likewise (bridge 1.22, `GROWTH_CALENDAR_ID`, area `hobby`, label always GROWTH, `hasGrowth()`). Review saves its hours to the existing Notion field Hours Hobbies (schema unchanged).
 
 ## Known quirks (already handled; don't "fix" them away)
+
+- **Sheets pin the page** (2.56.1): `showSheet` calls `pageLock(true)` (html `.sheet-lock`, body `position: fixed` at `top: -scrollY`); `hideSheet` lets go when no `.scrim` is still open and scrolls back. In portrait the page scrolls, and iPadOS, after scrolling it to reveal a focused field in a fixed sheet, aimed taps at the wrong place (PLAN TODAY's ADD and SET PRIORITIES did nothing). Open and close sheets only through `showSheet`/`hideSheet`. Test: `app_e2e68`.
 
 - **No zoom, ever (2.7.2):** Safari zoomed the whole app on a quick double tap (a PIN with a repeated digit). `touch-action: manipulation` on html, body and controls turns double-tap zoom off without delaying taps; `gesturestart` and two-finger `touchmove` are cancelled; the viewport has `maximum-scale=1`. Don't add a "double-tap guard" that swallows the second touchend: it would drop the repeated digit. `app_e2e22` checks all of it.
 - **Google's result page intermittently 404s** (about 1 in 8 requests) even though the script ran. `withRetry()` re-runs the request twice for `http_404`, `bad_json`, `http_5xx`. Re-fetching the same result URL does not help.

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.56.0";
+  var VERSION = "2.56.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4376,14 +4376,33 @@
   }
   /* Sheets slide up when they open (CSS) and slide down before they hide. */
   var sheetTimers = {};
-  function showSheet(id) { var s = $(id); clearTimeout(sheetTimers[id]); s.classList.remove("closing"); if (typeof fitViewport === "function") fitViewport(); s.hidden = false; }
+  function showSheet(id) { var s = $(id); clearTimeout(sheetTimers[id]); s.classList.remove("closing"); if (typeof fitViewport === "function") fitViewport(); s.hidden = false; pageLock(true); }
   function hideSheet(id) {
     var s = $(id);
     if (s.hidden) return;
-    if (calm()) { s.hidden = true; return; }
+    if (calm()) { s.hidden = true; pageLock(false); return; }
     s.classList.add("closing");
     clearTimeout(sheetTimers[id]);
-    sheetTimers[id] = setTimeout(function () { s.hidden = true; s.classList.remove("closing"); }, 200);
+    sheetTimers[id] = setTimeout(function () { s.hidden = true; s.classList.remove("closing"); pageLock(false); }, 200);
+  }
+  /* 2.56.1: the page stays put while a sheet is open. In portrait the Bridge is taller than the screen, so the page
+     itself scrolls; when a field in a sheet takes the focus, iPadOS scrolls that page to "reveal" it, and from then on
+     it tests taps against the sheet as if it had moved with the page: ADD, SET PRIORITIES and the selects missed, text
+     beside them got selected, and only the dark backdrop answered. Pinned in place (body fixed at the same spot), the
+     page can't scroll under a sheet; it's let go, at the same place, when the last sheet closes. */
+  var pageLockY = null;
+  function pageLock(on) {
+    var de = document.documentElement, bd = document.body;
+    if (on) {
+      if (pageLockY !== null) return;
+      pageLockY = window.scrollY || de.scrollTop || 0;
+      bd.style.top = -pageLockY + "px"; de.classList.add("sheet-lock");
+      return;
+    }
+    if (pageLockY === null || document.querySelector(".scrim:not([hidden])")) return;   /* another sheet is still open */
+    var y = pageLockY; pageLockY = null;
+    de.classList.remove("sheet-lock"); bd.style.top = "";
+    window.scrollTo(0, y);
   }
   /* The LCARS light-up on every button press. */
   document.addEventListener("pointerdown", function (e) {
