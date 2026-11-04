@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.60.0 · 2026-11-04 (needs bridge 1.40)
+- **+ FROM A RECIPE** in MEALS: drop in a recipe by its link (any recipe site, or a Pinterest pin, which is followed to the site it points to), by pasting its text, or with a photo of a cookbook page or card. Bridge reads the recipe and Claude turns it into a menu card: name, kind, the shopping list by aisle with staples marked HAVE (about ½¢ from a link, 1¢ from text, 2¢ from a photo). The editor opens filled in to check; nothing is saved until SAVE. The recipe (ingredients as written, steps, servings, time, source) becomes the meal's Notion page, and the dish's photo shows on its card (a new **Photo** column on 🍽 Meals).
+- In **ASK**, a recipe link goes straight to + FROM A RECIPE; COMPUTER has **Add a recipe**.
+- **COOK:** the recipe large for the kitchen, from TONIGHT, a chosen night or the editor. Tick ingredients, follow the lit step (NEXT STEP), A+ for bigger type; the screen stays on while it's open. Recipes written into a meal's Notion page by hand show here too.
+- **Bridge 1.40:** mealimport, mealrecipe; mealsave writes the recipe as the page body and keeps the Photo.
+
 ## 2.59.0 · 2026-11-04 (needs bridge 1.39)
 - **MEALS** (Timothy's pick of three mockups: the week board, with the dinner diary as a second tab), in two new Notion databases, **🍽 Meals** and **🍽 Dinners**. **Setup:** update the bridge, connect both databases to the TimothyOS integration, run setup.
 - **TONIGHT** on TODAY and the Bridge shows tonight's dinner, and from 4 PM asks what it was: ✓ HAD IT, LEFTOVERS, EATING OUT, SOMETHING ELSE, with UNDO.

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.59.0";
+  var VERSION = "2.60.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1172,8 +1172,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.39.0";
-  var BRIDGE_FEATURES = [["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.40.0";
+  var BRIDGE_FEATURES = [["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -3914,6 +3914,7 @@
     var text = $("askText").value.trim();
     if (!text || askBusy) return;
     if (askEgg(text)) { $("askText").value = ""; return; }
+    if (mlAskRoute(text)) { $("askText").value = ""; return; }   /* a recipe to bring in: MEALS, not the chat (2.60) */
     freshAsk();
     askState.msgs.push({ role: "user", text: text.slice(0, 2000) });
     $("askText").value = "";
@@ -4472,7 +4473,7 @@
   function typing() { var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
   function checkIdle() {
     var mins = standbyMins();
-    if (sb.on || !mins || !state.conn || document.hidden || typing() || holoHold()) return;
+    if (sb.on || !mins || !state.conn || document.hidden || typing() || holoHold() || (state.screen === "meals" && ml.cook)) return;   /* no Standby while COOK is open (2.60) */
     if (Date.now() - sb.last >= mins * 60000) enterStandby();
   }
   setInterval(checkIdle, 15000);
@@ -6270,6 +6271,7 @@
       var mlGo = function (tab, sel) { mlView.tab = tab; ml.wk = 0; ml.sel = sel || null; ml.form = null; go("meals"); };
       A("Record dinner", "MEALS · TONIGHT", "RESOURCES", "dinner supper ate had food meal tonight", function () { mlGo("plan", mlToday()); });
       A("Plan meals", "MEALS · THIS WEEK", "RESOURCES", "menu dinner week plan food", function () { mlGo("plan"); });
+      if (canMealImport()) A("Add a recipe", "MEALS · + FROM A RECIPE", "RESOURCES", "recipe import pinterest link paste photo cookbook", function () { mlGo("plan"); mlClick({ dataset: { ml: "imp" } }); });
       A("Grocery list", "MEALS · GROCERIES", "RESOURCES", "shopping groceries buy store list print", function () { mlGo("plan"); var g = document.querySelector(".ml-groc"); if (g) g.scrollIntoView({ block: "start" }); });
       mlMeals().forEach(function (m) { var r = mlRot(m.id); A(m.name, "MEALS · " + (r.since === null ? "NOT MADE YET" : "LAST " + mlAgo(r.since).toUpperCase()), "RESOURCES", "meal dinner recipe", function () { mlGo("log"); }, "MEAL"); });
     }
@@ -12262,15 +12264,18 @@
      PLAN: the week as seven nights, menu cards longest-ago first (tap a night, then a card), and the grocery list built
      from the nights still to come; PRINT and SHARE. LOG: five weeks of dinners and the rotation table. TODAY and the
      Bridge carry TONIGHT, which from 4 PM asks what dinner was. Every change goes through tos.mealq.v1, in order. */
-  var LS_MEALS = "tos.meals.v1", LS_MEALQ = "tos.mealq.v1", LS_MEALGOT = "tos.mealgot.v1", LS_MEALVIEW = "tos.mealview.v1";
+  var LS_MEALS = "tos.meals.v1", LS_MEALQ = "tos.mealq.v1", LS_MEALGOT = "tos.mealgot.v1", LS_MEALVIEW = "tos.mealview.v1", LS_MEALRC = "tos.mealrc.v1";
   var ML_KINDS = ["Beef + Pork", "Chicken", "Fish", "Meatless", "Breakfast", "Other"];
   var ML_KC = { "Beef + Pork": "#e8a27a", Chicken: "#f6c66b", Fish: "#9db0ff", Meatless: "#7bd88f", Breakfast: "#c99bc4", Other: "#9d978c" };
   var ML_AISLES = ["Produce", "Meat + Fish", "Dairy", "Bakery", "Frozen", "Pantry", "Household", "Other"];
   var mlView = Object.assign({ tab: "plan", sort: "last" }, lsGet(LS_MEALVIEW) || {});
   var ml = { data: lsGet(LS_MEALS), err: null, inflight: false, flushing: false, q: Object.assign({ ops: [] }, lsGet(LS_MEALQ) || {}), qErr: "", qT: 0,
-    sel: null, wk: 0, editing: false, form: null, arm: null, armAt: 0, plan: null, planBusy: false, planErr: "", add: false };
+    sel: null, wk: 0, editing: false, form: null, arm: null, armAt: 0, plan: null, planBusy: false, planErr: "", add: false,
+    imp: null, cook: null, rc: lsGet(LS_MEALRC) || {}, wl: null };   /* 2.60: + FROM A RECIPE, COOK (recipes read back, kept for the kitchen) */
   function canMeals() { return state.caps.indexOf("meals") > -1; }
   function canMealPlan() { return state.caps.indexOf("mealplan") > -1; }
+  function canMealImport() { return state.caps.indexOf("mealimport") > -1; }
+  function canRecipes() { return state.caps.indexOf("recipes") > -1; }
   function mlMeals(all) { return ((ml.data && ml.data.meals) || []).filter(function (m) { return all || !m.retired; }); }
   function mlMeal(id) { return ((ml.data && ml.data.meals) || []).filter(function (m) { return m.id === id; })[0] || null; }
   function mlDinner(day) { return ((ml.data && ml.data.dinners) || []).filter(function (d) { return d.date === day; })[0] || null; }
@@ -12299,7 +12304,7 @@
   }
   function mlApply(op) {
     var d = ml.data; if (!d) return;
-    if (op.op === "meal") d.meals = d.meals.filter(function (m) { return m.id !== op.meal.id; }).concat([op.meal]).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    if (op.op === "meal") d.meals = d.meals.filter(function (m) { return m.id !== op.meal.id; }).concat([(function (mm) { delete mm.full; return mm; })(Object.assign({}, op.meal))]).sort(function (a, b) { return a.name.localeCompare(b.name); });
     else if (op.op === "remove") d.meals = d.meals.filter(function (m) { return m.id !== op.id; });
     else if (op.op === "dinner") {
       var x = op.dinner, m = x.kind === "meal" ? mlMeal(x.meal) : null;
@@ -12311,7 +12316,9 @@
   function mlQueue(op) {
     op.k = op.op === "dinner" ? "d:" + op.dinner.date : "m:" + (op.meal ? op.meal.id : op.id);
     var i = -1; ml.q.ops.forEach(function (o, j) { if (o.k === op.k) i = j; });
-    if (i > -1) ml.q.ops[i] = op; else ml.q.ops.push(op);   /* in place: a meal stays ahead of the dinners that name it */
+    if (i > -1 && op.op === "meal" && ml.q.ops[i].op === "meal" && ml.q.ops[i].meal.full && !op.meal.full) op.meal.full = ml.q.ops[i].meal.full;   /* an imported recipe not sent yet stays with it */
+    if (i > -1) ml.q.ops[i] = op; else ml.q.ops.push(op);
+    if (op.op === "meal" && op.meal.full) delete ml.rc[op.meal.id];   /* in place: a meal stays ahead of the dinners that name it */
     lsSet(LS_MEALQ, ml.q);
     mlApply(op); if (ml.data) lsSet(LS_MEALS, ml.data);
     flushMeals();
@@ -12402,7 +12409,7 @@
   }
 
   /* ---- drawing ---- */
-  function mlHead() { return { e: "RESOURCES · MEALS · " + (mlView.tab === "log" ? "LOG AND ROTATION" : ml.form ? (ml.form.isNew ? "NEW MEAL" : "EDIT MEAL") : "PLAN THE WEEK"), t: "MEALS" }; }
+  function mlHead() { var cm = ml.cook && mlMeal(ml.cook.id); return { e: "RESOURCES · MEALS · " + (cm ? "COOK" : mlView.tab === "log" ? "LOG AND ROTATION" : ml.imp ? "FROM A RECIPE" : ml.form ? (ml.form.isNew ? "NEW MEAL" : "EDIT MEAL") : "PLAN THE WEEK"), t: cm ? cm.name.toUpperCase() : "MEALS" }; }
   function mlDayBtn(day, small) {
     var t = mlToday(), dn = mlDinner(day), d = parseYmd(day), sel = ml.sel === day, past = day < t;
     var cls = "ml-day" + (small ? " sm" : "") + (day === t ? " today" : "") + (sel ? " sel" : "") + (dn ? (dn.status === "eaten" ? " eaten" : " planned") : past ? " blank" : " open");
@@ -12416,11 +12423,11 @@
       ". " + hint + (rec ? " to record it." : " to plan it.") + '</span><span class="btnrow">' +
       (dn && dn.status === "planned" && day <= t ? '<button type="button" class="chip sm" data-mlset="had" style="--c: var(--ok)">✓ HAD IT</button>' : "") +
       '<button type="button" class="chip sm" data-mlset="leftovers">LEFTOVERS</button><button type="button" class="chip sm" data-mlset="out">EATING OUT</button>' +
-      (dn ? '<button type="button" class="chip sm" data-mlset="none">CLEAR</button>' : "") + '<button type="button" class="chip sm" data-ml="unsel">DONE</button></span></div>';
+      (dn ? '<button type="button" class="chip sm" data-mlset="none">CLEAR</button>' : "") + (dn && dn.kind === "meal" && mlMeal(dn.meal) && canRecipes() ? '<button type="button" class="chip sm" data-mlcook="' + esc(dn.meal) + '" style="--c: var(--chrome-d)">COOK</button>' : "") + '<button type="button" class="chip sm" data-ml="unsel">DONE</button></span></div>';
   }
   function mlCard(x) {
     var m = x.m, r = x.r, flag = r.late ? "NOT IN A WHILE" : r.due ? "DUE" : r.since === null ? "NEW" : "";
-    return '<button type="button" class="ml-card' + (r.late ? " late" : "") + '" data-mlcard="' + esc(m.id) + '" style="--k: ' + ML_KC[m.kind] + '"><span class="ml-cardtop"><small>' + esc(m.kind.toUpperCase()) + "</small>" + (flag ? '<em class="' + (r.late ? "late" : "") + '">' + flag + "</em>" : "") + "</span><b>" + esc(m.name) + "</b><small>" +
+    return '<button type="button" class="ml-card' + (r.late ? " late" : "") + (m.photo ? " pic" : "") + '" data-mlcard="' + esc(m.id) + '" style="--k: ' + ML_KC[m.kind] + '">' + (m.photo ? '<img src="' + esc(m.photo) + '" alt="" loading="lazy">' : "") + '<span class="ml-cardtop"><small>' + esc(m.kind.toUpperCase()) + "</small>" + (flag ? '<em class="' + (r.late ? "late" : "") + '">' + flag + "</em>" : "") + "</span><b>" + esc(m.name) + "</b><small>" +
       (r.since === null ? "Not made yet" : "Last " + mlAgo(r.since) + " · " + r.times + "× in 90 days") + "</small></button>";
   }
   function mlPlanHtml() {
@@ -12445,17 +12452,19 @@
       html += "</div>";
     }
     html += "</section>";
-    html += '<section class="ml-panel ml-cards" aria-label="Menu cards"><div class="ml-ph"><h3>' + (ml.form ? (ml.form.isNew ? "NEW MEAL" : "EDIT MEAL") : "MENU CARDS") + '</h3><span class="ml-sub">' +
-      (ml.form ? "" : ml.editing ? "TAP A CARD TO EDIT IT" : ml.sel ? "TAP A CARD FOR " + DOW[parseYmd(ml.sel).getDay()] + " " + parseYmd(ml.sel).getDate() : "LONGEST AGO FIRST · TAP A NIGHT, THEN A CARD") + "</span>" +
-      (ml.form ? "" : '<span class="btnrow"><button type="button" class="chip sm" data-ml="edit" aria-pressed="' + ml.editing + '">' + (ml.editing ? "DONE EDITING" : "EDIT MEALS") + '</button><button type="button" class="chip sm" data-ml="new">+ MEAL</button></span>') + "</div>";
-    if (ml.form) html += mlFormHtml();
+    html += '<section class="ml-panel ml-cards" aria-label="Menu cards"><div class="ml-ph"><h3>' + (ml.imp ? "FROM A RECIPE" : ml.form ? (ml.form.isNew ? "NEW MEAL" : "EDIT MEAL") : "MENU CARDS") + '</h3><span class="ml-sub">' +
+      (ml.imp ? "A LINK, THE TEXT, OR A PHOTO" : ml.form ? "" : ml.editing ? "TAP A CARD TO EDIT IT" : ml.sel ? "TAP A CARD FOR " + DOW[parseYmd(ml.sel).getDay()] + " " + parseYmd(ml.sel).getDate() : "LONGEST AGO FIRST · TAP A NIGHT, THEN A CARD") + "</span>" +
+      (ml.form || ml.imp ? "" : '<span class="btnrow"><button type="button" class="chip sm" data-ml="edit" aria-pressed="' + ml.editing + '">' + (ml.editing ? "DONE EDITING" : "EDIT MEALS") + '</button><button type="button" class="chip sm" data-ml="new">+ MEAL</button>' +
+        (canMealImport() ? '<button type="button" class="chip sm" data-ml="imp" style="--c: var(--chrome-a)">+ FROM A RECIPE</button>' : "") + "</span>") + "</div>";
+    if (ml.imp) html += mlImpHtml();
+    else if (ml.form) html += mlFormHtml();
     else {
       var all = mlByAgo();
       html += all.length ? '<div class="ml-grid">' + all.map(mlCard).join("") + "</div>" : '<p class="muted">No meals yet. <b>+ MEAL</b> adds one: its name, its kind, and what it needs from the store. Or add them in Notion (🍽 Meals).</p>';
     }
     html += "</section>";
     var late = mlByAgo().filter(function (x) { return x.r.late; });
-    if (late.length && !ml.form) html += '<section class="ml-panel ml-lates"><b>NOT IN A WHILE</b>' + late.slice(0, 8).map(function (x) { return '<button type="button" class="chip sm" data-mlcard="' + esc(x.m.id) + '" style="--c: var(--warn)">' + esc(x.m.name) + " · " + x.r.since + " DAYS</button>"; }).join("") + "</section>";
+    if (late.length && !ml.form && !ml.imp) html += '<section class="ml-panel ml-lates"><b>NOT IN A WHILE</b>' + late.slice(0, 8).map(function (x) { return '<button type="button" class="chip sm" data-mlcard="' + esc(x.m.id) + '" style="--c: var(--warn)">' + esc(x.m.name) + " · " + x.r.since + " DAYS</button>"; }).join("") + "</section>";
     return html + "</div>" + mlGroceryHtml() + "</div>";
   }
   function mlGroceryHtml() {
@@ -12474,7 +12483,7 @@
   }
   function mlFormHtml() {
     var f = ml.form;
-    var html = '<div class="ml-form"><label class="ov-sub" for="mlName">NAME</label><input id="mlName" maxlength="200" autocomplete="off" value="' + esc(f.name) + '">' +
+    var html = '<div class="ml-form">' + (f.full ? mlImported(f) : "") + '<label class="ov-sub" for="mlName">NAME</label><input id="mlName" maxlength="200" autocomplete="off" value="' + esc(f.name) + '">' +
       '<span class="ov-sub">KIND</span><div class="btnrow">' + ML_KINDS.map(function (k) { return '<button type="button" class="chip sm" data-mlkind="' + k + '" aria-pressed="' + (f.kind === k) + '" style="--c: ' + ML_KC[k] + '">' + k.toUpperCase() + "</button>"; }).join("") + "</div>" +
       '<span class="ov-sub">WHAT IT NEEDS FROM THE STORE</span><div class="ml-ings">' + f.ing.map(function (x, i) {
         return '<div class="ml-ing"><input class="ml-ingn" data-i="' + i + '" maxlength="100" autocomplete="off" placeholder="Ingredient" aria-label="Ingredient ' + (i + 1) + '" value="' + esc(x.n) + '"><select class="ml-inga" data-i="' + i + '" aria-label="Aisle for ingredient ' + (i + 1) + '">' +
@@ -12486,6 +12495,7 @@
       '<div class="btnrow"><button type="button" class="btn capture" data-ml="save">SAVE</button><button type="button" class="btn ghost" data-ml="cancel">CANCEL</button>';
     if (!f.isNew) {
       var armed = ml.arm === "del" && Date.now() - ml.armAt < 4000;
+      if (canRecipes()) html += '<button type="button" class="chip" data-mlcook="' + esc(f.id) + '" style="--c: var(--chrome-d)">COOK</button>';
       html += '<button type="button" class="chip" data-ml="retire" aria-pressed="' + !!f.retired + '">' + (f.retired ? "RETIRED · OFF THE CARDS" : "RETIRE") + '</button><button type="button" class="chip" data-ml="del"' + (armed ? ' style="--c: var(--bad)"' : "") + ">" + (armed ? "TAP AGAIN TO REMOVE" : "REMOVE") + "</button>";
     }
     return html + "</div></div>";
@@ -12505,7 +12515,8 @@
     if (!name) { f.err = "Give the meal a name."; render(true); return; }
     if (recipe && !/^https?:\/\/\S+$/.test(recipe)) { f.err = "The recipe link should start with https://"; render(true); return; }
     var ing = f.ing.map(function (x) { return { n: x.n.replace(/[\r\n·]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100), a: x.a, have: !!x.have }; }).filter(function (x) { return x.n; });
-    var meal = { id: f.id, name: name.slice(0, 200), kind: f.kind, ing: ing, recipe: recipe, notes: f.notes.trim().slice(0, 4000), retired: !!f.retired };
+    var meal = { id: f.id, name: name.slice(0, 200), kind: f.kind, ing: ing, recipe: recipe, photo: f.photo || "", notes: f.notes.trim().slice(0, 4000), retired: !!f.retired };
+    if (f.full) meal.full = f.full;   /* an import: the recipe becomes the Notion page's body */
     mlQueue({ op: "meal", meal: meal });
     ml.form = null; toast((f.isNew ? "Added " : "Saved ") + name);
     render(true);
@@ -12537,6 +12548,8 @@
     loadMeals(false);
     if (!canMeals()) { $("content").innerHTML = '<div class="ml">' + phead("MEALS", "SETUP") + stubBox(state.conn ? "Needs the Google bridge updated to 1.39, and 🍽 Meals and 🍽 Dinners connected to the TimothyOS integration in Notion. Steps are in the README under <b>MEALS</b>." : "Link the bridge first, in SYSTEMS.") + "</div>"; return; }
     if (!ml.data) { $("content").innerHTML = '<div class="ml">' + phead("MEALS", "") + '<div class="empty">' + (ml.err ? esc(ml.err.msg) : "Loading your meals from Notion…") + "</div></div>"; return; }
+    if (ml.cook && !mlMeal(ml.cook.id)) { ml.cook = null; mlWake(false); }
+    if (ml.cook) { $("content").innerHTML = '<div class="ml">' + mlCookHtml() + "</div>"; return; }
     var nq = ml.q.ops.length, html = '<div class="ml">';
     html += '<div class="ml-tabs"><div role="tablist" aria-label="MEALS" class="btnrow">' + [["plan", "PLAN"], ["log", "LOG · ROTATION"]].map(function (x) { return '<button type="button" class="chip" role="tab" data-mltab="' + x[0] + '" aria-selected="' + (mlView.tab === x[0]) + '" aria-pressed="' + (mlView.tab === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div>" +
       (ml.data.url ? '<a class="chip sm" href="' + esc(ml.data.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</div>";
@@ -12557,7 +12570,11 @@
       if (d.mlnow !== "else" && d.mlnow !== "open") toast(d.mlnow === "undo" ? "Tonight: back as it was" : "Dinner recorded");
       render(true); return true;
     }
+    if (d.mlcook) { mlCookOpen(d.mlcook); return true; }
     if (state.screen !== "meals") return false;
+    if (d.mlimp) { mlImpRead(); ml.imp.mode = d.mlimp; ml.imp.err = ""; render(true); return true; }
+    if (d.mltick !== undefined && ml.cook) { ml.cook.got[d.mltick] = !ml.cook.got[d.mltick]; render(true); return true; }
+    if (d.mlstep !== undefined && ml.cook) { ml.cook.step = +d.mlstep; render(true); return true; }
     if (d.mltab) { mlView.tab = d.mltab; ml.sel = null; mlSaveView(); render(true); return true; }
     if (d.mlsort) { mlView.sort = d.mlsort; mlSaveView(); render(true); return true; }
     if (d.mlday) { ml.sel = ml.sel === d.mlday ? null : d.mlday; ml.form = null; render(true); return true; }
@@ -12569,7 +12586,7 @@
     }
     if (d.mlcard) {
       var m = mlMeal(d.mlcard); if (!m) return true;
-      if (ml.editing) { ml.form = { id: m.id, name: m.name, kind: m.kind, ing: m.ing.map(function (x) { return { n: x.n, a: x.a, have: !!x.have }; }), recipe: m.recipe || "", notes: m.notes || "", retired: !!m.retired, isNew: false, err: "" }; ml.arm = null; render(true); return true; }
+      if (ml.editing) { ml.form = { id: m.id, name: m.name, kind: m.kind, ing: m.ing.map(function (x) { return { n: x.n, a: x.a, have: !!x.have }; }), recipe: m.recipe || "", photo: m.photo || "", notes: m.notes || "", retired: !!m.retired, isNew: false, err: "" }; ml.arm = null; render(true); return true; }
       if (!ml.sel) { toast("Tap a night first, then the meal."); return true; }
       var sd = ml.sel; mlSet(sd, "meal", m.id);
       if (mlStatusFor(sd) === "planned" && mlView.tab === "plan") { var nx = mlNights().filter(function (x) { return x > sd && !mlDinner(x); })[0]; ml.sel = nx || null; }   /* on to the next open night */
@@ -12608,12 +12625,125 @@
       if (n3 && !g3.extra.some(function (x) { return x.n.toLowerCase() === n3.toLowerCase(); })) { g3.extra.push({ n: n3, a: ML_AISLES.indexOf(av) > -1 ? av : "Other" }); lsSet(LS_MEALGOT, g3); }
       render(true); var an2 = $("mlAddN"); if (an2) an2.focus();
     }
+    else if (a === "imp") { ml.imp = { mode: "link", url: "", text: "", file: null, busy: false, err: "" }; ml.form = null; ml.sel = null; ml.editing = false; render(true); var iu = $("mlImpUrl"); if (iu) iu.focus(); }
+    else if (a === "impno") { ml.imp = null; render(true); }
+    else if (a === "paste" && ml.imp) {
+      if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (t) { var u = (String(t || "").match(/https?:\/\/\S+/) || [""])[0]; if (u) { ml.imp.url = u; render(true); } else toast("No link on the clipboard. Copy the recipe's link first."); }, function () { toast("Couldn't read the clipboard. Paste the link into the box."); });
+      else toast("Paste the link into the box.");
+    }
+    else if (a === "impgo" && ml.imp) mlImpGo();
+    else if (a === "cookx") mlCookClose();
+    else if (a === "cookprev" || a === "cooknext") { if (ml.cook) { var nst = ml.cook.data ? ml.cook.data.steps.length : 0; ml.cook.step = Math.max(0, Math.min(nst - 1, ml.cook.step + (a === "cooknext" ? 1 : -1))); render(true); var cs = document.querySelector(".ml-step.now"); if (cs) cs.scrollIntoView({ block: "center", behavior: calm() ? "auto" : "smooth" }); } }
+    else if (a === "cookbig") { mlView.big = !mlView.big; mlSaveView(); render(true); }
     else if (a === "print") mlPrint();
     else if (a === "share") mlShare();
     else return false;
     return true;
   }
   document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target && e.target.id === "mlAddN") { e.preventDefault(); var b = document.querySelector('[data-ml="addsave"]'); if (b) b.click(); } });
+  /* ---- + FROM A RECIPE (2.60, bridge 1.40): a link, the text, or a photo → the editor, filled in, to review ---- */
+  function mlImpHtml() {
+    var I = ml.imp, tabs = [["link", "A LINK"], ["text", "THE TEXT"], ["photo", "A PHOTO"]];
+    var html = '<div class="ml-imp"><div class="btnrow" role="group" aria-label="From">' + tabs.map(function (t) { return '<button type="button" class="chip sm" data-mlimp="' + t[0] + '" aria-pressed="' + (I.mode === t[0]) + '">' + t[1] + "</button>"; }).join("") + "</div>";
+    if (I.mode === "link") html += '<label class="ov-sub" for="mlImpUrl">THE RECIPE\'S LINK (A RECIPE SITE, OR A PINTEREST PIN)</label><div class="ml-addrow ml-two"><input id="mlImpUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://" value="' + esc(I.url) + '"><button type="button" class="chip sm" data-ml="paste">PASTE</button></div>' +
+      '<small class="muted">Most recipe sites carry the recipe in a form Bridge reads directly, so Claude only names it and makes the shopping list (about ½¢).</small>';
+    else if (I.mode === "text") html += '<label class="ov-sub" for="mlImpText">THE RECIPE, PASTED</label><textarea id="mlImpText" rows="8" maxlength="40000" placeholder="Paste the ingredients and steps">' + esc(I.text) + "</textarea><small class=\"muted\">About 1¢.</small>";
+    else html += '<label class="ov-sub" for="mlImpPhoto">A PHOTO OF THE RECIPE (A COOKBOOK PAGE, A CARD)</label><input id="mlImpPhoto" type="file" accept="image/*">' + (I.file ? '<small class="muted">' + esc(I.file.name || "Photo") + " chosen.</small>" : "") + '<small class="muted">About 2¢. The photo goes to Claude to read, and isn\'t kept.</small>';
+    if (I.err) html += '<div class="errtxt">' + esc(I.err) + "</div>";
+    return html + '<div class="btnrow"><button type="button" class="btn capture" data-ml="impgo"' + (I.busy ? " disabled" : "") + ">" + (I.busy ? "READING THE RECIPE…" : "BUILD THE CARD") + '</button><button type="button" class="btn ghost" data-ml="impno">CANCEL</button></div><small class="muted">Nothing is saved until you check the card and tap SAVE.</small></div>';
+  }
+  function mlImpRead() { var I = ml.imp; if (!I) return; var u = $("mlImpUrl"), t = $("mlImpText"); if (u) I.url = u.value.trim(); if (t) I.text = t.value; }
+  function mlImpErr(err) {
+    var c = err && err.code;
+    return { recipe_blocked: "That site won't let Bridge read it. Copy the recipe's text and use THE TEXT instead.", recipe_unreachable: "Couldn't open that link. Check it, or use THE TEXT.",
+      pin_no_source: "That pin doesn't say where its recipe is. Open the pin, tap through to the recipe's own site, and copy that link.", recipe_not_found: "Claude couldn't find a recipe there.",
+      bad_request: "That isn't a link, text or photo Bridge can read." }[c] || describeAi(err);
+  }
+  function mlPhoto(file) {   /* a photo, smaller (1600 px on its long side) and as JPEG, so it travels quickly */
+    return new Promise(function (res, rej) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        res(c.toDataURL("image/jpeg", 0.82).split(",")[1]);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("photo")); };
+      img.src = url;
+    });
+  }
+  function mlImpGo() {
+    mlImpRead();
+    var I = ml.imp, body = { action: "mealimport" };
+    if (I.mode === "link") { if (!/^https?:\/\/\S+$/.test(I.url)) { I.err = "Paste the recipe's link (it starts with https://)."; render(true); return; } body.url = I.url; }
+    else if (I.mode === "text") { if (I.text.trim().length < 30) { I.err = "Paste the whole recipe: its ingredients and steps."; render(true); return; } body.text = I.text; }
+    else if (!I.file) { I.err = "Choose a photo first."; render(true); return; }
+    I.busy = true; I.err = ""; render(true);
+    (I.mode === "photo" ? mlPhoto(I.file).then(function (b64) { body.image = b64; body.mime = "image/jpeg"; }) : Promise.resolve()).then(function () { return apiPost(body, 150000); }).then(function (j) {
+      var r = j.recipe; if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
+      ml.imp = null;
+      ml.form = { id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: r.name, kind: ML_KINDS.indexOf(r.kind) > -1 ? r.kind : "Other", ing: r.ing.length ? r.ing : [{ n: "", a: "Produce", have: false }],
+        recipe: r.source || "", photo: r.photo || "", notes: r.notes || "", retired: false, isNew: true, err: "", via: j.via, cost: j.cost,
+        full: { lines: r.lines, steps: r.steps, servings: r.servings || "", time: r.time || "", source: r.source || "" } };
+    }, function (err) { I.busy = false; I.err = err && err.message === "photo" ? "Couldn't open that photo. Try another." : mlImpErr(err); })
+      .then(function () { if (state.screen === "meals") render(true); });
+  }
+  function mlImported(f) {   /* in the editor: what the import found, to check before SAVE */
+    var F = f.full, host = F.source ? F.source.replace(/^https?:\/\/(www\.)?/i, "").split("/")[0] : "";
+    return '<div class="ml-imported">' + (f.photo ? '<img src="' + esc(f.photo) + '" alt="">' : "") + "<span><b>" + (f.via === "photo" ? "FROM YOUR PHOTO" : host ? "FROM " + esc(host.toUpperCase()) : "FROM YOUR TEXT") + "</b><small>" +
+      F.lines.length + (F.lines.length === 1 ? " ingredient" : " ingredients") + " as written · " + F.steps.length + (F.steps.length === 1 ? " step" : " steps") + (F.servings ? " · serves " + esc(F.servings) : "") + (F.time ? " · " + esc(F.time) : "") +
+      ". Check the name, kind and shopping list below; the recipe goes into the meal's Notion page.</small></span>" +
+      '<details class="ml-full"><summary>THE RECIPE</summary><ul>' + F.lines.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul><ol>" + F.steps.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol></details></div>";
+  }
+  document.addEventListener("change", function (e) { if (e.target && e.target.id === "mlImpPhoto" && ml.imp) { ml.imp.file = e.target.files && e.target.files[0] || null; ml.imp.err = ""; render(true); } });
+  /* ASK: a recipe link (or "add this recipe" with one) goes to + FROM A RECIPE instead of to Claude's chat */
+  function mlAskRoute(text) {
+    if (!canMealImport()) return false;
+    var u = (text.match(/https?:\/\/\S+/) || [""])[0];
+    if (!(u && (/recipe|pinterest\.|pin\.it/i.test(text))) && !/^(add|import|save) (this |a )?recipe\b/i.test(text)) return false;
+    closeAsk();
+    mlView.tab = "plan"; go("meals");   /* first: opening MEALS clears what was open in it */
+    ml.form = null; ml.cook = null; ml.imp = { mode: u ? "link" : "text", url: u, text: u ? "" : text.replace(/^(add|import|save) (this |a )?recipe:?\s*/i, ""), file: null, busy: false, err: "" };
+    if (u || ml.imp.text.trim().length >= 30) mlImpGo(); else render(true);
+    return true;
+  }
+
+  /* ---- COOK (2.60): the recipe large, for the kitchen; ingredients to tick, the step you're on; the screen kept on ---- */
+  function mlCookOpen(id) {
+    var m = mlMeal(id); if (!m) return;
+    ml.cook = { id: id, data: ml.rc[id] ? ml.rc[id].d : null, err: "", got: {}, step: 0 };
+    ml.form = null; ml.imp = null; mlView.tab = "plan";
+    if (state.screen !== "meals") go("meals"); else render(true);
+    mlWake(true);
+    api({ action: "mealrecipe", id: id }).then(function (j) {
+      ml.rc[id] = { at: Date.now(), d: { lines: j.lines || [], steps: j.steps || [], other: j.other || [], recipe: j.recipe || "", photo: j.photo || "" } };
+      Object.keys(ml.rc).sort(function (a, b) { return ml.rc[b].at - ml.rc[a].at; }).slice(20).forEach(function (k) { delete ml.rc[k]; });   /* the 20 cooked most lately stay for no signal */
+      lsSet(LS_MEALRC, ml.rc);
+      if (ml.cook && ml.cook.id === id) { ml.cook.data = ml.rc[id].d; ml.cook.err = ""; }
+    }, function (err) { if (ml.cook && ml.cook.id === id && !ml.cook.data) ml.cook.err = mlErrText(err); })
+      .then(function () { if (state.screen === "meals" && ml.cook) render(true); });
+  }
+  function mlCookClose() { ml.cook = null; mlWake(false); render(true); }
+  function mlWake(on) {   /* the screen stays on while COOK is open, whatever Standby is set to */
+    if (!on) { if (ml.wl) { ml.wl.release().catch(function () {}); ml.wl = null; } return; }
+    if (ml.wl || !("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (l) { ml.wl = l; l.addEventListener("release", function () { ml.wl = null; }); }, function () { /* refused: Standby still waits while COOK is open */ });
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && ml.cook && state.screen === "meals") mlWake(true); });
+  function mlCookHtml() {
+    var C = ml.cook, m = mlMeal(C.id), D = C.data, big = !!mlView.big;
+    var lines = D && D.lines.length ? D.lines : m.ing.map(function (x) { return x.n; }), steps = D ? D.steps : [];
+    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
+      (D && D.other.length ? "<small>" + esc(D.other.filter(function (x) { return !/^From /.test(x); }).join(" · ")) + "</small>" : "") + '</span><span class="btnrow"><button type="button" class="chip sm" data-ml="cookbig" aria-pressed="' + big + '">' + (big ? "A−" : "A+") + "</button>" +
+      ((D && D.recipe) || m.recipe ? '<a class="chip sm" href="' + esc((D && D.recipe) || m.recipe) + '" target="_blank" rel="noopener">THE RECIPE PAGE</a>' : "") + '<button type="button" class="chip" data-ml="cookx">DONE</button></span></div>';
+    if (C.err && !D) html += '<div class="err">' + esc(C.err) + "</div>";
+    else if (!D) html += '<div class="empty">Reading the recipe…</div>';
+    html += '<div class="ml-cookbody"><div><h3>INGREDIENTS</h3>' + lines.map(function (l, i) { return '<button type="button" class="ml-tick' + (C.got[i] ? " got" : "") + '" data-mltick="' + i + '" aria-pressed="' + !!C.got[i] + '"><i aria-hidden="true">' + (C.got[i] ? "✓" : "") + "</i><span>" + esc(l) + "</span></button>"; }).join("") + "</div>";
+    html += "<div><h3>STEPS" + (steps.length ? " · " + (C.step + 1) + " OF " + steps.length : "") + "</h3>" + (steps.length ? steps.map(function (x, i) { return '<button type="button" class="ml-step' + (i === C.step ? " now" : i < C.step ? " done" : "") + '" data-mlstep="' + i + '" aria-current="' + (i === C.step) + '"><b>' + (i + 1) + "</b><span>" + esc(x) + "</span></button>"; }).join("") +
+      '<div class="btnrow ml-stepnav"><button type="button" class="btn ghost" data-ml="cookprev"' + (C.step ? "" : " disabled") + '>◀ STEP</button><button type="button" class="btn capture" data-ml="cooknext"' + (C.step < steps.length - 1 ? "" : " disabled") + ">NEXT STEP ▶</button></div>"
+      : '<p class="muted">' + (D ? "No steps in this meal's Notion page yet. Add them there as a numbered list (or under a Steps heading), or bring the recipe in with + FROM A RECIPE." : "") + "</p>") + "</div></div></section>";
+    return html;
+  }
+
   /* TONIGHT, on TODAY and the Bridge: what's planned, and from 4 PM, what it was */
   function mealLine() {
     if (!state.conn || !canMeals()) return "";
@@ -12624,6 +12754,7 @@
     var acts = eve && (!dn || dn.status === "planned")
       ? (dn && dn.kind === "meal" ? '<button type="button" class="chip sm" data-mlnow="had" style="--c: var(--ok)">✓ HAD IT</button>' : "") + '<button type="button" class="chip sm" data-mlnow="leftovers">LEFTOVERS</button><button type="button" class="chip sm" data-mlnow="out">EATING OUT</button><button type="button" class="chip sm" data-mlnow="else">SOMETHING ELSE</button>'
       : dn && dn.status === "eaten" ? '<button type="button" class="chip sm" data-mlnow="undo">UNDO</button>' : '<button type="button" class="chip sm" data-mlnow="open">' + (dn ? "MEALS" : "PLAN") + "</button>";
+    if (dn && dn.kind === "meal" && mlMeal(dn.meal) && canRecipes()) acts = '<button type="button" class="chip sm" data-mlcook="' + esc(dn.meal) + '" style="--c: var(--chrome-d)">COOK</button>' + acts;
     return '<div class="ml-line" id="mlLine"><span class="ml-lt"><small>TONIGHT · DINNER</small><b>' + esc(dn ? mlDName(dn) : eve ? "Not recorded" : "Nothing planned") + "</b><small>" + esc(sub) +
       (tm ? " · tomorrow: " + esc(mlDName(tm)) : "") + (G.left ? " · " + G.left + " to buy" : "") + '</small></span><span class="btnrow">' + acts + "</span></div>";
   }
@@ -13531,7 +13662,8 @@
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
     if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); }
-    if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; }   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
+    if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; ml.imp = null; if (ml.cook) { ml.cook = null; mlWake(false); } }
+    if (state.screen === "meals" && screen !== "meals" && ml.cook) { ml.cook = null; mlWake(false); }   /* COOK ends when you leave MEALS */   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */

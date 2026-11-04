@@ -50,7 +50,8 @@ const inView = (p, sel) => p.evaluate(s => { const r = document.querySelector(s)
   console.log('tab:', tab);
   assert.ok(Math.abs(tab[0] - tab[1]) <= 1 && tab[2].includes('1 NEEDS YOU'), 'right-aligned tab');
   await p.screenshot({ path: D + 'needs-you-tab.png' });
-  await p.click('#fixJump'); await p.waitForTimeout(900);
+  await p.click('#fixJump');
+  for (let i = 0; i < 30 && !(await inView(p, '#fixPanel')); i++) await p.waitForTimeout(100);   /* a smooth scroll: longer as SYSTEMS grows */
   assert.ok(await inView(p, '#fixPanel'), 'back at the card');
   await p.waitForTimeout(200);
   assert.ok(await p.isHidden('#fixJump'));

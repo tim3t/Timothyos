@@ -3034,3 +3034,40 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
   .ml-cal { gap: 3px; }
   .ml-day.sm b { font-size: 11px; }
 }
+/* 2.60: + FROM A RECIPE, photos on the cards, COOK */
+.ml-card.pic { padding-top: 0; overflow: hidden; }
+.ml-card.pic img { display: block; width: calc(100% + 24px); margin: 0 -12px 6px; height: 84px; object-fit: cover; border-radius: 14px 14px 0 0; }
+.ml-imp { display: grid; gap: 8px; }
+.ml-imp textarea, .ml-imp input[type="url"], .ml-imp input[type="file"] { min-height: 44px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--fg); padding: 8px 10px; font: inherit; min-width: 0; box-sizing: border-box; width: 100%; }
+.ml-addrow.ml-two { grid-template-columns: minmax(0, 1fr) auto; }
+.ml-imported { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: start; background: var(--panel-2); border-radius: 14px; padding: 10px 12px; box-shadow: inset 4px 0 0 var(--chrome-a); }
+.ml-imported > img { width: 96px; height: 72px; object-fit: cover; border-radius: 10px; grid-row: span 2; }
+.ml-imported > span { display: grid; gap: 2px; min-width: 0; }
+.ml-imported b { font-family: var(--display); font-weight: 600; letter-spacing: .14em; color: var(--chrome-a); }
+.ml-imported small { color: var(--dim); font-size: 14px; }
+.ml-full { grid-column: 1 / -1; }
+.ml-full summary { font-family: var(--display); font-size: 13px; letter-spacing: .14em; cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.ml-full ul, .ml-full ol { margin: 4px 0; padding-left: 22px; font-size: 15px; line-height: 1.4; }
+.ml-cook { display: grid; gap: 14px; --cs: 18px; }
+.ml-cook.big { --cs: 24px; }
+.ml-cookhead { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; background: var(--panel); border-radius: 0 22px 22px 0; border-left: 10px solid var(--chrome-d); padding: 12px 16px; }
+.ml-cookhead > img { width: 120px; height: 90px; object-fit: cover; border-radius: 12px; }
+.ml-cookhead > span:not(.btnrow) { display: grid; gap: 2px; flex: 1; min-width: 200px; }
+.ml-cookhead small { font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--dim); }
+.ml-cookhead b { font-family: var(--display); font-weight: 600; font-size: 30px; letter-spacing: .06em; line-height: 1.1; }
+.ml-cookhead .btnrow { margin: 0; }
+.ml-cookhead a.chip { text-decoration: none; }
+.ml-cookbody { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.ml-cookbody > div { background: var(--panel); border-radius: 18px; padding: 12px 14px 14px; display: grid; gap: 6px; min-width: 0; }
+.ml-cookbody h3 { margin: 0 0 4px; font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: .14em; color: var(--chrome-d); }
+.ml-tick, .ml-step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; min-height: 48px; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: var(--fg); text-align: left; font-size: var(--cs); line-height: 1.35; }
+.ml-tick i { width: 26px; height: 26px; margin-top: 2px; border-radius: 7px; display: grid; place-content: center; font-style: normal; font-size: 16px; color: var(--ink); box-shadow: inset 0 0 0 2px #3a3c48; }
+.ml-tick.got i { background: var(--ok); box-shadow: none; }
+.ml-tick.got span { text-decoration: line-through; color: var(--dim); }
+.ml-step b { font-family: var(--display); font-size: calc(var(--cs) + 4px); color: var(--dim); text-align: center; }
+.ml-step.now { background: var(--panel-2); box-shadow: inset 0 0 0 3px var(--chrome-d); }
+.ml-step.now b { color: var(--chrome-d); }
+.ml-step.done { opacity: .5; }
+.ml-stepnav { position: sticky; bottom: 8px; margin-top: 6px; }
+@media (max-width: 900px) { .ml-cookbody { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) { .ml-cookhead b { font-size: 24px; } .ml-cookhead > img { width: 100%; height: 140px; } }
