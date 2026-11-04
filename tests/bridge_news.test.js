@@ -23,7 +23,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 ctx.setup(); const key = props.ACCESS_KEY; fetches = [];   // setup checks other feeds
-const get = p => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, p) }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, p)) } }).text);
 
 assert.ok(get({ action: 'ping' }).capabilities.includes('news'), 'always offered');
 reply = { code: 200, body: FEED };
@@ -38,7 +38,7 @@ assert.strictEqual(cache['news:1:ttl'], 1800, 'kept 30 minutes');
 // cached: no second fetch
 get({ action: 'news' }); assert.strictEqual(fetches.length, 1);
 // batched with the other reads
-const b = JSON.parse(ctx.doGet({ parameter: { key, action: 'batch', calls: JSON.stringify([{ action: 'news' }]) } }).text);
+const b = JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key, action: 'batch', calls: JSON.stringify([{ action: 'news' }]) }) } }).text);
 assert.ok(b.results[0].ok && b.results[0].items.length === 5, JSON.stringify(b).slice(0, 200));
 // the feed failing, or empty, or unreachable
 for (const r of [{ code: 503, body: '' }, { code: 200, body: '<rss><channel></channel></rss>' }, { throw: true }]) {

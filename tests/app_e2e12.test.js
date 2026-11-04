@@ -13,7 +13,8 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8094/x/exec?acti
   let lose = true;
   // the server receives every POST, but while `lose` is on the page never sees the reply
   await p.route('**/127.0.0.1:8094/**', async r => {
-    if (r.request().method() === 'POST' && lose) { await r.fetch(); return r.abort('connectionreset'); }
+    const rd = ['ping', 'batch', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'holidays'].includes(JSON.parse(r.request().postData() || '{}').action);   /* 2.58: reads are POSTs too; only writes are lost here */
+    if (r.request().method() === 'POST' && lose && !rd) { await r.fetch(); return r.abort('connectionreset'); }
     return r.continue();
   });
   await p.goto('http://localhost:8080/');

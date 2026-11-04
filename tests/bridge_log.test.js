@@ -47,7 +47,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 const key = props.ACCESS_KEY;
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-const ping = () => JSON.parse(ctx.doGet({ parameter: { key, action: 'ping' } }).text);
+const ping = () => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key, action: 'ping' }) } }).text);
 
 // No PIN set: the log refuses everything, caps say so.
 assert.ok(ping().capabilities.includes('log')); assert.ok(!ping().capabilities.includes('logpin'));
@@ -57,7 +57,9 @@ assert.ok(ping().capabilities.includes('logpin'));
 // Access key still required.
 assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ action: 'logunlock', pin: '204816' }) } }).text).error, 'no_key', 'a request that lost its details says so');
 assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: 'x'.repeat(64), action: 'logunlock', pin: '204816' }) } }).text).error, 'unauthorized', 'a wrong key is refused');
-assert.strictEqual(JSON.parse(ctx.doGet({ parameter: {} }).text).error, 'no_key', 'a POST turned into an empty GET is recognisable');
+assert.strictEqual(JSON.parse(ctx.doGet({ parameter: {} }).text).error, 'no_key', 'a POST turned into an empty GET is recognisable (the app retries it)');
+assert.strictEqual(JSON.parse(ctx.doGet({ parameter: { key, action: 'ping' } }).text).error, 'use_post', '1.38: even with the key, nothing is read by GET');
+assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: '{}' } }).text).error, 'no_key', 'a POST without its body is recognisable');
 // Wrong PIN counts down, right PIN resets.
 let r = post({ action: 'logunlock', pin: '111111' }); assert.strictEqual(r.error, 'bad_pin'); assert.strictEqual(r.left, 4);
 r = post({ action: 'logday', pin: '20481', date: '2026-10-07' }); assert.strictEqual(r.error, 'bad_pin'); assert.strictEqual(r.left, 3);
@@ -129,7 +131,7 @@ assert.ok(!/log(Day|Dates|Save|Import|Blocks|Source)_/.test(askPart), 'Ask code 
 blip = 1; assert.ok(post({ action: 'logdates', pin }).ok, 'momentary empty read retried');
 blip = 5; assert.strictEqual(post({ action: 'logdates', pin }).error, 'key_unreadable', 'a lasting gap is reported as such'); blip = 0;
 // Reads also work as GET (the key and PIN in the address survive a redirect).
-const getL = q => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, q) }).text);
+const getL = q => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, q)) } }).text);
 assert.strictEqual(getL({ action: 'logday', pin, date: '2025-11-13' }).entry.text, 'First page.\n\nSecond paragraph.');
 assert.ok(getL({ action: 'logunlock', pin }).dates.includes('2026-10-07'));
 assert.strictEqual(getL({ action: 'logday', pin: '999999', date: '2025-11-13' }).error, 'bad_pin');

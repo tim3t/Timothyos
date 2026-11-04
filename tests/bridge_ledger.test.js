@@ -74,7 +74,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 props.ACCESS_KEY = 'k'.repeat(64); const key = props.ACCESS_KEY;
-const get = p => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, p) }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, p)) } }).text);
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
 
 // --- no token: ledger capability off, YNAB reported separately, queue still works

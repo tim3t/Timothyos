@@ -105,7 +105,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.37.0';
+var VERSION = '1.38.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -131,19 +131,16 @@ var WRITABLE = {
 /** Sources in use: optional calendars only once they're set. */
 function sources_() { return SOURCES.filter(function (src) { return !src.optional || src.id(); }); }
 
-/** Read requests. Every request must carry the access key. */
+/**
+ * 1.38: every request is a POST, reads included, so the access key (and the Log's PIN) never travel in a URL, where
+ * Google's request logs and the browser's history keep it. A GET is refused without reading anything: app 2.58 and
+ * later send reads by POST (and come back by POST if they meet this answer). A GET with no key at all is what a POST
+ * becomes when a redirect drops its body: that still answers no_key, which the app retries.
+ */
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  try {
-    var refused = keyRefusal_(p.key);
-    if (refused) return json_({ ok: false, error: refused });
-    if (p.action === 'logunlock' || p.action === 'logdates' || p.action === 'logday' || p.action === 'logsearch' || p.action === 'logsessions') return json_(logAction_(p));   // reads travel as GET: nothing to lose on a redirect
-    if (p.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
-    if (p.action === 'batch') return json_(batch_(p.calls));
-    return json_(read_(p) || { ok: false, error: 'unknown_action' });
-  } catch (err) {
-    return json_(readError_(err));
-  }
+  if (!p.key) return json_({ ok: false, error: 'no_key' });   // a POST that Google's redirect turned into an empty GET: the app tries it again
+  return json_({ ok: false, error: 'use_post' });
 }
 
 /** The everyday reads, by action. Null for anything else. */
@@ -199,13 +196,15 @@ function batch_(raw) {
   }) };
 }
 
-/** Write requests (Capture). The body is JSON: { key, action: "create", item }. */
+/** Every request (1.38: reads too). The body is JSON: { key, action, ... }; a read's other fields are text, as in a URL. */
 function doPost(e) {
   var body;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return json_({ ok: false, error: 'bad_request' }); }
   try {
     var refusedP = keyRefusal_(body.key);
     if (refusedP) return json_({ ok: false, error: refusedP });
+    if (body.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
+    if (body.action === 'batch') return json_(batch_(typeof body.calls === 'string' ? body.calls : JSON.stringify(body.calls || null)));
     if (body.action === 'create') return json_(create_(body.item || {}));
     if (body.action === 'focus') return json_(setFocus_(body.id, body.day));
     if (body.action === 'status') return json_(setStatus_(body.id, body.status));
@@ -239,7 +238,7 @@ function doPost(e) {
     if (body.action === 'speak') return json_(speak_(body));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
-    return json_({ ok: false, error: 'unknown_action' });
+    return json_(read_(body) || { ok: false, error: 'unknown_action' });   // the reads (1.38)
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
     if (lockBusy_(err)) return json_({ ok: false, error: 'busy' });

@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Bridge</title>
-<meta name="description" content="Timothy's life dashboard: the Bridge overview, calendars, priorities and key dates in one place.">
+<meta name="description" content="Timothy's LCARS life dashboard: the Bridge overview, calendars, tasks and key dates, the Captain's Log, and stations for the farm, the hives, books, the sky, the NAS and home.">
+<!-- 2.58: only this app's own script runs, and it talks only to the services listed (the bridge, the NAS relay and Home Assistant
+     on the tailnet, the public feeds). 127.0.0.1 and localhost are for the test suite. GitHub Pages can't send headers, so it's a meta tag. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https: http://127.0.0.1:* http://localhost:*; media-src 'self' data: blob: https://*.ts.net http://127.0.0.1:* http://localhost:*; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://*.open-meteo.com https://openlibrary.org https://services.swpc.noaa.gov https://earthquake.usgs.gov https://api.weather.gov https://api.nasa.gov https://api.inaturalist.org https://api.wheretheiss.at https://api.adsbdb.com https://overpass-api.de https://overpass.kumi.systems https://*.ts.net http://127.0.0.1:* http://localhost:*; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="theme-color" content="#07080b">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -13,13 +16,13 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
-<link rel="stylesheet" href="css/app.css?v=2.57.1">
+<link rel="stylesheet" href="css/app.css?v=2.58.0">
 </head>
 <body>
 <div class="app" id="app">
   <button class="elbow" type="button" data-screen="bridge" aria-label="Bridge overview">BRIDGE</button>
   <header class="top">
-    <div class="topbar"><span>TIMOTHYOS 2.57</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
+    <div class="topbar"><span>TIMOTHYOS 2.58</span><span id="topNote">CALENDAR CORE</span><button type="button" class="topbtn" id="idleBtn" aria-label="Standby now: dim to the clock">STANDBY</button></div>
     <div class="headrow">
       <div class="titlegroup">
         <div>
@@ -149,6 +152,6 @@
   <span class="sb-hint">TAP ANYWHERE TO WAKE</span>
 </div>
 
-<script src="js/app.js?v=2.57.1"></script>
+<script src="js/app.js?v=2.58.0"></script>
 </body>
 </html>

@@ -79,7 +79,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 const key = props.ACCESS_KEY, pin = 'OMEGA-1701';
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-const caps = () => JSON.parse(ctx.doGet({ parameter: { key, action: 'ping' } }).text).capabilities;
+const caps = () => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key, action: 'ping' }) } }).text).capabilities;
 assert.ok(caps().includes('logask'));
 
 // Sample entries: October 2025 (searchable copy filled), one in early November without a search copy yet.

@@ -38,4 +38,5 @@ class H(BaseHTTPRequestHandler):
         else: body = {"ok": False, "error": "unknown_action"}
         b = json.dumps(body).encode()
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
+import mock_post_reads; mock_post_reads.wrap(H)   # bridge 1.38: reads by POST
 HTTPServer(("127.0.0.1", 8090), H).serve_forever()

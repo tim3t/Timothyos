@@ -9,7 +9,7 @@ Read `docs/DESIGN.md` (decisions D1 to D57; its sections 1 to 13 are the origina
 ```
 iPad app (static, GitHub Pages: https://tim3t.github.io/Timothyos/)
   index.html · css/app.css · js/app.js (one IIFE, no build step) · sw.js (offline shell)
-  │ HTTPS: GET ?key=…&action=… for reads, POST text/plain JSON {key, action, …} for writes
+  │ HTTPS: POST text/plain JSON {key, action, …} for reads and writes (2.58, bridge 1.38; the key never in a URL)
   ▼
 Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Google account)
   ├─ CalendarApp: Work (read-only forever, shared to personal), Personal (default calendar),
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.57.1**, **bridge 1.37.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.58.0**, **bridge 1.38.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -138,6 +138,12 @@ Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holiday
 - **In-app hints name README sections by their exact heading** ("Steps are in the README under <b>Connect Notion</b>"); rename a README heading and grep `js/app.js` for it.
 - **Setup text describes a fresh install of the current version.** Don't add "needs bridge 1.N" to README setup steps; version needs belong in `BRIDGE_FEATURES` (the app names them) and the CHANGELOG.
 - **Test servers:** `tests/run.sh` starts and stops its own. To stop a stray one, use a separate command of its own: `pgrep -f "[h]ttp.server 8080|[m]ock_" | xargs -r kill`. Never put `pkill` in a compound command (it matches the shell running it, which exits with 144).
+
+### Requests and the page's rules (2.58, bridge 1.38)
+
+- **Every bridge request is a POST** with a text/plain JSON body `{key, action, …}` (no preflight). Reads go through `apiOnce` → `postOnce` with `readBody(params)` (values as text, as a URL carried them). `readVia[url]` learns per bridge address: an `unknown_action` to a first read by POST means an older bridge, so reads go by GET (`apiGetOnce`) unless that GET doesn't know it either; a GET answered `use_post` switches back to POST. Bridge `doGet` answers `use_post` to anything with a key, and `no_key` to an empty GET (a POST whose body a redirect dropped: `transient()` retries it). `doPost` takes `ping`, `batch` and everything `read_()` knows after the writes. Bridge tests call `doPost({ postData: { contents: JSON.stringify(params) } })`.
+- **Simulated bridges:** `tests/mock_post_reads.py` wraps every `mock_v*.py` (`wrap(H)` before `serve_forever`): reads by POST answered through the mock's own GET code; GET `?action=readmode&post=0|1&get=0|1` simulates an older bridge or 1.38's refusal. Tests that intercept bridge requests read the action from the POST body (`app_e2e10`, `12`, `14`). Test: `app_e2e71`.
+- **Content-Security-Policy** is a `<meta>` in `index.html` (GitHub Pages can't send headers): `script-src 'self'` (no inline scripts or handlers, ever), `style-src 'self' 'unsafe-inline'` (style attributes), and an explicit `connect-src` / `media-src` list. **A new outside service needs its host added there**, or the browser blocks it; `127.0.0.1` and `localhost` are for the tests; `*.ts.net` is the NAS relay (and Home Assistant behind it). A violation is noted in RECENT REQUESTS (`securitypolicyviolation` listener → `note()`, "blocked · host"). Before a release that adds a host, a sweep that throws on a violation and runs the suite is cheap (2.58 found none).
 
 ## The Bridge (overview screen)
 
@@ -380,7 +386,7 @@ Writing tests: arrays from `vm.runInNewContext` belong to another realm, so `dee
 
 Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34), COMPUTER (2.35), the Morning Briefing (2.36), ASTROMETRICS and the Ship's Year (2.40), Notes in Capture as the INBOX (2.41), SCIENCE (2.42), RESSIKAN (2.44), HOLODECK (2.45; channels 2.46, the arch with AUDIO 2.47, NETWORK 2.48, sleep timer 2.49, commercial breaks 2.52), `tools/ia_fetch.py`, the review clean-up (2.50: assertions, privacy, docs). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
 
-**Hardening (resumed 2026-10-23), in Timothy's order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) ~~bridge version check~~ done 2026-10-23 (2.38, below); (3) ~~Notion schema check~~ done 2026-10-23 (2.39). Also wanted: the **WAITING fix** (Systems fetches Ledger and Apiary itself after a restore, so their rows don't sit at WAITING) with the `index.html` description refresh (held back from the docs-only pass); a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+**Hardening (resumed 2026-10-23), in Timothy's order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) ~~bridge version check~~ done 2026-10-23 (2.38, below); (3) ~~Notion schema check~~ done 2026-10-23 (2.39). ~~**WAITING fix**~~ done 2026-11-04 (2.58: `go("systems")` calls `loadLedger(false)`, `loadApiary(false)`, `loadTarot(false)`; `index.html` description refreshed). ~~Keys out of URLs and a CSP~~ done 2026-11-04 (2.58, bridge 1.38: section **Requests and the page's rules** under Code conventions). Still proposed (Timothy, 2026-11-04: next after MEALS mockups as he chooses): an optional PIN that encrypts the stored keys, a key per iPad with ROTATE KEY in SYSTEMS, a weekly export of every database to Drive or the NAS, an error log in SYSTEMS with Apps Script quota use, splitting `app.js`. The backup reminder is an UPKEEP item Timothy made himself (2026-11-04), so no app feature; a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
 
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).

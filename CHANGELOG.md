@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.58.0 · 2026-11-04 (needs bridge 1.38)
+- **Your access key no longer travels in an address.** Every read used to put the key (and, for the Captain's Log, your authorization code) in the request's address, which Google's request logs and Safari's history can keep. Reads now go like writes always have: inside the request, over HTTPS. **Bridge 1.38** takes reads that way and refuses a request by address. Until the bridge is updated, Bridge keeps working the old way; it switches by itself once it is. After updating, consider **rotateKey** (README → Security model) and linking each iPad again, since older addresses may sit in those logs.
+- **The page's rules (Content-Security-Policy):** only Bridge's own script can run, and it can reach only the services it uses. Anything else is blocked, and **SYSTEMS → RECENT REQUESTS** shows it as BLOCKED with its address, so a missing service is easy to spot.
+- **Fixed: SYSTEMS rows sat at WAITING** (LEDGER's YNAB and Replicator Queue, APIARY, TAROT) after a restore or on a new iPad, until you opened those stations. Opening SYSTEMS now reads them for itself.
+- **Bridge 1.38:** reads by POST; a GET is refused (`use_post`), except an empty one, which still answers as before so the app retries it.
+
 ## 2.57.1 · 2026-11-04
 - **The GUIDE starts half an hour earlier**, so a show that began before the latest half hour isn't cut off at the changeover: at 19:29 it runs from 18:30, and at 19:30 it moves on to 19:00.
 

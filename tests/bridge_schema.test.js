@@ -40,7 +40,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 ctx.setup(); const key = props.ACCESS_KEY;
-const get = p => JSON.parse(ctx.doGet({ parameter: p }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
 
 // setup's log names the problems
 const line = logs.find(l => l.startsWith('Notion columns:'));

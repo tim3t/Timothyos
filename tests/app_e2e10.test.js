@@ -11,9 +11,10 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8093/x/exec?acti
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   let hits = { tasks: 0, post: 0, events: 0 };
   const googlePage = { status: 404, contentType: 'text/html', headers: { 'Access-Control-Allow-Origin': '*' }, body: '<!DOCTYPE html><title>Page Not Found</title>' };
+  const READS = ['ping', 'batch', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'holidays'];   /* 2.58: reads are POSTs too; the action is in the body */
   await p.route('**/127.0.0.1:8093/**', r => {
-    const u = r.request().url(), m = r.request().method();
-    if (m === 'POST') { hits.post++; return hits.post % 2 === 1 ? r.fulfill(googlePage) : r.continue(); }  // every first POST attempt fails
+    const m = r.request().method(), a = m === 'POST' ? (JSON.parse(r.request().postData() || '{}').action || '') : new URL(r.request().url()).searchParams.get('action') || '', u = 'action=' + a;
+    if (m === 'POST' && !READS.includes(a)) { hits.post++; return hits.post % 2 === 1 ? r.fulfill(googlePage) : r.continue(); }  // every first attempt at a write fails
     if (u.includes('action=tasks')) { hits.tasks++; return hits.tasks <= 2 ? r.fulfill(googlePage) : r.continue(); }  // two failures, then OK
     if (u.includes('action=events')) { hits.events++; return hits.events === 1 ? r.fulfill(googlePage) : r.continue(); }
     return r.continue();

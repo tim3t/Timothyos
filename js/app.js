@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.57.1";
+  var VERSION = "2.58.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -246,6 +246,11 @@
     lsSet(LS_NETLOG, netlog);
     return n;
   }
+  /* 2.58: something the Content-Security-Policy (index.html) blocked shows in SYSTEMS → NETWORK, so a service missing from its list is found. */
+  document.addEventListener("securitypolicyviolation", function (e) {
+    var to = String(e.blockedURI || "inline").replace(/^(https?:\/\/[^\/?#]+).*$/, "$1");
+    note("blocked by the page's rules: " + (e.effectiveDirective || e.violatedDirective || "?"), Date.now(), "blocked · " + to);
+  });
   /* A failed attempt that is tried again isn't a failure yet: the log shows it as RETRIED. */
   function markRetried(err) { if (err && err.netEntry) { err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); } }
   /* Requests still on their way, counting retries and pauses: REFRESH NOW spins until this is 0. */
@@ -288,8 +293,27 @@
     });
   }
   function apiPost(body, timeoutMs, own) { return tracked(withRetry(function () { return apiPostOnce(body, timeoutMs, own); })); }
+  /* 2.58 (bridge 1.38): reads travel as a POST too, so the access key (and the Log's PIN) never ride in a URL, where
+     Google's request logs and the browser's history would keep them. An older bridge answers a read by POST with
+     unknown_action: reads to that bridge then go as GET, as before. Bridge 1.38 refuses a GET (use_post). Learned per
+     bridge address from its first answer. */
+  var readVia = {};
   function apiOnce(params, conn, label, timeoutMs) {
     conn = conn || state.conn;
+    var url = conn.url, how = readVia[url];
+    var go = function (m) { return m === "get" ? apiGetOnce(params, conn, label, timeoutMs) : postOnce(conn, readBody(params), label || params.action, timeoutMs || 45000, false); };
+    return go(how || "post").then(function (j) { if (!readVia[url]) readVia[url] = "post"; return j; }, function (err) {
+      var code = err && err.code;
+      if (!how && code === "unknown_action") {   /* an older bridge, unless the GET doesn't know it either (a read that bridge lacks) */
+        readVia[url] = "get"; markRetried(err);
+        return go("get").catch(function (e2) { if (e2 && e2.code === "unknown_action" && readVia[url] === "get") delete readVia[url]; throw e2; });
+      }
+      if (how === "get" && code === "use_post") { readVia[url] = "post"; markRetried(err); return go("post"); }   /* updated since */
+      throw err;
+    });
+  }
+  function readBody(params) { var b = {}; Object.keys(params).forEach(function (k) { b[k] = String(params[k]); }); return b; }   /* as a URL would carry them: text */
+  function apiGetOnce(params, conn, label, timeoutMs) {   /* an older bridge (before 1.38) */
     var u = new URL(conn.url);
     u.searchParams.set("key", conn.key);
     Object.keys(params).forEach(function (k) { u.searchParams.set(k, params[k]); });
@@ -302,14 +326,14 @@
         .finally(function () { if (timer) clearTimeout(timer); }));
     });
   }
-  /* Writes go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
+  /* Writes (and, from bridge 1.38, reads) go as a POST with a plain-text JSON body (no custom headers, so no CORS preflight). */
   /* own: a long request (the AI voice, about two minutes) that runs outside the two shared slots, so syncing isn't held up behind it. */
-  function apiPostOnce(body, timeoutMs, own) {
-    var conn = state.conn;
+  function apiPostOnce(body, timeoutMs, own) { return postOnce(state.conn, body, body.action, timeoutMs || 60000, own); }
+  function postOnce(conn, body, label, timeoutMs, own) {
     return (own ? function (fn) { return fn(); } : slot)(function () {
       var ctrl = typeof AbortController === "function" ? new AbortController() : null;
-      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs || 60000) : null;
-      return logged(body.action, Date.now(), fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, timeoutMs) : null;
+      return logged(label, Date.now(), fetch(conn.url, { method: "POST", body: JSON.stringify(Object.assign({ key: conn.key }, body)), redirect: "follow", cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
         .then(readReply)
         .finally(function () { if (timer) clearTimeout(timer); }));
     });
@@ -339,6 +363,7 @@
     if (code === "bad_json") return "Google sent an error page instead of data, even after retrying. Usually temporary. If it persists, check that the URL ends in /exec.";
     if (code === "http_404") return "Google's servers didn't return the result (HTTP 404), even after retrying. Usually temporary; try Refresh in a minute.";
     if (code === "unknown_action") return "The script is out of date. Deploy a new version of the latest Code.gs." + bridgeNote();
+    if (code === "use_post") return "The bridge takes requests only by POST now (1.38). Reload Bridge to update it.";
     if (code === "bad_request" && bridgeBehind()) return "The bridge refused it." + bridgeNote();
     if (/^http_/.test(code || "")) return "The script answered with " + code.replace("http_", "HTTP ") + ". Check the deployment.";
     if (err && err.name === "AbortError") return "Google took too long to answer, even after retrying. Usually temporary.";
@@ -1142,8 +1167,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.37.0";
-  var BRIDGE_FEATURES = [["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.38.0";
+  var BRIDGE_FEATURES = [["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -13101,6 +13126,7 @@
     if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
+    if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); }   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */

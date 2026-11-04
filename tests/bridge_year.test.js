@@ -34,7 +34,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 vm.runInContext("CONFIG.NOTION_QUEUE_DATABASE = '" + DB.queue + "';", ctx);
 ctx.setup(); const key = props.ACCESS_KEY;
-const get = p => JSON.parse(ctx.doGet({ parameter: p }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
 const F = '2026-01-01T06:00:00.000Z', T = '2027-01-01T06:00:00.000Z';
 
 assert.ok(get({ action: 'ping', key }).capabilities.includes('year'), 'capability year with the Notion key');

@@ -71,7 +71,7 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
-const get = p => JSON.parse(ctx.doGet({ parameter: p }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
 const A = require('assert');
 console.log('setup without token:'); ctx.setup(); const key = props.ACCESS_KEY;
@@ -139,8 +139,9 @@ assertB.strictEqual(get({ action: 'batch', calls: '[]' }).error, 'no_key');
 const lb = get({ action: 'batch', key, calls: JSON.stringify([{ action: 'logday', day: '2026-10-06' }, { action: 'logunlock', pin: '0000' }, { action: 'logsave', day: '2026-10-06' }, { action: 'focus', id: 'a'.repeat(32), day: '2026-10-06' }, { action: 'addtask', task: {} }]) });
 assertB.ok(lb.ok && lb.results.every(r => r.error === 'bad_request'), 'no log reads or writes through batch: ' + JSON.stringify(lb.results));
 const pG = calls.filter(c => /^(patch|post) /.test(c)).length;
-assertB.strictEqual(get({ action: 'focus', key, id: 'a'.repeat(32), day: '2026-10-06' }).error, 'unknown_action', 'a write sent as GET is refused');
-assertB.strictEqual(get({ action: 'addtask', key, task: '{}' }).error, 'unknown_action');
+const getRaw = p => JSON.parse(ctx.doGet({ parameter: p }).text);   /* 1.38: nothing at all is done by GET */
+assertB.strictEqual(getRaw({ action: 'focus', key, id: 'a'.repeat(32), day: '2026-10-06' }).error, 'use_post', 'a write sent as GET is refused');
+assertB.strictEqual(getRaw({ action: 'addtask', key, task: '{}' }).error, 'use_post');
 assertB.strictEqual(calls.filter(c => /^(patch|post) /.test(c)).length, pG, 'and nothing was written to Notion');
 console.log('--- balance (done) ---');
 const assert = require('assert');

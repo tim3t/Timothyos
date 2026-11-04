@@ -52,7 +52,7 @@ const ctx = {
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 ctx.setup(); const key = props.ACCESS_KEY;
-const get = p => JSON.parse(ctx.doGet({ parameter: p }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
 
 assert.ok(logs.some(l => l === 'Notion inbox: OK (1 waiting, 1 kept)'), logs.filter(l => /inbox/i.test(l)).join(' | '));

@@ -68,7 +68,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 const key = props.ACCESS_KEY, pin = 'OMEGA-1701';
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-const get = p => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, p) }).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, p)) } }).text);
 const J = x => JSON.parse(JSON.stringify(x));   // values from the sandbox, compared as plain data
 
 // ---- capabilities

@@ -38,7 +38,7 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'),'utf8'), ctx);
-const get = p => JSON.parse(ctx.doGet({parameter:p}).text);
+const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
 const post = b => JSON.parse(ctx.doPost({postData:{contents: typeof b === 'string' ? b : JSON.stringify(b)}}).text);
 vm.runInContext("CONFIG.WORK_CALENDAR_ID = 'tim@work.com'", ctx);
 ctx.setup(); const key = props.ACCESS_KEY;

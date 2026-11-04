@@ -17,7 +17,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   // network control for the bridge: mode 'pass' | 'dropFirst' | 'dropAll'; counts concurrency and actions
   let mode = 'pass', dropped = 0, live = 0, peak = 0; const hits = {};
   await p.route('http://127.0.0.1:8095/**', async route => {
-    const action = new URL(route.request().url()).searchParams.get('action') || 'post';
+    const rq = route.request(), action = rq.method() === 'POST' ? (JSON.parse(rq.postData() || '{}').action || 'post') : new URL(rq.url()).searchParams.get('action') || 'post';   /* 2.58: reads are POSTs too */
     if (mode === 'dropAll' || (mode === 'dropFirst' && dropped === 0)) { dropped++; return route.abort('failed'); }
     hits[action] = (hits[action] || 0) + 1;
     live++; peak = Math.max(peak, live);

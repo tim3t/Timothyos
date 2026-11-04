@@ -56,7 +56,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
 const key = props.ACCESS_KEY;
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-const get = q => JSON.parse(ctx.doGet({ parameter: Object.assign({ key }, q) }).text);
+const get = q => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, q)) } }).text);
 
 const caps = get({ action: 'ping' }).capabilities;
 assert.ok(caps.includes('tarot'), caps.join());
