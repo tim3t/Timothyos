@@ -101,17 +101,20 @@ var CONFIG = {
   // Your Notion Session Notes: counseling sessions from LOG → SESSIONS, one page per session. Behind LOG_PIN.
   NOTION_SESSIONS_DATABASE: 'c0e793436cfd43c9962e3a82fe62dc07',
   // Your Notion Upkeep: ENGINEERING → UPKEEP's recurring maintenance, shared by every iPad (bridge 1.36).
-  NOTION_UPKEEP_DATABASE: '333517b8dff9454f979cfd234847c917'
+  NOTION_UPKEEP_DATABASE: '333517b8dff9454f979cfd234847c917',
+  // Your Notion Meals and Dinners: MEALS' rotation and each night's dinner, shared by every iPad (bridge 1.39).
+  NOTION_MEALS_DATABASE: '880216ac00294fbca344eafc9c77a8b5',
+  NOTION_DINNERS_DATABASE: '1ba57e689aaa499eafe3f734874a1b7c'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.38.0';
+var VERSION = '1.39.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -144,7 +147,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'profile'];
+var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -162,6 +165,7 @@ function read_(p) {
   if (p.action === 'apiary') return apiary_();
   if (p.action === 'inbox') return inbox_();
   if (p.action === 'upkeep') return upkeep_();
+  if (p.action === 'meals') return meals_();
   if (p.action === 'profile') return profile_();
   if (p.action === 'news') return news_();
   if (p.action === 'sky') return sky_(p.lat, p.lon);
@@ -222,6 +226,10 @@ function doPost(e) {
     if (body.action === 'inboxremove') return json_(inboxRemove_(String(body.id || '')));
     if (body.action === 'upkeepsave') return json_(upkeepSave_(body.item));
     if (body.action === 'upkeepremove') return json_(upkeepRemove_(String(body.id || '')));
+    if (body.action === 'mealsave') return json_(mealSave_(body.meal));
+    if (body.action === 'mealremove') return json_(mealRemove_(String(body.id || '')));
+    if (body.action === 'dinnerset') return json_(dinnerSet_(body.dinner));
+    if (body.action === 'mealplan') return json_(mealPlan_(body));
     if (body.action === 'profileput') return json_(profilePut_(body.items));
     if (body.action === 'queueorder') return json_(queueOrder_(body.ids));
     if (body.action === 'habitset') return json_(habitSet_(body.day));
@@ -292,6 +300,7 @@ function setup() {
   console.log('Notion science log: ' + scienceStatus_());
   console.log('Notion session notes: ' + sessionsStatus_());
   console.log('Notion upkeep: ' + upkeepStatus_());
+  console.log('Notion meals and dinners: ' + mealsStatus_());
   console.log('Profile sync: ' + profileStatus_());
   console.log('Headlines: NPR National news, for the Morning Briefing (no key needed)');
   console.log('SCIENCE feeds: ' + sciStatus_());
@@ -692,6 +701,8 @@ function schemaSpec_() {
     { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
     { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] },
     { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] },
+    { key: 'meals', name: 'Meals', src: mealsSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Ingredients', 'rich_text'], ['Recipe', 'url'], ['Notes', 'rich_text'], ['Retired', 'checkbox'], ['App ID', 'rich_text']] },
+    { key: 'dinners', name: 'Dinners', src: dinnersSource_, need: [['Dinner', 'title'], ['Date', 'date'], ['Status', 'select'], ['Kind', 'select'], ['Meal', 'relation'], ['Note', 'rich_text']] },
     { key: 'upkeep', name: 'Upkeep', src: upkeepSource_, need: [['Name', 'title'], ['Category', 'rich_text'], ['Every', 'number'], ['Unit', 'select'], ['Last Done', 'date'], ['Last Reading', 'number'], ['Reading', 'number'], ['History', 'rich_text'], ['App ID', 'rich_text']] },
     { key: 'sessions', name: 'Session Notes', src: sessionsSource_, need: [['Session', 'title'], ['Type', 'select'], ['Date', 'date'], ['Where', 'select'], ['Topics', 'multi_select'], ['Arriving', 'number'], ['Leaving', 'number'], ['Felt', 'select'], ['Next Session', 'date'], ['Data', 'rich_text']].concat(t(vals(SES_TEXT), 'rich_text')) }
   ];
@@ -2259,6 +2270,180 @@ function upkeepRemove_(key) {
 function upkeepStatus_() {
   try { var u = upkeep_(); return 'OK (' + u.items.length + (u.items.length === 1 ? ' item)' : ' items)'); }
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Upkeep (... > Connections)' : ''); }
+}
+
+// ---- Meals (bridge 1.39) ------------------------------------------------------------
+// MEALS: 🍽 Meals, a page per meal (Name, Kind, Ingredients as lines "Item · Aisle", "· have" for something always in
+// the pantry, Recipe, Notes, Retired, App ID), and 🍽 Dinners, a page per night (Dinner, Date, Status Planned or Eaten,
+// Kind Meal, Leftovers or Eating out, Meal relation, Note). A night has one page: setting it again changes that page,
+// clearing it moves it to Notion's trash, as removing a meal does. Only pages in these two databases are changed.
+// PLAN MY WEEK asks Claude for open nights from his own meals and history; nothing is saved until he confirms.
+var MEAL_KINDS = ['Beef + Pork', 'Chicken', 'Fish', 'Meatless', 'Breakfast', 'Other'];
+var MEAL_AISLES = ['Produce', 'Meat + Fish', 'Dairy', 'Bakery', 'Frozen', 'Pantry', 'Household', 'Other'];
+var DINNER_KINDS = { meal: 'Meal', leftovers: 'Leftovers', out: 'Eating out' };
+var MEAL_BACK = 120, MEAL_AHEAD = 21;
+function mealsSource_() { return sourceFor_(CONFIG.NOTION_MEALS_DATABASE, 'NOTION_MEALS_SOURCE'); }
+function dinnersSource_() { return sourceFor_(CONFIG.NOTION_DINNERS_DATABASE, 'NOTION_DINNERS_SOURCE'); }
+function mealsGen_() { return CacheService.getScriptCache().get('mgen') || '0'; }
+function mealsBump_() { CacheService.getScriptCache().put('mgen', Utilities.getUuid().slice(0, 8), 21600); }
+function mealDay_(offset) { return Utilities.formatDate(new Date(Date.now() + offset * 86400000), Session.getScriptTimeZone(), 'yyyy-MM-dd'); }
+/** "Onion · Produce" lines → [{n, a, have}]; an aisle it doesn't know is Other. */
+function mealIng_(text) {
+  return String(text || '').split(/\r?\n/).map(function (line) {
+    var parts = line.split(/\s*·\s*/).map(function (x) { return x.trim(); }), n = parts[0];
+    if (!n) return null;
+    var a = 'Other', have = false;
+    parts.slice(1).forEach(function (x) { var hit = MEAL_AISLES.filter(function (m) { return m.toLowerCase() === x.toLowerCase(); })[0]; if (hit) a = hit; else if (/^have$/i.test(x)) have = true; });
+    return { n: n.slice(0, 100), a: a, have: have };
+  }).filter(Boolean).slice(0, 60);
+}
+function mealIngText_(list) { return list.map(function (x) { return x.n + ' · ' + x.a + (x.have ? ' · have' : ''); }).join('\n'); }
+function toMeal_(pg) {
+  var p = pg.properties || {};
+  return { id: plain_(p['App ID'] && p['App ID'].rich_text) || pg.id, page: pg.id, name: plain_(p.Name && p.Name.title), kind: MEAL_KINDS.indexOf(sel_(p.Kind)) > -1 ? sel_(p.Kind) : 'Other',
+    ing: mealIng_(plain_(p.Ingredients && p.Ingredients.rich_text)), recipe: (p.Recipe && p.Recipe.url) || '', notes: plain_(p.Notes && p.Notes.rich_text), retired: !!(p.Retired && p.Retired.checkbox) };
+}
+function toDinner_(pg, byPage) {
+  var p = pg.properties || {}, rel = (p.Meal && p.Meal.relation) || [], m = rel.length ? byPage[String(rel[0].id).replace(/-/g, '')] : null, k = sel_(p.Kind);
+  var date = p.Date && p.Date.date && p.Date.date.start ? String(p.Date.date.start).slice(0, 10) : '';
+  return { date: date, status: sel_(p.Status) === 'Planned' ? 'planned' : 'eaten', kind: k === 'Leftovers' ? 'leftovers' : k === 'Eating out' ? 'out' : 'meal',
+    meal: m ? m.id : null, name: plain_(p.Dinner && p.Dinner.title), note: plain_(p.Note && p.Note.rich_text) };
+}
+/** Every meal, and the dinners from 120 days back to three weeks ahead. */
+function meals_() {
+  var cache = CacheService.getScriptCache(), k = 'meals:' + mealsGen_() + ':' + mealDay_(0), hit = cache.get(k);
+  if (hit) return JSON.parse(hit);
+  var meals = queryAll_(mealsSource_(), null, 5, [{ property: 'Name', direction: 'ascending' }]).filter(function (pg) { return !pg.in_trash && !pg.archived; }).map(toMeal_);
+  var byPage = {}; meals.forEach(function (m) { byPage[String(m.page).replace(/-/g, '')] = m; });
+  var from = mealDay_(-MEAL_BACK), to = mealDay_(MEAL_AHEAD);
+  var dinners = queryAll_(dinnersSource_(), { and: [{ property: 'Date', date: { on_or_after: from } }, { property: 'Date', date: { on_or_before: to } }] }, 5, [{ property: 'Date', direction: 'ascending' }])
+    .filter(function (pg) { return !pg.in_trash && !pg.archived; }).map(function (pg) { return toDinner_(pg, byPage); }).filter(function (d) { return realDay_(d.date); });
+  var out = { ok: true, version: VERSION, meals: meals, dinners: dinners, from: from, to: to,
+    url: 'https://www.notion.so/' + String(CONFIG.NOTION_MEALS_DATABASE).replace(/-/g, ''), dinnersUrl: 'https://www.notion.so/' + String(CONFIG.NOTION_DINNERS_DATABASE).replace(/-/g, '') };
+  try { cache.put(k, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function mealFind_(key) { return queryAll_(mealsSource_(), { property: 'App ID', rich_text: { equals: key } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; })[0] || null; }
+/** Save one meal, whole: { id (the app's), name, kind, ing [{n, a, have}], recipe, notes, retired }. New or changed; safe to repeat. */
+function mealSave_(m) {
+  m = m || {};
+  var key = String(m.id || ''), name = String(m.name || '').trim(), kind = String(m.kind || 'Other'), recipe = String(m.recipe || '').trim(), notes = String(m.notes || '').trim();
+  var ing = Array.isArray(m.ing) ? m.ing : null;
+  if (!UPKEEP_KEY.test(key) || !name || name.length > 200 || MEAL_KINDS.indexOf(kind) === -1 || !ing || ing.length > 60 || notes.length > 4000 ||
+    (recipe && (!/^https?:\/\/\S+$/.test(recipe) || recipe.length > 1000)) ||
+    ing.some(function (x) { return !x || typeof x.n !== 'string' || !x.n.trim() || x.n.length > 100 || /[\r\n·]/.test(x.n) || MEAL_AISLES.indexOf(x.a) === -1; })) return { ok: false, error: 'bad_request' };
+  var clean = ing.map(function (x) { return { n: x.n.trim(), a: x.a, have: !!x.have }; });
+  var props = { Name: { title: rt_(name) }, Kind: { select: { name: kind } }, Ingredients: { rich_text: clean.length ? rtLong_(mealIngText_(clean)) : [] }, Recipe: { url: recipe || null },
+    Notes: { rich_text: notes ? rtLong_(notes) : [] }, Retired: { checkbox: m.retired === true }, 'App ID': { rich_text: rt_(key) } };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = mealFind_(key), pg = have ? notion_('patch', '/pages/' + have.id, { properties: props }) : notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: mealsSource_() }, properties: props });
+    mealsBump_();
+    return { ok: true, version: VERSION, meal: toMeal_(pg) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function mealRemove_(key) {
+  if (!UPKEEP_KEY.test(key)) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = mealFind_(key);
+    if (have) { notion_('patch', '/pages/' + have.id, { in_trash: true }); mealsBump_(); }
+    return { ok: true, version: VERSION, removed: key };
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** One night: { date, status planned|eaten, kind meal|leftovers|out|none, meal (a meal's App ID, for kind meal), note }. none clears it. */
+function dinnerSet_(d) {
+  d = d || {};
+  var date = String(d.date || ''), kind = String(d.kind || ''), status = d.status === 'planned' ? 'Planned' : 'Eaten', note = String(d.note || '').trim(), key = String(d.meal || '');
+  if (!realDay_(date) || !(kind === 'none' || DINNER_KINDS[kind]) || note.length > 2000 || (kind === 'meal' && !UPKEEP_KEY.test(key))) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var pages = queryAll_(dinnersSource_(), { property: 'Date', date: { equals: date } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; });
+    if (kind === 'none') {
+      pages.forEach(function (pg) { notion_('patch', '/pages/' + pg.id, { in_trash: true }); });
+      mealsBump_();
+      return { ok: true, version: VERSION, dinner: { date: date, kind: 'none' } };
+    }
+    var meal = kind === 'meal' ? mealFind_(key) : null;
+    if (kind === 'meal' && !meal) return { ok: false, error: 'not_found' };
+    var m = meal ? toMeal_(meal) : null, title = m ? m.name : DINNER_KINDS[kind];
+    var props = { Dinner: { title: rt_(title) }, Date: { date: { start: date } }, Status: { select: { name: status } }, Kind: { select: { name: DINNER_KINDS[kind] } },
+      Meal: { relation: meal ? [{ id: meal.id }] : [] }, Note: { rich_text: note ? rt_(note) : [] } };
+    var pg = pages.length ? notion_('patch', '/pages/' + pages[0].id, { properties: props }) : notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: dinnersSource_() }, properties: props });
+    pages.slice(1).forEach(function (x) { notion_('patch', '/pages/' + x.id, { in_trash: true }); });   // one page a night
+    mealsBump_();
+    var byPage = {}; if (m) byPage[String(m.page).replace(/-/g, '')] = m;
+    return { ok: true, version: VERSION, dinner: toDinner_(pg, byPage) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function mealsStatus_() {
+  try { var r = meals_(); return 'OK (' + r.meals.length + (r.meals.length === 1 ? ' meal, ' : ' meals, ') + r.dinners.length + (r.dinners.length === 1 ? ' dinner)' : ' dinners)'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to both Meals and Dinners (... > Connections)' : ''); }
+}
+/** Each meal's rotation from the dinners eaten: days since, times in 90 days, usual gap (the median between eatings). */
+function mealRotation_(r) {
+  var today = mealDay_(0), day = function (s) { return Date.parse(s + 'T12:00:00Z') / 86400000; }, t0 = day(today);
+  return r.meals.filter(function (m) { return !m.retired; }).map(function (m) {
+    var ds = r.dinners.filter(function (d) { return d.status === 'eaten' && d.kind === 'meal' && d.meal === m.id && d.date <= today; }).map(function (d) { return day(d.date); }).sort(function (a, b) { return a - b; });
+    var gaps = []; for (var i = 1; i < ds.length; i++) gaps.push(ds[i] - ds[i - 1]);
+    gaps.sort(function (a, b) { return a - b; });
+    return { id: m.id, name: m.name, kind: m.kind, since: ds.length ? Math.round(t0 - ds[ds.length - 1]) : null, times: ds.filter(function (x) { return t0 - x <= 90; }).length,
+      usual: gaps.length ? Math.round(gaps[Math.floor(gaps.length / 2)]) : null };
+  });
+}
+var MEAL_PLAN_RULES = [
+  'You plan dinners for Timothy\'s household from his own list of meals and their history. Choose only meals from the list, by their id.',
+  'Favour meals that are due (more days since than their usual gap) or that haven\'t been made in a long time; keep favourites in their usual rhythm.',
+  'Vary the kinds across the nights; never the same meal twice in the nights given; avoid a meal eaten in the last three nights.',
+  'Give each night a short reason (under 12 words), such as "not since September" or "a lighter night after the roast".',
+  'Answer with JSON only: {"plan":[{"date":"YYYY-MM-DD","meal":"<id>","why":"..."}]}, one entry per night given, in date order.'
+].join(' ');
+/** PLAN MY WEEK: { nights: [YYYY-MM-DD, ... up to 7, from today to three weeks ahead] } → proposals; nothing saved. */
+function mealPlan_(body) {
+  if (!aiKey_()) return { ok: false, error: 'ai_not_configured' };
+  var nights = Array.isArray(body.nights) ? body.nights.map(String) : [], today = mealDay_(0), last = mealDay_(MEAL_AHEAD);
+  if (!nights.length || nights.length > 7 || nights.some(function (n) { return !realDay_(n) || n < today || n > last; }) || nights.filter(function (n, i) { return nights.indexOf(n) !== i; }).length) return { ok: false, error: 'bad_request' };
+  var r = meals_(), rot = mealRotation_(r);
+  if (rot.length < 2) return { ok: false, error: 'meals_too_few' };
+  var spend = aiSpend_();
+  if (aiPaused_(spend)) return { ok: false, error: 'ai_budget', spend: spend };
+  var recent = r.dinners.filter(function (d) { return d.date < today && d.date >= mealDay_(-7); }).map(function (d) { return d.date + ': ' + (d.kind === 'meal' ? d.name : DINNER_KINDS[d.kind]); });
+  var planned = r.dinners.filter(function (d) { return d.status === 'planned' && d.date >= today && nights.indexOf(d.date) === -1; }).map(function (d) { return d.date + ': ' + d.name; });
+  var list = rot.map(function (m) { return m.id + ' | ' + m.name + ' | ' + m.kind + ' | ' + (m.since === null ? 'never recorded' : m.since + ' days since') + ' | ' + m.times + 'x in 90 days | usually every ' + (m.usual === null ? '?' : m.usual + ' days'); });
+  var dayName = function (n) { return Utilities.formatDate(new Date(n + 'T12:00:00Z'), 'UTC', 'EEEE'); };
+  var msg = 'TODAY: ' + today + '\n\nHIS MEALS (id | name | kind | since | in 90 days | usual gap)\n' + list.join('\n') +
+    '\n\nTHE LAST WEEK\n' + (recent.join('\n') || 'nothing recorded') + '\n\nALREADY PLANNED\n' + (planned.join('\n') || 'nothing') +
+    '\n\nPLAN THESE NIGHTS\n' + nights.map(function (n) { return n + ' (' + dayName(n) + ')'; }).join('\n');
+  var model = aiFast_(), payload = { model: model, max_tokens: 1200, system: MEAL_PLAN_RULES, messages: [{ role: 'user', content: msg }] }, betas = [];
+  if (model !== 'claude-haiku-4-5') payload.output_config = { effort: AI.FAST_EFFORT };
+  if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
+  var res;
+  try { res = claude_(payload, betas); } catch (e) {
+    if (!e.ai) throw e;
+    return { ok: false, error: e.ai, detail: String(e.message).slice(0, 300), spend: aiSpend_() };
+  }
+  var served = res.model || model, u = res.usage || {}, cost = aiCost_(served, u);
+  aiAddSpend_(cost);
+  aiLogAdd_({ t: new Date().toISOString(), mode: 'meals', model: served, steps: 1, in: u.input_tokens || 0, out: u.output_tokens || 0,
+    cw: u.cache_creation_input_tokens || 0, cr: u.cache_read_input_tokens || 0, usd: Math.round(cost * 100000) / 100000, unknown: aiPrice_(served) ? undefined : true });
+  var text = (res.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('').trim(), parsed = null;
+  try { parsed = JSON.parse((text.match(/\{[\s\S]*\}/) || ['null'])[0]); } catch (x) { parsed = null; }
+  var ids = {}; rot.forEach(function (m) { ids[m.id] = m; });
+  var seen = {}, plan = (parsed && Array.isArray(parsed.plan) ? parsed.plan : []).filter(function (p) {
+    if (!p || nights.indexOf(String(p.date)) === -1 || !ids[p.meal] || seen[p.date] || seen['m:' + p.meal]) return false;
+    seen[p.date] = seen['m:' + p.meal] = true; return true;
+  }).map(function (p) { return { date: String(p.date), meal: p.meal, name: ids[p.meal].name, why: String(p.why || '').slice(0, 120) }; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  if (!plan.length) return { ok: false, error: 'ai_error', detail: 'no_plan', spend: aiSpend_() };
+  return { ok: true, version: VERSION, plan: plan, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
 }
 
 // ---- Profile sync (bridge 1.36) -----------------------------------------------------

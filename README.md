@@ -145,6 +145,8 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 🔭 Science Log | SCIENCE, ASTROMETRICS | Read; add events; star them |
 | 🛋️ Session Notes | LOG → SESSIONS | Read and write sessions, behind your authorization code; move to Notion's trash |
 | 🛠 Upkeep | ENGINEERING → UPKEEP | Read; add; change; move to Notion's trash |
+| 🍽 Meals | MEALS (menu cards, groceries) | Read; add; change; move to Notion's trash |
+| 🍽 Dinners | MEALS, TONIGHT on TODAY and the Bridge | Read; add a night; change it; move it to Notion's trash when cleared |
 
 After connecting, **run setup**: the log shows `OK` for each connected database (or `NOT READY: … Connect the TimothyOS integration…` for one that isn't), then **SYSTEMS → REFRESH NOW** in the app.
 
@@ -157,6 +159,8 @@ After connecting, **run setup**: the log shows `OK` for each connected database 
 - **Tarot:** Title, Date, Kind, Weekly, Spread, Cards, Interpretation, Card, Data.
 - **Apiary:** Name, Kind (Yard, Hive, Check), Date, Hive, the text columns (Queen, Frames, Feed, Did, Next…), Mites (%), Honey (lb), Data. Edit the text columns freely; leave **Data** to the app.
 - **Upkeep:** Name, Category, Every, Unit (days, weeks, months, years, miles, hours), Last Done, Last Reading, Reading, History, App ID. Edit names, intervals and dates freely; leave **History** and **App ID** to the app.
+- **Meals:** Name, Kind, Ingredients (one per line, `Item · Aisle`, with `· have` for something always in the pantry; aisles: Produce, Meat + Fish, Dairy, Bakery, Frozen, Pantry, Household, Other), Recipe, Notes, Retired, App ID. Edit everything freely except **App ID**.
+- **Dinners:** Dinner, Date, Status (Planned, Eaten), Kind (Meal, Leftovers, Eating out), Meal (linked to Meals), Note. One page a night.
 - **Science Log:** Event, When, Department, Kind, Detail, Value, Starred, Key. Star or annotate events freely; leave **Key** to the app (it stops an event being logged twice).
 
 ## Script Properties
@@ -688,6 +692,19 @@ Your hive log, in **🐝 Apiary** in Notion (under your beekeeping page): one Ya
 - **+ ADD HIVE** on the yard for a new package, nuc or split. **REMOVE HIVE** (two taps, in EDIT HIVE) moves the hive page to Notion's trash; its checks stay.
 - **No signal at the hives:** saves wait on the iPad and go when the Google bridge answers. A save Notion refuses shows in red with **RETRY**.
 
+### MEALS
+
+Plan dinners, build the grocery list, and keep a record of what was for dinner, in **🍽 Meals** (a page per meal) and **🍽 Dinners** (a page per night) in Notion. **Setup:** bridge 1.39, then connect both databases to the TimothyOS integration (Connect Notion, step 3) and run **setup** (`Notion meals and dinners: OK`).
+
+- **TONIGHT** on TODAY and the Bridge: what's planned for dinner (and tomorrow, and how many things are left to buy). **From 4 PM** it asks: **✓ HAD IT** (tonight's plan), **LEFTOVERS**, **EATING OUT** or **SOMETHING ELSE** (opens MEALS with tonight chosen; tap the meal). **UNDO** puts it back.
+- **PLAN:** the week as seven nights (◀ ▶ for last week, next week and the week after). **Tap a night, then a menu card.** A night still to come is planned; tonight from 4 PM, or a night gone by, is recorded as eaten. Planning moves on to the next open night, so a week is a few taps. With a night chosen, **LEFTOVERS**, **EATING OUT**, **✓ HAD IT** and **CLEAR** are there too.
+- **Menu cards** are ordered longest ago first, each with when it was last made and how often in 90 days. **NOT IN A WHILE** means half again its usual gap has passed (or six weeks, for a meal made once), **DUE** that its usual gap has; **NEW** hasn't been made yet. **+ MEAL** adds one (name, kind, what it needs from the store by aisle, **HAVE** for something always in the pantry, a recipe link, notes); **EDIT MEALS** then a card changes one, **RETIRE** takes it off the cards and keeps its history, **REMOVE** (two taps) moves it to Notion's trash.
+- **PLAN MY WEEK** (with Claude, about 1¢): Claude proposes the open nights from your own meals and their rotation, favouring what is due. Untick any you don't want, then **PLAN THESE**. Nothing changes until you do.
+- **GROCERIES:** built from the nights planned from today to the end of the week shown, merged (Onion ×2, for THU, SUN) and grouped by aisle; things marked HAVE are left off. Tick as you shop; **+ ITEM** adds anything else. Ticks and added items stay on both iPads (PROFILE SYNC) until the week turns over. **PRINT** lays what's left out as one plain page with boxes to tick, and opens the iPad's print sheet (AirPrint). **SHARE** sends the same list as text (Messages, Notes, or Print from the share sheet).
+- **LOG · ROTATION:** five weeks of dinners (solid eaten, outlined planned); tap a night to fill it in or change it. The rotation table sorts by **LONGEST AGO**, **MOST MADE** or **A TO Z**, with when each was last made, how often in 90 days and its usual gap.
+- **COMPUTER:** "Record dinner", "Plan meals", "Grocery list", and each meal by name. The Morning Briefing knows tonight's dinner.
+- **No signal:** changes wait on the iPad and go when the Google bridge answers, in order.
+
 ## SCIENCE
 
 ### SCIENCE (the hub)
@@ -894,6 +911,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 - **NAS relay and Home Assistant:** the relay is reachable only inside Tailscale and refuses anything without the relay token; folders are mounted read-only. Home Assistant sits behind the same relay at `/ha` and also needs its own token, from a non-admin user made for TimothyOS. Both tokens are kept only on this iPad (and in your backups). A Home Assistant token can switch any device, so treat it like a key.
 - **Backups** hold the access key and the NAS and Home Assistant tokens, locked with your passphrase; the passphrase is never stored, and nothing leaves the iPad except the file you save. A restore writes only the settings a backup is meant to hold, whatever else a file contains.
 - **OpenAI** (AI voice, when its key is set and it's on): only the Morning Briefing's text, to turn it into speech. Never the Captain's Log, never anything else.
+- **MEALS:** meals and dinners live in Notion; the grocery ticks and items added by hand stay on the iPad (and PROFILE SYNC). **PLAN MY WEEK** sends Claude your meals' names, kinds and rotation (days since, times in 90 days, usual gap), the last week's dinners and the nights to plan; never notes, recipes or anything else, and only when you tap it. The Morning Briefing gets tonight's dinner in one line.
 - **COMPUTER** searches only on the iPad; what you type there never leaves it.
 - **HOLODECK** streams from your NAS through the relay only; your channels (folders and names) and the video lengths stay on this iPad (channels also in your backups).
 - **`tools/ia_fetch.py`** runs only on your NAS, only when you start it, from one fixed commit; it talks to archive.org alone and holds no keys.

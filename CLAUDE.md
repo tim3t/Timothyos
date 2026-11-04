@@ -19,7 +19,7 @@ Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Goo
   │    🗓️ Key Dates
   │    🧭 Weekly Reviews
   │    Replicator Queue, Captain's Log, Habits, Library, 🔮 Tarot, 📖 Tarot Books, 🐝 Apiary,
-  │    📥 Inbox, 🔭 Science Log, 🛋️ Session Notes
+  │    📥 Inbox, 🔭 Science Log, 🛋️ Session Notes, 🛠 Upkeep, 🍽 Meals, 🍽 Dinners
   │    (ids in CONFIG; data source ids looked up once and kept in Script Properties)
   ├─ UrlFetchApp → YNAB API (GET only, YNAB_TOKEN)
   ├─ UrlFetchApp → Claude Messages API (ANTHROPIC_API_KEY): ASK, Log Ask, briefing, summaries, sorting, tarot, Ship's Year
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.58.1**, **bridge 1.38.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.59.0**, **bridge 1.39.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -304,6 +304,12 @@ A command bar (Timothy's pick from three mockups, D43): `#cmdBtn` in the header,
 
 **`tools/ia_fetch.py`** (Timothy, 2026-10-27; his choice: the Internet Archive, the looser rule, "for my own watching", run on the NAS): one-shot `python:3.12-slim` container (README → NAS relay → Public access TV) that `pip install`s `internetarchive` and pulls the script from a fixed commit (2.50: the full commit hash in the raw URL, never `main`, so a push can't change what runs on his NAS; tag pushes are refused by this environment's git proxy, so the pin is a hash rather than a tag); lists unless `--go`; series folders (`series_of`), best iPad copy per video (`pick`: h.264 HD > h.264 > MPEG4 > 512Kb MPEG4, grouped by `original`), `.part` with Range resume and MD5, `_ia_log.csv` with license and page. Exclusions use `NOT ("…")` (the Archive ignores `-("…")`). `fetch()` (2.50) retries network errors five times with backoff, resuming from the `.part`, but raises `GiveUp` at once on a 4xx other than 408 and 429. `run.sh` runs `--selftest`, which also drives `fetch()` against a fake session (fresh, 206 resume, a server ignoring Range, 416, bad MD5, 404 with no sleeps).
 
+## MEALS (app 2.59, bridge 1.39)
+
+Timothy's mockup (2026-11-04): option A (GALLEY BOARD) is PLAN, option C (MESS LOG) is the LOG tab; B (the rotation scope) was dropped. Notion: 🍽 Meals (Name, Kind select of `ML_KINDS`, Ingredients as lines `Item · Aisle[ · have]`, Recipe url, Notes, Retired, App ID) and 🍽 Dinners (Dinner title, Date, Status Planned/Eaten, Kind Meal/Leftovers/Eating out, Meal relation (dual: Meals gets "Dinners"), Note), both under the hub, created 2026-11-04 with Timothy's OK. Bridge: `meals_()` (all meals, dinners from 120 days back to 21 ahead, relation mapped to the meal's App ID; cached by `mgen` + the day), `mealSave_` (whole meal by App ID; refuses an unknown kind or aisle, `·` or a line break in an item, a recipe that isn't http(s)), `mealRemove_` (trash), `dinnerSet_` (one page a night: patch, extras trashed; kind `none` trashes; a meal it can't find is `not_found`), `mealPlan_` (PLAN MY WEEK: `aiFast_()`, low effort, `MEAL_PLAN_RULES`; it sends `mealRotation_` (days since, times in 90 days, median gap), the last week and other planned nights; keeps only listed meals, one each, only the nights asked; `meals_too_few` under 2). Capabilities `meals`, `mealplan`. Test: `bridge_meals.test.js`.
+
+App (one block before ASTROMETRICS): `ml` state, `mlView` (`tos.mealview.v1`: tab, sort), cache `tos.meals.v1`, queue `tos.mealq.v1` `{ops}` (`mlQueue` replaces an op for the same night or meal in place, so a new meal stays ahead of the dinners that name it; `flushMeals` sends in order, drops `bad_request`/`not_found` with a message, retries others every 30 s; `mlApply` replays pending ops over a fresh read). `mlStatusFor(day)`: before today, or today from 16:00, is eaten; else planned. `mlRot(id)` (since, times in 90 days, median gap; NOT IN A WHILE over 1.5× the gap or 45 days for one eating; DUE at the gap). Groceries `mlGroceries()` from `mlNights()` (today to the end of the week shown), merged by lowercased name, HAVE left off and counted; `tos.mealgot.v1` `{wk, got, extra}` resets ticks when the Monday changes (in PROFILE SYNC and backups). PRINT fills `#printSheet` and sets `html.printing` (print CSS shows only it; `afterprint` clears); SHARE uses `navigator.share`, else the clipboard. `mealLine()` (TONIGHT, `data-mlnow`) on the Bridge after `sciLine()` and on TODAY's right column. Snapshot line `DINNER TONIGHT`. COMPUTER: Record dinner, Plan meals, Grocery list, each meal. SYSTEMS `mealsSection()`. Mock: `mock_v24` `?action=mealmode&cap=1&seed=1` (invented meals around today, scripted mealplan). Test: `app_e2e72`.
+
 ## AUDIO, formerly STORAGE (app 2.16; inside HOLODECK since 2.47)
 
 - NAS: UGREEN DXP2800, UGOS Pro 1.18.1. Its own HTTPS cert is self-signed and its WebDAV refuses cross-site reads, so the app uses a **relay**: a `timothyos` Docker project with Tailscale (userspace, `TS_SERVE_CONFIG` proxies the ts.net HTTPS name to 127.0.0.1:8080) and Caddy (`file_server browse`, read-only `:ro` mounts under `/media`, CORS for `https://tim3t.github.io`, token as `Authorization: Bearer` or `?k=`). Compose is in the README; UGOS ignores compose `configs:`, so config travels in env vars written to files by the entrypoint/command. Tailscale on the NAS is on Timothy's own account, separate from the existing tailscale container that the NAS's administrator runs; leave that one alone.
@@ -393,7 +399,7 @@ Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and res
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
 - **ENGINEERING:** doors and scenes; AUTO thermostat with two setpoints.
-- **Arboretum** (plants), **MEALS** (standby tile). Notes in Capture: done (INBOX, 2.41).
+- **Arboretum** (plants): next station (Timothy, 2026-11-04: MEALS first, then ARBORETUM). MEALS: done (2.59). Notes in Capture: done (INBOX, 2.41).
 - **HOLODECK:** channels (2.46) and the arch with STORAGE as AUDIO (2.47) shipped after his mockup approvals. Nothing held.
 - **RESSIKAN Phase 2, held (raise as he refines):** POCKET GRID (knobs and punch-in effects), TILT (gyroscope filter), VOICE GRAINS (mic, stays on the iPad), SKY SONATA (SCIENCE's aircraft, Kp and passes as sound), Claude's "compose from a mood" (about 1¢), and sound that carries on outside the station (a pill, as STORAGE has). **Held as a future option, only if he asks where RESSIKAN can go:** paid AI music generators (Google Lyria, ElevenLabs Music, Stable Audio); Suno and Udio have no official API; MusicGen needs a GPU the NAS lacks. Safari has no Web MIDI.
 - **The SCIENCE group** (D50): a LISTENING POST when Timothy's digital shortwave antenna is up (band conditions already in SPACE WEATHER); other sensor stations he might add (a weather station, a BirdNET-Pi for the birds in his own yard, an ADS-B receiver of his own, a lightning detector).

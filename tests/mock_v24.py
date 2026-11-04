@@ -99,6 +99,25 @@ LOGOTHER = {"2026-10-01"}
 # LOG → SESSIONS (bridge 1.35): invented counseling sessions, behind the same code as the log.
 PROF = {"cap": 0, "items": {}, "rev": 0, "puts": [], "fail": ""}   # 2.54: profile sync (bridge 1.36), off unless profmode cap=1
 UPK = {"cap": 0, "items": [], "saves": [], "removes": [], "fail": ""}   # 2.54: Upkeep in Notion
+# 2.59 (bridge 1.39): MEALS. ?action=mealmode&cap=1&seed=1 turns it on with invented meals and dinners around today.
+MEAL = {"cap": 0, "meals": [], "dinners": [], "posts": [], "plans": 0}
+def meal_day(off):
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    return (_dt.datetime.now(ZoneInfo("America/Chicago")).date() + _dt.timedelta(days=off)).isoformat()
+def meal_seed():
+    I = lambda *x: [{"n": a, "a": b, "have": bool(c[0]) if c else False} for a, b, *c in x]
+    MEAL["meals"] = [
+        {"id": "m-tacos", "page": "pg-tacos", "name": "Sample tacos", "kind": "Beef + Pork", "ing": I(("Ground beef", "Meat + Fish"), ("Tortillas", "Bakery"), ("Onion", "Produce"), ("Rice", "Pantry", 1)), "recipe": "", "notes": "", "retired": False},
+        {"id": "m-soup", "page": "pg-soup", "name": "Sample soup", "kind": "Meatless", "ing": I(("Lentils", "Pantry"), ("Onion", "Produce"), ("Carrots", "Produce")), "recipe": "https://example.com/soup", "notes": "", "retired": False},
+        {"id": "m-fish", "page": "pg-fish", "name": "Sample fish", "kind": "Fish", "ing": I(("Cod", "Meat + Fish"), ("Lemons", "Produce")), "recipe": "", "notes": "", "retired": False},
+        {"id": "m-pasta", "page": "pg-pasta", "name": "Sample pasta", "kind": "Beef + Pork", "ing": I(("Spaghetti", "Pantry"), ("Ground beef", "Meat + Fish")), "recipe": "", "notes": "", "retired": False},
+        {"id": "m-curry", "page": "pg-curry", "name": "Sample curry", "kind": "Chicken", "ing": I(("Chicken thighs", "Meat + Fish"), ("Coconut milk", "Pantry")), "recipe": "", "notes": "", "retired": False}]
+    ate = [(-2, "m-tacos"), (-9, "m-tacos"), (-16, "m-tacos"), (-60, "m-soup"), (-90, "m-soup"), (-5, "m-fish"), (-20, "m-pasta"), (-3, "out")]
+    MEAL["dinners"] = sorted([meal_dinner(meal_day(o), "eaten", "out" if m == "out" else "meal", None if m == "out" else m) for o, m in ate] + [meal_dinner(meal_day(1), "planned", "meal", "m-fish")], key=lambda d: d["date"])
+def meal_dinner(date, status, kind, meal):
+    m = next((x for x in MEAL["meals"] if x["id"] == meal), None)
+    return {"date": date, "status": status, "kind": kind, "meal": meal if kind == "meal" else None, "name": m["name"] if m else ("Leftovers" if kind == "leftovers" else "Eating out"), "note": ""}
 NEWS = {"cap": 0, "fail": 0, "n": 0}   # 2.56: headlines for the briefing (bridge 1.37), off unless newsmode cap=1
 NEWS_ITEMS = [{"title": "Sample council approves the new river crossing", "link": "https://www.npr.org/2026/11/02/1/sample-crossing", "at": "Mon, 02 Nov 2026 15:00:00 -0500"},
               {"title": "Sample storm brings early snow to the plains", "link": "https://www.npr.org/2026/11/02/2/sample-snow", "at": "Mon, 02 Nov 2026 14:00:00 -0500"},
@@ -446,8 +465,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan"] if MEAL["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan"] if MEAL["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -474,6 +493,13 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "news" and NEWS["cap"]:
             NEWS["n"] += 1
             body = {"ok": False, "error": "news_unavailable"} if NEWS["fail"] else {"ok": True, "version": VER["v"], "source": "NPR", "items": NEWS_ITEMS}
+        elif q.get("action") == "mealmode":
+            if "cap" in q: MEAL["cap"] = int(q["cap"])
+            if "reset" in q: MEAL.update(meals=[], dinners=[], posts=[], plans=0)
+            if "seed" in q: meal_seed()
+            body = {"ok": True, "meals": MEAL["meals"], "dinners": MEAL["dinners"], "posts": MEAL["posts"], "plans": MEAL["plans"]}
+        elif q.get("action") == "meals" and MEAL["cap"]:
+            body = {"ok": True, "version": VER["v"], "meals": sorted(MEAL["meals"], key=lambda x: x["name"]), "dinners": MEAL["dinners"], "url": "https://www.notion.so/meals", "dinnersUrl": "https://www.notion.so/dinners"}
         elif q.get("action") == "upkmode":
             if "cap" in q: UPK["cap"] = int(q["cap"])
             if "reset" in q: UPK.update(items=[], saves=[], removes=[], fail="")
@@ -806,6 +832,26 @@ class H(BaseHTTPRequestHandler):
                 else:
                     u["page"] = "pg-" + u["id"]; UPK["items"][:] = [x for x in UPK["items"] if x["id"] != u["id"]] + [u]
                     body = {"ok": True, "version": VER["v"], "item": u}
+            elif act in ("mealsave", "mealremove", "dinnerset", "mealplan") and MEAL["cap"]:
+                MEAL["posts"].append([act, b.get("meal") or b.get("id") or b.get("dinner") or b.get("nights")])
+                if act == "mealsave":
+                    m = dict(b.get("meal") or {})
+                    if not m.get("id") or not str(m.get("name", "")).strip(): body = {"ok": False, "error": "bad_request"}
+                    else: m["page"] = "pg-" + m["id"]; MEAL["meals"][:] = [x for x in MEAL["meals"] if x["id"] != m["id"]] + [m]; body = {"ok": True, "version": VER["v"], "meal": m}
+                elif act == "mealremove": MEAL["meals"][:] = [x for x in MEAL["meals"] if x["id"] != b.get("id")]; body = {"ok": True, "removed": b.get("id")}
+                elif act == "dinnerset":
+                    d = b.get("dinner") or {}
+                    MEAL["dinners"][:] = [x for x in MEAL["dinners"] if x["date"] != d.get("date")]
+                    if d.get("kind") == "meal" and not any(x["id"] == d.get("meal") for x in MEAL["meals"]): body = {"ok": False, "error": "not_found"}
+                    elif d.get("kind") == "none": body = {"ok": True, "version": VER["v"], "dinner": {"date": d.get("date"), "kind": "none"}}
+                    else:
+                        x = meal_dinner(d["date"], "planned" if d.get("status") == "planned" else "eaten", d.get("kind"), d.get("meal")); MEAL["dinners"].append(x); MEAL["dinners"].sort(key=lambda y: y["date"])
+                        body = {"ok": True, "version": VER["v"], "dinner": x}
+                else:   # PLAN MY WEEK, scripted: the meals made longest ago, one a night
+                    MEAL["plans"] += 1; pool = ["m-curry", "m-soup", "m-pasta", "m-tacos", "m-fish"]
+                    pool = [p for p in pool if any(m["id"] == p for m in MEAL["meals"])]
+                    body = {"ok": True, "version": VER["v"], "plan": [{"date": n, "meal": pool[i % len(pool)], "name": next(m["name"] for m in MEAL["meals"] if m["id"] == pool[i % len(pool)]), "why": "not in a while"} for i, n in enumerate(b.get("nights") or [])],
+                            "cost": 0.004, "spend": {"month": "2026-11", "usd": 0.5, "calls": 3, "budget": 8, "cap": 10, "cont": False}}
             elif act == "upkeepremove" and UPK["cap"]:
                 UPK["removes"].append(b.get("id")); UPK["items"][:] = [x for x in UPK["items"] if x["id"] != b.get("id")]; body = {"ok": True, "removed": b.get("id")}
             elif act in ("inboxadd", "inboxset", "inboxremove"):

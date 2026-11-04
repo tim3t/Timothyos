@@ -2,6 +2,14 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.59.0 · 2026-11-04 (needs bridge 1.39)
+- **MEALS** (Timothy's pick of three mockups: the week board, with the dinner diary as a second tab), in two new Notion databases, **🍽 Meals** and **🍽 Dinners**. **Setup:** update the bridge, connect both databases to the TimothyOS integration, run setup.
+- **TONIGHT** on TODAY and the Bridge shows tonight's dinner, and from 4 PM asks what it was: ✓ HAD IT, LEFTOVERS, EATING OUT, SOMETHING ELSE, with UNDO.
+- **PLAN:** seven nights; tap a night, then a menu card (longest ago first, marked NOT IN A WHILE, DUE or NEW). **PLAN MY WEEK** asks Claude (about 1¢) to propose the open nights from your own meals; nothing is planned until you confirm.
+- **GROCERIES** build themselves from the nights planned, merged and grouped by aisle (pantry staples marked HAVE left off), with ticks, items added by hand, **PRINT** (one plain page, AirPrint) and **SHARE** (as text).
+- **LOG · ROTATION:** five weeks of dinners to look back on or fill in, and a table of every meal: last made, how often, its usual gap.
+- **Bridge 1.39:** meals, mealsave, mealremove, dinnerset, mealplan; the Notion column check covers both new databases.
+
 ## 2.58.1 · 2026-11-04
 - **Fixed: BACKUP said "2 changes are still waiting" for ever, so MAKE BACKUP never unlocked.** SCIENCE keeps its waiting list in two parts (new log entries and stars), and the check counted the two parts as two changes even when both were empty. Any iPad that had opened SCIENCE couldn't back up since 2.42. Each waiting list is now counted by what it really holds.
 - When something is waiting, the message now names it (e.g. "1 habit day, 2 tarot changes"), with **SEND NOW** to try them at once.

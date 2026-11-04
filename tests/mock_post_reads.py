@@ -7,7 +7,7 @@ from urllib.parse import urlencode, urlparse, parse_qs
 
 READS = {"ping", "batch", "aispend", "events", "tasks", "dates", "holidays", "done", "week", "reviews", "ledger", "habits", "library",
          "tarot", "tarotbooks", "tarotbook", "apiary", "inbox", "upkeep", "profile", "news", "sky", "sciencefeeds", "sciencelog", "year",
-         "schema", "logunlock", "logdates", "logday", "logsearch", "logsessions"}
+         "schema", "meals", "logunlock", "logdates", "logday", "logsearch", "logsessions"}
 MODE = {"post": 1, "get": 1, "posts": 0, "gets": 0}
 
 def wrap(H):
