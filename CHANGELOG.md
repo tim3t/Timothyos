@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.57.1 · 2026-11-04
+- **The GUIDE starts half an hour earlier**, so a show that began before the latest half hour isn't cut off at the changeover: at 19:29 it runs from 18:30, and at 19:30 it moves on to 19:00.
+
 ## 2.57.0 · 2026-11-03
 - **HOLODECK: a keypad instead of the dial** (Timothy's pick of two mockups). Type a channel number: a green display beside the screen, and the screen itself, show the number and the channel's name; **ENTER**, or a pause of 1.5 seconds, tunes in (two digits tune at once, and a number with no channel says so). **↺ LAST** jumps back to the channel before, and again to return. CH ▲ ▼, LOOK, FULL SCREEN and SLEEP stay; a keyboard's digits work too.
 - **A full-width GUIDE under the TV, after the TV Guide channel:** a row for every channel, half-hour columns from now to two hours on, a gold line at the time now, and what's on now lit, brightest on the channel on screen. Tap a channel or a show to jump to that channel (with the TV off, it also tunes in). Short videos (under 10 minutes) show as one block per half hour (MUSIC VIDEOS · 7 VIDEOS); commercial breaks fold into the show before them; NETWORK shows by show. ◀ ▶ move an hour at a time, up to six hours ahead. **AUTO-SCROLL** (with more than five channels) rolls the rows slowly; a touch holds it; off unless turned on, then remembered. It replaces the old GUIDE and other-channel lines.

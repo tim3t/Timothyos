@@ -69,12 +69,12 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   // one block per half hour, listing what plays from now, in file order, round again
   const ORDER = ['Neon Harbor · Midnight Signal', 'The Velvet Static · Satellite Heart', 'Juniper Drive · Polaroid Weekend'];
   await airFor(p, 6);
-  assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['14:00', '14:30', '15:00', '15:30']);
+  assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['13:30', '14:00', '14:30', '15:00']);
   assert.strictEqual(await txt(p, '.hd-gday'), 'WED, OCT 28');
   assert.strictEqual(await txt(p, '#hdTgWhen'), 'NOW · 14:00');
-  assert.ok(await p.$eval('#hdGNow', e => !e.hidden && e.style.getPropertyValue('--p') === '0.0000'), 'the line for now, at the start of the half hour');
+  assert.ok(await p.$eval('#hdGNow', e => !e.hidden && e.style.getPropertyValue('--p') === '0.2500'), 'the line for now, a half hour in (2.57.1: the half hour before stays in view)');
   assert.ok(/^MUSIC VIDEOS \d+ videos$/.test(await txt(p, '.hd-gc.live')), 'short videos: one block per half hour: ' + await txt(p, '.hd-gc.live'));
-  assert.strictEqual(await p.$$eval('.hd-grow .hd-gc', e => e.length), 4, 'four half hours');
+  assert.strictEqual(await p.$$eval('.hd-grow .hd-gc', e => e.length), 3, 'a block for each half hour since the channel began');
   const g = await air(p);
   const k0 = ORDER.indexOf(g[0]);
   assert.ok(k0 > -1, 'a name and a line from the file name: ' + g[0]);
@@ -82,8 +82,8 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok(/^ON CH 1 .+ \d:\d\d left · next: /.test(await txt(p, '#hdNow')), await txt(p, '#hdNow'));
   assert.strictEqual(await p.$$eval('.hd-grow', e => e.length), 1, 'one channel, one row');
   assert.ok(await p.isDisabled('[data-hd="gback"]'), 'the guide starts at now');
-  await p.click('[data-hd="gnext"]'); assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['15:00', '15:30', '16:00', '16:30']);
-  assert.strictEqual(await txt(p, '#hdTgWhen'), 'FROM 15:00'); assert.ok(await p.$eval('#hdGNow', e => e.hidden), 'no line for now an hour on');
+  await p.click('[data-hd="gnext"]'); assert.deepStrictEqual(await p.$$eval('.hd-gtimes span', e => e.map(x => x.textContent)), ['14:30', '15:00', '15:30', '16:00']);
+  assert.strictEqual(await txt(p, '#hdTgWhen'), 'FROM 14:30'); assert.ok(await p.$eval('#hdGNow', e => e.hidden), 'no line for now an hour on');
   await p.click('[data-hd="gback"]'); assert.strictEqual(await txt(p, '#hdTgWhen'), 'NOW · 14:00');
   assert.strictEqual(await p.$('[data-hd="gauto"]'), null, 'AUTO-SCROLL only once there are more channels than fit');
   assert.ok(await p.isDisabled('[data-hd="up"]'), 'one channel: nothing to change to');

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.57.0";
+  var VERSION = "2.57.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -11208,7 +11208,7 @@
 
     /* ---- the guide (2.57): every channel, now and the next two hours, like the TV Guide channel ---- */
     var TG_SPAN = 2 * 3600e3, TG_HALF = 1800e3, TG_SHORT = 600, TG_CAP = 3000;
-    function tgFrom(now) { var d = new Date(now); d.setMinutes(d.getMinutes() < 30 ? 0 : 30, 0, 0); return d.getTime() + X.gw * 3600e3; }   /* the half hour now began, then ◀ ▶ an hour at a time */
+    function tgFrom(now) { var d = new Date(now); d.setMinutes(d.getMinutes() < 30 ? 0 : 30, 0, 0); return d.getTime() - TG_HALF + X.gw * 3600e3; }   /* from the half hour before the one now (2.57.1: what just began stays in view), then ◀ ▶ an hour at a time */
     function tgName(list) {   /* a block of short videos: their show if they share one, else what they are */
       var sh = list[0].it.show; if (sh && list.every(function (u) { return u.it.show === sh; })) return sh;
       if (list.every(function (u) { return !u.it.show && u.it.s == null && !u.it.sp; })) return "MUSIC VIDEOS";
