@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.58.0";
+  var VERSION = "2.58.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -12917,11 +12917,20 @@
     });
   }
   /* Saves still on their way to Notion or Google (they'd be lost with the app). */
-  function bkPending() {
-    var n = 0;
-    ["tos.queue.v1", "tos.habitq.v1", "tos.tarotq.v1", "tos.apiaryq.v1", "tos.inboxq.v1", "tos.sciq.v1", "tos.upkeepq.v1"].forEach(function (k) { var v = lsGet(k); n += Array.isArray(v) ? v.length : v && Array.isArray(v.ops) ? v.ops.length : v && typeof v === "object" ? Object.keys(v).length : 0; });
-    return n;
+  /* What's still waiting to be sent, by kind, each list counted by its own shape (2.58.1: SCIENCE's {add, star} counted
+     as 2 for ever, so every iPad that had opened SCIENCE couldn't back up from 2.42 on). */
+  var BK_QUEUES = [["tos.queue.v1", "capture", "captures"], ["tos.habitq.v1", "habit day", "habit days"], ["tos.tarotq.v1", "tarot change", "tarot changes"], ["tos.apiaryq.v1", "hive change", "hive changes"],
+    ["tos.inboxq.v1", "inbox change", "inbox changes"], ["tos.sciq.v1", "science log entry", "science log entries"], ["tos.upkeepq.v1", "upkeep change", "upkeep changes"]];
+  function bkCount(k, v) {
+    if (!v) return 0;
+    if (Array.isArray(v)) return v.length;
+    if (k === "tos.sciq.v1") return (Array.isArray(v.add) ? v.add.length : 0) + Object.keys(v.star || {}).length;
+    if (k === "tos.upkeepq.v1") return Array.isArray(v.ops) ? v.ops.length : 0;
+    return typeof v === "object" ? Object.keys(v).length : 0;
   }
+  function bkPendingList() { return BK_QUEUES.map(function (q) { var n = bkCount(q[0], lsGet(q[0])); return n ? n + " " + (n === 1 ? q[1] : q[2]) : ""; }).filter(Boolean); }
+  function bkPending() { return BK_QUEUES.reduce(function (n, q) { return n + bkCount(q[0], lsGet(q[0])); }, 0); }
+  function bkSend() { flushQueue(true); flushHabits(); flushTarot(); flushApiary(); flushInbox(); sciFlush(); flushUpkeep(); toast("Sending what's waiting…"); setTimeout(function () { if (state.screen === "systems") render(true); }, 5000); }
   function bkDrafts() {
     return [["tos.ldraft.v1", "Captain's Log writing"], ["tos.sndraft.v1", "session notes not yet saved"], ["tos.rdraft.v1", "a review draft"], ["tos.tarotdraft.v1", "a new tarot reading"], ["tos.apdraft.v1", "a hive check in progress"]]
       .filter(function (d) { var v = lsGet(d[0]); return v && (typeof v !== "object" || Object.keys(v).length); }).map(function (d) { return d[1]; });
@@ -13014,7 +13023,8 @@
     var pend = bkPending(), drafts = bkDrafts(), at = lsGet(LS_BKAT);
     var html = '<section id="sec-backup">' + phead("BACKUP AND RESTORE", at ? "LAST BACKUP " + esc(stamp(Date.parse(at))) : "NO BACKUP YET") +
       '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>';
-    if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google. Back up once they've gone.</div>";
+    if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google (" + esc(bkPendingList().join(", ")) + "). Back up once they've gone.</div>" +
+      '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-act="bksend">SEND NOW</button></div>';
     if (drafts.length) html += '<small class="muted">Not in a backup: ' + esc(drafts.join(", ")) + ". Save or finish it first if it matters.</small>";
     if (bk.out) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn capture" data-act="bksave">SAVE TO FILES</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
     else html += '<label class="ov-sub" for="bkPass">PASSPHRASE (8 OR MORE CHARACTERS)</label><input type="password" id="bkPass" autocomplete="new-password" value="' + esc(bk.p1) + '">' +
@@ -13027,6 +13037,7 @@
   function bkClick(b) {
     var a = b.dataset.act;
     if (a === "bkmake") { bkMake(); return true; }
+    if (a === "bksend") { bkSend(); return true; }
     if (a === "bksave") { bkSave(); return true; }
     if (a === "bkopen") { bkOpen(); return true; }
     if (a === "bkapply") { bkApply(); return true; }

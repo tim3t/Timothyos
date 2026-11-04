@@ -47,13 +47,15 @@ async function make(keys, pass) {   // a file made outside the app, the same way
     Object.keys(setup).forEach(x => localStorage.setItem(x, JSON.stringify(setup[x])));
     Object.keys(never).forEach(x => localStorage.setItem(x, JSON.stringify(never[x])));
     localStorage.setItem('tos.habitq.v1', JSON.stringify({ '2026-10-22': { date: '2026-10-22', med: true } }));   // a save not sent yet
+    localStorage.setItem('tos.sciq.v1', JSON.stringify({ add: [], star: {} }));   // SCIENCE's list, empty: nothing waiting (2.58.1; it counted as 2)
+    localStorage.setItem('tos.upkeepq.v1', JSON.stringify({ ops: [], mig: true }));
   }, [K, BR, SETUP, NEVER]);
   await p.reload(); await p.waitForTimeout(800);
 
   // ---- BACKUP waits for pending saves and says which drafts stay out
   await p.click('#status'); await p.waitForSelector('#sec-backup');
   let sec = await txt(p, '#sec-backup');
-  assert.ok(sec.includes('NO BACKUP YET') && sec.includes('1 change is still waiting') && sec.includes("Not in a backup: Captain's Log writing, a review draft"), sec);
+  assert.ok(sec.includes('NO BACKUP YET') && sec.includes('1 change is still waiting to reach Notion or Google (1 habit day)') && sec.includes('SEND NOW') && sec.includes("Not in a backup: Captain's Log writing, a review draft"), sec);
   assert.ok(await p.isDisabled('[data-act="bkmake"]'));
   await p.evaluate(() => localStorage.removeItem('tos.habitq.v1'));
   await p.click('[data-screen="today"].nav'); await p.click('#status'); await p.waitForSelector('#sec-backup');

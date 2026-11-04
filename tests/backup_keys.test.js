@@ -27,6 +27,6 @@ assert.deepStrictEqual(both, [], 'listed as backed up and as left out: ' + both.
 const gone = [...out].filter(k => !all.includes(k));
 assert.deepStrictEqual(gone, [], 'no longer in the app; drop from this list: ' + gone.join(', '));
 assert.ok(!bk.has('tos.ldraft.v1'), 'the Captain\'s Log draft is never backed up');
-const pend = s.match(/function bkPending\(\) \{[\s\S]*?\[([^\]]*)\]\.forEach/)[1];
+const pend = s.match(/var BK_QUEUES = \[([\s\S]*?)\];\n/)[1];   /* 2.58.1: each waiting list with its own count */
 LEFT_OUT.queue.forEach(k => assert.ok(pend.includes('"' + k + '"'), 'the pending-saves warning counts ' + k));
 console.log('backup keys: ' + bk.size + ' backed up, ' + out.size + ' left out on purpose');

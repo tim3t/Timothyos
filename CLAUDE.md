@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.58.0**, **bridge 1.38.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.58.1**, **bridge 1.38.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -255,6 +255,8 @@ A command bar (Timothy's pick from three mockups, D43): `#cmdBtn` in the header,
 ## Backup and restore (2.33)
 
 **Backup and restore** (2.33): `backupSection()` in Systems (after CONNECTION) and `bkRestoreHtml()` also on `renderConnect()`. File `{format: "TimothyOS backup", v: 1, made, app, kdf: {PBKDF2, SHA-256, iter 600000, salt}, cipher: {AES-GCM, iv}, data}`; the plaintext is `{keys: {localStorage key: raw string}}` for `BK_KEYS` only (the three links plus every iPad-only setting; never caches, pending queues, drafts, and never `tos.ldraft.v1`). A new iPad-only setting must be added to `BK_KEYS` (and to `app_e2e45`), or a reinstall loses it. `bkMake()` refuses while `bkPending()` (capture, habit, tarot, apiary queues) is non-zero; the passphrase lives only in `bk` memory while typed. SAVE TO FILES is a second tap (`navigator.share` with a File needs a fresh tap after the async encryption), falling back to a download. Restore: `bkRead()` → `bkOpen()` (decrypt, keep only `BK_KEYS` whose values parse as JSON) → preview `bkSummary()` → `bkApply()` writes, sets `sessionStorage` `tos.restored` (toast after reload) and reloads. `tos.bkat.v1` = last backup time. Test: `app_e2e45` (lane review-log, mock_v17), which also decrypts the file in Node and restores a hand-made file with keys off the list.
+
+**Waiting lists** (2.58.1): `BK_QUEUES` names each list (key, singular, plural); `bkCount(k, v)` counts by shape (an array's length, `tos.sciq.v1` `add` plus `star` keys, `tos.upkeepq.v1` `ops`, otherwise an object's keys). `bkPending()` blocks MAKE BACKUP, `bkPendingList()` names them in the message, `bkSend()` (SEND NOW, `data-act="bksend"`) runs every flush. A new queue with its own shape needs a line in `bkCount`, or it can block backups for ever (SCIENCE's empty `{add, star}` counted as 2 from 2.42 to 2.58.1). `backup_keys.test.js` reads `BK_QUEUES`.
 
 **Keeping the key lists honest** (2.50): every `tos.*` key the app writes is either in `BK_KEYS` or in `tests/backup_keys.test.js`'s `LEFT_OUT` with its reason (cache, queue, draft, iPad-only, retired), so a new key fails the test until someone decides. Queues that hold unsaved work (`tos.inboxq.v1`, `tos.sciq.v1` among them) go in `bkPending`, which holds MAKE BACKUP back while they wait.
 

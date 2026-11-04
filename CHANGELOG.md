@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.58.1 · 2026-11-04
+- **Fixed: BACKUP said "2 changes are still waiting" for ever, so MAKE BACKUP never unlocked.** SCIENCE keeps its waiting list in two parts (new log entries and stars), and the check counted the two parts as two changes even when both were empty. Any iPad that had opened SCIENCE couldn't back up since 2.42. Each waiting list is now counted by what it really holds.
+- When something is waiting, the message now names it (e.g. "1 habit day, 2 tarot changes"), with **SEND NOW** to try them at once.
+
 ## 2.58.0 · 2026-11-04 (needs bridge 1.38)
 - **Your access key no longer travels in an address.** Every read used to put the key (and, for the Captain's Log, your authorization code) in the request's address, which Google's request logs and Safari's history can keep. Reads now go like writes always have: inside the request, over HTTPS. **Bridge 1.38** takes reads that way and refuses a request by address. Until the bridge is updated, Bridge keeps working the old way; it switches by itself once it is. After updating, consider **rotateKey** (README → Security model) and linking each iPad again, since older addresses may sit in those logs.
 - **The page's rules (Content-Security-Policy):** only Bridge's own script can run, and it can reach only the services it uses. Anything else is blocked, and **SYSTEMS → RECENT REQUESTS** shows it as BLOCKED with its address, so a missing service is easy to spot.
