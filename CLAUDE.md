@@ -421,4 +421,4 @@ Pinned for later, in no order:
 - **Log italics** (Unicode italic): paused by Timothy.
 - Moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.
 
-Standing reminder for Timothy (the only one left as of 2026-10-21): **rotate the NAS relay token**.
+~~Standing reminder: rotate the NAS relay token~~: done by Timothy 2026-11-05 (both iPads updated). He also rotated the bridge access key the same week. No standing reminders left.
