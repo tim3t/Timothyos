@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.61.0 · 2026-11-05
+- **HOLODECK LEVEL:** the volume evened out between shows and channels, so a quiet public access show and a loud music video play at about the same loudness. Bridge listens to each video as it plays (weighted the way ears hear, silences left out), eases the volume toward one level a little at a time (never a jump), and remembers each file, so the next time it airs it starts at the right level. A video not yet heard starts at its channel's average. The iPad's volume buttons work as always. **LEVEL** on the rail turns it off or on and shows what it's doing (LEARNING, or the change, like +6.5 DB). In the background (Home, the lock screen) the sound plays at the video's own volume: iPadOS pauses the leveling there.
+- If iPadOS keeps the sound after a call or Siri, **TAP FOR SOUND** appears on the screen and brings it back.
+
 ## 2.60.0 · 2026-11-04 (needs bridge 1.40)
 - **+ FROM A RECIPE** in MEALS: drop in a recipe by its link (any recipe site, or a Pinterest pin, which is followed to the site it points to), by pasting its text, or with a photo of a cookbook page or card. Bridge reads the recipe and Claude turns it into a menu card: name, kind, the shopping list by aisle with staples marked HAVE (about ½¢ from a link, 1¢ from text, 2¢ from a photo). The editor opens filled in to check; nothing is saved until SAVE. The recipe (ingredients as written, steps, servings, time, source) becomes the meal's Notion page, and the dish's photo shows on its card (a new **Photo** column on 🍽 Meals).
 - In **ASK**, a recipe link goes straight to + FROM A RECIPE; COMPUTER has **Add a recipe**.

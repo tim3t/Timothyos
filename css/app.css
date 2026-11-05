@@ -2531,6 +2531,14 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .hd-rb { background: var(--chrome-b); }
 .hd-rv { background: var(--chrome-a); }
 .hd-rb:disabled, .hd-rv:disabled { opacity: .4; }
+/* LEVEL (2.61): the volume evened out between shows; the readout is the gain now applied */
+.hd-lvb { min-height: 54px; border-radius: 6px; display: grid; place-content: center; justify-items: center; background: #3a3c48; }
+.hd-rail .hd-lvb { color: var(--fg); }
+.hd-rail .hd-lvb.set { background: var(--chrome-b); color: var(--ink); }
+.hd-lvb small { font-size: 11px; letter-spacing: .24em; }
+.hd-lvb span { font-size: 15px; font-weight: 700; letter-spacing: .1em; font-variant-numeric: tabular-nums; }
+.hd-snd { position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%); z-index: 7; min-height: 48px; padding: 0 22px; border-radius: 24px; border: 2px solid var(--chrome-d); background: rgba(0, 0, 0, .7); color: var(--chrome-d); font-family: var(--display); font-size: 16px; letter-spacing: .16em; }
+.hd-snd[hidden] { display: none; }
 /* full screen (2.53.3): drawn by Bridge, the TV screen over the whole app, so CRT and everything drawn on it come too */
 .hd-tv.big .hd-screen { position: fixed; inset: 0; z-index: 200; width: 100vw; height: 100vh; height: 100dvh; aspect-ratio: auto; border-radius: 0; }
 body:has(.hd-tv.big) { overflow: hidden; }

@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.60.0";
+  var VERSION = "2.61.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -10749,9 +10749,9 @@
      broadcast day (from 6:00) has its own lineup, worked out from the date: a show at random (never the same twice in a
      row; no blocks of two since 2.53.5), each show working through that day's shuffle of its episodes. Unmeasured lengths count as the show's typical length, so it's on air at once; the times settle as the
      real lengths come in (once, kept). UP NEXT shows in an episode's last seconds. */
-  var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1", LS_HOLOADLEN = "tos.holoadlen.v1";
+  var LS_HOLO = "tos.holo.v1", LS_HOLOLEN = "tos.hololen.v1", LS_HOLOADLEN = "tos.holoadlen.v1", LS_HOLOLOUD = "tos.hololoud.v1";
   var holo = (function () {
-    var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false, ads: "" }, lsGet(LS_HOLO) || {});   /* ads: the one Commercials folder (2.52); each channel's breaks: c.breaks */
+    var cfg = Object.assign({ chans: [], ch: 0, look: "crt", muted: false, ads: "", level: true }, lsGet(LS_HOLO) || {});   /* ads: the one Commercials folder (2.52); each channel's breaks: c.breaks; level: LEVEL (2.61) */
     var lens = lsGet(LS_HOLOLEN) || {};
     /* Commercials' lengths are kept apart under a short key (2.52.1): a split folder holds thousands, which would crowd
        the episodes out of `lens` (5,000 at most) and fill the iPad's storage with long paths */
@@ -11061,7 +11061,7 @@
     /* ---- the set: one video element for the app ---- */
     function vid() {
       if (X.v) return X.v;
-      var k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k;
+      var k = X.keep; if (!k) { k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k; }   /* once: LEVEL can swap the video element (2.61) */
       var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
       v.addEventListener("ended", function () { if (!X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () { if (X.on && X.cur && v.getAttribute("src")) failed(X.cur, X.meta || (v.error && v.error.code === 3) ? "format" : "net"); });   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
@@ -11105,6 +11105,7 @@
       X.meta = false; X.tp = Date.now(); clearInterval(X.wd);   /* 2.53.5: stalled = playing but no progress for 30 s, from the start or part way (data that stopped coming) */
       X.wd = setInterval(function () { if (!X.on || X.cur !== c) { clearInterval(X.wd); return; } if (!v.paused && !document.hidden && Date.now() - X.tp > 30000) failed(c, "timeout"); }, 5000);
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
+      lvBegin(c);
       v.muted = cfg.muted; v.src = url(c.it.f.path);
       var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
       v.onloadedmetadata = function () { X.meta = true;
@@ -11119,9 +11120,9 @@
     function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
-      X.on = true; X.tuneAt = Date.now(); X.note = ""; radioUnlock(); burst(); start(c, true); render();
+      X.on = true; X.tuneAt = Date.now(); X.note = ""; radioUnlock(); lvRoute(); burst(); start(c, true); render();
     }
-    function off() { clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
        iPadOS keeps an audio player going when a Home Screen app goes to the background (AUDIO does), but stops an
        inline video. Until 2.53.3 FULL SCREEN used the iPad's own player, which carries on, so leaving the app from full
@@ -11157,13 +11158,125 @@
     function toRadio() {
       if (!X.on || X.radio || cfg.muted) return;
       var c = at(cur(), Date.now()) || X.cur; if (!c) return;
-      X.radio = true; clearInterval(X.wd); clearTimeout(X.wait); if (X.v) X.v.pause();
+      X.radio = true; clearInterval(X.wd); clearTimeout(X.wait); if (X.v) X.v.pause(); lvEnd(false);
       radioPlay(c);
     }
     function radioStop() {
       clearTimeout(X.rw); X.radio = false;
       var a = X.au; if (a && a.getAttribute("src") && a.getAttribute("src") !== VA_SILENT) { a.pause(); a.removeAttribute("src"); a.load(); }
     }
+    /* ---- LEVEL (2.61, Timothy: "Is there a way to equalize volume?", his five postulates) ----
+       Channels came in at different loudness (public access quiet, music videos loud). The iPad ignores a volume set on a
+       video from code, so with LEVEL on the TV's sound runs through Web Audio: the video → a gain → a limiter → the
+       speakers. All of it comes before the iPad's own volume, so the side buttons work as before. A tap with the ear's
+       weighting (ITU-R BS.1770's K filter: a high shelf and a low cut) reads 0.34 s blocks while the picture plays; blocks
+       are gated as BS.1770 gates them (-70 absolute, 10 below the mean) in a 0.5 dB histogram, so silences don't count.
+       Each file's loudness is kept in tos.hololoud.v1 {key: {l, n seconds, z size}} (a cache, like the lengths): a file
+       heard before starts at its level; one never heard starts at its folder's average and eases toward its own at LV_RATE
+       dB a second, within ±LV_MAX of no change. The video element is crossOrigin "anonymous" (the relay already allows
+       Bridge, as its folder reads need). In the background the radio <audio> plays at the file's own volume: iPadOS pauses
+       Web Audio there. An element routed into Web Audio stays routed, so LEVEL OFF (and TAP FOR SOUND, when iPadOS won't
+       give the sound back) swaps in a new video element. */
+    var LV_T = -18, LV_MAX = 12, LV_RATE = .4, LV_MIN = 6, LV_BLK = .4, LV_K = 3.01 - .691;   /* LV_K: the analyser's mono mix read as stereo, and BS.1770's offset */
+    var louds = lsGet(LS_HOLOLOUD) || {};
+    var lvS = { ac: null, gn: null, an: null, v: null, buf: null, t: 0, g: 0, it: null, c: null, p: null, seed: null, lost: 0, tries: 0 };
+    function lvKey(it) { return it.ad ? "a" + (it._k || (it._k = adKey(it.f.path))) : it.f.path; }   /* paths start with "/", commercials with "a" */
+    function lvRec(it) { var x = louds[lvKey(it)]; return x && x.z === it.f.size && x.n > 0 ? x : null; }
+    function lvMix(a, b) { if (!a) return b; if (!b) return a; var n = a.n + b.n; return { l: 10 * Math.log10((Math.pow(10, a.l / 10) * a.n + Math.pow(10, b.l / 10) * b.n) / n), n: n }; }
+    function lvGuess(it, dir) {   /* never heard: its folder's average (the commercials' for a commercial), weighed as 20 seconds */
+      var pre = dir + "/", sum = 0, k = 0;
+      Object.keys(louds).forEach(function (key) { if (it.ad ? key.charAt(0) === "a" : key.indexOf(pre) === 0) { sum += louds[key].l; k++; } });
+      return k ? { l: sum / k, n: 20 } : null;
+    }
+    function lvAir() {   /* this airing so far, gated */
+      if (!lvS.c) return null; var e = 0, k = 0, i;
+      for (i = 0; i < 160; i++) if (lvS.c[i]) { e += lvS.p[i]; k += lvS.c[i]; }
+      if (!k) return null;
+      var thr = 10 * Math.log10(e / k) + LV_K - 10, e2 = 0, k2 = 0;
+      for (i = 0; i < 160; i++) if (lvS.c[i] && i / 2 - 79.75 >= thr) { e2 += lvS.p[i]; k2 += lvS.c[i]; }
+      return k2 ? { l: 10 * Math.log10(e2 / k2) + LV_K, n: k2 * LV_BLK } : null;
+    }
+    function lvEst() { var a = lvAir(); if (!lvS.seed && !(a && a.n >= LV_MIN)) return null; return lvMix(lvS.seed, a); }
+    function lvWant(e) { return e ? Math.max(-LV_MAX, Math.min(LV_MAX, LV_T - e.l)) : 0; }
+    function lvSet(db, now) {
+      lvS.g = db; if (!lvS.gn) return;
+      var g = lvS.gn.gain, t = lvS.ac.currentTime, x = Math.pow(10, db / 20);
+      try { g.cancelScheduledValues(t); if (now) g.setValueAtTime(x, t); else g.setTargetAtTime(x, t, .15); } catch (e) { g.value = x; }
+    }
+    function lvBegin(c) {   /* a file on screen: keep what the last one measured; this one starts at its level */
+      lvEnd(false); lvS.it = c.it; lvS.c = new Float64Array(160); lvS.p = new Float64Array(160);
+      var r = lvRec(c.it); lvS.seed = r ? { l: r.l, n: r.n } : lvGuess(c.it, c.c.dir);
+      lvSet(lvWant(lvEst()), true);
+    }
+    function lvEnd(stop) {   /* this airing joins the file's measure (5 seconds of sound or more) */
+      var it = lvS.it, a = lvAir(); lvS.it = null; lvS.c = lvS.p = null; lvS.seed = null;
+      if (it && a && a.n >= 5) {
+        var k = lvKey(it), r = lvRec(it), m = lvMix(r && { l: r.l, n: r.n }, a);
+        delete louds[k]; louds[k] = { l: Math.round(m.l * 10) / 10, n: Math.min(Math.round(m.n), 36000), z: it.f.size };   /* re-added last, so the oldest go first */
+        var ks = Object.keys(louds); if (ks.length > 8000) ks.slice(0, ks.length - 8000).forEach(function (x) { delete louds[x]; });
+        lsSet(LS_HOLOLOUD, louds);
+      }
+      if (stop && lvS.ac && lvS.ac.state === "running") { try { lvS.ac.suspend(); } catch (e) { /* closed */ } }
+    }
+    function lvWake() { if (lvS.ac && lvS.ac.state !== "running") { try { var r = lvS.ac.resume(); if (r && r.catch) r.catch(function () {}); } catch (e) { /* the next tap */ } } }
+    function lvRoute() {   /* inside a tap: the TV's sound through Web Audio, once per video element */
+      if (!cfg.level) return;
+      var v = vid(); if (lvS.ac && lvS.v === v) { lvWake(); return; }
+      var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      var ac, src;
+      try { ac = new C(); v.crossOrigin = "anonymous"; src = ac.createMediaElementSource(v); }
+      catch (e) { v.removeAttribute("crossorigin"); try { if (ac) ac.close(); } catch (x) { /* never opened */ } return; }   /* no Web Audio here: the TV plays as before */
+      lvS.ac = ac; lvS.v = v; lvS.lost = 0; lvS.tries = 0;
+      try {
+        var gn = ac.createGain(), lim = ac.createDynamicsCompressor(), hs = ac.createBiquadFilter(), hp = ac.createBiquadFilter(), an = ac.createAnalyser();
+        lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .003; lim.release.value = .25;   /* a boosted quiet show never clips */
+        src.connect(gn); gn.connect(lim); lim.connect(ac.destination);
+        hs.type = "highshelf"; hs.frequency.value = 1500; hs.gain.value = 4; hp.type = "highpass"; hp.frequency.value = 38; hp.Q.value = .5; an.fftSize = 16384;
+        src.connect(hs); hs.connect(hp); hp.connect(an);
+        lvS.gn = gn; lvS.an = an; lvS.buf = new Float32Array(an.fftSize);
+      } catch (e) { lvS.gn = lvS.an = null; try { src.connect(ac.destination); } catch (x) { /* nothing more to try */ } }
+      ac.onstatechange = function () { if (this === lvS.ac && this.state === "running") { lvS.lost = 0; lvS.tries = 0; lvShow(); } };
+      try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) { /* older iPadOS */ }
+      lvWake(); lvSet(lvS.g, true);
+      clearInterval(lvS.t); lvS.t = setInterval(lvTick, LV_BLK * 1000);
+    }
+    function lvTick() {
+      var v = X.v, ac = lvS.ac;
+      if (!ac || !v || lvS.v !== v || !X.on || X.radio || document.hidden || v.paused || v.muted) return;   /* muted: nothing to hear or measure */
+      if (ac.state !== "running") {   /* iPadOS took the sound (a call, Siri, another app): ask for it back, then for a tap */
+        if (!lvS.lost) lvS.lost = Date.now();
+        if (lvS.tries < 3 && Date.now() - lvS.lost >= lvS.tries * 1500) { lvS.tries++; lvWake(); }
+        lvShow(); return;
+      }
+      if (lvS.lost) { lvS.lost = 0; lvS.tries = 0; lvShow(); }
+      if (!lvS.an || !lvS.c || v.readyState < 3 || !X.cur || !lvS.it || X.cur.it.f.path !== lvS.it.f.path) return;
+      lvS.an.getFloatTimeDomainData(lvS.buf); var b = lvS.buf, s = 0; for (var i = 0; i < b.length; i++) s += b[i] * b[i];
+      var ms = s / b.length, ld = ms > 0 ? 10 * Math.log10(ms) + LV_K : -200;
+      if (ld >= -70) { var j = Math.min(159, Math.floor((ld + 80) * 2)); lvS.c[j]++; lvS.p[j] += ms; }
+      var d = lvWant(lvEst()) - lvS.g, st = LV_RATE * LV_BLK;
+      if (Math.abs(d) > .05) lvSet(lvS.g + Math.max(-st, Math.min(st, d)), false);
+    }
+    function lvLost() { return !!(X.on && lvS.ac && lvS.v === X.v && lvS.lost && Date.now() - lvS.lost > 2500); }
+    function lvText() {
+      if (!cfg.level) return "OFF";
+      if (lvLost()) return "TAP FOR SOUND";
+      if (!X.on || !lvS.it || !lvS.ac || lvS.v !== X.v) return "ON";
+      return lvEst() ? (lvS.g < 0 ? "−" : "+") + Math.abs(lvS.g).toFixed(1) + " DB" : "LEARNING";
+    }
+    function lvShow() {
+      var e = $("hdLvl"); if (e) { var t = lvText(); if (e.textContent !== t) e.textContent = t; }
+      var b = $("hdSnd"); if (b) b.hidden = !lvLost();
+    }
+    function lvSwap() {   /* a new video element (LEVEL switched, or TAP FOR SOUND): inside a tap, back at the live point */
+      lvEnd(false);
+      var old = X.v; if (old) { old.pause(); old.removeAttribute("src"); old.load(); if (old.parentNode) old.parentNode.removeChild(old); }
+      X.v = null; clearInterval(lvS.t); lvS.t = 0;
+      if (lvS.ac) { var a = lvS.ac; lvS.ac = null; a.onstatechange = null; try { a.close(); } catch (e) { /* already closed */ } }
+      lvS.gn = lvS.an = lvS.v = null; lvS.lost = 0; lvS.tries = 0; lvS.g = 0;
+      vid();
+      if (X.on) { lvRoute(); X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume(); }
+    }
+    document.addEventListener("pointerdown", function () { if (X.on && lvS.ac && lvS.ac.state !== "running" && !document.hidden) lvWake(); }, true);   /* any tap may give the sound back */
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
       if (!chById(id)) return; var moved = id !== cfg.ch; if (moved) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
       if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
@@ -11244,6 +11357,7 @@
         }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
         '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
+        '<button type="button" class="hd-lvb' + (cfg.level ? " set" : "") + '" data-hd="level" aria-pressed="' + !!cfg.level + '" aria-label="Level the volume between shows: ' + (cfg.level ? "on" : "off") + '"><small>LEVEL</small><span id="hdLvl">' + lvText() + "</span></button>" +
         '<button type="button" class="hd-sleepb' + (X.sleep ? " set" : "") + '" data-hd="sleep" aria-haspopup="dialog" aria-expanded="' + X.sleepOpen + '"><small>SLEEP</small><span>' + (typeof X.sleep === "number" ? '<span id="hdSleepLeft">' + sleepLeft() + "</span> MIN LEFT" : X.sleep === "end" ? "END OF SHOW" : "OFF") + "</span></button>" +
         "</div>";
     }
@@ -11391,7 +11505,7 @@
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
       var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + '</span><span class="hd-osd" id="hdOsd" aria-hidden="true" hidden></span>' +
-        (X.on ? '<button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
+        (X.on ? '<button type="button" class="hd-snd" id="hdSnd" data-hd="sound"' + (lvLost() ? "" : " hidden") + '>TAP FOR SOUND</button><button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
         '<div class="hd-np" id="hdNow">' + nowHtml() + "</div></div>" +
@@ -11443,7 +11557,7 @@
     function pickBox(crumbs, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
     function tick() {
       if (state.screen !== "holodeck") return;
-      tgPaint(false);
+      tgPaint(false); lvShow();
       var np = $("hdNow"); if (np) np.innerHTML = nowHtml();
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
       if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
@@ -11501,6 +11615,8 @@
       else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
       else if (d.hdch !== undefined) switchTo(+d.hdch);
       else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
+      else if (d.hd === "level") { cfg.level = !cfg.level; save(); lvSwap(); render(); }   /* 2.61 */
+      else if (d.hd === "sound") { lvSwap(); render(); }   /* iPadOS kept the sound: a new start, inside this tap */
       else if (d.hd === "full" && X.v) fullOn();
       else if (d.hd === "fullexit") fullOff();
       else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
@@ -11539,6 +11655,7 @@
       X.tp = Date.now();   /* time away isn't a stall */
       if (document.hidden) { if (X.on) toRadio(); return; }
       if (X.probeLater) { X.probeLater = false; probe(); }
+      if (X.on) lvWake();   /* LEVEL: iPadOS paused Web Audio while away */
       if (X.radio) { radioStop(); if (X.on) { X.cur = null; resume(); } return; }
       if (!X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
