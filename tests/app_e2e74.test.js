@@ -3,7 +3,9 @@
 // crossOrigin "anonymous"); a file never heard says LEARNING, then the gain eases up for the quiet show; what an airing
 // measured is kept per file and the next show starts at its folder's average; a file heard before starts at its own level.
 // LEVEL OFF swaps in a plain video element that plays on; ON routes again. iPadOS keeping the sound (a context that
-// won't resume) shows TAP FOR SOUND, and the tap starts afresh. The background radio stays a plain <audio>.
+// won't resume) hands the show to a plain backup player unlocked in the TUNE IN tap (2.62: LEVEL PAUSED, logged), as
+// does a video that won't load with LEVEL on (not marked); the next TUNE IN levels again; with no backup, TAP FOR SOUND
+// starts afresh. The background radio stays a plain <audio>. SYSTEMS → ERROR LOG lists HOLODECK's lines.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
@@ -85,16 +87,41 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   assert.strictEqual(await p.evaluate(() => window.__lvN), 2, 'a new engine for the new element');
   assert.ok(db(await lvl(p)) < -6, 'at the loud show\'s level again: ' + await lvl(p));
 
-  // ---- iPadOS keeps the sound: asked again by itself, then TAP FOR SOUND starts afresh
+  // ---- iPadOS keeps the sound: asked again by itself; still kept, LEVEL steps aside to the backup player (2.62)
   await p.evaluate(() => window.__lv.suspend());
   await until(() => p.evaluate(() => window.__lv.state === 'running'), 6000);   /* woken without a tap */
+  assert.ok(await p.$('#hdVideoB'), 'a backup player waits, unlocked in the tap');
   await p.evaluate(() => { window.__lv.resume = () => Promise.resolve(); return window.__lv.suspend(); });   /* now it won't come back */
-  await until(() => p.evaluate(() => { const b = document.getElementById('hdSnd'); return b && !b.hidden; }), 8000);
+  await until(async () => (await lvl(p)) === 'PAUSED', 10000);
+  v = await until(async () => { const x = await vid(p); return x && !x.paused && x.t > .3 && x; });
+  assert.strictEqual(v.co, null, 'the plain backup plays on'); assert.strictEqual(v.n, 1);
+  assert.ok(/Loud Show/.test(v.src), 'the same show');
+  assert.ok(await p.$('.hd-lvb.paused'), 'LEVEL shows it stepped aside');
+  assert.ok(/LEVEL stepped aside/.test(await p.textContent('.hd-main')), 'and says why');
+  let E = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]'));
+  assert.ok(E.some(e => e.s === 'holodeck' && e.a === 'LEVEL paused' && /sound engine suspended/.test(e.m)), 'logged: ' + JSON.stringify(E));
+
+  // ---- the next TUNE IN tries LEVEL again
+  await p.click('#hdPower'); await p.waitForSelector('.hd-tune'); await p.click('.hd-tune');
+  v = await until(async () => { const x = await vid(p); return x && !x.paused && x.t > .3 && x; });
+  assert.strictEqual(v.co, 'anonymous', 'routed again');
+  assert.ok(db(await lvl(p)) != null, 'leveling again: ' + await lvl(p));
+
+  // ---- no backup (it couldn't be unlocked): TAP FOR SOUND, and the tap starts afresh
+  await p.evaluate(() => { const o = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { return this.id === 'hdVideoB' ? Promise.reject(new DOMException('not allowed', 'NotAllowedError')) : o.call(this); }; });
+  await p.click('[data-hd="level"]'); await p.click('[data-hd="level"]');   /* off, on: a new routed element, its backup refused */
+  await until(async () => { const x = await vid(p); return x && x.co === 'anonymous' && !x.paused && x.t > .3; });
+  assert.ok(!(await p.$('#hdVideoB')), 'no backup');
+  const n0 = await p.evaluate(() => window.__lvN);
+  await p.evaluate(() => { window.__lv.resume = () => Promise.resolve(); return window.__lv.suspend(); });
+  await until(() => p.evaluate(() => { const b = document.getElementById('hdSnd'); return b && !b.hidden; }), 10000);
   assert.strictEqual(await lvl(p), 'TAP FOR SOUND');
   await p.click('#hdSnd');
   await until(async () => { const x = await vid(p); return x && !x.paused && x.t > .3; });
-  assert.strictEqual(await p.evaluate(() => window.__lvN), 3, 'a fresh element and engine');
+  assert.strictEqual(await p.evaluate(() => window.__lvN), n0 + 1, 'a fresh element and engine');
   assert.ok(await p.evaluate(() => window.__lv.state === 'running' && document.getElementById('hdSnd').hidden), 'sound back, the button gone');
+  E = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]'));
+  assert.ok(E.some(e => e.a === 'TAP FOR SOUND shown'), 'logged: ' + JSON.stringify(E));
 
   // ---- away: the radio plays the file as it is (Web Audio pauses in the background); back, the picture takes over
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
@@ -108,6 +135,45 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   const box = await p.$eval('.hd-lvb', e => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height }; });
   assert.ok(box.w > 100 && box.h >= 44, 'LEVEL on a phone: ' + JSON.stringify(box));
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no sideways scroll');
+
+  // ---- a video that won't load with LEVEL on (a fresh browser, so nothing is cached): LEVEL steps aside, the show
+  // plays, the file isn't marked, the error log has Safari's code, the file and LEVEL's state
+  const ctx2 = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  const p2 = await ctx2.newPage(); p2.on('pageerror', e => errs.push(e.message));
+  await p2.goto('http://localhost:8080/');
+  const lensP = await p.evaluate(() => localStorage.getItem('tos.hololen.v1'));   /* the lengths already measured, so it can tune in at once */
+  await p2.evaluate(([k, u, r, ls]) => {
+    localStorage.clear();
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
+    localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Level Test', dir: '/Video/Level Test', premiere: Date.now() - 10000 }], ch: 1, look: 'crt', muted: false }));
+    localStorage.setItem('tos.hololen.v1', ls);
+  }, [K, U, R, lensP]);
+  await p2.reload(); await p2.waitForTimeout(1200);
+  await p2.click('[data-screen="holodeck"].nav'); await p2.waitForSelector('.hd-arch'); await p2.click('[data-hdprog="visual"]');
+  await p2.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 });
+  await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Level Test/0') + '&code=404&n=1');
+  await p2.click('.hd-tune');
+  await until(async () => (await lvl(p2)) === 'PAUSED', 10000);
+  v = await until(async () => { const x = await vid(p2); return x && !x.paused && x.t > .3 && x; });
+  assert.strictEqual(v.co, null, 'played by the plain player'); assert.ok(/Loud Show/.test(v.src), v.src);
+  await fetch(R + '/__fail?n=0');
+  const lens = await p2.evaluate(() => JSON.parse(localStorage.getItem('tos.hololen.v1')));
+  assert.ok(!Object.keys(lens).some(k => k.startsWith('/Video/Level Test/') && lens[k].s < 0), 'nothing marked unplayable');
+  E = await p2.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]'));
+  const dl = E.find(e => e.a === "video didn't load");
+  assert.ok(dl && /MediaError \d/.test(dl.m) && /Loud Show\.webm · CH 1 · LEVEL on, engine running/.test(dl.d), 'the failure with its code, the file and LEVEL\'s state: ' + JSON.stringify(E));
+  assert.ok(E.some(e => e.a === 'LEVEL paused' && /didn't load with LEVEL on/.test(e.m)), 'and LEVEL stepping aside');
+  await ctx2.close();
+
+  // ---- SYSTEMS → ERROR LOG shows HOLODECK's lines
+  await p.setViewportSize({ width: 1180, height: 820 });
+  await p.click('#hdPower');
+  await p.click('#status');
+  await p.waitForSelector('#sec-errlog');
+  if (await p.$('[data-elf="holodeck"]')) await p.click('[data-elf="holodeck"]');   /* chips only when there's more than one source */
+  const rows = await p.$$eval('#errList .el-row', r => r.map(x => x.textContent));
+  assert.ok(rows.length >= 2 && rows.every(t => /HOLODECK/.test(t)) && rows.some(t => /LEVEL paused/.test(t)), 'the HOLODECK filter: ' + rows.join(' | '));
 
   await b.close();
   await fetch(R + '/__reset');

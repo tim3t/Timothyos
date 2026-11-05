@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.62.0 · 2026-11-05
+- **SYSTEMS → ERROR LOG:** every failure is now kept on the iPad until you clear it, instead of scrolling out of RECENT REQUESTS' last 30. Failed bridge requests (repeats folded into one line with ×n and RETRIED), app script errors, what the page's rules blocked, and HOLODECK and AUDIO playback failures with Safari's own error code, the file, the channel and LEVEL's state. **BRIDGE TODAY** counts this iPad's requests and failures. Filter by source, **COPY REPORT** to paste to Claude, **CLEAR**. Kept 30 days, never in backups, keys and tokens blanked out.
+- **HOLODECK: LEVEL never takes the TV down.** When a video won't load or stalls with LEVEL on, or iPadOS keeps the sound, a plain player made ready by the TUNE IN tap takes over the same show at once (no more "Five videos in a row didn't load" from LEVEL), LEVEL shows **PAUSED**, and the file isn't marked. The next TUNE IN tries LEVEL again; each time is in the error log, so the cause can be found.
+
 ## 2.61.0 · 2026-11-05
 - **HOLODECK LEVEL:** the volume evened out between shows and channels, so a quiet public access show and a loud music video play at about the same loudness. Bridge listens to each video as it plays (weighted the way ears hear, silences left out), eases the volume toward one level a little at a time (never a jump), and remembers each file, so the next time it airs it starts at the right level. A video not yet heard starts at its channel's average. The iPad's volume buttons work as always. **LEVEL** on the rail turns it off or on and shows what it's doing (LEARNING, or the change, like +6.5 DB). In the background (Home, the lock screen) the sound plays at the video's own volume: iPadOS pauses the leveling there.
 - If iPadOS keeps the sound after a call or Siri, **TAP FOR SOUND** appears on the screen and brings it back.

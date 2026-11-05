@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.61.0";
+  var VERSION = "2.62.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -233,9 +233,11 @@
   /* A short log of recent requests, shown in Systems, to tell slow from dropped from refused. */
   var netlog = lsGet(LS_NETLOG) || [];
   function logged(action, started, p) {
-    return p.then(function (j) { note(action, started, "ok"); return j; }, function (err) {
+    return p.then(function (j) { note(action, started, "ok"); netDay(started, false); return j; }, function (err) {
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error";
-      if (err && typeof err === "object") err.netEntry = note(action, started, r + (document.hidden || lastHidden >= started ? " · in background" : ""));
+      var bg = document.hidden || lastHidden >= started ? " · in background" : "";
+      if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
+      netDay(started, true);
       throw err;
     });
   }
@@ -250,9 +252,88 @@
   document.addEventListener("securitypolicyviolation", function (e) {
     var to = String(e.blockedURI || "inline").replace(/^(https?:\/\/[^\/?#]+).*$/, "$1");
     note("blocked by the page's rules: " + (e.effectiveDirective || e.violatedDirective || "?"), Date.now(), "blocked · " + to);
+    errLog("rules", "blocked: " + (e.effectiveDirective || e.violatedDirective || "?"), to);
   });
   /* A failed attempt that is tried again isn't a failure yet: the log shows it as RETRIED. */
-  function markRetried(err) { if (err && err.netEntry) { err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); } }
+  function markRetried(err) { if (err && err.netEntry) { err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); } if (err && err.errEntry) { err.errEntry.rt = (err.errEntry.rt || 0) + 1; lsSet(LS_ERRLOG, errlog); } }
+
+  /* ---------- ERROR LOG (2.62, Timothy: "the last 30 calls list moves quickly and if failures occur they disappear
+     without us being able to truly triage") ----------
+     Every failure kept on this iPad until cleared, in SYSTEMS → ERROR LOG: bridge requests that failed (retried ones
+     too), page script errors, what the page's rules blocked, HOLODECK and AUDIO playback (Safari's own error code and
+     message), LEVEL stepping aside. 200 lines at most, 30 days. The same failure again within 10 minutes adds to its
+     count (×n) instead of a line, so a burst can't push the history out. Never data: action names, codes, Safari's
+     messages, and for playback the file's name (kept only here); keys, tokens and PINs are scrubbed out (errScrub).
+     COPY REPORT puts it all on the clipboard, with versions, to paste to Claude. Left out of backups. */
+  var LS_ERRLOG = "tos.errlog.v1", LS_NETDAY = "tos.netday.v1";
+  var errlog = lsGet(LS_ERRLOG) || [], errView = { f: "all", all: false, clr: 0 };
+  var ERR_SRC = { bridge: "BRIDGE", holodeck: "HOLODECK", audio: "AUDIO", page: "PAGE", rules: "PAGE RULES", voice: "VOICE" };
+  function errScrub(x) {
+    return String(x == null ? "" : x).replace(/([?&#](?:k|key|pin|token|code|auth)=)[^&\s"']+/gi, "$1•••").replace(/(Bearer\s+)\S+/gi, "$1•••").replace(/[A-Za-z0-9_\-]{32,}/g, "•••").slice(0, 400);
+  }
+  function errLog(src, what, msg, detail) {
+    var now = Date.now(), a = errScrub(what), m = errScrub(msg), d = errScrub(detail), hit = null;
+    errlog = errlog.filter(function (e) { return now - (e.l || e.t) < 30 * 864e5; });
+    for (var i = errlog.length - 1; i >= 0 && i >= errlog.length - 10; i--) { var e = errlog[i]; if (e.s === src && e.a === a && e.m === m && now - (e.l || e.t) < 600000) { hit = e; break; } }
+    if (hit) { hit.n = (hit.n || 1) + 1; hit.l = now; if (d) hit.d = d; errlog.splice(errlog.indexOf(hit), 1); errlog.push(hit); }
+    else { hit = { t: now, s: src, a: a, m: m, d: d, v: VERSION, n: 1 }; errlog.push(hit); }
+    if (errlog.length > 200) errlog = errlog.slice(-200);
+    lsSet(LS_ERRLOG, errlog);
+    if (state.screen === "systems") { clearTimeout(errView.pt); errView.pt = setTimeout(errPaint, 300); }
+    return hit;
+  }
+  function netDay(started, bad) {   /* today's bridge requests on this iPad: a runaway loop or a bad day shows here */
+    var k = ymd(new Date()), x = lsGet(LS_NETDAY); if (!x || x.d !== k) x = { d: k, n: 0, f: 0, max: 0 };
+    x.n++; if (bad) x.f++; x.max = Math.max(x.max, Date.now() - started); lsSet(LS_NETDAY, x);
+  }
+  window.addEventListener("error", function (e) { if (e && e.message) errLog("page", "script error", e.message, (e.filename ? String(e.filename).replace(/[?#].*$/, "").replace(/^.*\//, "") : "?") + ":" + (e.lineno || 0) + ":" + (e.colno || 0)); });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e && e.reason; if (r && (r.errEntry || r.netEntry)) return;   /* a bridge failure, already logged */
+    errLog("page", "unhandled promise", r ? r.message || r.code || r.name || String(r) : "no reason", r && r.name && r.message ? r.name : "");
+  });
+  function errWhen(ms) { var d = new Date(ms); return MON[d.getMonth()].slice(0, 3).toUpperCase() + " " + d.getDate() + " · " + hm(d) + ":" + p2(d.getSeconds()); }
+  function errList() { return errlog.filter(function (e) { return errView.f === "all" || e.s === errView.f; }).slice().reverse(); }
+  function errSection() {
+    var day = lsGet(LS_NETDAY), today = day && day.d === ymd(new Date()) ? day : null, now = Date.now();
+    var recent = errlog.filter(function (e) { return now - (e.l || e.t) < 864e5; }).length;
+    var srcs = Object.keys(ERR_SRC).filter(function (k) { return errlog.some(function (e) { return e.s === k; }); });
+    if (errView.f !== "all" && srcs.indexOf(errView.f) === -1) errView.f = "all";
+    var list = errList(), shown = errView.all ? list : list.slice(0, 25);
+    var h = '<section id="sec-errlog">' + phead("ERROR LOG", errlog.length ? (recent ? recent + " IN 24 H · " : "") + errlog.length + " KEPT" : "NOTHING LOGGED", errlog.some(function (e) { return now - (e.l || e.t) < 864e5 && !(e.s === "bridge" && e.rt >= e.n); }) ? "bad" : "") +
+      '<p class="el-day tnum">' + (today ? "<b>BRIDGE TODAY</b> " + today.n + (today.n === 1 ? " request" : " requests") + " · " + (today.f ? '<span class="errtxt">' + today.f + " failed</span>" : "none failed") + " · slowest " + (today.max / 1000).toFixed(1) + " s" : "<b>BRIDGE TODAY</b> no requests yet") + "</p>";
+    if (srcs.length > 1) h += '<div class="el-f" role="group" aria-label="Show">' + ["all"].concat(srcs).map(function (k) { return '<button type="button" class="chip" data-elf="' + k + '" aria-pressed="' + (errView.f === k) + '">' + (k === "all" ? "ALL" : ERR_SRC[k]) + "</button>"; }).join("") + "</div>";
+    h += '<div class="el-list" id="errList">' + (shown.length ? shown.map(function (e) {
+      var allRetried = e.s === "bridge" && e.rt >= e.n;
+      return '<div class="el-row' + (allRetried ? " soft" : "") + '"><span class="el-t tnum">' + errWhen(e.t) + (e.l && e.n > 1 ? " → " + hm(new Date(e.l)) : "") + '</span><span class="pill' + (allRetried ? "" : " bad") + '">' + (ERR_SRC[e.s] || esc(String(e.s).toUpperCase())) + "</span>" +
+        '<span class="el-m"><b>' + esc(e.a) + "</b> " + esc(e.m) + (e.n > 1 ? ' <span class="el-n">×' + e.n + "</span>" : "") + (e.rt ? ' <span class="warntxt">' + (allRetried ? "ALL RETRIED" : e.rt + " RETRIED") + "</span>" : "") + (e.d ? "<small>" + esc(e.d) + (e.v && e.v !== VERSION ? " · app " + esc(e.v) : "") + "</small>" : e.v && e.v !== VERSION ? "<small>app " + esc(e.v) + "</small>" : "") + "</span></div>";
+    }).join("") : '<p class="muted">Nothing has failed' + (errView.f === "all" ? "" : " here") + " since the log was last cleared.</p>") + "</div>";
+    if (list.length > shown.length) h += '<button type="button" class="btn ghost" data-act="errall">SHOW ALL ' + list.length + "</button>";
+    h += '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn" data-act="errcopy"' + (errlog.length ? "" : " disabled") + '>COPY REPORT</button>' +
+      '<button type="button" class="btn ghost" data-act="errclear"' + (errlog.length ? "" : " disabled") + ">" + (now - errView.clr < 4000 ? "TAP AGAIN TO CLEAR" : "CLEAR") + "</button></div>" +
+      '<small class="muted">Kept on this iPad for 30 days (200 lines at most), never in backups or sent anywhere. Each line: when, where, what failed and the reason. ×3 means the same failure three times within 10 minutes; RETRIED means Bridge tried again on its own (dimmed when every one was). COPY REPORT copies it all with the app and bridge versions, to paste into a message to Claude.</small></section>';
+    return h;
+  }
+  function errPaint() { var s = $("sec-errlog"); if (s && state.screen === "systems") s.outerHTML = errSection(); }
+  function errReport() {
+    var day = lsGet(LS_NETDAY);
+    return ["TimothyOS ERROR LOG · copied " + new Date().toISOString(), "App " + VERSION + " · bridge " + (state.bridgeVersion || "unknown") + " · " + errScrub(navigator.userAgent),
+      day ? "Bridge on " + day.d + ": " + day.n + " requests, " + day.f + " failed, slowest " + (day.max / 1000).toFixed(1) + " s" : "", ""]
+      .concat(errlog.slice().reverse().map(function (e) {
+        return new Date(e.t).toISOString().replace("T", " ").slice(0, 19) + (e.n > 1 ? " (×" + e.n + ", last " + new Date(e.l).toISOString().slice(11, 19) + ")" : "") + " [" + (ERR_SRC[e.s] || e.s) + "] " + e.a + ": " + e.m + (e.rt ? " · " + e.rt + " retried" : "") + (e.d ? " · " + e.d : "") + (e.v !== VERSION ? " · app " + e.v : "");
+      })).join("\n");
+  }
+  function errClick(b) {
+    var a = b.dataset.act;
+    if (b.dataset.elf) { errView.f = b.dataset.elf; errView.all = false; errPaint(); return true; }
+    if (a === "errall") { errView.all = true; errPaint(); return true; }
+    if (a === "errclear") { if (Date.now() - errView.clr < 4000) { errlog = []; lsSet(LS_ERRLOG, errlog); errView.clr = 0; toast("Error log cleared"); } else { errView.clr = Date.now(); setTimeout(errPaint, 4100); } errPaint(); return true; }
+    if (a === "errcopy") {
+      var text = errReport(), ok = function () { toast("Error log copied. Paste it into a message."); }, no = function () { toast("Couldn't copy. Try again."); };
+      try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, no); else no(); } catch (e) { no(); }
+      return true;
+    }
+    return false;
+  }
   /* Requests still on their way, counting retries and pauses: REFRESH NOW spins until this is 0. */
   var netPending = 0;
   function tracked(p) { netPending++; p.then(function () { netPending--; }, function () { netPending--; }); return p; }
@@ -863,6 +944,7 @@
     html += backupSection();
     html += prof.section();
     html += netSection();
+    html += errSection();
     html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · " + WRITABLE.map(function (k) { return AREAS[k].name; }).join(" + ") + (WRITABLE.length > 1 ? " TAKE" : " TAKES") + " CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
       var cs = calStatus(k);
@@ -6288,6 +6370,7 @@
     S("Edit pins", "ALL STATIONS · EDIT PINS", "bar sidebar stations", function () { openLaunch(true); state.pinEdit = true; renderLaunch(); });
     S("Ask spending", "ASK CLAUDE", "cost budget claude");
     S("Recent requests", "RECENT REQUESTS", "network errors timeout");
+    S("Error log", "ERROR LOG", "errors failures problems crash diagnostic report");
     if (nasConf()) S("NAS relay", "NAS RELAY", "storage nas token tailscale holodeck");
     S("Home Assistant", "HOME ASSISTANT", "token devices");
     return out;
@@ -7359,7 +7442,7 @@
       if (nas.sleep === "end") { nas.sleep = null; sb.slept = true; paintPlayer(); toast("Sleep timer: stopped at the end of the episode"); return; }
       if (autoNext()) toNext(); else paintPlayer();
     });
-    a.addEventListener("error", function () { if (pl.path) toast(nas.ok === false ? "Can't reach the NAS to play this" : "This file won't play on the iPad"); paintPlayer(); });
+    a.addEventListener("error", function () { if (pl.path) { toast(nas.ok === false ? "Can't reach the NAS to play this" : "This file won't play on the iPad"); errLog("audio", "file didn't play", "MediaError " + (a.error ? a.error.code + (a.error.message ? " · " + a.error.message : "") : "?"), baseName(pl.path) + (nas.ok === false ? " · NAS unreachable" : "")); } paintPlayer(); });
     if ("mediaSession" in navigator) {
       var ms = navigator.mediaSession, on = function (k, f) { try { ms.setActionHandler(k, f); } catch (e) { /* not supported here */ } };
       on("play", function () { a.play(); });
@@ -11059,15 +11142,28 @@
     function line(l) { return l.a + (l.t ? " · " + l.t : ""); }
 
     /* ---- the set: one video element for the app ---- */
+    function mkVid() {   /* a TV video element; its handlers act only while it's the one on screen (LEVEL's backup waits beside it, 2.62) */
+      var v = document.createElement("video"); v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video";
+      v.addEventListener("ended", function () { if (X.v !== v || !X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
+      v.addEventListener("error", function () {   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
+        if (X.v !== v || !X.on || !X.cur || !v.getAttribute("src") || v.getAttribute("src") === VA_SILENT) return;
+        var c = X.cur, me = v.error, fmt = X.meta || (me && me.code === 3);
+        hdErr(fmt ? "video didn't decode" : "video didn't load", "MediaError " + (me ? me.code + (me.message ? " · " + me.message : "") : "?"), c);
+        if (lvOn() && lvFallback("the video " + (fmt ? "didn't decode" : "didn't load") + " with LEVEL on")) return;   /* 2.62: LEVEL steps aside first; the file isn't marked */
+        failed(c, fmt ? "format" : "net");
+      });
+      v.addEventListener("playing", function () { if (X.v === v) X.fails = 0; });
+      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
+      return v;
+    }
     function vid() {
       if (X.v) return X.v;
       var k = X.keep; if (!k) { k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k; }   /* once: LEVEL can swap the video element (2.61) */
-      var v = document.createElement("video"); v.id = "hdVideo"; v.setAttribute("playsinline", ""); v.preload = "auto"; v.className = "hd-video"; k.appendChild(v);
-      v.addEventListener("ended", function () { if (!X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
-      v.addEventListener("error", function () { if (X.on && X.cur && v.getAttribute("src")) failed(X.cur, X.meta || (v.error && v.error.code === 3) ? "format" : "net"); });   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
-      v.addEventListener("playing", function () { X.fails = 0; });
-      v.addEventListener("timeupdate", function () { if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
+      var v = mkVid(); v.id = "hdVideo"; k.appendChild(v);
       return (X.v = v);
+    }
+    function hdErr(what, why, c) {   /* SYSTEMS → ERROR LOG (2.62): the file, the channel and what LEVEL was doing */
+      errLog("holodeck", what, why, (c && c.it ? baseName(c.it.f.path) + (c.it.ad ? " (commercial)" : "") : "?") + (c && c.c ? " · CH " + num(c.c) : "") + " · LEVEL " + (lvOn() ? "on, engine " + lvS.ac.state : !cfg.level ? "off" : lvS.paused ? "paused" : "not routed"));
     }
     /* Full screen (2.53.3): Bridge draws it itself. The TV screen covers the whole app (X.big), so CRT, LIVE, the
        channel mark, credits and UP NEXT come too, and a redraw keeps it. Where the browser can also hide its own bars
@@ -11093,7 +11189,7 @@
     function failed(c, why) {
       clearInterval(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
       var nm = line(label(c.it));
-      if (why !== "format" && ++X.fails > 4) { off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
+      if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
       X.note = nm + (why === "format" ? " can't be played on this iPad, so it's left out from now on." : why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");
       var n = next(c), s = F[c.c.dir];
       if (n) start(n, false);
@@ -11103,11 +11199,11 @@
     function start(c, seekLive) {
       if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
       X.meta = false; X.tp = Date.now(); clearInterval(X.wd);   /* 2.53.5: stalled = playing but no progress for 30 s, from the start or part way (data that stopped coming) */
-      X.wd = setInterval(function () { if (!X.on || X.cur !== c) { clearInterval(X.wd); return; } if (!v.paused && !document.hidden && Date.now() - X.tp > 30000) failed(c, "timeout"); }, 5000);
+      X.wd = setInterval(function () { if (!X.on || X.cur !== c) { clearInterval(X.wd); return; } if (!v.paused && !document.hidden && Date.now() - X.tp > 30000) { hdErr("video stalled", "no progress for 30 s (ready state " + v.readyState + ", network state " + v.networkState + ")", c); if (lvOn() && lvFallback("the video stalled with LEVEL on")) return; failed(c, "timeout"); } }, 5000);
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
       lvBegin(c);
       v.muted = cfg.muted; v.src = url(c.it.f.path);
-      var p = v.play(); if (p && p.catch) p.catch(function () { /* the next tap starts it */ });   /* inside the tap the first time, so the iPad lets it play with sound */
+      var p = v.play(); if (p && p.catch) p.catch(function (e) { if (e && e.name !== "AbortError" && X.cur === c) hdErr("video wouldn't start", e.name + (e.message ? " · " + e.message : ""), c); });   /* the next tap starts it; AbortError is only the next src replacing this one */   /* inside the tap the first time, so the iPad lets it play with sound */
       v.onloadedmetadata = function () { X.meta = true;
         if (isFinite(v.duration) && v.duration > 1) { if (unknown(c.it)) { keepLen(c.it, { s: Math.round(v.duration * 10) / 10, z: c.it.f.size }); X.lv++; } c.dur = v.duration; }   /* playing measures it: the schedule never runs on a guess for what's on */
         var pos = seekLive !== false ? (Date.now() - c.startMs) / 1000 : Math.max(0, (Date.now() - c.startMs) / 1000); if (pos > .5 && isFinite(v.duration)) v.currentTime = Math.min(pos, Math.max(0, v.duration - 1)); };
@@ -11120,7 +11216,7 @@
     function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
-      X.on = true; X.tuneAt = Date.now(); X.note = ""; radioUnlock(); lvRoute(); burst(); start(c, true); render();
+      X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); render();
     }
     function off() { lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
@@ -11141,7 +11237,7 @@
       });
       a.addEventListener("error", function () {   /* one that won't play as sound: on to what's on next, without marking it (the picture may still be fine) */
         if (!X.radio || !X.on || !X.cur || !a.getAttribute("src") || a.getAttribute("src") === VA_SILENT) return;
-        clearTimeout(X.rw); var c = X.cur; X.rw = setTimeout(function () { if (X.radio && X.cur === c) { var n = next(c); if (n) radioPlay(n); } }, 1500);
+        clearTimeout(X.rw); var c = X.cur; hdErr("background sound didn't play", "MediaError " + (a.error ? a.error.code + (a.error.message ? " · " + a.error.message : "") : "?"), c); X.rw = setTimeout(function () { if (X.radio && X.cur === c) { var n = next(c); if (n) radioPlay(n); } }, 1500);
       });
       return (X.au = a);
     }
@@ -11179,7 +11275,7 @@
        give the sound back) swaps in a new video element. */
     var LV_T = -18, LV_MAX = 12, LV_RATE = .4, LV_MIN = 6, LV_BLK = .4, LV_K = 3.01 - .691;   /* LV_K: the analyser's mono mix read as stereo, and BS.1770's offset */
     var louds = lsGet(LS_HOLOLOUD) || {};
-    var lvS = { ac: null, gn: null, an: null, v: null, buf: null, t: 0, g: 0, it: null, c: null, p: null, seed: null, lost: 0, tries: 0 };
+    var lvS = { ac: null, gn: null, an: null, v: null, buf: null, t: 0, g: 0, it: null, c: null, p: null, seed: null, lost: 0, tries: 0, paused: "", told: 0 };
     function lvKey(it) { return it.ad ? "a" + (it._k || (it._k = adKey(it.f.path))) : it.f.path; }   /* paths start with "/", commercials with "a" */
     function lvRec(it) { var x = louds[lvKey(it)]; return x && x.z === it.f.size && x.n > 0 ? x : null; }
     function lvMix(a, b) { if (!a) return b; if (!b) return a; var n = a.n + b.n; return { l: 10 * Math.log10((Math.pow(10, a.l / 10) * a.n + Math.pow(10, b.l / 10) * b.n) / n), n: n }; }
@@ -11225,7 +11321,7 @@
       var C = window.AudioContext || window.webkitAudioContext; if (!C) return;
       var ac, src;
       try { ac = new C(); v.crossOrigin = "anonymous"; src = ac.createMediaElementSource(v); }
-      catch (e) { v.removeAttribute("crossorigin"); try { if (ac) ac.close(); } catch (x) { /* never opened */ } return; }   /* no Web Audio here: the TV plays as before */
+      catch (e) { v.removeAttribute("crossorigin"); try { if (ac) ac.close(); } catch (x) { /* never opened */ } errLog("holodeck", "LEVEL couldn't start", (e && e.name) + (e && e.message ? " · " + e.message : ""), ""); return; }   /* no Web Audio here: the TV plays as before */
       lvS.ac = ac; lvS.v = v; lvS.lost = 0; lvS.tries = 0;
       try {
         var gn = ac.createGain(), lim = ac.createDynamicsCompressor(), hs = ac.createBiquadFilter(), hp = ac.createBiquadFilter(), an = ac.createAnalyser();
@@ -11246,9 +11342,12 @@
       if (ac.state !== "running") {   /* iPadOS took the sound (a call, Siri, another app): ask for it back, then for a tap */
         if (!lvS.lost) lvS.lost = Date.now();
         if (lvS.tries < 3 && Date.now() - lvS.lost >= lvS.tries * 1500) { lvS.tries++; lvWake(); }
+        else if (Date.now() - lvS.lost > 2500) {
+          if (lvFallback("iPadOS kept the sound engine " + ac.state)) return;   /* 2.62: the plain player takes over without a tap; without one, TAP FOR SOUND (lvShow) */
+        }
         lvShow(); return;
       }
-      if (lvS.lost) { lvS.lost = 0; lvS.tries = 0; lvShow(); }
+      if (lvS.lost) { lvS.lost = 0; lvS.tries = 0; lvS.told = 0; lvShow(); }
       if (!lvS.an || !lvS.c || v.readyState < 3 || !X.cur || !lvS.it || X.cur.it.f.path !== lvS.it.f.path) return;
       lvS.an.getFloatTimeDomainData(lvS.buf); var b = lvS.buf, s = 0; for (var i = 0; i < b.length; i++) s += b[i] * b[i];
       var ms = s / b.length, ld = ms > 0 ? 10 * Math.log10(ms) + LV_K : -200;
@@ -11256,16 +11355,39 @@
       var d = lvWant(lvEst()) - lvS.g, st = LV_RATE * LV_BLK;
       if (Math.abs(d) > .05) lvSet(lvS.g + Math.max(-st, Math.min(st, d)), false);
     }
-    function lvLost() { return !!(X.on && lvS.ac && lvS.v === X.v && lvS.lost && Date.now() - lvS.lost > 2500); }
+    function lvOn() { return !!(X.v && lvS.ac && lvS.v === X.v); }
+    function lvBackup() {   /* inside the TUNE IN tap (2.62): a plain player, unlocked for sound, ready in case LEVEL has to step aside */
+      if (!cfg.level || X.bk || X.bkp || !X.keep || !lvOn()) return;
+      var b = mkVid(); b.id = "hdVideoB"; X.keep.appendChild(b); b.src = VA_SILENT; X.bkp = true;
+      var drop = function () { X.bkp = false; if (b.parentNode) b.parentNode.removeChild(b); };   /* not unlocked: no backup, so TAP FOR SOUND stays the way back */
+      try { var p = b.play(); if (p && p.then) p.then(function () { X.bkp = false; b.pause(); X.bk = b; }, drop); else { X.bkp = false; X.bk = b; } } catch (e) { drop(); }
+    }
+    function lvFallback(why) {   /* LEVEL steps aside (2.62): the backup player takes the same show at the live point; LEVEL tries again at the next TUNE IN */
+      var b = X.bk; if (!b || !X.on) return false;
+      errLog("holodeck", "LEVEL paused", why, X.cur && X.cur.it ? baseName(X.cur.it.f.path) : "");
+      lvEnd(false); clearInterval(X.wd); X.bk = null;
+      var old = X.v; if (old) { old.pause(); old.removeAttribute("src"); old.load(); if (old.parentNode) old.parentNode.removeChild(old); }
+      clearInterval(lvS.t); lvS.t = 0;
+      if (lvS.ac) { var a = lvS.ac; lvS.ac = null; a.onstatechange = null; try { a.close(); } catch (e) { /* already closed */ } }
+      lvS.gn = lvS.an = lvS.v = null; lvS.lost = 0; lvS.tries = 0; lvS.told = 0; lvS.g = 0; lvS.paused = why;
+      b.pause(); b.id = "hdVideo"; X.v = b;
+      X.note = "LEVEL stepped aside (" + why + "), so the TV plays on without it. It tries again at the next TUNE IN.";
+      X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume();
+      if (state.screen === "holodeck") render();
+      return true;
+    }
+    function lvLost() { return !!(X.on && lvS.ac && lvS.v === X.v && lvS.lost && Date.now() - lvS.lost > 2500 && !X.bk); }   /* with a backup ready, LEVEL steps aside instead (2.62) */
     function lvText() {
       if (!cfg.level) return "OFF";
       if (lvLost()) return "TAP FOR SOUND";
+      if (lvS.paused) return X.on ? "PAUSED" : "ON";
       if (!X.on || !lvS.it || !lvS.ac || lvS.v !== X.v) return "ON";
       return lvEst() ? (lvS.g < 0 ? "−" : "+") + Math.abs(lvS.g).toFixed(1) + " DB" : "LEARNING";
     }
     function lvShow() {
       var e = $("hdLvl"); if (e) { var t = lvText(); if (e.textContent !== t) e.textContent = t; }
-      var b = $("hdSnd"); if (b) b.hidden = !lvLost();
+      var lost = lvLost(), b = $("hdSnd"); if (b) b.hidden = !lost;
+      if (lost && !lvS.told) { lvS.told = 1; hdErr("TAP FOR SOUND shown", "the sound engine stayed " + lvS.ac.state + " and no backup player was ready", X.cur); }
     }
     function lvSwap() {   /* a new video element (LEVEL switched, or TAP FOR SOUND): inside a tap, back at the live point */
       lvEnd(false);
@@ -11274,7 +11396,9 @@
       if (lvS.ac) { var a = lvS.ac; lvS.ac = null; a.onstatechange = null; try { a.close(); } catch (e) { /* already closed */ } }
       lvS.gn = lvS.an = lvS.v = null; lvS.lost = 0; lvS.tries = 0; lvS.g = 0;
       vid();
-      if (X.on) { lvRoute(); X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume(); }
+      lvS.paused = ""; lvS.told = 0;
+      if (X.bk) { var ob = X.bk; X.bk = null; ob.pause(); ob.removeAttribute("src"); ob.load(); if (ob.parentNode) ob.parentNode.removeChild(ob); }   /* a fresh backup with the fresh element, unlocked by this tap */
+      if (X.on) { lvRoute(); lvBackup(); X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume(); }
     }
     document.addEventListener("pointerdown", function () { if (X.on && lvS.ac && lvS.ac.state !== "running" && !document.hidden) lvWake(); }, true);   /* any tap may give the sound back */
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
@@ -11357,7 +11481,7 @@
         }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
         '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
-        '<button type="button" class="hd-lvb' + (cfg.level ? " set" : "") + '" data-hd="level" aria-pressed="' + !!cfg.level + '" aria-label="Level the volume between shows: ' + (cfg.level ? "on" : "off") + '"><small>LEVEL</small><span id="hdLvl">' + lvText() + "</span></button>" +
+        '<button type="button" class="hd-lvb' + (cfg.level ? " set" : "") + (cfg.level && lvS.paused && X.on ? " paused" : "") + '" data-hd="level" aria-pressed="' + !!cfg.level + '" aria-label="Level the volume between shows: ' + (cfg.level ? "on" : "off") + '"><small>LEVEL</small><span id="hdLvl">' + lvText() + "</span></button>" +
         '<button type="button" class="hd-sleepb' + (X.sleep ? " set" : "") + '" data-hd="sleep" aria-haspopup="dialog" aria-expanded="' + X.sleepOpen + '"><small>SLEEP</small><span>' + (typeof X.sleep === "number" ? '<span id="hdSleepLeft">' + sleepLeft() + "</span> MIN LEFT" : X.sleep === "end" ? "END OF SHOW" : "OFF") + "</span></button>" +
         "</div>";
     }
@@ -13928,6 +14052,7 @@
     }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
+    else if ((b.dataset.elf || /^err(all|clear|copy)$/.test(b.dataset.act || "")) && errClick(b)) { /* the error log (2.62) */ }
     else if (b.dataset.logai) { if (b.dataset.logai === "1") lsSet(LS_LOGAI, true); else lsDel(LS_LOGAI); render(true); }
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); askReshare(); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
