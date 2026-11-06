@@ -110,6 +110,7 @@ New features sometimes need a newer Google bridge; the CHANGELOG says so when th
 1. In Safari (Request Desktop Website), open **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
 2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code. Save.
 3. Choose **setup** in the function menu, tap **Run**. If Google asks for a new permission, approve it. Near the end the log reads `Bridge version 1.x.y. Can write to: …`.
+   - **Bridge 1.41 once:** before this step, add the `oauthScopes` block (Optional pieces → Weekly Notion export) to `appsscript.json`. It's the only time the manifest changes.
 4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
 5. In the app: **SYSTEMS → REFRESH NOW**.
 
@@ -212,6 +213,28 @@ ASK uses your Claude API account (prepaid, separate from a Claude Pro plan).
 4. Run **setup**: `Ask Claude: OK.` with this month's spend and the models in use. **SYSTEMS → REFRESH NOW**; **ASK** lights up.
 
 **compareModels** in the script editor runs Sonnet, Opus and Haiku side by side on your own data (about 10¢), if you want to compare.
+
+### Weekly Notion export (bridge 1.41)
+
+Notion holds the real records; this keeps a copy outside it. Every Sunday about 03:00 the bridge copies **every connected database, page text included** (Captain's Log and Session Notes too), into your Google Drive: a folder **TimothyOS Notion export** with one dated folder per week. Each database is saved twice: **JSON** (every field and the page content, for a restore) and **CSV** (opens in Google Sheets). The newest **12** weeks are kept; older ones go to Drive's trash (recoverable there for 30 days). Notion is only read. The copies sit in your Drive, protected by your Google account like everything else there.
+
+**Once, when you update to bridge 1.41:**
+1. In the script editor: **Project Settings** (gear) → tick **Show "appsscript.json" manifest file in editor**. Back in **Editor**, open `appsscript.json`.
+2. Add this block inside the outer `{ }`, after the first line, and keep everything else (your time zone, the web app settings) as it is:
+   ```json
+   "oauthScopes": [
+     "https://www.googleapis.com/auth/calendar",
+     "https://www.googleapis.com/auth/script.external_request",
+     "https://www.googleapis.com/auth/script.scriptapp",
+     "https://www.googleapis.com/auth/drive.file"
+   ],
+   ```
+   These are what the bridge already used, plus **drive.file**: the bridge can see and change **only the files it creates itself**, never the rest of your Drive. Save.
+3. Paste the new `Code.gs` and run **setup** (Updating the Google bridge). Google asks for permission once: allow it. The log reads `Weekly Notion export: ON (Sundays about 03:00 …)`.
+4. Deploy a new version as usual.
+5. **SYSTEMS → NOTION → Weekly export → EXPORT NOW** makes the first copy. The first one reads every page (several minutes, in steps a minute apart, with the iPad asleep or not); later weeks reuse the text of pages that haven't changed.
+
+If setup says **NEEDS DRIVE ACCESS**, the block isn't saved in `appsscript.json`. If anything else in the bridge stops working after step 2 (a calendar or Notion error in setup's log), remove the block, save, run setup again: everything returns to how it was, without the export.
 
 ### Ledger (YNAB)
 
@@ -744,7 +767,7 @@ Find any station, or something to do inside one, by typing a few letters. Open i
 
 The ship's computer: questions about your days, tasks and dates, answered by Claude.
 
-- **Each question goes with a snapshot** of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your intent and bearing. Ignored events are left out. Claude can look further (other dates, other weeks) through the Google bridge. Finances, tarot readings and the apiary go along only with **SHARE WITH ASK** on in their Systems sections (off by default; switching one off applies to the very next question). The Captain's Log never does.
+- **Each question goes with a snapshot** of what the app shows: today and the next six days, condition, priorities, open tasks, key dates, weather, your intent and bearing. Ignored events are left out. Your breaks (**SYSTEMS → CALENDARS**) reach Claude as **BREAK**, as on the screens: a lunch held as Out of office is protected time, neither free nor a meeting (bridge 1.41). Claude can look further (other dates, other weeks) through the Google bridge. Finances, tarot readings and the apiary go along only with **SHARE WITH ASK** on in their Systems sections (off by default; switching one off applies to the very next question). The Captain's Log never does.
 - **Claude never changes anything.** Suggested changes appear as cards: add a task, pick or unpick a priority, change a status, add a key date, add an event or reminder to Personal (or the farm or Growth calendar), draft a weekly review. Nothing happens until you tap **CONFIRM**. The Work calendar is never offered.
 - **How Claude chooses:** "remind me to…" with no time becomes a task; something at a time becomes a calendar event (a reminder is a short event your devices alert you to); a deadline, a window or anything yearly becomes a key date. Weeks start on Monday. Life Areas, priorities and key date types must match your Notion names exactly; Claude is told the right names if it gets one wrong, before the card reaches you.
 - **Models:** Sonnet 5.5 at low effort for questions (about 1 to 2¢); **THINK HARDER** uses Opus 5.5 (about three times that).
@@ -901,6 +924,9 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 | SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
 | HOLODECK stops, skips, or LEVEL shows **PAUSED** | **SYSTEMS → ERROR LOG → HOLODECK** lists each failure with Safari's reason, the file and LEVEL's state; **COPY REPORT** and send it to Claude |
 | HOLODECK plays the picture but no sound | Tap **TAP FOR SOUND** if it shows. Otherwise turn **LEVEL** off on the rail: if the sound comes back, the relay isn't sending `Access-Control-Allow-Origin` with the videos (check the Caddyfile under NAS relay) |
+| SYSTEMS → NOTION → Weekly export says **SETUP** (no Drive access) | Add the `oauthScopes` block to `appsscript.json` (Optional pieces → Weekly Notion export), run **setup**, allow access, deploy, then **EXPORT NOW** |
+| The Bridge says **Notion export is N days old**, or the row says **STALLED** | **EXPORT NOW** starts or wakes it. If it keeps stalling, open **script.google.com → Executions** for `exportContinue` or `exportWeekly` errors, and run **setup** once (it puts the Sunday trigger back) |
+| Weekly export: **Left out:** a database | That database isn't shared with the bridge in Notion (••• → Connections → add TimothyOS bridge), or isn't set up; everything else was copied |
 | A scene won't save, or SYSTEMS says **SCENES NEEDS ADMIN** | The Home Assistant token is from a user who isn't an administrator. Make that user an administrator (Home Assistant → Settings → People), or make a token as one, then **SYSTEMS → HOME ASSISTANT → CHANGE** and paste it |
 | Deleting a scene says the relay doesn't let deletes through, or SYSTEMS says **RELAY BLOCKS DELETE** | Add `DELETE` to the `Access-Control-Allow-Methods` line in the relay's Caddyfile (NAS relay), redeploy the `timothyos` project, then **CHECK** |
 | A scene is marked **EDITED IN HOME ASSISTANT** | It was changed in the Home Assistant app into something Bridge's IF / THEN can't show. Run and pause it here; change it in Home Assistant, or delete it and build it again in Bridge |
@@ -920,6 +946,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 - **Calendars:** the Google bridge reads Work, Personal, farm, Growth and the holidays calendar. It can **only add** events, and only to Personal, farm and Growth. Work is never writable, and it never edits or deletes an event.
 - **Notion:** the integration sees only the databases you connected (the table under Connect Notion), with only the actions listed there. The bridge checks that every page it changes belongs to the right database. **Removing** a book, a tarot reading or spread, an apiary check or a hive **moves it to Notion's trash** (restorable there). The only real deletion is in LOG: paragraphs you remove from your own entry.
 - **YNAB** is read-only: the bridge only ever reads it.
+- **Weekly Notion export** (bridge 1.41): Google Drive is reached with **drive.file** only, so the bridge sees and changes nothing in your Drive but the export folders it made. Notion is only read for it. The copies hold your page text, Captain's Log and Session Notes included (your choice), so your Google account guards them; the Log's authorization code doesn't apply to files in Drive. Older weeks go to Drive's trash; nothing outside the export folder is ever touched.
 - **Captain's Log:** every log request carries your authorization code (inside the request body over HTTPS, like the access key, since 2.58 and bridge 1.38; a request whose body a Google redirect drops is simply sent again), checked by the bridge, with a 15-minute lock after five misses that doubles with each lockout in a row. The code is never stored on the iPad or logged by the app. Entries are never stored on the iPad (only unsaved writing, until it reaches Notion), are dropped from memory when the log locks, are never in a backup, and never go to the ASK button.
 - **Session notes:** the same code guards every request and counts toward the same lockout. Sessions are never stored on the iPad (only one not yet saved, until Notion has it), are dropped from memory when LOG locks, are never in a backup, and never go to the ASK button, the briefing or any other station. SUGGEST TOPICS sends only the sessions you choose, of one type, after a preview, and only with SHARE SESSIONS WITH ASK on. Deleting moves a page to Notion's trash; saving rewrites the page's readable copy (its body), which is the only other thing the bridge removes.
 - **Claude:** the API key lives only in Script Properties. What goes to Anthropic, and only when you ask: for **ASK**, your question and the snapshot (plus finances, tarot or the apiary only with their SHARE WITH ASK switch on); for **Log Ask**, only the entries you chose, with your code; for **WRITE SUMMARY** and **PATTERNS**, the week's numbers and your reflections (and that week's Log entries only with SHARE LOG WITH ASK on and your code); for **SUGGEST**, the card's book passages, your meaning, question and notes; for the **MORNING BRIEFING**, the same snapshot ASK sends minus tarot and the apiary, once a day (Claude gets no tools for it, so it can only describe). Claude proposes; only your **CONFIRM** changes anything, through the same actions as the app's own buttons. No web tool, ever. Spending is capped three ways: prepaid credit with auto-reload off, the Console spend limit, and the bridge's $8 reminder.

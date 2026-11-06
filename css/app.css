@@ -175,6 +175,7 @@ h1 {
   white-space: nowrap;
 }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+a.btn { text-decoration: none; }   /* a link drawn as a button (OPEN IN DRIVE, 2.65) */
 .btn {
   min-height: 56px;
   padding: 0 24px;

@@ -2,6 +2,15 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.65.0 · 2026-11-06 (needs bridge 1.41)
+- **Weekly Notion export to Google Drive.** Every Sunday about 03:00 the bridge copies every connected database, page text included, into **TimothyOS Notion export** in your Drive: one dated folder a week, each database as JSON (every field, for a restore) and CSV (for Sheets). The newest 12 weeks are kept.
+  - **SYSTEMS → NOTION → Weekly export** shows the last copy (when, pages, databases, size, anything left out) with **EXPORT NOW** and **OPEN IN DRIVE**, and follows a run while it goes.
+  - The Bridge's condition says when an export failed or is over 9 days old.
+  - The bridge asks only for **drive.file**: it sees and changes only the files it made. Notion is only read. Long exports carry on in steps a minute apart; unchanged page text is reused from the week before.
+  - **Once:** add the `oauthScopes` block to the script's `appsscript.json` before running setup (README → Weekly Notion export).
+- **ASK sees your breaks.** A lunch held as Out of office on Work now reaches Claude as a BREAK, as on the screens, even when Out of office is an ignored title: Claude no longer treats that hour as free.
+- **Bridge 1.41:** the export (`exportnow`, `exportstatus`, the weekly trigger set by setup) and breaks in ASK's calendar tool.
+
 ## 2.64.0 · 2026-11-06
 - **ENGINEERING SCENES** (your pick: Option A's scene bar, edited as IF / THEN in a modal):
   - **A bar of large scene buttons** above LIGHTS AND SWITCHES, each showing its IF ("IF 22:30 daily", "Tap only", PAUSED). A tap runs it now; a hold or **⋯** opens it; **+ SCENE** starts one.

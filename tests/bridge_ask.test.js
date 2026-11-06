@@ -226,10 +226,29 @@ console.log('get_events with Growth:', tge);
 assert.ok(tge.includes(' · Growth · Sample pottery class') && !tge.includes('undefined'), tge);
 assert.strictEqual(ctx.AREA_LABEL.hobby, 'Growth');
 delete props.GROWTH_CALENDAR_ID;
+// 1.41: a lunch held as Out of office on Work is a BREAK for Claude, as on the screens, even with "out of office" ignored
+const wev = (title, s, e, allDay) => ({ getTitle: () => title, getId: () => title, getStartTime: () => new Date(s), getEndTime: () => new Date(e), isAllDayEvent: () => !!allDay,
+  getAllDayStartDate: () => new Date(s), getAllDayEndDate: () => new Date(e), getLocation: () => '', getMyStatus: () => 'YES' });
+props.WORK_CALENDAR_ID = 'work-cal';
+ctx.CalendarApp.getCalendarById = id => id === 'work-cal' ? { getName: () => 'Work', getTimeZone: () => 'UTC', getEvents: () => [
+  wev('Out of office — Lunch', '2026-10-07T17:00:00Z', '2026-10-07T18:00:00Z'), wev('Out of office', '2026-10-10T05:00:00Z', '2026-10-12T05:00:00Z'),
+  wev('Team Lunch', '2026-10-07T19:00:00Z', '2026-10-07T20:00:00Z'), wev('Out of office', '2026-10-07T21:00:00Z', '2026-10-07T22:00:00Z')] } : null;
+const brk = (breaks) => { sent = []; script = [
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'gb', name: 'get_events', input: { from: '2026-10-07', to: '2026-10-11' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+  assert.ok(ask(Object.assign({ cid: 'ask-brk-' + Math.random().toString(36).slice(2, 10), ignore: ['out of office'] }, breaks ? { breaks } : {})).ok); return toolResult(1).content; };
+const b1 = brk(['Lunch']);
+console.log('get_events with a break:', b1.replace(/\n/g, ' / '));
+assert.ok(/ · BREAK · Lunch$/m.test(b1), 'the lunch kept, labelled BREAK, the prefix dropped');
+assert.ok(/ · Work · Team Lunch$/m.test(b1), '"Team Lunch" stays a meeting');
+assert.strictEqual((b1.match(/Out of office/g) || []).length, 0, 'other Out of office blocks still ignored');
+const b0 = brk(null);
+assert.ok(!/Lunch$/m.test(b0.split('\n').filter(l => !/Team Lunch/.test(l)).join('\n')), 'an older app (no breaks sent): as before, the ignored lunch left out');
+delete props.WORK_CALENDAR_ID;
 // the descriptions say what the code does
 const T = {}; sent[0].tools.forEach(t => { T[t.name] = t; });
 assert.strictEqual(sent[0].tools.length, 10, 'still ten tools: none added');
-assert.ok(T.get_events.description.includes('Growth calendar'));
+assert.ok(T.get_events.description.includes('Growth calendar') && T.get_events.description.includes('area BREAK'));
 assert.ok(/OPEN tasks/.test(T.get_tasks.description) && T.get_tasks.description.includes('use get_week'));
 assert.ok(T.get_week.description.includes('must be a Monday'));
 assert.ok(T.propose_add_event.description.includes('propose_add_key_date') && T.propose_add_key_date.description.includes('propose_add_event'), 'event and key date point at each other');

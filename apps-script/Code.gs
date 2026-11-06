@@ -108,13 +108,13 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.40.0';
+var VERSION = '1.41.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'export'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -173,6 +173,7 @@ function read_(p) {
   if (p.action === 'sciencefeeds') return sciFeeds_(p.lat, p.lon);
   if (p.action === 'sciencelog') return scienceLog_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'year') return year_(String(p.from || ''), String(p.to || ''));
+  if (p.action === 'exportstatus') return { ok: true, version: VERSION, export: exportStatus_() };
   if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
@@ -208,7 +209,7 @@ function doPost(e) {
   try {
     var refusedP = keyRefusal_(body.key);
     if (refusedP) return json_({ ok: false, error: refusedP });
-    if (body.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null });
+    if (body.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null, export: props_('NOTION_TOKEN') ? exportStatus_() : null });
     if (body.action === 'batch') return json_(batch_(typeof body.calls === 'string' ? body.calls : JSON.stringify(body.calls || null)));
     if (body.action === 'create') return json_(create_(body.item || {}));
     if (body.action === 'focus') return json_(setFocus_(body.id, body.day));
@@ -218,6 +219,7 @@ function doPost(e) {
     if (body.action === 'savereview') return json_(saveReview_(body.review || {}));
     if (body.action === 'ask') return json_(ask_(body));
     if (body.action === 'aicontinue') return json_(aiContinue_());
+    if (body.action === 'exportnow') return json_(exportNow_());
     if (body.action === 'aispendset') return json_(aiSpendSet_(body.usd));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'inboxadd') return json_(inboxAdd_(body.note || {}));
@@ -304,6 +306,7 @@ function setup() {
   console.log('Notion upkeep: ' + upkeepStatus_());
   console.log('Notion meals and dinners: ' + mealsStatus_());
   console.log('Profile sync: ' + profileStatus_());
+  try { console.log('Weekly Notion export: ' + exportSetup_()); } catch (e) { console.log('Weekly Notion export: could not check (' + e.message + ')'); }
   console.log('Headlines: NPR National news, for the Morning Briefing (no key needed)');
   console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
@@ -3628,7 +3631,7 @@ function speak_(body, check) {
 // Claude sees only each tool's name, description and input_schema, never the code below them, so every
 // description says what its handler actually does and refuses (bridge 1.27 audit). Keep them in step.
 var AI_TOOLS = [
-  { name: 'get_events', description: 'Calendar events from `from` to `to`, both days included, at most 62 days. Covers Work and Personal, plus the farm calendar (area Farm) and the Growth calendar (area Growth) once each is linked. Each line: weekday, date, start-end time (local) or "all day", area, title. Untitled events read "Busy". Events he declined (outside Work) and titles on his ignored list are left out. At most 200 events, earliest first.',
+  { name: 'get_events', description: 'Calendar events from `from` to `to`, both days included, at most 62 days. Covers Work and Personal, plus the farm calendar (area Farm) and the Growth calendar (area Growth) once each is linked. Each line: weekday, date, start-end time (local) or "all day", area, title. Untitled events read "Busy". Events he declined (outside Work) and titles on his ignored list are left out, except his breaks: area BREAK (such as a lunch held as Out of office) is protected time, not a meeting and not free. At most 200 events, earliest first.',
     input_schema: { type: 'object', properties: { from: { type: 'string', description: 'First day, yyyy-mm-dd' }, to: { type: 'string', description: 'Last day, yyyy-mm-dd, on or after from' } }, required: ['from', 'to'], additionalProperties: false } },
   { name: 'get_tasks', description: 'Two lists from the Master Task List: the tasks picked as priorities for `day` (any status, done ones included), then up to 120 OPEN tasks (every status except Done), soonest due date first, undated last. Each line: the task id in [brackets], title, status, priority, Life Area, due date and picked day. Finished tasks are not here: use get_week for what was done in a week.',
     input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd; the day whose picked priorities to list' } }, required: ['day'], additionalProperties: false } },
@@ -3650,7 +3653,22 @@ var AI_TOOLS = [
     input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'The Monday that starts the week, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
 ];
 
-var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm', hobby: 'Growth' };
+var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm', hobby: 'Growth', break: 'BREAK' };
+/**
+ * 1.41: breaks, as the app's screens show them (app 2.23 / 2.31.1). A timed event whose whole title is one of his break names
+ * (capitals, spacing and end punctuation aside), after an "Out of office -" / "OOO -" prefix, is protected time: kept even when
+ * its title is on the ignored list, labelled BREAK, and the prefix dropped, so Claude neither books over it nor calls it a meeting.
+ */
+var AI_OOO = /^\s*(out of office|ooo)\s*[-\u2013\u2014:\u00b7|]\s*/i;
+function aiBreakKey_(t) { return String(t || '').replace(AI_OOO, '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[\s.!:;,]+$/, ''); }
+function aiBreak_(ev, breaks) {
+  if (ev.allDay || !breaks || !breaks.length) return ev;
+  var k = aiBreakKey_(ev.title);
+  if (!k || !breaks.some(function (w) { return aiBreakKey_(w) === k; })) return ev;
+  var out = {}; Object.keys(ev).forEach(function (x) { out[x] = ev[x]; });
+  out.area = 'break'; out.title = String(ev.title).replace(AI_OOO, '') || ev.title;
+  return out;
+}
 function aiDay_(s) { return YMD.test(String(s || '')); }
 /** '' for a Monday, else an error naming that week's Monday (so the model can retry with it). */
 function aiMonday_(ymd, field) {
@@ -3676,7 +3694,8 @@ function aiTool_(name, input, ctx) {
     var ev = events_(f, t);
     if (!ev.ok) return { error: 'Range too long: at most 62 days.' };
     var ign = (ctx.ignore || []).map(function (p) { return String(p).toLowerCase(); });
-    var lines = ev.events.filter(function (e) { var tl = String(e.title).toLowerCase(); return !ign.some(function (p) { return p && tl.indexOf(p) > -1; }); })
+    var lines = ev.events.map(function (e) { return aiBreak_(e, ctx.breaks); })
+      .filter(function (e) { if (e.area === 'break') return true; var tl = String(e.title).toLowerCase(); return !ign.some(function (p) { return p && tl.indexOf(p) > -1; }); })
       .sort(function (a, b) { return String(a.start).localeCompare(String(b.start)); }).slice(0, 200).map(function (e) { return aiLine_(e, tz); });
     return { text: lines.length ? lines.join('\n') : 'No events in that range.' };
   }
@@ -3728,7 +3747,7 @@ function aiCheck_(name, i) {
 
 /**
  * Answer one message. body: { cid, mode: 'fast'|'deep'|'summary', messages: [{ role, text }],
- * context: snapshot text from the app, ignore: [title phrases] }.
+ * context: snapshot text from the app, ignore: [title phrases], breaks: [break names] (1.41) }.
  * Returns { reply, proposals, model, cost, spend }. Safe to repeat: replies are kept by cid for 10 minutes.
  */
 function ask_(body, test) {
@@ -3762,7 +3781,7 @@ function ask_(body, test) {
   // A decline by a safety classifier is retried on a suitable model in the same call (Sonnet 5.5 and Opus 5.5; Haiku has none).
   if (/^claude-(sonnet-5-5|opus-5-5)/.test(model)) { payload.fallbacks = 'default'; betas.push('server-side-fallback-2026-07-01'); }
 
-  var ctx = { ignore: Array.isArray(body.ignore) ? body.ignore.slice(0, 30) : [], proposals: [] }, cost = 0, res, served = model;
+  var ctx = { ignore: Array.isArray(body.ignore) ? body.ignore.slice(0, 30) : [], breaks: Array.isArray(body.breaks) ? body.breaks.slice(0, 12).map(String) : [], proposals: [] }, cost = 0, res, served = model;
   var tok = { in: 0, out: 0, cw: 0, cr: 0 }, unknown = false;
   for (var step = 0; step < AI.MAX_STEPS; step++) {
     if (step > 0 && aiPaused_(aiSpend_())) break;
@@ -3797,4 +3816,289 @@ function ask_(body, test) {
   if (test) { out.stop = res && res.stop_reason; out.steps = step + 1; out.costExact = cost; }
   try { cache.put('ask:' + body.cid, JSON.stringify(out), 600); } catch (x) { /* too large to cache */ }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Weekly Notion export (1.41). Every connected database, with its page text, copied to Google Drive as JSON (every
+// field, for a restore) and CSV (opens in Sheets), one dated folder a week inside "TimothyOS Notion export"; the newest
+// EXPORT.KEEP folders are kept and older ones go to Drive's trash. Drive is reached with the narrow drive.file
+// permission (README: the oauthScopes block in appsscript.json), so the bridge can see and change only the files it
+// made itself. Notion is only read. A run stops before Apps Script's 6-minute limit and a trigger picks it up a minute
+// later; page text unchanged since last week is reused from last week's file instead of being read again.
+// The script lock is never held during a run (the app's saves need it); a heartbeat in EXPORT_JOB keeps two runs apart.
+// ---------------------------------------------------------------------------
+var EXPORT = { ROOT: 'TimothyOS Notion export', KEEP: 12, BUDGET_MS: 240000, STALE_MS: 600000, ABANDON_MS: 86400000, DEPTH: 3, HOUR: 3 };
+var DRIVE = 'https://www.googleapis.com/drive/v3/files', DRIVE_UP = 'https://www.googleapis.com/upload/drive/v3/files';
+
+function driveFetch_(method, url, opts) {
+  var o = { method: method, muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } };
+  Object.keys(opts || {}).forEach(function (k) { o[k] = opts[k]; });
+  var res = UrlFetchApp.fetch(url, o), code = res.getResponseCode(), text = res.getContentText() || '';
+  if (code >= 300) {
+    var e = new Error('Drive HTTP ' + code + ': ' + text.slice(0, 300));
+    e.drive = code === 401 || (code === 403 && /insufficient|scope|permission/i.test(text)) ? 'drive_scope' : code === 403 && /storageQuota/i.test(text) ? 'drive_full' : code === 404 ? 'drive_missing' : 'drive_error';
+    throw e;
+  }
+  return text;
+}
+function driveJson_(method, url, body) {
+  var t = driveFetch_(method, url, body ? { contentType: 'application/json', payload: JSON.stringify(body) } : null);
+  return t ? JSON.parse(t) : {};
+}
+function driveFolder_(name, parent) {
+  return driveJson_('post', DRIVE + '?fields=id,name', { name: name, mimeType: 'application/vnd.google-apps.folder', parents: parent ? [parent] : undefined }).id;
+}
+function driveUpload_(name, parent, mime, text) {
+  var b = 'tos' + Utilities.getUuid().replace(/-/g, '');
+  var body = '--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name, parents: [parent], mimeType: mime }) +
+    '\r\n--' + b + '\r\nContent-Type: ' + mime + '; charset=UTF-8\r\n\r\n' + text + '\r\n--' + b + '--';
+  var bytes = Utilities.newBlob(body).getBytes();
+  var r = JSON.parse(driveFetch_('post', DRIVE_UP + '?uploadType=multipart&fields=id,name,size', { contentType: 'multipart/related; boundary=' + b, payload: bytes }));
+  return { id: r.id, size: Number(r.size) || bytes.length };
+}
+function driveList_(q) {
+  var out = [], page = '';
+  do {
+    var r = driveJson_('get', DRIVE + '?q=' + encodeURIComponent(q) + '&fields=' + encodeURIComponent('nextPageToken,files(id,name,createdTime)') + '&pageSize=100' + (page ? '&pageToken=' + encodeURIComponent(page) : ''));
+    out = out.concat(r.files || []); page = r.nextPageToken || '';
+  } while (page);
+  return out;
+}
+function driveRead_(id) { return driveFetch_('get', DRIVE + '/' + encodeURIComponent(id) + '?alt=media'); }
+function driveTrash_(id) { driveJson_('patch', DRIVE + '/' + encodeURIComponent(id) + '?fields=id', { trashed: true }); }
+
+/** The export's own folder in Drive, made the first time (drive.file: the bridge sees only what it made). */
+function exportRoot_() {
+  var props = PropertiesService.getScriptProperties(), id = props.getProperty('EXPORT_ROOT');
+  if (id) {
+    try { var f = driveJson_('get', DRIVE + '/' + encodeURIComponent(id) + '?fields=id,trashed'); if (!f.trashed) return id; } catch (e) { if (e.drive !== 'drive_missing') throw e; }
+  }
+  id = driveFolder_(EXPORT.ROOT, null);
+  props.setProperty('EXPORT_ROOT', id);
+  return id;
+}
+
+function props_(k) { return PropertiesService.getScriptProperties().getProperty(k); }
+function exportGet_(k) { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(k) || 'null'); } catch (e) { return null; } }
+function exportPut_(k, v) { var p = PropertiesService.getScriptProperties(); if (v === null) p.deleteProperty(k); else p.setProperty(k, JSON.stringify(v)); }
+
+/** What the app shows in SYSTEMS (and the Bridge's condition): read from Script Properties only, so it's cheap enough for ping. */
+function exportStatus_() {
+  var job = exportGet_('EXPORT_JOB'), last = exportGet_('EXPORT_LAST'), dbs = schemaSpec_();
+  return { weekly: PropertiesService.getScriptProperties().getProperty('EXPORT_WEEKLY') === '1', keep: EXPORT.KEEP, last: last,
+    running: job ? { since: job.at, db: (dbs[job.i] || {}).name || '', n: Math.min(job.i + 1, dbs.length), of: dbs.length, pages: job.pages, stalled: Date.now() - job.beat > EXPORT.STALE_MS } : null };
+}
+
+/** One-off trigger to carry on (or start) a run; spent ones are removed first. */
+function exportLater_(ms) {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'exportContinue') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('exportContinue').timeBased().after(ms).create();
+}
+
+function exportNewJob_(why) {
+  var tz = Session.getScriptTimeZone(), now = new Date(), name = Utilities.formatDate(now, tz, 'yyyy-MM-dd HH.mm');
+  var folder = driveFolder_(name, exportRoot_());
+  var job = { why: why, at: now.toISOString(), name: name, folder: folder, i: 0, cursor: null, skip: 0, parts: [], files: {}, dbs: [], pages: 0, bytes: 0, busy: 0, runs: 0, beat: Date.now(), live: false };
+  exportPut_('EXPORT_JOB', job);
+  return job;
+}
+
+/** EXPORT NOW from the app: starts a run in a minute (or wakes a stalled one); never runs inside the app's request. */
+function exportNow_() {
+  if (!PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) return { ok: false, error: 'notion_not_configured' };
+  var job = exportGet_('EXPORT_JOB');
+  try {
+    if (!job) exportNewJob_('now');
+    else if (Date.now() - job.beat <= EXPORT.STALE_MS) return { ok: true, version: VERSION, export: exportStatus_() };
+    exportLater_(1000);
+  } catch (e) {
+    if (!e.drive) throw e;
+    exportPut_('EXPORT_LAST', { ok: false, at: new Date().toISOString(), error: e.drive });
+    return { ok: false, error: e.drive, export: exportStatus_() };
+  }
+  return { ok: true, version: VERSION, export: exportStatus_() };
+}
+
+/** The weekly trigger (setup installs it: Sundays about 03:00). A run left for a day is abandoned and started again. */
+function exportWeekly() {
+  var job = exportGet_('EXPORT_JOB');
+  if (job && Date.now() - job.beat <= EXPORT.STALE_MS) return;
+  if (job && Date.now() - new Date(job.at).getTime() > EXPORT.ABANDON_MS) { try { driveTrash_(job.folder); } catch (e) { /* gone already */ } job = null; exportPut_('EXPORT_JOB', null); }
+  try { if (!job) exportNewJob_('weekly'); } catch (e) { if (!e.drive) throw e; exportPut_('EXPORT_LAST', { ok: false, at: new Date().toISOString(), error: e.drive }); return; }
+  exportRun_();
+}
+function exportContinue() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'exportContinue') ScriptApp.deleteTrigger(t); });
+  exportRun_();
+}
+
+/** A Notion property as one plain value (for the CSV and the "values" in JSON). */
+function exportVal_(p) {
+  if (!p || !p.type) return '';
+  var v = p[p.type], txt = function (a) { return (a || []).map(function (t) { return t.plain_text || ''; }).join(''); };
+  switch (p.type) {
+    case 'title': case 'rich_text': return txt(v);
+    case 'select': case 'status': return v ? v.name : '';
+    case 'multi_select': return (v || []).map(function (o) { return o.name; }).join('; ');
+    case 'date': return v ? v.start + (v.end ? ' to ' + v.end : '') : '';
+    case 'number': return v === null || v === undefined ? '' : v;
+    case 'checkbox': return !!v;
+    case 'url': case 'email': case 'phone_number': case 'created_time': case 'last_edited_time': return v || '';
+    case 'relation': return (v || []).map(function (r) { return r.id; }).join('; ');
+    case 'people': return (v || []).map(function (u) { return u.name || u.id; }).join('; ');
+    case 'files': return (v || []).map(function (f) { return f.name; }).join('; ');
+    case 'formula': return v ? (v.type === 'date' ? (v.date ? v.date.start : '') : v[v.type] === null || v[v.type] === undefined ? '' : v[v.type]) : '';
+    case 'unique_id': return v ? (v.prefix ? v.prefix + '-' : '') + v.number : '';
+    default: return v === null || v === undefined ? '' : JSON.stringify(v);
+  }
+}
+/** A page's blocks (nested ones too, a few levels down), trimmed to their content. Sub-pages are named, not opened. */
+function exportBlocks_(id, depth) {
+  var out = [], cursor = '';
+  do {
+    var r = logNotion_('get', '/blocks/' + id + '/children?page_size=100' + (cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''));
+    (r.results || []).forEach(function (b) {
+      var x = { type: b.type }; x[b.type] = b[b.type];
+      if (b.has_children && depth < EXPORT.DEPTH && b.type !== 'child_page' && b.type !== 'child_database') x.children = exportBlocks_(b.id, depth + 1);
+      out.push(x);
+    });
+    cursor = r.has_more ? r.next_cursor : '';
+  } while (cursor);
+  return out;
+}
+var EXPORT_MARK = { heading_1: '# ', heading_2: '## ', heading_3: '### ', bulleted_list_item: '- ', numbered_list_item: '1. ', quote: '> ', callout: '> ', toggle: '' };
+/** Blocks as readable text: one line per block, children indented. */
+function exportText_(blocks, ind) {
+  var lines = [];
+  (blocks || []).forEach(function (b) {
+    var d = b[b.type] || {}, t = (d.rich_text || []).map(function (x) { return x.plain_text || ''; }).join('');
+    if (b.type === 'to_do') t = (d.checked ? '[x] ' : '[ ] ') + t;
+    else if (b.type === 'child_page' || b.type === 'child_database') t = '(page: ' + (d.title || '') + ')';
+    else if (b.type === 'divider') t = '---';
+    else if (b.type === 'code') t = '```\n' + t + '\n```';
+    else if (EXPORT_MARK[b.type] !== undefined) t = EXPORT_MARK[b.type] + t;
+    else if (!d.rich_text && d.caption) t = '(' + b.type + ') ' + (d.caption || []).map(function (x) { return x.plain_text || ''; }).join('');
+    lines.push(ind + t);
+    if (b.children) lines.push(exportText_(b.children, ind + '  '));
+  });
+  return lines.filter(function (l) { return l !== ''; }).join('\n');
+}
+function exportCsv_(rows) {
+  var cols = [];
+  rows.forEach(function (r) { Object.keys(r.values).forEach(function (k) { if (cols.indexOf(k) === -1) cols.push(k); }); });
+  var q = function (v) { return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"'; };
+  var head = ['Notion ID', 'Notion link', 'Created', 'Last edited'].concat(cols, ['Page text']);
+  return '﻿' + [head.map(q).join(',')].concat(rows.map(function (r) {
+    return [r.id, r.url, r.created, r.edited].concat(cols.map(function (k) { return r.values[k]; }), [r.text]).map(q).join(',');
+  })).join('\r\n');
+}
+
+/** Last week's file for a database: page id -> { edited, blocks }, so unchanged page text isn't read again. */
+function exportPrev_(key) {
+  var files = exportGet_('EXPORT_FILES'), id = files && files[key];
+  if (!id) return {};
+  try {
+    var prev = JSON.parse(driveRead_(id)), map = {};
+    (prev.pages || []).forEach(function (p) { if (p.blocks) map[p.id] = { edited: p.edited, blocks: p.blocks }; });
+    return map;
+  } catch (e) { return {}; }
+}
+
+/** Carry the run on for up to EXPORT.BUDGET_MS, then hand over to a trigger. job.cursor / job.skip always say where the
+ *  rows gathered so far end (Notion's page cursor, and how many of that page are done), so a stop anywhere resumes exactly. */
+function exportRun_() {
+  var lock = LockService.getScriptLock(), job;
+  lock.waitLock(20000);
+  try {
+    job = exportGet_('EXPORT_JOB');
+    if (!job || (job.live && Date.now() - job.beat < EXPORT.STALE_MS)) return;
+    job.beat = Date.now(); job.live = true; job.runs++;
+    exportPut_('EXPORT_JOB', job);
+  } finally { lock.releaseLock(); }
+  var t0 = Date.now(), dbs = schemaSpec_(), more = false, over = function () { return Date.now() - t0 > EXPORT.BUDGET_MS; };
+  try {
+    while (job.i < dbs.length && !more) {
+      var d = dbs[job.i], rows = [], done = false;
+      try {
+        var ds = d.src(), prev = exportPrev_(d.key);
+        while (!done && !more) {
+          var q = logNotion_('post', '/data_sources/' + ds + '/query', job.cursor ? { page_size: 100, start_cursor: job.cursor } : { page_size: 100 });
+          var pages = q.results || [];
+          for (var k = job.skip; k < pages.length; k++) {
+            if (over()) { more = true; break; }
+            var pg = pages[k], vals = {}, was = prev[pg.id];
+            Object.keys(pg.properties || {}).forEach(function (n) { vals[n] = exportVal_(pg.properties[n]); });
+            var blocks = was && was.edited === pg.last_edited_time ? was.blocks : exportBlocks_(pg.id, 1);
+            rows.push({ id: pg.id, url: pg.url, created: pg.created_time, edited: pg.last_edited_time, values: vals, text: exportText_(blocks, ''), properties: pg.properties, blocks: blocks });
+            job.skip = k + 1;
+          }
+          if (more) break;
+          if (q.has_more) { job.cursor = q.next_cursor; job.skip = 0; } else done = true;
+          if (!done && over()) more = true;
+          job.beat = Date.now(); exportPut_('EXPORT_JOB', job);
+        }
+      } catch (e) {
+        if (e.drive) throw e;
+        if (e.notion === 'notion_busy' && job.busy < 3) { job.busy++; more = true; }   // Notion asked us to slow down: carry on in a minute
+        else {
+          job.parts.forEach(function (pid) { try { driveTrash_(pid); } catch (x) { /* fine */ } });
+          job.dbs.push({ key: d.key, name: d.name, error: e.notion || 'error' });
+          job.i++; job.cursor = null; job.skip = 0; job.parts = []; job.busy = 0;
+          continue;
+        }
+      }
+      if (more) {
+        if (rows.length) job.parts.push(driveUpload_('~' + d.key + '.part' + job.parts.length + '.json', job.folder, 'application/json', JSON.stringify(rows)).id);
+        break;
+      }
+      var all = [];
+      job.parts.forEach(function (pid) { all = all.concat(JSON.parse(driveRead_(pid))); });
+      all = all.concat(rows);
+      var fj = driveUpload_(d.name + '.json', job.folder, 'application/json', JSON.stringify({ database: d.name, key: d.key, exported: new Date().toISOString(), bridge: VERSION, count: all.length, pages: all }));
+      var fc = driveUpload_(d.name + '.csv', job.folder, 'text/csv', exportCsv_(all));
+      job.parts.forEach(function (pid) { try { driveTrash_(pid); } catch (x) { /* left as a ~ file */ } });
+      job.files[d.key] = fj.id; job.bytes += fj.size + fc.size; job.pages += all.length;
+      job.dbs.push({ key: d.key, name: d.name, pages: all.length });
+      job.i++; job.cursor = null; job.skip = 0; job.parts = []; job.busy = 0;
+      job.beat = Date.now(); exportPut_('EXPORT_JOB', job);
+    }
+  } catch (e) {
+    if (!e.drive) { job.live = false; exportPut_('EXPORT_JOB', job); throw e; }
+    try { driveTrash_(job.folder); } catch (x) { /* Drive refused; the folder stays */ }
+    exportPut_('EXPORT_JOB', null);
+    exportPut_('EXPORT_LAST', { ok: false, at: new Date().toISOString(), error: e.drive });
+    return;
+  }
+  if (more) { job.live = false; job.beat = Date.now(); exportPut_('EXPORT_JOB', job); exportLater_(60000); return; }
+  exportFinish_(job);
+}
+
+function exportFinish_(job) {
+  var bad = job.dbs.filter(function (x) { return x.error; });
+  var last = { ok: true, at: job.at, done: new Date().toISOString(), why: job.why, name: job.name, folder: job.folder, root: PropertiesService.getScriptProperties().getProperty('EXPORT_ROOT'),
+    pages: job.pages, bytes: job.bytes, dbs: job.dbs.length - bad.length, of: job.dbs.length, failed: bad.map(function (x) { return x.name + ' (' + x.error + ')'; }), runs: job.runs };
+  driveUpload_('_export.json', job.folder, 'application/json', JSON.stringify({ bridge: VERSION, started: job.at, finished: last.done, databases: job.dbs, pages: job.pages }, null, 1));
+  exportPut_('EXPORT_LAST', last);
+  exportPut_('EXPORT_FILES', job.files);   // last good export's JSON per database: next week reuses unchanged page text from it
+  exportPut_('EXPORT_JOB', null);
+  try {   // keep the newest EXPORT.KEEP dated folders; only ever the export's own (drive.file lists nothing else)
+    var olds = driveList_("'" + last.root + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+      .filter(function (f) { return /^\d{4}-\d{2}-\d{2} \d{2}\.\d{2}$/.test(f.name); }).sort(function (a, b) { return a.name < b.name ? 1 : -1; });
+    olds.slice(EXPORT.KEEP).forEach(function (f) { driveTrash_(f.id); });
+  } catch (e) { /* tidying waits for next week */ }
+}
+
+/** setup(): checks Drive and installs the weekly trigger. */
+function exportSetup_() {
+  var props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('NOTION_TOKEN')) return 'OFF (needs Notion)';
+  try { exportRoot_(); } catch (e) {
+    if (!e.drive) throw e;
+    return 'NEEDS DRIVE ACCESS: add the oauthScopes block to appsscript.json (README, Weekly Notion export), save, then run setup again and allow access';
+  }
+  if (!ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'exportWeekly'; }))
+    ScriptApp.newTrigger('exportWeekly').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(EXPORT.HOUR).create();
+  props.setProperty('EXPORT_WEEKLY', '1');
+  var last = exportGet_('EXPORT_LAST');
+  return 'ON (Sundays about 0' + EXPORT.HOUR + ':00 to Google Drive, folder "' + EXPORT.ROOT + '", newest ' + EXPORT.KEEP + ' kept). Last: ' + (last ? (last.ok ? last.done + ', ' + last.pages + ' pages' : 'FAILED (' + last.error + ')') : 'none yet; EXPORT NOW in SYSTEMS starts one');
 }

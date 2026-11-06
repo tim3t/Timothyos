@@ -118,7 +118,17 @@ def meal_seed():
 def meal_dinner(date, status, kind, meal):
     m = next((x for x in MEAL["meals"] if x["id"] == meal), None)
     return {"date": date, "status": status, "kind": kind, "meal": meal if kind == "meal" else None, "name": m["name"] if m else ("Leftovers" if kind == "leftovers" else "Eating out"), "note": ""}
-NEWS = {"cap": 0, "fail": 0, "n": 0}   # 2.56: headlines for the briefing (bridge 1.37), off unless newsmode cap=1
+NEWS = {"cap": 0, "fail": 0, "n": 0}
+# 2.65 (bridge 1.41): the weekly Notion export's status. ?action=exportmode&cap=1&state=none|ok|old|failed|running|stalled|unscheduled[&err=code]
+# [&nowerr=code makes EXPORT NOW fail] [&finish=1 ends a run well]. Nothing real is exported here.
+EXPORT = {"cap": 0, "st": None, "now": 0, "nowerr": ""}
+def exp_last(days, ok=True, err=""):
+    t = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
+    return {"ok": True, "at": t, "done": t, "name": "2026-11-01 03.00", "folder": "fold-1", "root": "root-1", "pages": 1234, "bytes": 5400000, "dbs": 15, "of": 16, "failed": ["Tarot Books (notion_not_shared)"], "runs": 3} if ok else {"ok": False, "at": t, "error": err}
+def exp_state(name, err):
+    run = lambda stalled: {"since": dt.datetime.now(dt.timezone.utc).isoformat(), "db": "Captain's Log", "n": 5, "of": 16, "pages": 230, "stalled": stalled}
+    last = None if name in ("none", "unscheduled") else exp_last(15) if name == "old" else exp_last(0, False, err or "drive_scope") if name == "failed" else exp_last(2)
+    return {"weekly": name != "unscheduled", "keep": 12, "last": last, "running": run(name == "stalled") if name in ("running", "stalled") else None}   # 2.56: headlines for the briefing (bridge 1.37), off unless newsmode cap=1
 NEWS_ITEMS = [{"title": "Sample council approves the new river crossing", "link": "https://www.npr.org/2026/11/02/1/sample-crossing", "at": "Mon, 02 Nov 2026 15:00:00 -0500"},
               {"title": "Sample storm brings early snow to the plains", "link": "https://www.npr.org/2026/11/02/2/sample-snow", "at": "Mon, 02 Nov 2026 14:00:00 -0500"},
               {"title": "A third sample headline", "link": "https://www.npr.org/2026/11/02/3/third", "at": "Mon, 02 Nov 2026 13:00:00 -0500"}]
@@ -466,8 +476,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": CALS}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -494,6 +504,14 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "news" and NEWS["cap"]:
             NEWS["n"] += 1
             body = {"ok": False, "error": "news_unavailable"} if NEWS["fail"] else {"ok": True, "version": VER["v"], "source": "NPR", "items": NEWS_ITEMS}
+        elif q.get("action") == "exportmode":
+            if "cap" in q: EXPORT["cap"] = int(q["cap"])
+            if "state" in q: EXPORT["st"] = exp_state(q["state"], q.get("err", ""))
+            if "nowerr" in q: EXPORT["nowerr"] = "" if q["nowerr"] == "0" else q["nowerr"]
+            if "reset" in q: EXPORT["now"] = 0
+            if "finish" in q: EXPORT["st"] = dict(EXPORT["st"], running=None, last=exp_last(0))
+            body = {"ok": True, "now": EXPORT["now"], "st": EXPORT["st"]}
+        elif q.get("action") == "exportstatus" and EXPORT["cap"]: body = {"ok": True, "version": VER["v"], "export": EXPORT["st"]}
         elif q.get("action") == "mealmode":
             if "cap" in q: MEAL["cap"] = int(q["cap"])
             if "reset" in q: MEAL.update(meals=[], dinners=[], posts=[], plans=0, full={})
@@ -717,9 +735,16 @@ class H(BaseHTTPRequestHandler):
                 if VOICE["slow"]: import time; time.sleep(VOICE["slow"] / 1000)
                 if VOICE["fail"]: body = {"ok": False, "error": VOICE["fail"]}
                 else: body = {"ok": True, "voice": "nova", "model": "gpt-4o-mini-tts", "clips": [SILENT_MP3 for _ in b.get("texts", [])], "est": 0.004, "spend": {"month": "2026-10", "usd": 0.0123, "calls": len(VOICE["calls"])}}
+            elif act == "exportnow" and EXPORT["cap"]:
+                EXPORT["now"] += 1
+                if EXPORT["nowerr"]: body = {"ok": False, "error": EXPORT["nowerr"]}
+                else:
+                    st = EXPORT["st"] or exp_state("none", "")
+                    if not st.get("running") or st["running"].get("stalled"): st = dict(st, running={"since": dt.datetime.now(dt.timezone.utc).isoformat(), "db": "Master Task List", "n": 1, "of": 16, "pages": 0, "stalled": False})
+                    EXPORT["st"] = st; body = {"ok": True, "version": VER["v"], "export": st}
             elif act == "ask":
                 msgs = b.get("messages", []); last = msgs[-1]["text"] if msgs else ""; mode = b.get("mode")
-                ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:20000], "ignore": b.get("ignore")})
+                ASKS.append({"mode": mode, "turns": len(msgs), "last": last, "ctx": b.get("context", "")[:20000], "ignore": b.get("ignore"), "breaks": b.get("breaks")})
                 model = "claude-haiku-4-5" if mode == "fast" else "claude-sonnet-5-5"; cost = 0.012 if mode == "fast" else 0.035
                 props = []
                 if mode == "year" and ASTRO["fail"] > 0: ASTRO["fail"] -= 1; body = {"ok": False, "error": "ai_unavailable", "detail": "overloaded"}

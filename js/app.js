@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.64.0";
+  var VERSION = "2.65.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -665,6 +665,7 @@
       briefMaybe();
       shipMaybe();
       loadSchema(false);
+      loadExport(false);
     }).catch(function (err) {
       var offline = navigator.onLine === false;
       state.syncFails = (state.syncFails || 0) + 1;
@@ -1255,8 +1256,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.40.0";
-  var BRIDGE_FEATURES = [["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.41.0";
+  var BRIDGE_FEATURES = [["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -1291,6 +1292,73 @@
     }).catch(function (err) { sch.err = describe(err); }).then(function () {
       sch.inflight = false;
       if (state.screen === "systems" || state.screen === "bridge") render(true);
+    });
+  }
+  /* ---------- Weekly Notion export (2.65, bridge 1.41) ---------- */
+  /* The bridge copies every connected database (page text too) to Google Drive each Sunday; this only shows how that went
+     and starts one on EXPORT NOW. Status from "exportstatus" (cheap: Script Properties), every 3 hours, and every 20 s
+     on SYSTEMS while one runs. Kept as a cache (backup LEFT_OUT). */
+  var LS_EXPORT = "tos.export.v1", EXPORT_MS = 3 * 3600000, EXPORT_OLD_DAYS = 9;
+  var exs = { d: lsGet(LS_EXPORT), inflight: false, err: null, poll: 0, seq: 0 };
+  function canExport() { return state.caps.indexOf("export") > -1; }
+  function loadExport(force) {
+    if (!state.conn || !canExport() || exs.inflight) return Promise.resolve();
+    if (!force && exs.d && Date.now() - exs.d.fetched < EXPORT_MS) return Promise.resolve();
+    exs.inflight = true;
+    var seq = exs.seq;   /* EXPORT NOW's answer is newer than a read already on its way: that read is dropped */
+    return api({ action: "exportstatus" }).then(function (j) { if (seq !== exs.seq) return; exs.d = { fetched: Date.now(), st: j.export || null }; exs.err = null; lsSet(LS_EXPORT, exs.d); })
+      .catch(function (err) { exs.err = describe(err); }).then(function () {
+        exs.inflight = false;
+        if (state.screen === "systems" || state.screen === "bridge") render(true);
+        exportPoll();
+      });
+  }
+  function exportPoll() {   /* while a run goes on and SYSTEMS is open, look again every 20 s */
+    clearTimeout(exs.poll);
+    var st = exs.d && exs.d.st;
+    if (st && st.running && !st.running.stalled && state.screen === "systems") exs.poll = setTimeout(function () { if (state.screen === "systems") loadExport(true); }, 20000);
+  }
+  function exportAge(st) { var l = st && st.last; return l && l.ok ? Math.floor((Date.now() - Date.parse(l.done)) / 864e5) : null; }
+  var EXPORT_ERR = { drive_scope: "The bridge has no Drive access yet: add the oauthScopes block to appsscript.json, then run setup and allow access (README → Weekly Notion export).", drive_full: "Google Drive is full. Free some space, then EXPORT NOW.", drive_error: "Google Drive refused the files. EXPORT NOW tries again.", notion_not_configured: "Notion isn't connected to the bridge." };
+  function exportErrText(code) { return EXPORT_ERR[code] || "Stopped: " + code + ". EXPORT NOW tries again."; }
+  function exportCondition() {
+    var st = canExport() && exs.d && exs.d.st, l = st && st.last;
+    if (!l || st.running) return null;
+    if (!l.ok) return { lvl: "warn", ic: "▲", txt: "Notion export failed", sub: l.error === "drive_scope" ? "The bridge needs Drive access. SYSTEMS → NOTION has the steps." : l.error === "drive_full" ? "Google Drive is full." : "Stopped: " + esc(l.error) + ".", act: "systems", go: "SYSTEMS" };
+    var age = exportAge(st);
+    return st.weekly && age > EXPORT_OLD_DAYS ? { lvl: "warn", ic: "▲", txt: "Notion export is " + age + " days old", sub: "The weekly copy to Google Drive hasn't run. SYSTEMS → NOTION → EXPORT NOW.", act: "systems", go: "SYSTEMS" } : null;
+  }
+  function kbmb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+  function exportRowHtml() {
+    if (!canExport()) return '<div class="calrow a-farm" style="opacity:.6"><span class="st"></span><span><b>Weekly export</b><small>Needs the Google bridge updated to ' + BRIDGE_WANT + '.</small></span><span class="pill">SETUP</span></div>';
+    var st = exs.d && exs.d.st, l = st && st.last, r = st && st.running, age = exportAge(st), txt, pill;
+    if (!exs.d || Date.now() - exs.d.fetched > EXPORT_MS) setTimeout(function () { loadExport(false); }, 0);
+    if (!st) { txt = exs.err ? esc(exs.err) : "Checking…"; pill = '">…'; }
+    else if (r) { txt = (r.stalled ? "Stalled at " : "Exporting · ") + r.n + " of " + r.of + " · " + esc(r.db) + " · " + r.pages + " pages so far" + (r.stalled ? ". EXPORT NOW wakes it." : ". A few minutes; it carries on with the iPad asleep."); pill = r.stalled ? ' warn">STALLED' : ' ok">RUNNING'; }
+    else if (l && !l.ok) { txt = '<span class="errtxt">' + esc(exportErrText(l.error)) + "</span>"; pill = ' bad">' + (l.error === "drive_scope" ? "SETUP" : "FAILED"); }
+    else if (l) {
+      txt = (st.weekly ? "Sundays about 03:00 to Google Drive · " : "Not scheduled: run setup in the script editor once · ") + "last " + esc(stamp(Date.parse(l.done))) + " · " + l.pages + " pages from " + l.dbs + " databases · " + kbmb(l.bytes) + " · newest " + st.keep + " kept" +
+        (l.failed && l.failed.length ? '<br><span class="errtxt">Left out: ' + esc(l.failed.join(", ")) + "</span>" : "");
+      pill = age > EXPORT_OLD_DAYS || !st.weekly ? ' warn">' + (st.weekly ? "OLD" : "NOT SCHEDULED") : ' ok">OK';
+    } else { txt = st.weekly ? "Sundays about 03:00 to Google Drive. No export yet: EXPORT NOW makes the first." : "Not scheduled: run setup in the script editor once (README → Weekly Notion export)."; pill = '">NONE'; }
+    var root = l && l.ok && l.root;
+    return '<div class="calrow a-farm"><span class="st"></span><span><b>Weekly export</b><small>' + txt + '</small></span><span class="pill' + pill + "</span></div>" +
+      '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn sm ghost" data-act="exportnow"' + (r && !r.stalled ? " disabled" : "") + ">EXPORT NOW</button>" +
+      (root ? '<a class="btn sm ghost" href="https://drive.google.com/drive/folders/' + encodeURIComponent(root) + '" target="_blank" rel="noopener">OPEN IN DRIVE</a>' : "") + "</div>";
+  }
+  function exportNow() {
+    toast("Starting the Notion export…");
+    exs.seq++;
+    apiPost({ action: "exportnow" }).then(function (j) {
+      exs.seq++;
+      exs.d = { fetched: Date.now(), st: j.export || (exs.d && exs.d.st) }; lsSet(LS_EXPORT, exs.d);
+      toast(j.export && j.export.running && j.export.running.n > 1 ? "The export is already running" : "Export starting. It copies to Google Drive over a few minutes");
+      render(true); exportPoll();
+    }, function (err) {
+      var code = err && err.code;
+      if (EXPORT_ERR[code]) { exs.d = { fetched: Date.now(), st: Object.assign({}, exs.d && exs.d.st, { last: { ok: false, error: code } }) }; lsSet(LS_EXPORT, exs.d); }
+      toast(EXPORT_ERR[code] ? "Not started: " + exportErrText(code) : "Not started: " + describe(err));
+      render(true);
     });
   }
   function schemaProblems() { return canSchema() && sch.d ? sch.d.dbs.filter(function (d) { return !d.error && ((d.missing || []).length || (d.wrong || []).length); }) : []; }
@@ -2140,7 +2208,7 @@
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Columns</b><small' + (sp.length ? ' class="errtxt">' + schemaText(sp).map(esc).join("<br>") :
         ">" + (!canSchema() ? "The column check needs the Google bridge updated." : sch.err && !sch.d ? esc(sch.err) : sch.d ? "Every connected database (" + conn + ") has the columns the bridge uses · checked " + esc(stamp(sch.d.fetched)) : "Checking…")) +
         '</small></span><span class="pill' + (sp.length ? ' warn">CHANGED' : canSchema() && sch.d ? ' ok">OK' : '">…') + "</span></div>" +
-        (canSchema() ? '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn sm ghost" data-act="schemacheck">CHECK NOTION COLUMNS</button></div>' : "");
+        (canSchema() ? '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn sm ghost" data-act="schemacheck">CHECK NOTION COLUMNS</button></div>' : "") + exportRowHtml();
     }
     return html + "</section>";
   }
@@ -2423,6 +2491,7 @@
       var sl = schemaText(sp, 2), n = schemaText(sp).length;
       items.push({ lvl: "warn", ic: "▲", txt: n === 1 ? "A Notion column changed" : n + " Notion columns changed", sub: esc(sl.join(" · ")), act: "systems", fix: "schema", go: "SYSTEMS" });
     }
+    var exc = exportCondition(); if (exc) items.push(exc);
     if (bridgeBehind()) {
       var miss = bridgeMissing();
       items.push({ lvl: "warn", ic: "▲", txt: "Google bridge out of date", sub: "Deployed " + esc(state.bridgeVersion) + ", this app needs " + BRIDGE_WANT + "." + (miss.length ? " Missing: " + esc(miss.slice(0, 3).join(", ") + (miss.length > 3 ? " and " + (miss.length - 3) + " more" : "")) + "." : ""), act: "systems", fix: "bridge", go: "SYSTEMS" });
@@ -2672,6 +2741,7 @@
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
     var items = conditions(now, today, list), level = condLevel(items);
     rbPill(level, items.length);
+    if (canExport() && (!exs.d || Date.now() - exs.d.fetched > EXPORT_MS)) setTimeout(function () { loadExport(false); }, 0);   /* the export's state, for the condition */
     var brief = briefPanel(now), folded = brief.indexOf('class="br-fold"') > -1;
     var html = '<div class="rb">' + (folded ? "" : brief) + rbAlerts(level, items, today) +
       '<section class="rb-card rb-ribbon" data-panel="now">' + rbRibbon(now, list, today) + "</section>" +
@@ -2890,7 +2960,7 @@
     var ctx = briefing(true).filter(function (x) { return BRIEF_SKIP.indexOf(x.k) < 0; }).map(function (x) { return x.t; }).join("\n\n");
     var skyLine = sciBrief(); if (skyLine) ctx += "\n\n" + skyLine;   /* 2.42: only what's worth knowing from SCIENCE today */
     var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n.items || []; }, function () { return []; }) : Promise.resolve([]);   /* no headlines is no reason to fail the briefing */
-    return Promise.all([apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList }, 150000), newsP]).then(function (res) {
+    return Promise.all([apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList, breaks: breakList }, 150000), newsP]).then(function (res) {
       var j = res[0];
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       var b = briefParse(j.reply);
@@ -3763,7 +3833,7 @@
     }).join("\n\n");
     state.patternsBusy = true;
     render(true);
-    apiPost({ action: "ask", cid: newCid(), mode: "patterns", messages: [{ role: "user", text: "What patterns do you see across my weekly reviews?" }], context: "SAVED WEEKLY REVIEWS, NEWEST FIRST\n\n" + ctx, ignore: ignoreList }, 150000).then(function (j) {
+    apiPost({ action: "ask", cid: newCid(), mode: "patterns", messages: [{ role: "user", text: "What patterns do you see across my weekly reviews?" }], context: "SAVED WEEKLY REVIEWS, NEWEST FIRST\n\n" + ctx, ignore: ignoreList, breaks: breakList }, 150000).then(function (j) {
       lsSet(LS_RPAT, { at: Date.now(), text: j.reply, cost: j.cost, n: src.length });
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       toast("Patterns found (" + money(j.cost) + ")");
@@ -3936,7 +4006,7 @@
     render(true);
     var ask = { role: "user", text: "Write my weekly summary for " + weekLabel(w0) + "." };
     var req = pin ? apiPost({ action: "logask", pin: pin, mode: "summary", scope: { from: wk, to: ymd(addDays(w0, 6)) }, messages: [ask], context: lines.join("\n") }, 150000)
-      : apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [ask], context: lines.join("\n"), ignore: ignoreList }, 150000);
+      : apiPost({ action: "ask", cid: newCid(), mode: "summary", messages: [ask], context: lines.join("\n"), ignore: ignoreList, breaks: breakList }, 150000);
     return req.then(function (j) {
       saveDraft(wk, "summary", j.reply);
       if ($("rv-summary")) $("rv-summary").value = j.reply;   /* replaces anything typed there, on purpose */
@@ -4016,7 +4086,7 @@
     askBusy = true;
     saveAsk(); renderAsk();
     var turns = askState.msgs.map(function (m) { return { role: m.role, text: m.text }; });
-    apiPost({ action: "ask", cid: newCid(), mode: askState.deep ? "deep" : "fast", messages: turns, context: askState.context, ignore: ignoreList }, 150000).then(function (j) {
+    apiPost({ action: "ask", cid: newCid(), mode: askState.deep ? "deep" : "fast", messages: turns, context: askState.context, ignore: ignoreList, breaks: breakList }, 150000).then(function (j) {
       askState.msgs.push({ role: "assistant", text: j.reply, model: j.model, cost: j.cost, proposals: (j.proposals || []).map(function (p) { p.state = "pending"; return p; }) });
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
     }).catch(function (err) {
@@ -14432,6 +14502,7 @@
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixschema") fixSchema();
+    else if (b.dataset.act === "exportnow") exportNow();
     else if (b.dataset.act === "schemacheck") loadSchema(true).then(function () { var n = schemaText(schemaProblems()).length; toast(sch.err ? "Couldn't check: " + sch.err : n ? n + (n === 1 ? " Notion column changed: NEEDS YOU has the steps" : " Notion columns changed: NEEDS YOU has the steps") : "Notion columns checked: they all match"); });
     else if (b.dataset.act === "fixqueue") fixQueue();
     else if (b.dataset.act === "fixdone") go("bridge");
