@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.62.0";
+  var VERSION = "2.62.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -5138,12 +5138,19 @@
     ta.focus();
     try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (x) { /* not a text field */ }
   }
+  /* The editor grows with its text. 2.62.1 (Timothy: typing or Enter in LOG made the screen jump, to the top in
+     portrait, the bottom in landscape): it used to be measured by setting its height to "auto", which shrank it to
+     320 px for a moment on every key, so the page under the caret shrank too (a 3,000 px page to 1,650) and the iPad
+     scrolled to suit before it grew back. Now a hidden copy of the same width is measured, and the editor only ever
+     changes to its new height. */
+  var logMirror = null;
   function growLog(ta) {
-    if (!ta) return;
-    var c = $("content"), top = c.scrollTop;
-    ta.style.height = "auto";
-    ta.style.height = Math.max(ta.scrollHeight + 4, 320) + "px";
-    c.scrollTop = top;
+    if (!ta || !ta.parentNode) return;
+    var m = logMirror || (logMirror = document.createElement("textarea"));
+    if (m.parentNode !== ta.parentNode) { m.className = "cl-mirror"; m.setAttribute("aria-hidden", "true"); m.tabIndex = -1; m.readOnly = true; ta.parentNode.insertBefore(m, ta.nextSibling); }
+    m.style.width = ta.offsetWidth + "px"; m.value = ta.value;
+    var h = Math.max(m.scrollHeight + 4, 320) + "px";
+    if (ta.style.height !== h) ta.style.height = h;
   }
 
   /* --- importing old entries ---
@@ -11538,7 +11545,7 @@
       var g = $("hdTg"); if (!g) return; var now = Date.now(), k = tgKey(now); X.gAt++;   /* counted in ticks, so a paused clock can't hold it */
       if (force || X.gAt >= 15 || (k !== X.gk && X.gAt >= 2)) {
         X.gAt = 0; X.gk = k; var h = tgHtml(now);
-        if (h !== X.gh) { var b = $("hdTgBody"), st = b ? b.scrollTop : 0, sl = b ? b.scrollLeft : 0; g.innerHTML = h; X.gh = h; if (b) { b.scrollTop = st; b.scrollLeft = sl; } }
+        if (h !== X.gh) { var b = $("hdTgBody"), st = b ? b.scrollTop : 0, sl = b ? b.scrollLeft : 0, py = window.scrollY || 0, pc = $("content").scrollTop; g.innerHTML = h; X.gh = h; if (b) { b.scrollTop = st; b.scrollLeft = sl; } keepPlace(py, pc); }   /* the page stays put too (2.62.1) */
       }
       var W0 = tgFrom(now), nl = $("hdGNow"), p = (now - W0) / TG_SPAN; if (nl) { nl.hidden = p < 0 || p > 1; nl.style.setProperty("--p", Math.max(0, Math.min(1, p)).toFixed(4)); }
       var w = $("hdTgWhen"), t = X.gw ? "FROM " + hm(new Date(W0)) : "NOW · " + hm(new Date(now)); if (w && w.textContent !== t) w.textContent = t;
@@ -11623,6 +11630,10 @@
     function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
     function render() {
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
+      /* 2.62.1 (Timothy: CH ▲▼ moved the TV up and down): replacing the page let the browser lay it out half built
+         and drop the scroll to the top (in portrait the page itself scrolls, in landscape #content), so where the page
+         was is put back once it's whole */
+      var sy = window.scrollY || 0, sc = $("content").scrollTop;
       if (!X.prog) { $("content").innerHTML = archHtml(); clearInterval(X.timer); X.timer = 0; paint(); return; }
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
       var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
@@ -11655,8 +11666,14 @@
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
       X.gh = ""; tgPaint(true); gb = $("hdTgBody"); if (gb && gs) { gb.scrollTop = gs[0]; gb.scrollLeft = gs[1]; }
       tgBind(); tgAuto(); padShow(); paint();
+      keepPlace(sy, sc);
       clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
       if (X.on && Date.now() - X.tuneAt < 700) noise();
+    }
+    function keepPlace(sy, sc) {
+      var ce = $("content");
+      if (ce.scrollTop !== sc) ce.scrollTop = sc;
+      if ((window.scrollY || 0) !== sy) window.scrollTo({ top: sy, left: 0, behavior: "instant" });
     }
     function pickInfo(dir) {   /* what USE THIS FOLDER would make, from one level of subfolders */
       var l = nas.lists[dir]; if (!l) return null;
@@ -13821,7 +13838,7 @@
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
      max-height in CSS (Ask) stops there and scrolls inside. Scroll positions around it are kept. */
   function growBox(ta, typing) {
-    if (!ta || ta.tagName !== "TEXTAREA" || ta.classList.contains("cl-text") || !ta.offsetParent) return;
+    if (!ta || ta.tagName !== "TEXTAREA" || ta.classList.contains("cl-text") || ta.classList.contains("cl-mirror") || !ta.offsetParent) return;
     /* a pass after a redraw only sizes new boxes and ones that overflow; shrinking waits for typing
        (and never touches scroll needlessly: setting it would stop a smooth scroll under way) */
     if (!typing && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
@@ -13837,12 +13854,12 @@
   var growPending = 0;
   function growAll() {
     if (growPending) return;
-    growPending = requestAnimationFrame(function () { growPending = 0; document.querySelectorAll("textarea:not(.cl-text)").forEach(function (ta) { growBox(ta, false); }); });
+    growPending = requestAnimationFrame(function () { growPending = 0; document.querySelectorAll("textarea:not(.cl-text):not(.cl-mirror)").forEach(function (ta) { growBox(ta, false); }); });
   }
   document.addEventListener("input", function (e) { if (e.target.tagName === "TEXTAREA") growBox(e.target, true); }, true);
   new MutationObserver(growAll).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
   var growW = window.innerWidth;
-  window.addEventListener("resize", function () { if (window.innerWidth !== growW) { growW = window.innerWidth; document.querySelectorAll("textarea:not(.cl-text)").forEach(function (ta) { growBox(ta, true); }); } });
+  window.addEventListener("resize", function () { if (window.innerWidth !== growW) { growW = window.innerWidth; document.querySelectorAll("textarea:not(.cl-text):not(.cl-mirror)").forEach(function (ta) { growBox(ta, true); }); } });
 
   var renderHeld = false, actAt = 0;
   document.addEventListener("click", function (e) { if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) actAt = Date.now(); }, true);

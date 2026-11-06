@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.62.1 · 2026-11-06
+- **Fixed: LOG jumped while you typed.** Pressing Enter, and sometimes any key, threw the page to the top (portrait) or the bottom (landscape), away from what you were writing. The editor measured its own height on every key by shrinking for a moment, and the iPad scrolled to suit. It is now measured on a hidden copy, so the page stays where it is and only follows new lines down.
+- **Fixed: HOLODECK's TV moved on a channel change.** CH ▲▼, the keypad, LAST or a guide row could drop the page back to the top, so the TV had to be scrolled back into place. The page now stays exactly where it was, in portrait and landscape, also when the guide redraws.
+
 ## 2.62.0 · 2026-11-05
 - **SYSTEMS → ERROR LOG:** every failure is now kept on the iPad until you clear it, instead of scrolling out of RECENT REQUESTS' last 30. Failed bridge requests (repeats folded into one line with ×n and RETRIED), app script errors, what the page's rules blocked, and HOLODECK and AUDIO playback failures with Safari's own error code, the file, the channel and LEVEL's state. **BRIDGE TODAY** counts this iPad's requests and failures. Filter by source, **COPY REPORT** to paste to Claude, **CLEAR**. Kept 30 days, never in backups, keys and tokens blanked out.
 - **HOLODECK: LEVEL never takes the TV down.** When a video won't load or stalls with LEVEL on, or iPadOS keeps the sound, a plain player made ready by the TUNE IN tap takes over the same show at once (no more "Five videos in a row didn't load" from LEVEL), LEVEL shows **PAUSED**, and the file isn't marked. The next TUNE IN tries LEVEL again; each time is in the error log, so the cause can be found.

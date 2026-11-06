@@ -186,6 +186,7 @@ class H(BaseHTTPRequestHandler):
             if UNSHARED: body = {"ok": False, "error": "notion_not_shared"}
             RLISTS.append(1)
         elif q.get("action") == "nokey": NOKEY[0] = int(q.get("n", "1")); body = {"ok": True}
+        elif q.get("action") == "unlockreset": LOGFAIL[0] = 0; body = {"ok": True}   # tests: lift the lockout app_e2e22 ends with (app_e2e76)
         elif str(q.get("action", "")).startswith("log"): LOGVIA.append("GET " + q["action"]); body = logact(q)
         elif q.get("action") == "flaky": FLAKY[0] = int(q.get("n", "1")); body = {"ok": True}
         elif q.get("action") == "stats": body = {"ok": True, "posts": len(POSTS), "created": [e["title"] for e in CREATED], "tasks": [[t["title"], t["status"], t["focus"]] for t in TASKS], "dates": [[d["title"], d["start"], d["end"], d["area"], d["type"], d["yearly"]] for d in KDATES], "reviews": REVIEWS, "reviewPosts": len(RPOSTS), "reviewLists": len(RLISTS), "asks": ASKS, "spend": SPEND, "created": [e["title"] for e in CREATED], "createdAreas": [[e["title"], e["area"]] for e in CREATED], "queue": [[q["title"], q["priority"], q["bought"]] for q in QUEUE], "qposts": len(QPOSTS), "log": LOG, "logsaves": LOGSAVES, "logfails": LOGFAIL[0], "logactions": LOGACTS, "logvia": LOGVIA, "batches": BATCHES}

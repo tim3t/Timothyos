@@ -95,12 +95,12 @@ PY
 # nothing (each relay lane has its own relay, RELAY_PORT) and run side by side, up to $JOBS at once, longest first.
 # A lane is: name|environment|tests…   Comments name what each test covers.
 LANES=(
-  "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e67.test.js app_e2e68.test.js app_e2e71.test.js app_e2e72.test.js app_e2e73.test.js app_e2e75.test.js"
+  "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e67.test.js app_e2e68.test.js app_e2e71.test.js app_e2e72.test.js app_e2e73.test.js app_e2e75.test.js app_e2e77.test.js"
   "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
   "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
-  "log-loom|-|app_e2e22.test.js app_e2e23.test.js"
+  "log-loom|-|app_e2e22.test.js app_e2e23.test.js app_e2e76.test.js"
   "stations|-|app_e2e24.test.js app_e2e25.test.js"
   "review|-|app_e2e16.test.js"
   "ask|-|app_e2e17.test.js"
@@ -144,6 +144,8 @@ LANES=(
 #   app_e2e70      HOLODECK remote and guide (2.57): channels folded to one line (problems named), a guide row per channel, a tap with the TV off tunes in, AUTO-SCROLL (rolls, a touch holds it, remembered), phone width
 #   app_e2e74      HOLODECK LEVEL (2.61): sound through Web Audio (CORS), LEARNING then an eased gain, loudness kept per file, a folder's average for a new file, OFF swaps in a plain element; 2.62: a stuck engine or a failed load hands over to the backup player (PAUSED, logged, not marked), TAP FOR SOUND without one; the radio stays plain, phone
 #   app_e2e75      ERROR LOG (2.62): bridge failures folded with ×n and RETRIED, script errors, unhandled promises, the CSP, scrubbing, filters, BRIDGE TODAY, COPY REPORT, reload, COMPUTER, CLEAR twice, phone
+#   app_e2e76      LOG keeps still while you write (2.62.1): the editor is measured on a hidden copy, never set to auto, portrait and landscape
+#   app_e2e77      HOLODECK keeps still on a channel change (2.62.1): CH ▲▼, keypad, LAST, a guide row, mute; portrait and landscape
 #   app_e2e71      HARDENING (2.58, bridge 1.38): reads by POST with the key in the body, never in an address; an older bridge falls back to GET and back again; SYSTEMS reads LEDGER and APIARY itself; the CSP blocks and logs an unlisted service
 #   app_e2e72      MEALS (2.59): TONIGHT on the Bridge and TODAY (record, undo, something else), PLAN (nights, cards, groceries, ticks, extras, PRINT, SHARE, PLAN MY WEEK), meals (new, retire, remove), LOG (fill in, rotation), SYSTEMS, phone
 #   app_e2e73      RECIPES AND COOK (2.60): + FROM A RECIPE by link, text and photo into the editor to review; saved with the recipe and photo; ASK and COMPUTER routes; COOK (ticks, steps, A+, screen kept on, no recipe yet)

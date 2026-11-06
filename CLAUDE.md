@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.62.0**, **bridge 1.40.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.62.1**, **bridge 1.40.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -138,6 +138,10 @@ Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holiday
 - **In-app hints name README sections by their exact heading** ("Steps are in the README under <b>Connect Notion</b>"); rename a README heading and grep `js/app.js` for it.
 - **Setup text describes a fresh install of the current version.** Don't add "needs bridge 1.N" to README setup steps; version needs belong in `BRIDGE_FEATURES` (the app names them) and the CHANGELOG.
 - **Test servers:** `tests/run.sh` starts and stops its own. To stop a stray one, use a separate command of its own: `pgrep -f "[h]ttp.server 8080|[m]ock_" | xargs -r kill`. Never put `pkill` in a compound command (it matches the shell running it, which exits with 144).
+
+### Keeping the page still (2.62.1)
+
+Timothy saw LOG jump while typing (top in portrait, bottom in landscape) and HOLODECK's TV move on CH ▲▼. Two rules from it: (1) **never measure an element by collapsing it** (`height = "auto"` then `scrollHeight`) while it's on screen: the page shrinks for that moment and the browser clamps the scroll (portrait: the page itself scrolls, `.content` is `overflow: visible` under 860 px; landscape: `#content`). `growLog()` measures `logMirror` (a hidden `textarea.cl-mirror`, absolute, the editor's width, beside it); `growBox()` keeps every scrolling ancestor's position instead (and skips `.cl-mirror`). (2) **A redraw that replaces `#content` must put the scroll back**: `holo.render()` and `tgPaint()` save `window.scrollY` and `#content.scrollTop` first and call `keepPlace()` after (instant, not smooth). Tests: `app_e2e76` (LOG; fails on the old code at 820 × 1180), `app_e2e77` (HOLODECK; fails on the old code on the first CH ▲ in portrait). Both run at 820 × 1180 and 1180 × 820 with touch.
 
 ### The error log (2.62)
 
