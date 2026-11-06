@@ -175,6 +175,10 @@ HA = {
         "hvac_action": "heating", "current_humidity": 41, "min_temp": 50, "max_temp": 90, "target_temp_step": 1}},
     "automation.nightly": {"state": "on", "attributes": {"friendly_name": "Nightly Routine"}},
 }
+HACFG = {"nightly": {"id": "nightly", "alias": "Nightly Routine", "trigger": [{"platform": "time", "at": "02:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.barn_porch"}}]}}   # 2.64: automations' configs by id; "nightly" is Timothy's own, never Bridge's
+HA["automation.nightly"]["attributes"]["id"] = "nightly"
+HAOPT = {"admin": True, "delete": False}   # tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
+def ha_slug(alias): return "automation." + re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")
 def ha_state(eid):
     v = HA[eid]; return {"entity_id": eid, "state": v["state"], "attributes": v["attributes"], "last_changed": "2026-10-15T12:00:00+00:00"}
 
@@ -195,7 +199,7 @@ class H(BaseHTTPRequestHandler):
     def cors(self):
         self.send_header("Access-Control-Allow-Origin", ORIGIN)
         self.send_header("Access-Control-Allow-Headers", "Authorization, Range, Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS" + (", DELETE" if HAOPT["delete"] else ""))
         self.send_header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
         self.send_header("Vary", "Origin")
     def do_OPTIONS(self):
@@ -209,6 +213,32 @@ class H(BaseHTTPRequestHandler):
         if self.headers.get("Authorization") != "Bearer " + HA_TOKEN:
             STATS["ha_denied"] += 1; return self.send_json(401, {"message": "Unauthorized"})
         api = path[3:]
+        m = re.match(r"^/api/config/automation/config/([A-Za-z0-9_]+)$", api)
+        if m:   # 2.64: Home Assistant's automation editor API (admin only)
+            if not HAOPT["admin"]: return self.send_json(401, {"message": "Unauthorized"})
+            cid = m.group(1)
+            if method == "GET": return self.send_json(200, HACFG[cid]) if cid in HACFG else self.send_json(404, {"message": "Resource not found"})
+            if method == "DELETE":
+                if cid not in HACFG: return self.send_json(404, {"message": "Resource not found"})
+                STATS["calls"].append({"svc": "config.delete", "id": cid})
+                del HACFG[cid]
+                for e in [e for e, v in HA.items() if e.startswith("automation.") and v["attributes"].get("id") == cid]: del HA[e]
+                return self.send_json(200, {"result": "ok"})
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            if not isinstance(body.get("action"), list) or not isinstance(body.get("trigger"), list): return self.send_json(400, {"message": "Message malformed: required key not provided @ data['actions']"})
+            STATS["calls"].append({"svc": "config.save", "id": cid, "cfg": body})
+            HACFG[cid] = body
+            old = [e for e, v in HA.items() if e.startswith("automation.") and v["attributes"].get("id") == cid]
+            st = HA[old[0]]["state"] if old else "on"
+            for e in old: del HA[e]
+            HA[ha_slug(body.get("alias", cid))] = {"state": st, "attributes": {"id": cid, "friendly_name": body.get("alias", cid), "last_triggered": None}}
+            return self.send_json(200, {"result": "ok"})
+        if method == "POST" and api == "/api/services/automation/trigger":
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            eid = body.get("entity_id")
+            if eid not in HA: return self.send_json(400, {"message": "bad entity"})
+            STATS["calls"].append({"svc": "automation.trigger", **body})
+            return self.send_json(200, [])
         if method == "GET" and api == "/api/": return self.send_json(200, {"message": "API running."})
         if method == "GET" and api == "/api/config": return self.send_json(200, {"unit_system": {"temperature": "°F"}, "location_name": "Home"})
         if method == "GET" and api == "/api/states": return self.send_json(200, [ha_state(e) for e in HA])
@@ -250,6 +280,10 @@ class H(BaseHTTPRequestHandler):
                 if "effect" in body: a["effect"] = body["effect"]
             return self.send_json(200, [ha_state(eid)])
         return self.send_json(404, {"message": "not found"})
+    def do_DELETE(self):
+        u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
+        if path.startswith("/ha/"): return self.ha("DELETE", path, q)
+        self.send_response(405); self.cors(); self.send_header("Content-Length", "0"); self.end_headers()
     def do_POST(self):
         u = urlparse(self.path); path = unquote(u.path); q = parse_qs(u.query)
         if path.startswith("/ha/"): return self.ha("POST", path, q)
@@ -261,7 +295,18 @@ class H(BaseHTTPRequestHandler):
             HA["switch.pond_lights_outlet"]["state"] = "off"; HA["light.barn_porch"]["state"] = "on"; HA["light.barn_porch"]["attributes"]["brightness"] = 128
             sk = HA["light.skylight_2"]; sk["state"] = "on"; sk["attributes"].update({"color_mode": "hs", "brightness": 178, "hs_color": [205.0, 62.0], "rgb_color": [97, 180, 255], "color_temp_kelvin": None, "effect": "None"})
             HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
+            for c in [c for c in HACFG if c != "nightly"]: del HACFG[c]
+            for e in [e for e in HA if e.startswith("automation.") and e != "automation.nightly"]: del HA[e]
+            HAOPT.update(admin=True, delete=False)
             STATS["calls"] = []; return self.send_json(200, {})
+        if path == "/__haopt":   # tests: ?admin=0|1&delete=0|1
+            for k in ("admin", "delete"):
+                if k in q: HAOPT[k] = q[k][0] == "1"
+            return self.send_json(200, HAOPT)
+        if path == "/__hacfg":   # tests: what Home Assistant holds (and ?id=&alias= edits one as the Home Assistant app would: a motion trigger)
+            if "id" in q:
+                c = HACFG[q["id"][0]]; c.setdefault("trigger", []).append({"platform": "state", "entity_id": "binary_sensor.motion", "to": "on"})
+            return self.send_json(200, {"cfg": HACFG, "ents": {e: v for e, v in HA.items() if e.startswith("automation.")}})
         if path == "/__reset":   # tests: back to the folders the relay started with, nothing failing
             DIRS.clear(); DIRS.update(DIRS0); FAIL.clear(); [FILES.pop(k) for k in list(FILES) if k not in FILES0]; return self.send_json(200, {})
         if path == "/__fail":   # tests: the next n requests under a path answer with an error code (n=0 turns it off)

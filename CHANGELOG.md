@@ -2,6 +2,14 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.64.0 · 2026-11-06
+- **ENGINEERING SCENES** (your pick: Option A's scene bar, edited as IF / THEN in a modal):
+  - **A bar of large scene buttons** above LIGHTS AND SWITCHES, each showing its IF ("IF 22:30 daily", "Tap only", PAUSED). A tap runs it now; a hold or **⋯** opens it; **+ SCENE** starts one.
+  - **Scenes live in Home Assistant** as automations, so they run on schedule with both iPads asleep, and both iPads show the same list.
+  - **IF / THEN, word by word.** IF a time, sunrise or sunset (with an offset), each on chosen days, or you tap it. ONLY IF a device is on or off. THEN, in order: set lights (brightness, warm to cool or a color, a fade), turn on, turn off, wait. **READS AS** says it as a sentence. **TAKE CURRENT LIGHTS**, **TRY THE THEN NOW**, **RULE ON / OFF**, and **DELETE SCENE** with a second tap.
+  - **Bridge only touches its own automations** ("TimothyOS · NAME"); yours are never read or changed. One edited in the Home Assistant app into something Bridge can't show is marked **EDITED IN HOME ASSISTANT**: run and pause it here, but it isn't saved over.
+  - **SYSTEMS → HOME ASSISTANT → SCENES** says READY, NEEDS ADMIN or RELAY BLOCKS DELETE, with the fix. Scenes need an administrator's token, and deleting needs `DELETE` added to the relay's Caddyfile (README → NAS relay; redeploy the `timothyos` project). Failures go to the ERROR LOG.
+
 ## 2.63.0 · 2026-11-06
 - **The Bridge, redesigned as a Time Ribbon** (your pick of three mockups, B):
   - **HORIZON and BALANCE are gone** from the Bridge; their numbers still feed ASK and REVIEW, and the balance targets stay in SYSTEMS.

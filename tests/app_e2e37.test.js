@@ -92,7 +92,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hagroups.v1')).map(g => g.nm)), ['OUTSIDE', 'LIVING ROOM']);
   await p.waitForFunction(() => /61\.4 °F/.test(document.getElementById('content').textContent), null, { timeout: 5000 });
   // 2.28: laid out by type; rooms as chips over the lights; each tile carries its room
-  assert.deepStrictEqual(await p.$$eval('.ec-sec > .phead h2', n => n.map(x => x.textContent)), ['LIGHTS AND SWITCHES', 'CLIMATE', 'SENSORS']);
+  assert.deepStrictEqual(await p.$$eval('.ec-sec > .phead h2', n => n.map(x => x.textContent)), ['SCENES', 'LIGHTS AND SWITCHES', 'CLIMATE', 'SENSORS']);   // 2.64: SCENES on top
   assert.deepStrictEqual(await p.$$eval('[data-haroom]', n => n.map(x => x.textContent)), ['ALL', 'OUTSIDE', 'LIVING ROOM', 'OTHER']);
   const sensT = await txt(p, '.ec-sens'); assert.ok(sensT.includes('OUTSIDE') && sensT.includes('POND WATER TEMP') && sensT.includes('61.4'), sensT);
   assert.ok((await txt(p, '.hc:has([data-hatoggle="switch.pond_lights_outlet"])')).startsWith('OUTSIDE POND LIGHTS OUTLET'));
