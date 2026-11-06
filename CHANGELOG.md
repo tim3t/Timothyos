@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.65.1 · 2026-11-06 (needs bridge 1.41.1)
+- **Weekly Notion export setup:** Google keeps the Drive API switched off for a new script and answers "permission denied", which setup read as a missing permission. **Bridge 1.41.1** tells the two apart: setup says **NEEDS THE DRIVE API** (script editor → Services → Drive API → Add) or **NEEDS DRIVE ACCESS**, each with Google's own reason, and SYSTEMS shows the same. The README has the `oauthScopes` block right in the bridge-update steps, and Weekly Notion export is linked from the contents.
+
 ## 2.65.0 · 2026-11-06 (needs bridge 1.41)
 - **Weekly Notion export to Google Drive.** Every Sunday about 03:00 the bridge copies every connected database, page text included, into **TimothyOS Notion export** in your Drive: one dated folder a week, each database as JSON (every field, for a restore) and CSV (for Sheets). The newest 12 weeks are kept.
   - **SYSTEMS → NOTION → Weekly export** shows the last copy (when, pages, databases, size, anything left out) with **EXPORT NOW** and **OPEN IN DRIVE**, and follows a run while it goes.

@@ -38,7 +38,7 @@ On the NAS, only when you run it:
 
 | Part | Sections |
 |---|---|
-| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) (calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
+| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
 | [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
@@ -110,7 +110,17 @@ New features sometimes need a newer Google bridge; the CHANGELOG says so when th
 1. In Safari (Request Desktop Website), open **https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs**. Select all, copy.
 2. Open **script.google.com → TimothyOS bridge**. Select all the old code, delete it, paste the new code. Save.
 3. Choose **setup** in the function menu, tap **Run**. If Google asks for a new permission, approve it. Near the end the log reads `Bridge version 1.x.y. Can write to: …`.
-   - **Bridge 1.41 once:** before this step, add the `oauthScopes` block (Optional pieces → Weekly Notion export) to `appsscript.json`. It's the only time the manifest changes.
+   - **Bridge 1.41 once, before this step** (full detail in [Weekly Notion export](#weekly-notion-export-bridge-141)):
+     1. **Project Settings** (gear) → tick **Show "appsscript.json" manifest file in editor**. Open `appsscript.json` and add this right after the first `{`, keeping every line already there:
+        ```json
+        "oauthScopes": [
+          "https://www.googleapis.com/auth/calendar",
+          "https://www.googleapis.com/auth/script.external_request",
+          "https://www.googleapis.com/auth/script.scriptapp",
+          "https://www.googleapis.com/auth/drive.file"
+        ],
+        ```
+     2. **Services** (the **+** beside Services, left side) → **Drive API** → **Add**. This switches the Drive API on for the script; the bridge still gets only the narrow permission above.
 4. **Deploy → Manage deployments → pencil → Version: New version → Deploy.** The URL stays the same.
 5. In the app: **SYSTEMS → REFRESH NOW**.
 
@@ -230,11 +240,12 @@ Notion holds the real records; this keeps a copy outside it. Every Sunday about 
    ],
    ```
    These are what the bridge already used, plus **drive.file**: the bridge can see and change **only the files it creates itself**, never the rest of your Drive. Save.
-3. Paste the new `Code.gs` and run **setup** (Updating the Google bridge). Google asks for permission once: allow it. The log reads `Weekly Notion export: ON (Sundays about 03:00 …)`.
-4. Deploy a new version as usual.
-5. **SYSTEMS → NOTION → Weekly export → EXPORT NOW** makes the first copy. The first one reads every page (several minutes, in steps a minute apart, with the iPad asleep or not); later weeks reuse the text of pages that haven't changed.
+3. **Switch on the Drive API:** **Services** (the **+** beside Services, left side) → **Drive API** → **Add**. Google keeps the Drive API off for a new script; adding the service turns it on. It doesn't widen the permission: the `oauthScopes` list above still decides that.
+4. Paste the new `Code.gs` and run **setup** (Updating the Google bridge). Google asks for permission once: allow it. The log reads `Weekly Notion export: ON (Sundays about 03:00 …)`.
+5. Deploy a new version as usual.
+6. **SYSTEMS → NOTION → Weekly export → EXPORT NOW** makes the first copy. The first one reads every page (several minutes, in steps a minute apart, with the iPad asleep or not); later weeks reuse the text of pages that haven't changed.
 
-If setup says **NEEDS DRIVE ACCESS**, the block isn't saved in `appsscript.json`. If anything else in the bridge stops working after step 2 (a calendar or Notion error in setup's log), remove the block, save, run setup again: everything returns to how it was, without the export.
+If setup says **NEEDS THE DRIVE API**, do step 3. If it says **NEEDS DRIVE ACCESS**, the block isn't saved in `appsscript.json`, or Google's permission prompt wasn't allowed. Either line ends with Google's own words in brackets. If anything else in the bridge stops working after step 2 (a calendar or Notion error in setup's log), remove the block, save, run setup again: everything returns to how it was, without the export.
 
 ### Ledger (YNAB)
 
@@ -924,7 +935,8 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 | SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
 | HOLODECK stops, skips, or LEVEL shows **PAUSED** | **SYSTEMS → ERROR LOG → HOLODECK** lists each failure with Safari's reason, the file and LEVEL's state; **COPY REPORT** and send it to Claude |
 | HOLODECK plays the picture but no sound | Tap **TAP FOR SOUND** if it shows. Otherwise turn **LEVEL** off on the rail: if the sound comes back, the relay isn't sending `Access-Control-Allow-Origin` with the videos (check the Caddyfile under NAS relay) |
-| SYSTEMS → NOTION → Weekly export says **SETUP** (no Drive access) | Add the `oauthScopes` block to `appsscript.json` (Optional pieces → Weekly Notion export), run **setup**, allow access, deploy, then **EXPORT NOW** |
+| SYSTEMS → NOTION → Weekly export says **SETUP**, or setup says **NEEDS THE DRIVE API** | Script editor → **Services** (+) → **Drive API** → **Add**, then run **setup** and deploy |
+| Setup says **NEEDS DRIVE ACCESS** | Add the `oauthScopes` block to `appsscript.json` (Optional pieces → Weekly Notion export), run **setup**, allow access, deploy, then **EXPORT NOW** |
 | The Bridge says **Notion export is N days old**, or the row says **STALLED** | **EXPORT NOW** starts or wakes it. If it keeps stalling, open **script.google.com → Executions** for `exportContinue` or `exportWeekly` errors, and run **setup** once (it puts the Sunday trigger back) |
 | Weekly export: **Left out:** a database | That database isn't shared with the bridge in Notion (••• → Connections → add TimothyOS bridge), or isn't set up; everything else was copied |
 | A scene won't save, or SYSTEMS says **SCENES NEEDS ADMIN** | The Home Assistant token is from a user who isn't an administrator. Make that user an administrator (Home Assistant → Settings → People), or make a token as one, then **SYSTEMS → HOME ASSISTANT → CHANGE** and paste it |

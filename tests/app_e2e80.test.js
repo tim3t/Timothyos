@@ -83,7 +83,7 @@ const row = p => txt(p, '#sec-notion').then(t => t.slice(t.indexOf('Weekly expor
   await mode('cap=0&state=ok');
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (!/^tos\.(conn|start|breaks|ignore)\.v1$/.test(k)) localStorage.removeItem(k); });
   await p.reload(); await p.waitForTimeout(2500); r = await systems();
-  assert.ok(/^Weekly export Needs the Google bridge updated to 1\.41\.0\. SETUP/.test(r), r);
+  assert.ok(/^Weekly export Needs the Google bridge updated to \d+\.\d+\.\d+\. SETUP/.test(r), r);
   await mode('cap=1');
 
   // ---- ASK sends the break names with the ignored titles

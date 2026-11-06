@@ -108,7 +108,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.41.0';
+var VERSION = '1.41.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -3836,7 +3836,11 @@ function driveFetch_(method, url, opts) {
   var res = UrlFetchApp.fetch(url, o), code = res.getResponseCode(), text = res.getContentText() || '';
   if (code >= 300) {
     var e = new Error('Drive HTTP ' + code + ': ' + text.slice(0, 300));
-    e.drive = code === 401 || (code === 403 && /insufficient|scope|permission/i.test(text)) ? 'drive_scope' : code === 403 && /storageQuota/i.test(text) ? 'drive_full' : code === 404 ? 'drive_missing' : 'drive_error';
+    // 1.41.1: a Drive API that is switched off answers 403 PERMISSION_DENIED too; it is told apart from a missing permission
+    e.drive = code === 403 && /accessNotConfigured|SERVICE_DISABLED|has not been used|is disabled/i.test(text) ? 'drive_api_off'
+      : code === 401 || (code === 403 && /insufficient|ACCESS_TOKEN_SCOPE/i.test(text)) ? 'drive_scope'
+      : code === 403 && /storageQuota/i.test(text) ? 'drive_full' : code === 404 ? 'drive_missing' : 'drive_error';
+    e.detail = (/"message"\s*:\s*"([^"]{1,240})/.exec(text) || [])[1] || text.slice(0, 240);
     throw e;
   }
   return text;
@@ -4094,7 +4098,10 @@ function exportSetup_() {
   if (!props.getProperty('NOTION_TOKEN')) return 'OFF (needs Notion)';
   try { exportRoot_(); } catch (e) {
     if (!e.drive) throw e;
-    return 'NEEDS DRIVE ACCESS: add the oauthScopes block to appsscript.json (README, Weekly Notion export), save, then run setup again and allow access';
+    var why = ' (Google said: ' + e.detail + ')';
+    if (e.drive === 'drive_api_off') return 'NEEDS THE DRIVE API: in the script editor, Services (+ beside Services) → Drive API → Add, then run setup again' + why;
+    if (e.drive === 'drive_scope') return 'NEEDS DRIVE ACCESS: add the oauthScopes block to appsscript.json (README, Weekly Notion export), save, then run setup again and allow access' + why;
+    return 'PROBLEM: ' + e.drive + why;
   }
   if (!ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'exportWeekly'; }))
     ScriptApp.newTrigger('exportWeekly').timeBased().onWeekDay(ScriptApp.WeekDay.SUNDAY).atHour(EXPORT.HOUR).create();

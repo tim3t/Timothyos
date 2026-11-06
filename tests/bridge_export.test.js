@@ -56,6 +56,7 @@ function drive(url, opts) {
   assert.strictEqual(opts.headers.Authorization, 'Bearer oauth-token', 'the script\'s own token');
   const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body) });
   if (driveMode === 'scope') return res(403, { error: { message: 'Request had insufficient authentication scopes.' } });
+  if (driveMode === 'apioff') return res(403, { error: { code: 403, message: 'Google Drive API has not been used in project 123 before or it is disabled. Enable it by visiting the console.', status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } });
   if (driveMode === 'full' && m === 'post' && url.includes('/upload/')) return res(403, { error: { errors: [{ reason: 'storageQuotaExceeded' }] } });
   if (m === 'post' && url.startsWith('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart')) {
     const raw = Buffer.from(opts.payload).toString('utf8'), b = opts.contentType.split('boundary=')[1];
@@ -105,12 +106,19 @@ const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b
 const inFolder = (folder, name) => Object.keys(files).map(id => Object.assign({ id }, files[id])).filter(f => f.parents.includes(folder) && !f.trashed && (!name || f.name === name));
 const runTriggers = () => { let n = 0; while (triggers.some(t => t.h === 'exportContinue')) { assert.ok(++n < 40, 'finishes'); tick(60000); ctx.exportContinue(); } return n; };
 
+// ---- 1.41.1: the Drive API switched off (Google says PERMISSION_DENIED) is told apart, with Google's own words
+driveMode = 'apioff'; logLines = [];
+ctx.setup();
+const offLine = logLines.find(l => l.startsWith('Weekly Notion export:'));
+console.log(offLine);
+assert.ok(/NEEDS THE DRIVE API: in the script editor, Services \(\+ beside Services\) → Drive API → Add, then run setup again \(Google said: Google Drive API has not been used/.test(offLine), offLine);
+assert.strictEqual(triggers.length, 0);
 // ---- setup without the drive.file permission: says what to do, installs nothing
 driveMode = 'scope'; logLines = [];
 ctx.setup(); const key = props.ACCESS_KEY;
 const exLine = logLines.find(l => l.startsWith('Weekly Notion export:'));
 console.log(exLine);
-assert.ok(/NEEDS DRIVE ACCESS: add the oauthScopes block/.test(exLine)); assert.strictEqual(triggers.length, 0);
+assert.ok(/NEEDS DRIVE ACCESS: add the oauthScopes block.*\(Google said: Request had insufficient authentication scopes\.\)/.test(exLine), exLine); assert.strictEqual(triggers.length, 0);
 assert.strictEqual(post({ key, action: 'exportnow' }).error, 'drive_scope', 'EXPORT NOW names the missing permission');
 assert.strictEqual(post({ key, action: 'ping' }).export.last.error, 'drive_scope');
 
