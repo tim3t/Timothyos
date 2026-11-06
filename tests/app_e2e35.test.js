@@ -12,13 +12,13 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); }, K);
-  await p.reload(); await p.waitForSelector('.ov-kd.a-holiday', { timeout: 10000 });
+  await p.reload(); await p.waitForSelector('.rb-comms .ov-kd', { timeout: 10000 });
 
-  // ---- Bridge: KEY DATES shows the next holiday, tagged, and only one of them
-  const row = await txt(p, '.ov-kd.a-holiday');
+  // ---- Bridge (2.63: COMMS' KEY DATE row): the next date is a holiday, tagged
+  const row = await txt(p, '.rb-comms .ov-kd');
   console.log('bridge row:', row);
-  assert.ok(row.startsWith('3 DAYS') && row.includes('Veterans Day') && row.includes('HOLIDAY'), row);
-  assert.strictEqual(await p.locator('.ov-kd.a-holiday').count(), 1, 'one holiday among the three');
+  assert.strictEqual(row, 'KEY DATE Veterans Day · holiday · in 3 days');
+  assert.strictEqual(await p.locator('.rb-comms .ov-kd').count(), 1, 'one row: the next key date');
   await p.screenshot({ path: D + 'holidays-bridge.png' });
 
   // ---- finished events (2.22): ended before now = .past, on the Bridge strip, Today and Week

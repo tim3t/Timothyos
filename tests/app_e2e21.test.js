@@ -29,7 +29,7 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
   let p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-07T08:14:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"bridge"'); }, CONN);
+  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"bridge"'); localStorage.setItem('tos.place.v1', JSON.stringify({ lat: 44.98, lon: -93.27 })); }, CONN);   /* a place, so the weather has its + (2.63: the only + left on the Bridge) */
   await p.reload(); await p.waitForTimeout(1800);
 
   // press light-up
@@ -45,11 +45,11 @@ const has = (p, sel, cls) => p.evaluate(([s, c]) => { const el = document.queryS
 
   // + details ease open and the + turns
   await p.click('.elbow'); await p.waitForTimeout(800);
-  await p.click('[data-more="now"]');
-  assert.ok(await has(p, '[data-more="now"]', 'turn') && await has(p, '[data-panel="now"]', 'opening'));
-  assert.strictEqual(await p.getAttribute('[data-more="now"]', 'aria-expanded'), 'true');
+  await p.click('[data-more="env"]');
+  assert.ok(await has(p, '[data-more="env"]', 'turn') && await has(p, '[data-panel="env"]', 'opening'));
+  assert.strictEqual(await p.getAttribute('[data-more="env"]', 'aria-expanded'), 'true');
   await p.waitForTimeout(400);
-  assert.strictEqual(await p.evaluate(() => document.querySelector('[data-panel="now"]').style.height), '', 'height released after easing');
+  assert.strictEqual(await p.evaluate(() => document.querySelector('[data-panel="env"]').style.height), '', 'height released after easing');
 
   // sheets slide away before hiding
   await p.click('#capBtn'); await p.waitForTimeout(300);

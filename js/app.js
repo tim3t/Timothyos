@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.62.1";
+  var VERSION = "2.63.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -688,6 +688,7 @@
     renderNav();
     $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "meals" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
+    if (!linked || state.screen !== "bridge") $("condSlot").hidden = true;   /* the condition pill (2.63) is the Bridge's; renderBridge fills and shows it */
     $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "meals" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     $("todayBtn").textContent = state.screen === "review" ? "THIS WEEK" : state.screen === "astrometrics" ? "THIS YEAR" : "TODAY";
     if (state.screen === "astrometrics") $("nextBtn").disabled = as.y >= now.getFullYear(); else $("nextBtn").disabled = false;
@@ -1667,7 +1668,7 @@
     $("capErr").textContent = "";
     renderCapture();
     showSheet("capScrim");
-    setTimeout(function () { $(cap.type === "note" ? "capNoteText" : "capText").focus(); }, 60);
+    setTimeout(function () { if (cap) $(cap.type === "note" ? "capNoteText" : "capText").focus(); }, 60);   /* closed already (Escape at once): nothing to focus */
   }
   function closeCapture() { hideSheet("capScrim"); cap = null; }
   function renderCapture() {
@@ -2042,17 +2043,18 @@
     });
   }
 
-  function prioritiesPanel(day, isToday, extra) {
+  function prioritiesPanel(day, isToday, extra, title) {
+    title = title || "PRIORITIES";   /* the Bridge calls them ORDERS OF THE DAY (2.63) */
     if (!canPlan()) {
-      return phead("PRIORITIES", "") + stubBox(state.conn ? "Needs the Notion link: a Notion key in the Google bridge. Steps are in the README." : "Link calendars first.");
+      return phead(title, "") + stubBox(state.conn ? "Needs the Notion link: a Notion key in the Google bridge. Steps are in the README." : "Link calendars first.");
     }
     var data = state.tasks[day], past = day < ymd(new Date());
     if (!data) {
-      return phead("PRIORITIES", "") + '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
+      return phead(title, "") + '<div class="empty">' + (state.tasksErr ? esc(state.tasksErr.msg) : "Loading your Master Task List…") + "</div>";
     }
     var focus = data.focus.slice().sort(function (a, b) { return (a.status === DONE) - (b.status === DONE); });
     var done = focus.filter(function (t) { return t.status === DONE; }).length;
-    var html = phead("PRIORITIES", focus.length ? done + " OF " + focus.length + " DONE" : "", null, extra);
+    var html = phead(title, focus.length ? done + " OF " + focus.length + " DONE" : "", null, extra);
     if (!focus.length) {
       html += '<div class="empty">' + (past ? "No priorities were picked for this day." : "No priorities picked yet.") + "</div>";
     }
@@ -2431,128 +2433,19 @@
     items.sort(function (a, b) { return (a.lvl === "bad" ? 0 : 1) - (b.lvl === "bad" ? 0 : 1); });
     return items;
   }
-  function conditionBanner(now, today, list) {
-    var items = conditions(now, today, list);
-    var level = items.some(function (i) { return i.lvl === "bad"; }) ? "red" : items.length ? "yellow" : "green";
-    var body;
-    if (!items.length) {
-      var data = canPlan() ? state.tasks[today] : null, facts = [];
-      if (data) facts.push(data.focus.length + (data.focus.length === 1 ? " priority" : " priorities") + " picked", "nothing overdue");
-      facts.push("no clashes");
-      if (state.sync.at) facts.push("synced " + stamp(state.sync.at));
-      body = '<div class="ov-nominal"><b>ALL SYSTEMS NOMINAL</b><small>' + esc(facts.join(" · ")) + "</small></div>";
-    } else {
-      body = items.map(function (i) {
-        var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"' + (i.fix ? ' data-fix="' + i.fix + '"' : "");
-        return '<button type="button" class="ov-alert ' + i.lvl + '"' + attrs + '><span class="ic">' + i.ic + "</span><span class=\"tx\"><b>" + i.txt + "</b><small>" + i.sub + "</small></span>" +
-          (i.go ? '<span class="go">' + i.go + "</span>" : "") + "</button>";
-      }).join("");
-    }
-    var n = items.length;
-    return '<section class="ov-cond ' + level + '" aria-label="Condition ' + level + '"><div class="lvl"><small>CONDITION</small>' + level.toUpperCase() +
-      "<small>" + (n ? n + (n === 1 ? " ITEM NEEDS" : " ITEMS NEED") + " YOU" : "NOTHING NEEDS YOU") + '</small></div><div class="list">' + body + "</div></section>";
-  }
+
 
   /* --- now / next --- */
-  function nowPanel(now, list) {
-    var de = dayEvents(visible(list), now), timed = de.timed;
-    var cur = timed.filter(function (e) { return e._s <= now && e._e > now; })[0];
-    var next = timed.filter(function (e) { return e._s > now; })[0];
-    var html = phead("NOW / NEXT", hiddenNote(), null, moreBtn("now", "now and next")) + '<div class="ov-now">';
-    if (!hasData(bridgeRange()) && !timed.length) {
-      return html + '<div class="empty">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar not loaded yet.") + "</div></div>";
-    }
-    if (cur) html += '<span class="pill a-' + cur.area + ' ov-state">' + (cur.area === "break" ? esc(cur.breakWord.toUpperCase()) : "NOW") + '</span><span class="ov-cd tnum">' + durLabel((cur._e - now) / 60000) + '</span><span class="muted">left · ' + esc(cur.title) + "</span>";
-    else if (next) html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd tnum">' + durLabel((next._s - now) / 60000) + '</span><span class="muted">until ' + hm(next._s) + "</span>";
-    else html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd">CLEAR</span><span class="muted">nothing else on the calendar today</span>';
-    html += "</div>";
-    if (next) {
-      state.index[next.id] = next;
-      html += '<button type="button" class="ov-next a-' + next.area + pendingCls(next) + '" data-id="' + esc(next.id) + '"><span class="st"></span><span class="tx"><b>' + esc(next.title) + "</b><small>Next · " +
-        hm(next._s) + " to " + hm(next._e) + " · " + areaName(next.area) + pendingTag(next) + '</small></span><span class="go tnum">IN ' + durLabel((next._s - now) / 60000) + "</span></button>";
-    }
-    if (de.allDay.length) html += '<div class="ov-allday">ALL DAY · ' + de.allDay.map(function (e) { return esc(e.title); }).join(" · ") + "</div>";
-    /* the day from 07:00 to 21:00, events stacked in lanes when they overlap */
-    var span = FOCUS_END - FOCUS_START, pct = function (h) { return ((h - FOCUS_START) / span * 100).toFixed(2); };
-    var clash = {};
-    clashes(visible(list), sod(now)).forEach(function (c) { clash[c[0].id] = 1; clash[c[1].id] = 1; });
-    var rows = layout(timed, now, { y: function (h) { return h * 60; } }, 0), d0 = sod(now);
-    html += '<div class="ov-strip">';
-    rows.forEach(function (r) {
-      var s = Math.max(FOCUS_START, r.s), e = Math.min(FOCUS_END, r.e);
-      if (e <= s) return;
-      state.index[r.ev.id] = r.ev;
-      html += '<button type="button" class="ov-blk a-' + r.ev.area + (clash[r.ev.id] ? " clash" : "") + (r.ev.busy ? " busy" : "") + pendingCls(r.ev) + pastCls(r.ev) + '" data-id="' + esc(r.ev.id) +
-        '" aria-label="' + esc(r.ev.title) + ", " + hm(r.ev._s) + " to " + hm(r.ev._e) + '" style="left:' + pct(s) + "%;width:" + (pct(e) - pct(s)).toFixed(2) +
-        "%;top:calc(5px + (100% - 10px) * " + r.col + " / " + r.n + ");height:calc((100% - 10px) / " + r.n + ' - 2px)"></button>';
-    });
-    var nowH = posInDay(now, d0);
-    if (nowH >= FOCUS_START && nowH <= FOCUS_END) html += '<span class="ov-nowln" style="left:' + pct(nowH) + '%"><i class="tnum">' + hm(now) + "</i></span>";
-    html += '</div><div class="ov-ticks">' + [7, 9, 11, 13, 15, 17, 19, 21].map(function (h) { return '<span class="tnum" style="left:' + pct(h) + '%">' + p2(h) + "</span>"; }).join("") + "</div>";
-    var booked = unionHours(timed, now, FOCUS_START, FOCUS_END), left = unionHours([{ _s: now, _e: addDays(d0, 1) }], now, FOCUS_START, FOCUS_END) - unionHours(timed.map(function (e) { return { _s: e._s < now ? now : e._s, _e: e._e }; }), now, FOCUS_START, FOCUS_END);
-    html += '<div class="ov-load ov-extra tnum"><span><b>' + durLabel(booked * 60) + "</b> BOOKED</span><span><b>" + durLabel((span - booked) * 60) + "</b> OPEN</span>" +
-      (nowH < FOCUS_END ? "<span><b>" + durLabel(Math.max(0, left) * 60) + "</b> OPEN FROM NOW</span>" : "") + "<span>07:00 TO 21:00</span></div>";
-    return html;
-  }
+
 
   /* --- priorities + what's due outside them --- */
-  function duePanel(today) {
-    var data = canPlan() ? state.tasks[today] : null;
-    if (!data) return "";
-    var picked = {};
-    data.focus.forEach(function (t) { picked[t.id] = 1; });
-    var list = data.open.filter(function (t) { return t.due && t.due <= today && !picked[t.id] && t.status !== DONE; })
-      .sort(function (a, b) { return a.due.localeCompare(b.due) || (PRI_RANK[a.priority] === undefined ? 3 : PRI_RANK[a.priority]) - (PRI_RANK[b.priority] === undefined ? 3 : PRI_RANK[b.priority]); });
-    if (!list.length) return '<div class="ov-sub">NOTHING DUE OUTSIDE YOUR PICKS</div>';
-    return '<div class="ov-sub">' + list.length + (list.length === 1 ? " TASK" : " TASKS") + ' DUE OR OVERDUE, NOT PICKED<span class="ov-hint"> · TAP + TO SEE</span></div><div class="ov-extra">' + list.slice(0, 4).map(function (t) {
-      return '<button type="button" class="ov-due a-' + taskArea(t.area) + '" data-act="plan" data-day="' + today + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" +
-        [bare(t.priority), bare(t.area)].filter(Boolean).map(esc).join(" · ") + '</small></span><span class="pill ' + (t.due < today ? "bad" : "warn") + '">' + dueLabel(t.due, today) + "</span></button>";
-    }).join("") + (list.length > 4 ? '<div class="muted ov-morenote">+' + (list.length - 4) + " more in Plan Day</div>" : "") + "</div>";
-  }
+
 
   /* --- the next seven days --- */
-  function horizonPanel(now, list) {
-    var vis = visible(list), days = [], max = 8, H = 110;
-    for (var i = 0; i < 7; i++) {
-      var d = addDays(sod(now), i), timed = dayEvents(vis, d).timed;
-      var w = unionHours(timed.filter(function (e) { return e.area === "work"; }), d, 0, 24);
-      var p = unionHours(timed.filter(function (e) { return e.area === "personal"; }), d, 0, 24);
-      var f = unionHours(timed.filter(function (e) { return e.area === "farm"; }), d, 0, 24);
-      var g = unionHours(timed.filter(function (e) { return e.area === "hobby"; }), d, 0, 24);
-      days.push({ d: d, w: w, p: p, f: f, g: g, tot: unionHours(timed, d, 0, 24), kd: kdMarks(ymd(d), false).length });
-      max = Math.max(max, w + p + f + g);
-    }
-    var html = phead("HORIZON · 7 DAYS", hiddenNote() || (hasData(bridgeRange()) ? "TAP A DAY" : "LOADING"), null, moreBtn("horizon", "horizon")) + '<div class="ov-wk">';
-    days.forEach(function (x, i) {
-      var heavy = x.tot >= HEAVY_HOURS;
-      html += '<button type="button" class="ov-day' + (i === 0 ? " today" : "") + (heavy ? " heavy" : "") + '" data-day="' + ymd(x.d) + '" aria-label="' + DOWL[x.d.getDay()] + ", " + hrsLabel(x.tot) + ' booked">' +
-        '<span class="bars"><span class="mk">' + (x.kd ? "◆" : "") + '</span><span class="hrs tnum">' + hrsLabel(x.tot) + "</span>" +
-        (x.g ? '<span class="seg a-hobby" style="height:' + Math.round(x.g / max * H) + 'px"></span>' : "") +
-        (x.f ? '<span class="seg a-farm" style="height:' + Math.round(x.f / max * H) + 'px"></span>' : "") +
-        '<span class="seg a-personal" style="height:' + Math.round(x.p / max * H) + 'px"></span><span class="seg a-work" style="height:' + Math.round(x.w / max * H) + 'px"></span></span>' +
-        '<span class="dl">' + DOW[x.d.getDay()] + '<b class="tnum">' + p2(x.d.getDate()) + "</b></span></button>";
-    });
-    html += '</div><div class="ov-legend ov-extra"><span><i class="a-work"></i>WORK</span><span><i class="a-personal"></i>PERSONAL</span>' + (hasFarm() ? '<span><i class="a-farm"></i>' + AREAS.farm.name + "</span>" : "") + (hasGrowth() ? '<span><i class="a-hobby"></i>' + AREAS.hobby.name + "</span>" : "") + '<span><i class="dia">◆</i>KEY DATE</span></div>';
-    var heavy = days.filter(function (x) { return x.tot >= HEAVY_HOURS; });
-    if (heavy.length) html += '<div class="ov-heavy">▲ HEAVY: ' + heavy.map(function (x) { return DOW[x.d.getDay()] + " " + hrsLabel(x.tot); }).join(" · ") + ". Few open gaps.</div>";
-    return html;
-  }
+
 
   /* --- key dates: the next three --- */
-  function kdNextPanel(today) {
-    if (!canDates()) return phead("KEY DATES", "") + stubBox(state.conn ? "Needs the Key Dates database connected in Notion. Steps are in the README." : "Link calendars first.");
-    if (!state.dates) return phead("KEY DATES", "") + '<div class="empty">' + (state.datesErr ? esc(state.datesErr.msg) : "Loading key dates…") + "</div>";
-    var nh = 0, list = occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (o) { return o.e >= today && (!o.d.holiday || nh++ < 1); }).slice(0, 3);   /* at most one holiday among the three */
-    var html = phead("KEY DATES", "NEXT UP", null, moreBtn("kd", "key dates"));
-    if (!list.length) html += '<div class="empty">No key dates in the next 12 months.</div>';
-    list.forEach(function (o) {
-      var running = o.s < today, n = running ? daysBetween(today, o.e) : daysBetween(today, o.s);
-      var unit = running ? "D LEFT" : n === 0 ? "TODAY" : n === 1 ? "DAY" : "DAYS";
-      html += '<button type="button" class="ov-kd ' + (o.d.holiday ? "a-holiday" : "a-" + taskArea(o.d.area)) + (!running && n <= KD_WARN_DAYS ? " soon" : "") + '" data-kd="' + esc(o.id) + '"><span class="kn tnum">' + (n === 0 && !running ? "◆" : n) +
-        "<small>" + unit + '</small></span><span class="tx"><b>' + esc(o.d.title) + "</b><small>" + rangeLabel(o) + (o.d.holiday ? " · HOLIDAY" : o.d.type ? " · " + esc(bare(o.d.type)) : "") + (running ? " · UNDER WAY" : "") + "</small></span></button>";
-    });
-    return html + '<div class="btnrow ov-extra" style="margin-top:14px"><button type="button" class="btn ghost" data-act="dates">ALL KEY DATES</button><button type="button" class="btn" data-act="adddate">+ ADD</button></div>';
-  }
+
 
   /* --- environment (Open-Meteo, no key needed; only rounded coordinates are sent) --- */
   function place() { return lsGet(LS_PLACE); }
@@ -2699,49 +2592,7 @@
   var LS_BALT = "tos.baltarget.v1";
   var BAL_DEF = { work: 45, personal: 0, farm: 6, hobby: 3 };
   function balTargets() { var t = lsGet(LS_BALT) || {}, o = {}; Object.keys(BAL_DEF).forEach(function (k) { o[k] = typeof t[k] === "number" && t[k] >= 0 ? t[k] : BAL_DEF[k]; }); return o; }
-  function balancePanel(now, today, list) {
-    var html = phead("BALANCE · LAST 7 DAYS", "", "personal", moreBtn("bal", "balance"));
-    if (!canBalance()) return html + stubBox(state.conn ? "Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>." : "Link calendars first.");
-    if (!state.done) return html + '<div class="empty">' + (state.doneErr ? esc(state.doneErr.msg) : "Loading finished tasks…") + "</div>";
-    var since = addDays(sod(now), -6), sinceY = ymd(since), stats = {}, tg = balTargets(), cal = hasData(bridgeRange());
-    BAL_AREAS.forEach(function (a) { stats[a] = { days: [false, false, false, false, false, false, false], last: null, hrs: 0 }; });
-    var touch = function (s, d) { if (!s.last || d > s.last) s.last = d; };
-    state.done.done.forEach(function (x) {
-      if (!x.at) return;
-      var s = stats[taskArea(x.area)], t = new Date(x.at), dy = ymd(t);
-      touch(s, dy);
-      if (dy >= sinceY && dy <= today) s.days[daysBetween(sinceY, dy)] = true;
-    });
-    for (var i = 0; i < 7; i++) {
-      var d = addDays(since, i), timed = dayEvents(list, d).timed, upTo = i === 6 ? posInDay(now, sod(now)) : 24;
-      LIVE.forEach(function (a) {
-        var h = unionHours(timed.filter(function (e) { return e.area === a; }), d, 0, upTo);
-        stats[a].hrs += h;
-        if (h > 0) { stats[a].days[i] = true; touch(stats[a], ymd(d)); }
-      });
-    }
-    var dl = function (i) { return DOW[addDays(since, i).getDay()]; };
-    BAL_AREAS.forEach(function (a) {
-      var s = stats[a], live = LIVE.indexOf(a) > -1, t = tg[a];
-      if (a === "work") {
-        var over = t > 0 && s.hrs > t;
-        html += '<div class="ov-bal bal-work a-work"><span class="bn">' + AREAS.work.name + '</span><span class="track' + (over ? " over" : "") + '"><span style="width:' + (t > 0 ? Math.min(100, Math.round(s.hrs / t * 100)) : 0) + '%"></span></span>' +
-          '<span class="bv tnum">' + (cal ? hrsLabel(s.hrs) + (t > 0 ? " OF " + t + "H" : "") : "LOADING") + "</span>" +
-          (cal && t > 0 ? (over ? '<span class="pill warn">OVER BY ' + hrsLabel(s.hrs - t) + "</span>" : '<span class="pill ok">WITHIN</span>') : "<span></span>") + "</div>";
-        return;
-      }
-      var n = s.days.filter(Boolean).length, ago = s.last ? daysBetween(s.last, today) : null;
-      var pill = ago === null || ago >= 5 ? '<span class="pill warn">QUIET ' + (ago === null ? "30+" : ago) + " D</span>"
-        : live && t > 0 && cal ? (s.hrs >= t ? '<span class="pill ok">GOAL MET</span>' : '<span class="pill">' + hrsLabel(t - s.hrs) + " TO GO</span>")
-        : '<span class="pill">LAST ' + (ago === 0 ? "TODAY" : ago === 1 ? "YESTERDAY" : ago + " D AGO") + "</span>";
-      html += '<div class="ov-bal a-' + a + '"><span class="bn">' + AREAS[a].name + '</span><span class="bal-dots" aria-label="' + n + ' of 7 days">' +
-        s.days.map(function (on, i) { return '<i class="' + (on ? "on" : "") + (i === 6 ? " today" : "") + '" title="' + dl(i) + '"></i>'; }).join("") + "</span>" +
-        '<span class="bv tnum">' + n + " OF 7 DAYS" + (live && cal ? " · " + hrsLabel(s.hrs) + (t > 0 ? " OF " + t + "H" : "") : "") + "</span>" + pill + "</div>";
-    });
-    html += '<div class="ov-foot ov-extra">Work: calendar hours against your ceiling. Other areas: a dot for each day it got attention (a task marked done in Notion, or time on its calendar), and hours against your minimum where it has a calendar. Quiet after 5 days. Targets are in Systems.</div>';
-    if (state.doneErr) html += stale(state.done.fetched);
-    return html;
-  }
+
   function balanceSection() {
     var t = balTargets(), row = function (k, label) { return "<dt>" + label + '</dt><dd class="bal-in"><input type="number" inputmode="decimal" min="0" max="168" step="0.5" id="balT-' + k + '" value="' + t[k] + '"><span class="muted">HOURS / 7 DAYS</span></dd>'; };
     return '<section id="sec-balance">' + phead("BALANCE TARGETS", "SAVED ON THIS IPAD") + '<dl class="kv">' +
@@ -2761,13 +2612,7 @@
     var b = bearings();
     return b.length ? b[((daysBetween("2000-01-01", today) + state.wmShift) % b.length + b.length) % b.length] : "";
   }
-  function logPanel(today) {
-    var log = lsGet(LS_LOG) || {}, b = bearingFor(today);
-    return phead("INTENT + BEARING", dLabel(parseYmd(today)) + " · ON THIS IPAD") + '<div class="ov-log"><div><label class="ov-sub" for="logIntent">TODAY\'S INTENT</label>' +
-      '<input type="text" id="logIntent" maxlength="160" placeholder="One line: what makes today a good day?" autocomplete="off" enterkeyhint="done" value="' + esc(log[today] || "") + '"></div>' +
-      (b ? '<button type="button" class="ov-bearing" data-act="bearing">BEARING<b>' + esc(b) + "</b>TAP TO ROTATE</button>"
-        : '<button type="button" class="ov-bearing" data-act="systems">BEARING<b>SET IN SYSTEMS</b>YOUR GUIDING WORDS</button>') + "</div>";
-  }
+
   function saveLog(text) {
     var log = lsGet(LS_LOG) || {}, today = ymd(new Date());
     if (text) log[today] = text; else delete log[today];
@@ -2781,23 +2626,66 @@
     var open = !!bridgeOpen[key];
     return '<button type="button" class="ov-more" data-more="' + key + '" aria-expanded="' + open + '" aria-label="' + (open ? "Hide" : "Show") + " details for " + title + '"></button>';
   }
-  function pnl(key, inner) { return '<section class="ov-pnl' + (bridgeOpen[key] ? " open" : "") + '" data-panel="' + key + '">' + inner + "</section>"; }
 
+  function pnl(key, inner) { return '<section class="ov-pnl' + (bridgeOpen[key] ? " open" : "") + '" data-panel="' + key + '">' + inner + "</section>"; }   /* a panel whose extras open behind its + (REVIEW's TRENDS, LEDGER's spend) */
+
+  /* ---------- BRIDGE (2.63, Timothy's pick of three mockups: B, the TIME RIBBON; his nine postulates) ----------
+     HORIZON and BALANCE left the Bridge ("I don't reference Horizon or Balance basically at all"); what feeds ASK and
+     REVIEW stays. The header carries the condition as a pill (#condSlot, filled here; renderHeader hides it on other
+     screens): GREEN alone (a tap shows the nominal line), YELLOW or RED with a count and what needs you in a strip under
+     the header (.rb-alerts, the same .ov-alert buttons as before). An unread briefing prints above the ribbon; folded,
+     it is COMMS' first row. The ribbon: NOW / NEXT, the day 07-21 with names on the blocks, pins under it (what's due,
+     today's key date, dinner at 18:00). Three columns: ORDERS OF THE DAY, BODY + HOME, COMMS (rows in a fixed order,
+     dim when there's nothing, left out when not set up). One card style, 12 px apart. */
+  var condOpen = false;
+  function condLevel(items) { return items.some(function (i) { return i.lvl === "bad"; }) ? "red" : items.length ? "yellow" : "green"; }
+  function condItemHtml(i, today) {
+    var attrs = i.kd ? ' data-kd="' + esc(i.kd) + '"' : i.day ? ' data-day="' + i.day + '"' : i.act === "plan" ? ' data-act="plan" data-day="' + today + '"' : ' data-act="' + i.act + '"' + (i.fix ? ' data-fix="' + i.fix + '"' : "");
+    return '<button type="button" class="ov-alert ' + i.lvl + '"' + attrs + '><span class="ic">' + i.ic + "</span><span class=\"tx\"><b>" + i.txt + "</b><small>" + i.sub + "</small></span>" +
+      (i.go ? '<span class="go">' + i.go + "</span>" : "") + "</button>";
+  }
+  function condNominal(today) {
+    var data = canPlan() ? state.tasks[today] : null, facts = [];
+    if (data) facts.push(data.focus.length + (data.focus.length === 1 ? " priority" : " priorities") + " picked", "nothing overdue");
+    facts.push("no clashes");
+    if (state.sync.at) facts.push("synced " + stamp(state.sync.at));
+    return '<div class="ov-nominal"><b>ALL SYSTEMS NOMINAL</b><small>' + esc(facts.join(" · ")) + "</small></div>";
+  }
+  function rbPill(level, n) {
+    var s = $("condSlot"); if (!s) return;
+    s.hidden = false;
+    var h = '<button type="button" class="ov-cond ' + level + '" id="condPill" aria-expanded="' + (n ? "true" : String(condOpen)) + '" aria-label="Condition ' + level + ", " +
+      (n ? n + (n === 1 ? " item needs" : " items need") + " you" : "nothing needs you") + '"><span class="lvl"><small>CONDITION</small><span>' + level.toUpperCase() + (n ? '<i class="tnum"> · ' + n + "</i>" : "") + "</span></span></button>";
+    if (s.innerHTML !== h) s.innerHTML = h;
+  }
+  $("condSlot").addEventListener("click", function () {
+    if (state.screen !== "bridge") return;
+    var st = document.querySelector(".rb-alerts .ov-alert");
+    if (st) { var box = st.parentNode; box.scrollIntoView({ block: "nearest", behavior: calm() ? "auto" : "smooth" }); restartClass(box, "flash"); return; }   /* YELLOW or RED: what needs you is already in view */
+    condOpen = !condOpen; render(true);
+  });
+  function rbAlerts(level, items, today) {
+    if (!items.length && !condOpen) return "";
+    return '<div class="rb-alerts ' + level + '" role="region" aria-label="Condition ' + level + '">' + (items.length ? items.map(function (i) { return condItemHtml(i, today); }).join("") : condNominal(today)) + "</div>";
+  }
   function renderBridge() {
     var now = new Date(), today = ymd(now), list = eventsFor(bridgeRange());
-    var html = briefPanel(now) + conditionBanner(now, today, list) + inboxLine() + sciLine() + mealLine() + '<div class="ov-grid">' +
-      pnl("now", nowPanel(now, list)) + (canHabits() ? pnl("habits", habitsPanel(today)) : "") + (canTarot() ? pnl("tarot", tarotPanel()) : "") + pnl("env", envPanel(now)) +
-      pnl("prio", prioritiesPanel(today, true, moreBtn("prio", "priorities")) + duePanel(today)) +
-      pnl("horizon", horizonPanel(now, list)) + pnl("kd", kdNextPanel(today)) +
-      pnl("bal", balancePanel(now, today, list)) + pnl("log", logPanel(today)) + "</div>";
-    $("content").innerHTML = html;
-    /* when the condition changes, its color crossfades from the old one */
-    var cEl = document.querySelector(".ov-cond"), lv = cEl && (cEl.className.match(/\b(green|yellow|red)\b/) || [])[1];
-    if (lv && state.lastCond && state.lastCond !== lv) {
-      cEl.style.setProperty("--prev", "var(--" + { green: "ok", yellow: "warn", red: "bad" }[state.lastCond] + ")");
-      restartClass(cEl, "changed");
-    }
-    if (lv) state.lastCond = lv;
+    var items = conditions(now, today, list), level = condLevel(items);
+    rbPill(level, items.length);
+    var brief = briefPanel(now), folded = brief.indexOf('class="br-fold"') > -1;
+    var html = '<div class="rb">' + (folded ? "" : brief) + rbAlerts(level, items, today) +
+      '<section class="rb-card rb-ribbon" data-panel="now">' + rbRibbon(now, list, today) + "</section>" +
+      '<div class="rb-cols"><section class="rb-card" data-panel="prio">' + rbOrders(today) + "</section>" +
+      '<section class="rb-card" data-panel="home">' + rbHome(now, today) + "</section>" +
+      '<section class="rb-card rb-comms" data-panel="comms">' + rbComms(now, today, brief, folded) + "</section></div></div>";
+    var c = $("content"), sy = window.scrollY || 0, sc = c.scrollTop;   /* the minute redraw never moves the page (2.62.1's rule) */
+    c.innerHTML = html;
+    if (c.scrollTop !== sc) c.scrollTop = sc;
+    if ((window.scrollY || 0) !== sy) window.scrollTo({ top: sy, left: 0, behavior: "instant" });
+    /* when the condition changes, the pill's color crossfades from the old one */
+    var cEl = $("condPill");
+    if (cEl && state.lastCond && state.lastCond !== level) { cEl.style.setProperty("--prev", "var(--" + { green: "ok", yellow: "warn", red: "bad" }[state.lastCond] + ")"); restartClass(cEl, "changed"); }
+    state.lastCond = level;
     briefLoop();
     loadTasks(today, false);
     loadDates(false);
@@ -2807,6 +2695,130 @@
     if (rdue && canReviews() && !reviewSaved(ymd(rdue))) loadWeek(rdue, false);
     briefMaybe();
   }
+  /* --- the ribbon: now / next and the day, 07:00 to 21:00 --- */
+  function rbDueList(today) {
+    var data = canPlan() ? state.tasks[today] : null;
+    if (!data) return [];
+    var picked = {};
+    data.focus.forEach(function (t) { picked[t.id] = 1; });
+    return data.open.filter(function (t) { return t.due && t.due <= today && !picked[t.id] && t.status !== DONE; })
+      .sort(function (a, b) { return a.due.localeCompare(b.due) || (PRI_RANK[a.priority] === undefined ? 3 : PRI_RANK[a.priority]) - (PRI_RANK[b.priority] === undefined ? 3 : PRI_RANK[b.priority]); });
+  }
+  function rbFreeAfter(timed, from) {   /* the first gap of 30 minutes or more after `from`, before 21:00 */
+    var d0 = sod(from), end = new Date(+d0 + FOCUS_END * 36e5), t = from;
+    var later = timed.filter(function (e) { return e._e > from; }).sort(function (a, b) { return a._s - b._s; });
+    for (var i = 0; i < later.length; i++) {
+      if (later[i]._s - t >= 30 * 60000) return { a: t, b: later[i]._s };
+      if (later[i]._e > t) t = later[i]._e;
+    }
+    return end - t >= 30 * 60000 ? { a: t, b: null } : null;
+  }
+  function rbRibbon(now, list, today) {
+    var de = dayEvents(visible(list), now), timed = de.timed, d0 = sod(now);
+    var cur = timed.filter(function (e) { return e._s <= now && e._e > now; })[0];
+    var next = timed.filter(function (e) { return e._s > now; })[0];
+    var hn = hiddenNote(), add = '<button type="button" class="rb-add" data-act="capnow" aria-label="Add an event">+</button>';
+    var html = '<div class="rb-top"><div class="ov-now">';
+    if (!hasData(bridgeRange()) && !timed.length) return html + '<span class="muted">' + (state.sync.status === "syncing" ? "Loading your calendars…" : "Calendar not loaded yet.") + "</span></div>" + add + "</div>";
+    if (cur) html += '<span class="pill a-' + cur.area + ' ov-state">' + (cur.area === "break" ? esc(cur.breakWord.toUpperCase()) : "NOW") + '</span><span class="ov-cd tnum">' + durLabel((cur._e - now) / 60000) + '</span><span class="muted">left · ' + esc(cur.title) + "</span>";
+    else if (next) html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd tnum">' + durLabel((next._s - now) / 60000) + '</span><span class="muted">until ' + hm(next._s) + "</span>";
+    else html += '<span class="pill ok ov-state">FREE</span><span class="ov-cd">CLEAR</span>';
+    html += '</div><div class="rb-next">';
+    if (next) {
+      state.index[next.id] = next;
+      var after = timed.filter(function (e) { return e._s > next._s; }).length, gap = rbFreeAfter(timed, next._e);
+      html += '<button type="button" class="ov-next a-' + next.area + pendingCls(next) + '" data-id="' + esc(next.id) + '"><span class="st"></span><span class="tx"><b>' + esc(next.title) + "</b><small>Next · " +
+        hm(next._s) + " to " + hm(next._e) + " · " + areaName(next.area) + pendingTag(next) + '</small></span><span class="go tnum">IN ' + durLabel((next._s - now) / 60000) + "</span></button>" +
+        '<small class="rb-then">' + (after ? "Then " + after + (after === 1 ? " more" : " more") : "Nothing after it") + (gap ? " · free " + hm(gap.a) + (gap.b ? " to " + hm(gap.b) : " on") : "") + "</small>";
+    } else html += '<small class="rb-then">Nothing else on the calendar today</small>';
+    html += (hn ? '<small class="rb-then">' + esc(hn) + "</small>" : "") + "</div>" + add + "</div>";
+    if (de.allDay.length) html += '<div class="ov-allday">ALL DAY · ' + de.allDay.map(function (e) { return esc(e.title); }).join(" · ") + "</div>";
+    var span = FOCUS_END - FOCUS_START, pct = function (h) { return ((h - FOCUS_START) / span * 100).toFixed(2); };
+    var clash = {};
+    clashes(visible(list), sod(now)).forEach(function (c) { clash[c[0].id] = 1; clash[c[1].id] = 1; });
+    html += '<div class="ov-strip rb-band">';
+    layout(timed, now, { y: function (h) { return h * 60; } }, 0).forEach(function (r) {
+      var s = Math.max(FOCUS_START, r.s), e = Math.min(FOCUS_END, r.e);
+      if (e <= s) return;
+      state.index[r.ev.id] = r.ev;
+      html += '<button type="button" class="ov-blk a-' + r.ev.area + (clash[r.ev.id] ? " clash" : "") + (r.ev.busy ? " busy" : "") + pendingCls(r.ev) + pastCls(r.ev) + '" data-id="' + esc(r.ev.id) +
+        '" aria-label="' + esc(r.ev.title) + ", " + hm(r.ev._s) + " to " + hm(r.ev._e) + '" style="left:' + pct(s) + "%;width:" + (pct(e) - pct(s)).toFixed(2) +
+        "%;top:calc(5px + (100% - 10px) * " + r.col + " / " + r.n + ");height:calc((100% - 10px) / " + r.n + ' - 2px)"><span class="rb-bl">' + esc(r.ev.title) + "</span></button>";
+    });
+    var nowH = posInDay(now, d0);
+    if (nowH >= FOCUS_START && nowH <= FOCUS_END) html += '<span class="ov-nowln" style="left:' + pct(nowH) + '%"><i class="tnum">' + hm(now) + "</i></span>";
+    html += '</div><div class="ov-ticks">' + [7, 9, 11, 13, 15, 17, 19, 21].map(function (h) { return '<span class="tnum" style="left:' + pct(h) + '%">' + p2(h) + "</span>"; }).join("") + "</div>";
+    /* pins: what's due and today's key date at the left, dinner at 18:00 */
+    var pins = "", due = rbDueList(today);
+    if (due.length) pins += '<button type="button" class="rb-pin pin-due" data-act="plan" data-day="' + today + '"><b>' + (due.some(function (t) { return t.due < today; }) ? "OVERDUE" : "DUE TODAY") + "</b><span>" + esc(due[0].title) + (due.length > 1 ? " +" + (due.length - 1) : "") + "</span></button>";
+    if (canDates() && state.dates) {
+      var kd = occurrences(today, today).filter(function (o) { return o.s <= today && o.e >= today; })[0];
+      if (kd) pins += '<button type="button" class="rb-pin pin-kd" data-kd="' + esc(kd.id) + '"><b>TODAY</b><span>' + esc(kd.d.title) + "</span></button>";
+    }
+    var dn = state.conn && canMeals() && ml.data ? mlDinner(mlToday()) : null;
+    var dpin = dn ? '<button type="button" class="rb-pin pin-dinner" data-mlnow="open" style="left:' + pct(18) + '%"><b>' + (dn.status === "eaten" ? "DINNER ✓" : "18:00 DINNER") + "</b><span>" + esc(mlDName(dn)) + "</span></button>" : "";
+    if (pins || dpin) html += '<div class="rb-pins"><div class="rb-pinl">' + pins + "</div>" + dpin + "</div>";
+    return html;
+  }
+  /* --- ORDERS OF THE DAY: the picks, what's due outside them, the intent --- */
+  function rbOrders(today) {
+    var log = lsGet(LS_LOG) || {}, due = rbDueList(today);
+    var html = prioritiesPanel(today, true, "", "ORDERS OF THE DAY");
+    if (due.length) html += '<div class="ov-sub">' + due.length + (due.length === 1 ? " TASK" : " TASKS") + " DUE OR OVERDUE, NOT PICKED</div>" + due.slice(0, 3).map(function (t) {
+      return '<button type="button" class="ov-due a-' + taskArea(t.area) + '" data-act="plan" data-day="' + today + '"><span class="st"></span><span class="tx"><b>' + esc(t.title) + "</b><small>" +
+        [bare(t.priority), bare(t.area)].filter(Boolean).map(esc).join(" · ") + '</small></span><span class="pill ' + (t.due < today ? "bad" : "warn") + '">' + dueLabel(t.due, today) + "</span></button>";
+    }).join("") + (due.length > 3 ? '<div class="muted ov-morenote">+' + (due.length - 3) + " more in Plan Day</div>" : "");
+    return html + '<div class="rb-intent"><label class="ov-sub" for="logIntent">TODAY\'S INTENT</label>' +
+      '<input type="text" id="logIntent" maxlength="160" placeholder="One line: what makes today a good day?" autocomplete="off" enterkeyhint="done" value="' + esc(log[today] || "") + '"></div>';
+  }
+  /* --- BODY + HOME: habits, tonight, the weather (its details behind its +) --- */
+  function rbNoHead(h) { return String(h || "").replace(/^<div class="phead"[\s\S]*?<\/div>/, ""); }
+  function rbHome(now, today) {
+    var html = phead("BODY + HOME", "", "chrome-c");
+    if (canHabits()) html += '<div data-panel="habits"><div class="rb-sub">HABITS<span>' + habitMeta() + "</span></div>" + rbNoHead(habitsPanel(today)) + "</div>";
+    var meal = mealLine(); if (meal) html += '<div class="rb-meal">' + meal + "</div>";
+    var pl = place();
+    html += '<div class="ov-pnl rb-wx' + (bridgeOpen.env ? " open" : "") + '" data-panel="env"><div class="rb-sub">WEATHER' + (pl && pl.name ? " · " + esc(pl.name.toUpperCase()) : "") + (pl ? moreBtn("env", "the weather") : "") + "</div>" + rbNoHead(envPanel(now)) + "</div>";
+    return html;
+  }
+  /* --- COMMS: briefing, inbox, science, key date, bearing, tarot; always in this order --- */
+  function rbRow(cls, attrs, label, text, color, dim) {
+    return '<button type="button" class="rb-row' + (cls ? " " + cls : "") + (dim ? " dim" : "") + '" ' + attrs + ' style="--c: var(--' + color + ')"><b>' + label + "</b><span>" + text + "</span></button>";
+  }
+  function rbComms(now, today, brief, folded) {
+    var rows = "";
+    if (state.conn && canAsk() && !lsGet(LS_BRIEFOFF) && state.caps.indexOf("brief") > -1) {
+      var b = br.b;
+      rows += folded && b ? rbRow("br-fold", 'data-brief="open" aria-label="Open the morning briefing"', "BRIEFING", esc((briefToday(now) ? "" : "Yesterday's · ") + hm(new Date(b.at)) + " · " + (b.headline || (b.paras[0] && b.paras[0].text) || "")), "chrome-b")
+        : brief ? rbRow("", 'data-act="briefup"', "BRIEFING", "Above, ready to read", "chrome-b", true)
+        : rbRow("", 'data-act="briefup"', "BRIEFING", "Compiles after 06:00", "chrome-b", true);
+    }
+    if (state.conn && canInbox()) {
+      loadInbox(false);
+      var n = ibCount(), w = ibWaiting(), first = w[0] || ibQueued()[0], at = first && first.at ? new Date(first.at) : null;
+      rows += rbRow("ib-line", 'data-act="inbox"', "INBOX" + (n ? " · " + n : ""), n ? (n === 1 ? "1 note" : n + " notes") + " to sort" + (at && !isNaN(at) ? ", oldest " + DOW[at.getDay()] + " " + p2(at.getDate()) : "") : "Clear", "chrome-c", !n);
+    }
+    if (state.conn && canScience() && !lsGet(LS_SCILINEOFF)) {
+      sciDaily();
+      var h = sciHeadline();
+      rows += rbRow("sci-line", 'data-act="science"', "SCIENCE", h ? esc(h.t) : "Nothing notable tonight", h ? SCI_DEPTS[h.d][1] : "personal", !h);
+    }
+    if (canDates()) {
+      var nh = 0, o = state.dates ? occurrences(today, ymd(addDays(parseYmd(today), 366))).filter(function (x) { return x.e >= today && (!x.d.holiday || nh++ < 1); })[0] : null;
+      if (o) { var running = o.s < today, k = running ? daysBetween(today, o.e) : daysBetween(today, o.s); rows += rbRow("ov-kd", 'data-kd="' + esc(o.id) + '"', "KEY DATE", esc(o.d.title) + (o.d.holiday ? " · holiday" : "") + " · " + (running ? k + " days left" : k === 0 ? "today" : k === 1 ? "tomorrow" : "in " + k + " days"), "chrome-a", false); }
+      else rows += rbRow("", 'data-act="dates"', "KEY DATE", state.dates ? "None in the next 12 months" : "Loading…", "chrome-a", true);
+    }
+    var bw = bearingFor(today);
+    rows += bw ? rbRow("ov-bearing", 'data-act="bearing" aria-label="Bearing: ' + esc(bw) + '. Tap to rotate"', "BEARING", esc(bw), "hero", false) : rbRow("ov-bearing", 'data-act="systems"', "BEARING", "Set your guiding words in SYSTEMS", "hero", true);
+    if (canTarot()) {
+      loadTarot(false);
+      var wk = tr.data ? trWeekly(sow(now)) : null, cd = wk && wk.cards[0];
+      rows += '<div data-panel="tarot">' + (cd ? rbRow("", 'data-tropen="' + esc(wk.id) + '"', "TAROT", esc(trName(cd.id)) + (cd.rev ? " · reversed" : "") + " · this week", "chrome-a", false)
+        : rbRow("", tr.data ? 'data-trgo="weekly"' : 'data-act="tarot"', "TAROT", tr.data ? "No card yet this week" : tr.err ? esc(tr.err.msg) : "Loading…", "chrome-a", true)) + "</div>";
+    }
+    return phead("COMMS", "", "chrome-a") + '<div class="rb-rows">' + rows + "</div>";
+  }
+
 
   /* ---------- Morning Briefing (2.36, bridge 1.29) ---------- */
   /* The first time Bridge is in front after 06:00 (at 06:00 itself when it stood by overnight), the app sends ASK's
@@ -6095,8 +6107,8 @@
     });
   }
   var raHold = null;
-  $("content").addEventListener("pointerdown", function (e) {
-    if (!e.target.closest(".ov-cond .lvl")) return;
+  document.addEventListener("pointerdown", function (e) {   /* the condition is a pill in the header since 2.63 */
+    if (!e.target.closest || !e.target.closest(".ov-cond .lvl")) return;
     eggAudio();
     var x = e.clientX, y = e.clientY;
     clearTimeout(raHold);
@@ -9180,15 +9192,7 @@
   });
 
   /* --- the Bridge, the Review, Systems and Ask --- */
-  function tarotPanel() {
-    if (!canTarot()) return "";
-    loadTarot(false);
-    if (!tr.data) return phead("TAROT · THIS WEEK", "") + '<div class="empty">' + (tr.err ? esc(tr.err.msg) : "Loading this week's card from Notion…") + "</div>";
-    var w0 = sow(new Date()), wk = trWeekly(w0);
-    if (!wk) return phead("TAROT · THIS WEEK", "") + '<div class="tr-tile none"><span class="tr-card back" aria-hidden="true"></span><span><b>NO CARD YET THIS WEEK</b><small>Draw it, then record it here.</small></span><button type="button" class="chip sm" data-trgo="weekly">RECORD</button></div>';
-    var c = wk.cards[0], mine = trMeaning(c.id);
-    return phead("TAROT · THIS WEEK", "PULLED " + dLabel(parseYmd(wk.day))) + '<button type="button" class="tr-tile" data-tropen="' + esc(wk.id) + '">' + trCard(c.id, c.rev) + "<span><b>" + esc(trName(c.id).toUpperCase()) + (c.rev ? " · REVERSED" : "") + "</b><small>" + esc(mine || trKw(c.id, c.rev)) + "</small>" + (wk.sum ? "<small>" + esc(wk.sum) + "</small>" : "") + "</span></button>";
-  }
+
   function tarotWeek(w0) {
     if (!canTarot()) return "";
     loadTarot(false);
@@ -10795,12 +10799,7 @@
     var m = sciMeteor(new Date()); if (sameDay(m.d, new Date())) return { d: "night", t: m.name + " meteor shower peaks tonight", s: "Best after midnight, away from lights" };
     return null;
   }
-  function sciLine() {
-    if (!state.conn || !canScience() || lsGet(LS_SCILINEOFF)) return "";
-    sciDaily();
-    var h = sciHeadline(); if (!h) return "";
-    return '<button type="button" class="sci-line" data-act="science" style="--c: var(--' + SCI_DEPTS[h.d][1] + ')"><b>SCIENCE · ' + SCI_DEPTS[h.d][0] + "</b><span>" + esc(h.t) + " · " + esc(h.s) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
-  }
+
   function sciBrief() {
     if (!canScience() || !sciPlace()) return "";
     var out = [], p = sciTonight(), pl = sciPlace(), tn = sciKpTonight(), q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 3.5 && Date.now() - x.at < 864e5; })[0], m = sciMeteor(new Date());
@@ -12509,13 +12508,7 @@
     return html + "</section>";
   }
   /* The Bridge's line: only while notes wait. Condition never counts them. */
-  function inboxLine() {
-    if (!state.conn || !canInbox()) return "";
-    loadInbox(false);
-    var n = ibCount(); if (!n) return "";
-    var w = ibWaiting(), first = w[0] || ibQueued()[0], at = first && first.at ? new Date(first.at) : null;
-    return '<button type="button" class="ib-line" data-act="inbox"><b>INBOX · ' + n + "</b><span>" + (n === 1 ? "1 note" : n + " notes") + " to sort" + (at && !isNaN(at) ? ", the oldest from " + DOW[at.getDay()] + " " + p2(at.getDate()) + " " + MON[at.getMonth()] : "") + '</span><span class="ov-more" aria-hidden="true"></span></button>';
-  }
+
 
   /* ---------- MEALS (2.59, bridge 1.39; Timothy's mockup: option A is PLAN, option C is LOG) ----------
      🍽 Meals (a page per meal, its ingredients by aisle) and 🍽 Dinners (a page per night, Planned or Eaten) in Notion.
@@ -14001,6 +13994,9 @@
     else if (b.dataset.act === "fixdone") go("bridge");
     else if (b.dataset.jump) fixJump(b.dataset.jump);
     else if (b.dataset.act === "bearing") { state.wmShift++; render(true); }
+    else if (b.dataset.act === "capnow") openCapture();   /* the ribbon's + (2.63) */
+    else if (b.dataset.act === "tarot") go("tarot");
+    else if (b.dataset.act === "briefup") { var brTop = document.querySelector(".rb .br"); if (brTop) brTop.scrollIntoView({ block: "start", behavior: calm() ? "auto" : "smooth" }); }
     else if (b.dataset.start) { lsSet(LS_START, b.dataset.start); toast("Opens on " + b.dataset.start.toUpperCase() + " from now on"); render(true); }
     else if (["placesave", "geo", "placeclear", "bearsave"].indexOf(b.dataset.act) > -1) bridgeAct(b.dataset.act);
     else if (b.dataset.more) {

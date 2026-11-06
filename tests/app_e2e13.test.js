@@ -1,6 +1,7 @@
-// Bridge overview: condition banner, Now/Next, Priorities + due list, Horizon,
-// Key Dates, Environment (weather stubbed), Balance (bridge 1.4), Captain's Log,
-// Bearings, start-screen setting, navigation, phone width.
+// Bridge overview (2.63, the Time Ribbon): the condition pill and what needs you, the ribbon (now/next, names on the
+// blocks, pins), ORDERS OF THE DAY (priorities + due list, intent), BODY + HOME (weather stubbed, its details behind +),
+// COMMS (key date, bearing), no HORIZON or BALANCE (their targets stay in Systems), start-screen setting, navigation,
+// phone width.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/';
@@ -64,36 +65,39 @@ function weather() {
   assert.ok(alerts.includes('Frost tonight'));
   assert.strictEqual(alerts.indexOf('Overdue, High priority'), 0, 'red items first');
 
-  // details sit behind + beside each title: hidden at first, shown on tap, remembered
-  assert.ok(await p.isHidden('.ov-load'), 'readouts hidden until +');
-  assert.strictEqual(await p.locator('.ov-more').count(), 6);
+  // 2.63: the condition is a pill beside the date; what needs you is a strip under the header
+  assert.ok(/^CONDITION\s*RED · 5$/.test((await p.innerText('#condSlot .ov-cond')).trim()), await p.innerText('#condSlot .ov-cond'));
+  assert.strictEqual(await p.locator('#content .ov-cond').count(), 0, 'no banner in the page');
+  assert.strictEqual(await p.locator('.rb-alerts .ov-alert').count(), alerts.length);
+  // the ribbon
   assert.ok((await p.textContent('[data-panel="prio"] .ov-sub')).includes('3 TASKS DUE OR OVERDUE, NOT PICKED'));
-  for (const k of ['now', 'prio', 'env']) { await p.click('[data-more="' + k + '"]'); await p.waitForTimeout(150); }
-  assert.ok(await p.isVisible('.ov-load')); assert.strictEqual(await p.getAttribute('[data-more="now"]', 'aria-expanded'), 'true');
-  await p.reload(); await p.waitForTimeout(1500);
-  assert.ok(await p.isVisible('.ov-load'), 'open panels remembered');
   const now = (await p.innerText('.ov-now')).replace(/\s+/g, ' ').trim();
-  console.log('now:', now, '| next:', (await p.innerText('.ov-next')).replace(/\s+/g, ' '));
+  console.log('now:', now, '| next:', (await p.innerText('.ov-next')).replace(/\s+/g, ' '), '| then:', await p.innerText('.rb-then'));
   assert.ok(now.startsWith('FREE 50M until 08:30'));
   assert.ok((await p.innerText('.ov-next')).includes('Standup'));
+  assert.ok(/^Then \d+ more/.test(await p.innerText('.rb-then')), 'what follows it');
   assert.ok(await p.locator('.ov-blk.clash').count() >= 2, 'clashing blocks outlined');
-  console.log('load:', (await p.innerText('.ov-load')).replace(/\s+/g, ' '));
-  assert.ok((await p.innerText('.ov-load')).includes('4H BOOKED'));
+  assert.ok((await p.locator('.rb-band .rb-bl').allTextContents()).includes('Standup'), 'names on the blocks');
+  const pins = (await p.locator('.rb-pin').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
+  console.log('pins:', pins.join(' | '));
+  assert.ok(pins.some(t => /^(OVERDUE|DUE TODAY) Book furnace service \+2$/.test(t)), 'what\'s due, pinned');
+  assert.ok(pins.includes('TODAY Garlic planting window'), 'today\'s key date, pinned');
+  // gone from the Bridge
+  assert.strictEqual(await p.locator('.ov-day, .ov-bal, .ov-load').count(), 0, 'no HORIZON, BALANCE or the old readouts');
+  assert.ok(!/HORIZON|BALANCE/.test(await p.innerText('#content')));
 
   const due = await p.locator('.ov-due b').allTextContents();
   console.log('due not picked:', due.join(' | '));
   assert.deepStrictEqual(due.slice(0, 3), ['Book furnace service', 'Order spring bulbs', 'Sugar syrup for Hive 2']);
 
-  const hrs = await p.locator('.ov-day .hrs').allTextContents();
-  console.log('horizon:', (await p.locator('.ov-day .dl').allTextContents()).join(' '), '|', hrs.join(' '));
-  assert.strictEqual(hrs.length, 7);
-  assert.strictEqual(hrs[0], '4H', 'today: overlaps counted once');
-
   const kd = (await p.locator('.ov-kd').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
   console.log('key dates:', kd.join(' | '));
-  assert.ok(kd[0].startsWith('19 D LEFT') && kd[0].includes('Garlic planting window'), 'running window shows days left');
-  assert.ok(kd[1].startsWith('6 DAYS') && kd[1].includes('First frost risk'));
+  assert.deepStrictEqual(kd, ['KEY DATE Garlic planting window · 19 days left'], 'COMMS: the next key date, a running window in days left');
 
+  await p.click('[data-more="env"]'); await p.waitForTimeout(150);
+  assert.strictEqual(await p.getAttribute('[data-more="env"]', 'aria-expanded'), 'true');
+  await p.reload(); await p.waitForTimeout(1500);
+  assert.strictEqual(await p.getAttribute('[data-more="env"]', 'aria-expanded'), 'true', 'the weather\'s details stay open');
   const env = (await p.innerText('.ov-pnl:has(.ov-env)')).replace(/\s+/g, ' ');
   console.log('env:', env);
   assert.ok(wxUrl.includes('latitude=44.98') && wxUrl.includes('longitude=-93.27') && wxUrl.includes('temperature_unit=fahrenheit'));
@@ -101,25 +105,13 @@ function weather() {
   assert.ok(env.includes('Best window 12:00 to 17:00') && env.includes('64°F, light wind') && env.includes('GO'));
   assert.ok(env.includes('Low 31°F') && env.includes('FROST'));
 
-  const bal = (await p.locator('.ov-bal').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
-  console.log('balance:', bal.join(' | '));
-  // 2.19: Work is hours against a ceiling (no task count); the rest are days of attention
-  assert.strictEqual(bal[0], 'WORK 53H OF 45H OVER BY 8H', 'work: hours against the 45 h ceiling');
-  assert.ok(!bal[0].includes('DONE') && !bal[0].includes('QUIET'), 'no task count or quiet warning for work');
-  assert.ok(bal[1].startsWith('PERSONAL 3 OF 7 DAYS · 7H') && bal[1].includes('LAST 2 D AGO'), bal[1]);
-  assert.strictEqual(await p.locator('.ov-bal.a-personal .bal-dots i.on').count(), 3, 'three days lit');
-  assert.ok(bal[2].includes('0 OF 7 DAYS') && bal[2].includes('QUIET 12 D'));
-  assert.ok(bal[3].startsWith('GROWTH 0 OF 7 DAYS') && bal[3].includes('QUIET 30+ D'));
   await p.screenshot({ path: D + 'bridge-ipad.png', fullPage: true });
-  // ---- targets in Systems
+  // ---- BALANCE's targets stay in Systems (ASK and REVIEW still use them)
   await p.click('#status'); await p.waitForSelector('#balT-work');
   assert.strictEqual(await p.inputValue('#balT-work'), '45');
   await p.fill('#balT-work', '60'); await p.fill('#balT-personal', '5'); await p.click('[data-act="balsave"]');
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.baltarget.v1'))), { work: 60, personal: 5, farm: 6, hobby: 3 });
-  await p.click('[data-screen="bridge"]'); await p.waitForSelector('.ov-bal');
-  const bal2 = (await p.locator('.ov-bal').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
-  assert.strictEqual(bal2[0], 'WORK 53H OF 60H WITHIN');
-  assert.ok(bal2[1].includes('7H OF 5H') && bal2[1].includes('GOAL MET'), bal2[1]);
+  await p.click('[data-screen="bridge"]'); await p.waitForSelector('.rb-ribbon');
   // no emoji anywhere in the interface (Notion labels are shown as plain text; ✓ and ✕ are text marks)
   const emojiIn = () => p.evaluate(() => (document.body.innerText.match(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{2712}\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu) || []).join(''));
   assert.strictEqual(await emojiIn(), '', 'bridge shows no emoji');
@@ -140,22 +132,18 @@ function weather() {
   assert.strictEqual(await p.inputValue('#logIntent'), 'Finish the deck, then the hives.');
 
   // --- Bearings: empty until set in Systems
-  assert.ok((await p.textContent('.ov-bearing')).includes('SET IN SYSTEMS'));
+  assert.ok((await p.textContent('.ov-bearing')).includes('SYSTEMS'));
   await p.click('.ov-bearing'); await p.waitForTimeout(300);
   assert.strictEqual(await p.getAttribute('#status', 'aria-current'), 'page');
   await p.fill('#bearIn', 'First bearing\nSecond bearing\n\nThird bearing');
   await p.click('[data-act="bearsave"]'); await p.waitForTimeout(200);
   console.log('toast:', await p.textContent('#toast'));
   await p.click('.elbow'); await p.waitForTimeout(500);
-  const b1 = await p.textContent('.ov-bearing b'); await p.click('.ov-bearing'); const b2 = await p.textContent('.ov-bearing b');
+  const b1 = await p.textContent('.ov-bearing span'); await p.click('.ov-bearing'); const b2 = await p.textContent('.ov-bearing span');
   console.log('bearing:', b1, '->', b2);
   assert.ok(['First bearing', 'Second bearing', 'Third bearing'].includes(b1) && b1 !== b2);
 
   // --- navigation from the Bridge
-  await p.click('.ov-day >> nth=2'); await p.waitForTimeout(400);
-  console.log('horizon tap ->', await p.textContent('#eyebrow'), await p.textContent('#title'));
-  assert.strictEqual(await p.textContent('#title'), 'THU 08 OCT');
-  await p.click('.elbow'); await p.waitForTimeout(400);
   await p.click('.ov-alert:has-text("Calendar clash")'); await p.waitForTimeout(400);
   assert.strictEqual(await p.textContent('#title'), 'TUE 06 OCT');
   await p.click('.elbow'); await p.waitForTimeout(400);
@@ -166,7 +154,7 @@ function weather() {
   await p.click('.ov-kd >> nth=0'); await p.waitForTimeout(200);
   assert.ok((await p.textContent('#detailSheet')).includes('Garlic planting window')); await p.click('#detailClose');
   // checking off a priority from the Bridge
-  await p.click('.ov-pnl .prio >> nth=0'); await p.waitForTimeout(800);
+  await p.click('[data-panel="prio"] .prio >> nth=0'); await p.waitForTimeout(800);
   console.log('after toggle toast:', await p.textContent('#toast'));
 
   // --- Systems: open on Today instead

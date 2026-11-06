@@ -21,13 +21,13 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'log', 'habits', 'tarot']));
   }, K);
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile[data-tropen]', { timeout: 10000 });
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row[data-tropen]', { timeout: 10000 });
 
-  // ---- the Bridge: this week's card, with your meaning and the week's note
+  // ---- the Bridge: this week's card, a row in COMMS since 2.63 (its meaning and note are a tap away)
   const tile = await txt(p, '[data-panel="tarot"]');
-  assert.ok(tile.includes('TAROT · THIS WEEK') && tile.includes('EIGHT OF PENTACLES') && tile.includes('Practice. The small reps.') && tile.includes('Slow work, steady hands.'), tile);
+  assert.ok(/^TAROT Eight of Pentacles · this week$/i.test(tile), tile);
   await p.screenshot({ path: D + 'tarot-bridge.png' });
-  await p.click('[data-panel="tarot"] .tr-tile'); await p.waitForSelector('.tr-pos');
+  await p.click('[data-panel="tarot"] .rb-row'); await p.waitForSelector('.tr-pos');
   assert.strictEqual(await txt(p, '#title'), 'TAROT');
   await p.click('[data-trgo="home"]'); await p.waitForSelector('.tr-week');
 

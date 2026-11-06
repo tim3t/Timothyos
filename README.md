@@ -200,7 +200,7 @@ To unlink one, delete its property and run setup. The calendar itself is never d
 
 ### Holidays
 
-Google's US Holidays calendar shows beside your Key Dates as **HOLIDAY**, read-only: on the Bridge's Key Dates panel (at most one of its three slots), the DATES screen (with a **HOLIDAYS** filter) and the ◆ markers on Today, Week and Month. Dates come straight from Google, so holidays that move each year are always right. The Google bridge finds the holidays calendar you're subscribed to on its own (use Script Property `HOLIDAY_CALENDAR_ID` to pick another); setup logs `TimothyOS holidays: OK (Holidays in United States)`. Holidays are never written anywhere and never count toward calendar hours, meetings or BALANCE.
+Google's US Holidays calendar shows beside your Key Dates as **HOLIDAY**, read-only: on the Bridge's KEY DATE row in COMMS (tagged holiday), the DATES screen (with a **HOLIDAYS** filter) and the ◆ markers on Today, Week and Month. Dates come straight from Google, so holidays that move each year are always right. The Google bridge finds the holidays calendar you're subscribed to on its own (use Script Property `HOLIDAY_CALENDAR_ID` to pick another); setup logs `TimothyOS holidays: OK (Holidays in United States)`. Holidays are never written anywhere and never count toward calendar hours, meetings or BALANCE.
 
 ### Ask Claude
 
@@ -422,23 +422,18 @@ Reached through the NAS relay's `/ha` path, so it stays inside Tailscale and nee
 
 ### BRIDGE (the overview)
 
-The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). One full-width column, top to bottom:
+The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). Since 2.63 it is laid out as a **Time Ribbon** (Timothy's pick of three designs): everything on one landscape screen, every panel the same kind of card, 12 px apart. In portrait the three columns stack in the same order.
 
-| Panel | Shows |
+| Part | Shows |
 |---|---|
-| **Morning Briefing** | This morning's report in plain words, above Condition (see below) |
-| **Condition** | **GREEN**, **YELLOW** or **RED**, with every item that needs you. Tap an item to fix it (rules in Part 3) |
-| **Now / Next** | Free time until your next event (or time left in the current one), the next event, and today from 07:00 to 21:00 |
-| **Habits** | Today's habits, tap to record (once Habits is connected) |
-| **Tarot** | This week's card, or **RECORD** (once Tarot is connected) |
-| **Environment** | Weather, **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch** for tonight |
-| **Priorities** | Your picks for today (tap to check off), plus tasks due or overdue that you didn't pick |
-| **Horizon** | Hours booked for the next 7 days, ◆ key dates, and heavy days (7 hours or more). Tap a day to open it |
-| **Key Dates** | The next three, with countdowns |
-| **Balance** | Work: calendar hours over 7 days against a ceiling. Other areas: a dot for each day they got attention (a task done or calendar time), hours against a minimum where they have a calendar, QUIET after 5 days. Targets in **SYSTEMS → BALANCE TARGETS** |
-| **Intent + Bearing** | One line of intent for today, and your **bearing** for the day |
+| **Condition pill** (beside the date) | **GREEN**, **YELLOW** or **RED**. YELLOW or RED carry a count, and what needs you is listed in a strip under the header; tap an item to fix it (rules in Part 3). On GREEN, a tap on the pill shows the nominal line (priorities picked, nothing overdue, last sync) |
+| **Morning Briefing** | Prints above the ribbon until it's read, folded or past 10:30, then becomes COMMS' first row (see below) |
+| **The ribbon** | Free time until your next event (or time left in the current one), the next event and what follows it (how many more, the next free stretch), and today from 07:00 to 21:00 with each event's name on its block. Pins under it: what's **DUE TODAY** or **OVERDUE**, today's **key date**, and tonight's **DINNER** at 18:00 (opens MEALS). **+** adds an event (CAPTURE) |
+| **ORDERS OF THE DAY** | Your picks for today (tap to check off; **PLAN TODAY** when none are picked), tasks due or overdue that you didn't pick, and **TODAY'S INTENT** |
+| **BODY + HOME** | Today's habits (tap to record), **TONIGHT** (COOK, and from 4 PM what dinner was), and the **weather** with **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch**; its **+** shows wind, rain, sunrise and sunset |
+| **COMMS** | One row each, always in this order: **BRIEFING**, **INBOX**, **SCIENCE**, **KEY DATE** (the next one, with its countdown), **BEARING** (tap to rotate) and **TAROT** (this week's card). A row with nothing to report stays in place, dimmed; one whose station isn't set up, or is switched off in SYSTEMS, is left out |
 
-Tap **+** beside a panel title for its details (hours booked and open, wind and sunrise, the list of due tasks, the legend). The Bridge remembers which panels you leave open. Balance counts tasks marked ✅ Done; Notion doesn't record the day a task was finished, so the date of its last edit stands in, and only the Life Area and that date leave Notion, never titles.
+HORIZON and BALANCE left the Bridge in 2.63; their numbers still feed ASK and REVIEW, and the balance targets stay in **SYSTEMS → BALANCE TARGETS**. The weather remembers whether its details are open.
 
 **Morning Briefing** (needs ASK set up)
 - **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).

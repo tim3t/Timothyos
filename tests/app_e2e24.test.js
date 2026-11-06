@@ -118,7 +118,7 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   await p.click('.elbow'); await p.waitForTimeout(800);
   const strip = await txt(p, '[data-panel="habits"]');
   console.log('strip:', strip);
-  assert.ok(strip.includes('HABITS · TODAY') && strip.includes('WATER 2 L / 3 L') && strip.includes('DID NOT SWIPE'));
+  assert.ok(strip.includes('HABITS') && strip.includes('SAVED TO NOTION') && strip.includes('WATER 2 L / 3 L') && strip.includes('DID NOT SWIPE'));
   assert.strictEqual(await p.getAttribute('[data-panel="habits"] [data-hbool="med"]', 'aria-pressed'), 'true');
   await p.click('[data-panel="habits"] [data-hstep="0.5"]'); await p.click('[data-panel="habits"] [data-hcycle]');   // + ½ L; card: kept → swiped
   await p.waitForTimeout(2500);

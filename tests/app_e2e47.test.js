@@ -68,21 +68,22 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   assert.strictEqual(await txt(p, '#brPaper .c-yellow'), 'Condition yellow:');
   assert.strictEqual(await p.locator('#brPaper p').count(), 5, 'four paragraphs and the action');
   assert.ok((await txt(p, '.br .phead')).includes('COMPILED 06:30 · SONNET · 3.5¢'), await txt(p, '.br .phead'));
-  assert.strictEqual(await p.locator('.br').evaluate(el => el.nextElementSibling.classList.contains('ov-cond')), true, 'right above the Condition banner');
+  assert.strictEqual(await p.locator('.br').evaluate(el => /\brb-(alerts|ribbon)\b/.test(el.nextElementSibling.className)), true, 'right above what needs you and the ribbon (2.63)');
   await p.screenshot({ path: D + 'briefing-open.png' });
   // redrawing the Bridge keeps it printed and never compiles again
   await bridge(p); await bridge(p);
   assert.ok(!(await p.isVisible('#brPaper .br-caret')));
   assert.strictEqual((await stats()).n, 1, 'once a day');
 
-  // ---- − folds it: one line, no condition; the Condition banner comes back up
-  const condOpen = await p.locator('.ov-cond').evaluate(el => el.getBoundingClientRect().top);
+  // ---- − folds it into COMMS' BRIEFING row (2.63), with no condition; the ribbon comes back up
+  const condOpen = await p.locator('.rb-ribbon').evaluate(el => el.getBoundingClientRect().top);
   await p.click('[data-brief="fold"]'); await p.waitForTimeout(200);
   const fold = await txt(p, '.br-fold');
-  assert.ok(fold.startsWith('MORNING BRIEFING · 06:30') && fold.includes('4 meetings from 09:00 · hive check GO 11:00 to 15:00'), fold);
-  assert.ok(!/condition|yellow/i.test(fold), 'the folded line leaves the condition to the banner');
-  const condFold = await p.locator('.ov-cond').evaluate(el => el.getBoundingClientRect().top);
-  assert.ok(condOpen - condFold > 150, 'the Condition banner moved up (' + condOpen + ' to ' + condFold + ')');
+  assert.ok(fold.startsWith('BRIEFING 06:30 · ') && fold.includes('4 meetings from 09:00 · hive check GO 11:00 to 15:00'), fold);
+  assert.ok(!/condition|yellow/i.test(fold), 'the folded line leaves the condition to the pill');
+  assert.ok(await p.locator('.rb-comms .br-fold').count() === 1, 'a row in COMMS');
+  const condFold = await p.locator('.rb-ribbon').evaluate(el => el.getBoundingClientRect().top);
+  assert.ok(condOpen - condFold > 150, 'the ribbon moved up (' + condOpen + ' to ' + condFold + ')');
   await p.screenshot({ path: D + 'briefing-folded.png' });
   // stays folded after a reload; opens already printed
   await p.reload(); await p.waitForSelector('.br-fold', { timeout: 10000 });
@@ -127,7 +128,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   // ---- next morning before 06:00: yesterday's, folded; at 06:30 a failure offers COMPILE NOW
   await p.clock.setFixedTime(at('24T05:30'));
   await p.reload(); await p.waitForSelector('.br-fold', { timeout: 10000 });
-  assert.ok((await txt(p, '.br-fold')).startsWith("YESTERDAY'S MORNING BRIEFING"));
+  assert.ok((await txt(p, '.br-fold')).startsWith("BRIEFING Yesterday's · "), await txt(p, '.br-fold'));
   await mode('fail=1');
   await p.clock.setFixedTime(at('24T06:30'));
   await bridge(p);

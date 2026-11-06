@@ -1427,6 +1427,78 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 .prio.justdone .box { animation: pop 260ms var(--ease-out); }
 .prio.justdone .pt b { text-decoration: none; background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat; background-position: 0 55%; background-size: 100% 2px; animation: sweep 320ms var(--ease-out) 80ms both; }
 
+/* ---------- BRIDGE as a Time Ribbon (2.63) ---------- */
+/* the condition as a pill beside the date; .lvl keeps the Red Alert hold */
+.cond-slot { align-self: center; padding-bottom: 2px; }
+.cond-slot .ov-cond { display: block; margin: 0; padding: 0; border: 0; background: none; border-radius: 26px; }
+.cond-slot .ov-cond .lvl { min-width: 0; border-radius: 26px; padding: 6px 20px 7px; min-height: 52px; box-sizing: border-box; font-size: 22px; flex-direction: column; align-items: flex-start; }
+.cond-slot .ov-cond .lvl small { font-size: 11px; }
+.cond-slot .ov-cond .lvl i { font-style: normal; }
+.rb { display: flex; flex-direction: column; gap: 12px; }
+.rb > .br { margin: 0; }
+.rb-card { background: var(--panel); border-radius: 18px; padding: 14px 18px 16px; min-width: 0; }
+.rb-card > .phead { margin-bottom: 10px; }
+.rb-alerts { border: 3px solid var(--lc, var(--ok)); border-radius: 18px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.rb-alerts.green { --lc: var(--ok); } .rb-alerts.yellow { --lc: var(--warn); } .rb-alerts.red { --lc: var(--bad); }
+.rb-alerts.flash { animation: condFrom 600ms var(--ease-out); }
+/* the ribbon */
+.rb-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; }
+.rb-top .ov-now { flex-wrap: nowrap; }
+.rb-top .ov-now .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.rb-next { min-width: 0; border-left: 2px solid var(--line); padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+.rb-next .ov-next { margin: 0; min-height: 48px; }
+.rb-then { color: var(--dim); font-size: var(--t-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-add { width: 48px; height: 48px; border-radius: 24px; border: 2px solid var(--line); background: transparent; color: var(--fg); font-size: 26px; line-height: 1; }
+.rb-add:active { background: var(--panel-2); }
+.rb-ribbon .ov-allday { margin-top: 8px; }
+.rb-band { height: 76px; margin-top: 26px; background: var(--bg); border-radius: 12px; }
+.rb-band .ov-blk { overflow: hidden; text-align: left; }
+.rb-bl { display: block; padding: 4px 6px; font-size: 13px; line-height: 1.2; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.rb-band .ov-blk.past .rb-bl { color: var(--dim); }
+.rb-pins { position: relative; min-height: 40px; margin-top: 6px; }
+.rb-pinl { display: flex; gap: 8px; max-width: 62%; min-width: 0; }
+.rb-pin { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%; min-width: 0; padding: 0 12px; border: 0; border-radius: 20px; background: var(--panel-2); color: var(--fg); font-size: 14px; }
+.rb-pin b { font-family: var(--display); font-weight: 600; letter-spacing: .12em; font-size: 12px; white-space: nowrap; }
+.rb-pin span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rb-pinl .rb-pin { flex: 0 1 auto; max-width: 50%; }
+.rb-pin.pin-due b { color: var(--warn); } .rb-pin.pin-kd b { color: var(--chrome-a); } .rb-pin.pin-dinner b { color: var(--chrome-d); }
+.rb-pin.pin-dinner { position: absolute; top: 0; transform: translateX(-50%); max-width: 34%; }
+/* the three columns */
+.rb-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.rb-cols .prio { min-height: 48px; }
+.rb-cols .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
+.rb [data-panel="habits"] .hb-strip { gap: 6px; }
+.rb [data-panel="habits"] .hb-chip { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.rb-cols .ov-sub { margin: 12px 0 6px; }
+.rb-cols .btnrow { margin-top: 8px !important; }
+.rb-intent { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+.rb-intent input { width: 100%; box-sizing: border-box; }
+.rb-sub { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); margin: 2px 0 8px; }
+.rb-sub span { font-size: 11px; }
+.rb-sub .ov-more { position: relative; }
+[data-panel="habits"] + .rb-meal, .rb-meal + .rb-wx, [data-panel="habits"] + .rb-wx { margin-top: 14px; }
+.rb-meal .ml-line { margin: 0; box-shadow: none; background: var(--panel-2); border-radius: 14px; }
+.rb-wx { background: transparent; }
+.rb-wx .ov-envrow { grid-template-columns: minmax(0, 1fr) auto; }
+.rb-wx .ov-envrow .k { grid-column: 1 / -1; }
+/* COMMS: one row per channel, always in the same order */
+.rb-rows { display: flex; flex-direction: column; gap: 6px; }
+.rb-rows .rb-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; align-items: center; width: 100%; min-height: 48px; padding: 4px 12px; border: 0; border-radius: 12px; background: var(--panel-2); color: var(--fg); text-align: left; font-size: var(--t-sub); }
+.rb-rows .rb-row { margin: 0; border-left: 0; font-family: var(--body); letter-spacing: normal; line-height: 1.3; justify-content: normal; }   /* it may also carry .ib-line, .sci-line, .br-fold, .ov-kd or .ov-bearing for their taps */
+.rb-rows .rb-row b { font-family: var(--display); font-weight: 600; font-size: 12px; letter-spacing: .14em; color: var(--c); white-space: nowrap; }
+.rb-rows .rb-row span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.rb-rows .rb-row.dim span { color: var(--dim); }
+.rb-rows .rb-row:not(.dim) > span { color: var(--fg); font-size: var(--t-sub); }
+.rb-rows .rb-row.dim b { opacity: .6; }
+.rb-rows .rb-row:active { filter: brightness(1.15); }
+@media (max-width: 1100px) and (min-width: 861px) { .rb-top { grid-template-columns: auto minmax(0, 1fr) auto; } .rb-top .ov-now .muted { display: none; } }
+@media (max-width: 860px) {
+  .rb-cols { grid-template-columns: minmax(0, 1fr); }
+  .rb-top { grid-template-columns: minmax(0, 1fr) auto; }
+  .rb-next { grid-column: 1 / -1; grid-row: 2; border-left: 0; padding-left: 0; }
+  .cond-slot .ov-cond .lvl { min-height: 48px; font-size: 20px; }
+}
+
 /* condition change: the color crossfades from the old one; the items rise in */
 @keyframes condFrom { from { background-color: var(--prev); border-color: var(--prev); } }
 .ov-cond.changed .lvl, .ov-cond.changed .list { animation: condFrom 600ms var(--ease-out); }

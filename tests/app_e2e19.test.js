@@ -1,5 +1,5 @@
 // Farm calendar (bridge 1.8): standby until the bridge lists it, then a live area
-// named after the calendar: Today, Week, Horizon, Systems, Capture (its own chip),
+// named after the calendar: Today, Week, Systems, Capture (its own chip),
 // Review hours (saved as Hours Farm), and Ask proposals for it. Work stays read-only.
 const { chromium } = require('playwright');
 const assert = require('assert');
@@ -33,8 +33,6 @@ const stats = async () => (await (await fetch('http://127.0.0.1:8099/x/exec?acti
   assert.ok(await p.locator('.wkb.a-farm[title^="Hive inspection"]').count() === 1, 'farm block in Week');
 
   await p.click('.elbow'); await p.waitForTimeout(500);
-  assert.ok(await p.locator('.ov-day.today .seg.a-farm').count() === 1, 'Horizon stacks farm hours');
-  console.log('horizon today:', await p.textContent('.ov-day.today .hrs'));
 
   await p.click('#status'); await p.waitForTimeout(400);
   const cal = (await p.innerText('section:has(.phead:has-text("CALENDARS"))')).replace(/\s+/g, ' ');

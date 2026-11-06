@@ -73,7 +73,7 @@ const hits = {};
 
   // ---- the Bridge: one SCIENCE line, never a Condition item; a light read only (no aircraft, no air quality)
   await p.waitForSelector('.sci-line', { timeout: 15000 });
-  assert.strictEqual(await txt(p, '.sci-line'), 'SCIENCE · EARTH M 4.2 earthquake 110 km S · 16:30 · 12 km N of Testville, MN');
+  assert.strictEqual(await txt(p, '.sci-line'), 'SCIENCE M 4.2 earthquake 110 km S');   /* 2.63: a COMMS row, the headline alone */
   assert.ok(!/SCIENCE|quake/i.test(await txt(p, '.ov-cond')), 'Condition never counts SCIENCE');
   assert.ok(!hits['air-quality-api.open-meteo.com'] && !hits['api.inaturalist.org'] && !(await stats()).sky, 'away from the station: only the light read');
 

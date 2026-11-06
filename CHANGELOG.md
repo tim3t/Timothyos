@@ -2,6 +2,15 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.63.0 · 2026-11-06
+- **The Bridge, redesigned as a Time Ribbon** (your pick of three mockups, B):
+  - **HORIZON and BALANCE are gone** from the Bridge; their numbers still feed ASK and REVIEW, and the balance targets stay in SYSTEMS.
+  - **The condition is a pill beside the date.** YELLOW or RED shows a count, and what needs you sits in a strip under the header. On GREEN, a tap on the pill shows the nominal line.
+  - **The ribbon:** free time or time left, the next event and what follows it, today from 07:00 to 21:00 with event names on the blocks. Pins mark what's due, today's key date and tonight's dinner at 18:00. **+** adds an event.
+  - **Three columns:** ORDERS OF THE DAY (priorities, what's due, today's intent), BODY + HOME (habits, tonight, weather) and COMMS (briefing, inbox, science, key date, bearing, tarot, always in that order, dimmed when there's nothing).
+  - **One card style, 12 px apart.** The morning briefing prints above the ribbon until read, then folds into COMMS. In portrait the columns stack in the same order, and a redraw never moves the page.
+- **Fixed:** closing CAPTURE the instant it opened could throw an error.
+
 ## 2.62.1 · 2026-11-06
 - **Fixed: LOG jumped while you typed.** Pressing Enter, and sometimes any key, threw the page to the top (portrait) or the bottom (landscape), away from what you were writing. The editor measured its own height on every key by shrinking for a moment, and the iPad scrolled to suit. It is now measured on a hidden copy, so the page stays where it is and only follows new lines down.
 - **Fixed: HOLODECK's TV moved on a channel change.** CH ▲▼, the keypad, LAST or a guide row could drop the page back to the top, so the TV had to be scrolled back into place. The page now stays exactly where it was, in portrait and landscape, also when the guide redraws.

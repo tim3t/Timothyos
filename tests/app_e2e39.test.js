@@ -23,7 +23,7 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const 
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'tarot']));
   }, K);
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile', { timeout: 10000 });
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
 
   // ---- Systems: nothing imported yet, then IMPORT BOOKS runs until every page is made
   await p.click('#status'); await p.waitForSelector('[data-aitarot]');
@@ -130,7 +130,7 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const 
   await mode('on=0');
   await p.setViewportSize({ width: 1180, height: 900 });
   await p.evaluate(() => localStorage.removeItem('tos.cache.v1'));   // a fresh start: capabilities come from the bridge
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile', { timeout: 10000 });
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
   await p.click('[data-screen="tarot"].nav'); await p.waitForSelector('.tr-list');
   await p.click('.tr-list [data-tropen="tr-r1"]'); await p.waitForSelector('.tr-pos');
   assert.strictEqual(await p.locator('.tr-bk-chip, [data-trbsug]').count(), 0);

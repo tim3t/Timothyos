@@ -254,7 +254,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   // ---- the Bridge: overdue upkeep in CONDITION, one tap back to UPKEEP
   await p.click('[data-screen="engineering"].nav'); // stays on upkeep (remembered)
   await p.click(".elbow[data-screen=\"bridge\"]"); await p.waitForSelector(".ov-cond");
-  const cond = await txt(p, '.ov-cond');
+  const cond = await txt(p, '.rb-alerts');   /* 2.63: what needs you, under the condition pill */
   assert.ok(cond.includes('2 upkeep items overdue') && cond.includes('Furnace filter (House)'), cond);
   await p.click('.ov-alert[data-act="engineering"]'); await p.waitForSelector('.eng-up');
   assert.strictEqual(await p.getAttribute('[data-engtab="upkeep"]', 'aria-pressed'), 'true');

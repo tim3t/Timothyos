@@ -19,7 +19,7 @@ const stats = () => fetch('http://127.0.0.1:8105/macros/s/test/exec?key=' + K + 
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'tarot']));
   }, K);
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile', { timeout: 10000 }); await p.waitForTimeout(800);
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 }); await p.waitForTimeout(800);
   const handOff = async question => {
     opened = null;
     await p.click('#askBtn'); await p.waitForSelector('#askText');
@@ -43,7 +43,7 @@ const stats = () => fetch('http://127.0.0.1:8105/macros/s/test/exec?key=' + K + 
   await p.click('#status'); await p.waitForSelector('[data-aitarot]'); await p.click('[data-aitarot="1"]');
   // the Ask box takes up to 2,000 characters; a long ignored-titles list makes the snapshot overflow too
   await p.evaluate(() => localStorage.setItem('tos.ignore.v1', JSON.stringify(Array.from({ length: 60 }, (_, i) => 'Sample booking block number ' + (i + 1)))));
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile', { timeout: 10000 }); await p.waitForTimeout(800);
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 }); await p.waitForTimeout(800);
   const longQ = 'Here is some context for my question. ' + Array.from({ length: 36 }, (_, i) => 'Line ' + (i + 1) + ' of background I want Claude to know about.').join(' ') + ' So what should I focus on?';
   assert.ok(longQ.length < 2000);
   r = await handOff(longQ);

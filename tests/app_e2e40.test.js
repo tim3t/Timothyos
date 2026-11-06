@@ -20,7 +20,7 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'tarot']));
   }, K);
-  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .tr-tile', { timeout: 10000 });
+  await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
   await ctl('slowsave&ms=1400');   // each save takes 1.4 s: saves and typing overlap
 
   // ---- a brand-new reading: type in bursts while it is first saved (cid -> real id) and then saved again

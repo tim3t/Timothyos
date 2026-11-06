@@ -403,9 +403,10 @@ TAROT = [
 TMEAN = {"P8": "Practice. The small reps."}
 TSPREADS = []
 TSAVES = []; TCID = {}
-for i in range(1, 60):
-    d = (dt.date(2026, 10, 7) - dt.timedelta(days=i)).isoformat()
-    if i % 13 == 0: continue                       # a few days never recorded
+for _anchor in (dt.date(2026, 10, 7), dt.datetime.now(TZ).date()):   # the fixed past for tests on a fixed clock, and the 59 days before today (2026-11-06: the 30-day rate had run out of days)
+  for i in range(1, 60):
+    d = (_anchor - dt.timedelta(days=i)).isoformat()
+    if i % 13 == 0 or d in HABITS or (_anchor != dt.date(2026, 10, 7) and d <= "2026-10-07"): continue   # a few days never recorded; the fixed past stays exactly as it was
     HABITS[d] = {"date": d, "med": i % 5 != 0, "walk": i % 3 != 0, "water": [3, 2.5, 3.5, 2, 3][i % 5], "card": "swiped" if i % 4 == 0 else "kept"}
 HSETS = []; HFAIL = [0]; TFAIL = [0, "notion_busy"]; TSLOW = [0]
 BOOKS = [
@@ -497,6 +498,7 @@ class H(BaseHTTPRequestHandler):
             if "cap" in q: MEAL["cap"] = int(q["cap"])
             if "reset" in q: MEAL.update(meals=[], dinners=[], posts=[], plans=0, full={})
             if "seed" in q: meal_seed()
+            if "tonight" in q: MEAL["dinners"] = sorted([d for d in MEAL["dinners"] if d["date"] != meal_day(0)] + [meal_dinner(meal_day(0), "planned", "meal", q["tonight"])], key=lambda d: d["date"])   # 2.63: tonight's dinner, for the ribbon's pin
             body = {"ok": True, "meals": MEAL["meals"], "dinners": MEAL["dinners"], "posts": MEAL["posts"], "plans": MEAL["plans"]}
         elif q.get("action") == "mealrecipe" and MEAL["cap"]:
             m = next((x for x in MEAL["meals"] if x["id"] == q.get("id")), None); fu = MEAL["full"].get(q.get("id")) or {}

@@ -1,6 +1,6 @@
 // GROWTH (2.20, bridge 1.22): the old HOBBIES area is named GROWTH everywhere (Notion's Personal
 // Growth Life Area lands there), standby until the Growth calendar is linked, then a live area:
-// Today, Horizon, Systems, Capture (its own chip), BALANCE hours against its minimum, Review hours.
+// Today, Systems, Capture (its own chip), the BALANCE minimum in Systems, Review hours.
 const { chromium } = require('playwright');
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
@@ -29,11 +29,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   console.log('today growth:', row);
   assert.ok(row.startsWith('GROWTH') && !row.includes('STANDBY') && /\d ITEMS?$/.test(row) && !row.includes('undefined'), row);
   await p.click('.elbow'); await p.waitForTimeout(600);
-  assert.ok(await p.locator('.ov-day.today .seg.a-hobby').count() === 1 || await p.locator('.ov-day .seg.a-hobby').count() >= 6, 'Horizon stacks Growth hours');
-  const bal = (await p.locator('.ov-bal.a-hobby').innerText()).replace(/\s+/g, ' ').trim();
-  console.log('balance growth:', bal);
-  assert.ok(/^GROWTH \d OF 7 DAYS · [\d.]+H OF 3H/.test(bal), 'dots plus hours against the 3 h minimum');
-  assert.ok(bal.includes('GOAL MET'), 'an hour every evening meets 3 h');
+  assert.strictEqual(await p.locator('.ov-bal').count(), 0, 'BALANCE left the Bridge in 2.63 (its targets stay in Systems)');
 
   await p.click('#status'); await p.waitForTimeout(400);
   const cal = await txt(p, 'section:has(.phead:has-text("CALENDARS"))');

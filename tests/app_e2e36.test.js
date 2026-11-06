@@ -17,21 +17,14 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.ignore.v1', JSON.stringify(ign)); if (brk) localStorage.setItem('tos.breaks.v1', JSON.stringify(brk));
   }, [K, ign, brk]);
-  const workBal = async () => { await p.waitForSelector('.ov-bal.bal-work'); return parseFloat((await txt(p, '.ov-bal.bal-work')).match(/WORK ([\d.]+)H/)[1]); };
-
-  // ---- baseline: nothing ignored and no breaks, so lunch counts as work
-  await boot(['Away block'], []); await p.reload(); await p.waitForTimeout(1800);
-  const withLunch = await workBal();
-
+  // (until 2.63 BALANCE on the Bridge also showed the lunch hours left out of Work; BALANCE left the Bridge)
   // ---- the real setup: "Out of office" ignored, Lunch a break (the default list)
   await boot(['Out of office', 'Away block'], null); await p.reload(); await p.waitForTimeout(1800);
   const nowTxt = await txt(p, '.ov-now');
   console.log('now:', nowTxt);
   assert.ok(nowTxt.startsWith('LUNCH') && nowTxt.includes('40M') && nowTxt.includes('Lunch') && !nowTxt.includes('Out of office'), nowTxt);
   assert.strictEqual(await p.locator('.ov-blk.a-break').count(), 1, 'on the Bridge strip');
-  const asBreak = await workBal();
-  console.log('work hours, lunch as work:', withLunch, '| lunch as a break:', asBreak);
-  assert.ok(withLunch - asBreak >= 2.9 && withLunch - asBreak <= 5.1, 'exactly the lunch hours left out of Work');
+  assert.ok((await p.locator('.rb-band .ov-blk.a-break .rb-bl').allTextContents()).includes('Lunch'), 'named on the ribbon');
 
   // ---- Today
   await p.click('[data-screen="today"].nav'); await p.waitForSelector('.ev');
