@@ -41,7 +41,18 @@ def events(f, t):
         if d.day == 8: out.append({"id": f"personal:allday:{d}", "area": "personal", "title": "Garlic planting window", "busy": False, "allDay": True, "location": "", "start": str(d), "end": str(d + dt.timedelta(days=2))})
         if d.day == 16: out.append({"id": f"work:allday:{d}", "area": "work", "title": "Q4 planning offsite", "busy": False, "allDay": True, "location": "", "start": str(d), "end": str(d + dt.timedelta(days=1))})
         d += dt.timedelta(days=1)
+    if FAMILY["on"]:   # 2.67 (bridge 1.42): an invented trip from this week's Friday to next Monday, and a school concert on Wednesdays
+        today = dt.datetime.now(TZ).date(); fri = today - dt.timedelta(days=today.weekday()) + dt.timedelta(days=4)
+        s0, e0 = dt.datetime.fromtimestamp(f/1000, TZ).date(), dt.datetime.fromtimestamp(t/1000, TZ).date()
+        if fri < e0 and fri + dt.timedelta(days=4) > s0:
+            out.append({"id": "family:trip", "area": "family", "title": "Sample trip", "busy": False, "allDay": True, "location": "", "start": str(fri), "end": str(fri + dt.timedelta(days=4))})
+        d = s0
+        while d < e0:
+            if d.weekday() == 2: out.append(ev("family", d, 18, 0, 19, 30, "School concert"))
+            d += dt.timedelta(days=1)
     return out
+FAMILY = {"on": 0}   # ?action=familymode&on=1
+def cals(): return CALS + ([{"area": "family", "ok": True, "name": "Family"}] if FAMILY["on"] else [])
 CREATED = []
 import uuid
 def T(title, status, pri, area, due=None, focus=None):
@@ -476,8 +487,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": CALS}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": CALS, "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -504,6 +515,9 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "news" and NEWS["cap"]:
             NEWS["n"] += 1
             body = {"ok": False, "error": "news_unavailable"} if NEWS["fail"] else {"ok": True, "version": VER["v"], "source": "NPR", "items": NEWS_ITEMS}
+        elif q.get("action") == "familymode":
+            if "on" in q: FAMILY["on"] = int(q["on"])
+            body = {"ok": True, "on": FAMILY["on"]}
         elif q.get("action") == "exportmode":
             if "cap" in q: EXPORT["cap"] = int(q["cap"])
             if "state" in q: EXPORT["st"] = exp_state(q["state"], q.get("err", ""))

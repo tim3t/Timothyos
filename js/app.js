@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.66.0";
+  var VERSION = "2.67.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -46,6 +46,7 @@
     personal: { name: "PERSONAL", unit: "ITEMS" },
     farm: { name: "FARM + BEES", unit: "ITEMS" },   /* named after its calendar once linked (bridge 1.8) */
     hobby: { name: "GROWTH", unit: "ITEMS" },
+    family: { name: "FAMILY", unit: "ITEMS" },   /* 2.67 (bridge 1.42): the household's calendar, read-only; busy time, never Work hours or meetings */
     break: { name: "BREAK", unit: "" }   /* Breaks list (2.23): shown, never counted; not a Life Area */   /* growth and hobbies; a Notion Life Area named for growth lands here (taskArea) */
   };
   var LIVE = ["work", "personal"];         /* calendars in use; setAreas() adds farm once the bridge reports it */
@@ -617,14 +618,15 @@
      Its label is the calendar's own name, so nothing personal is written into this code. */
   /* The Growth calendar joins the same way (bridge 1.22, GROWTH_CALENDAR_ID, area "hobby"); its label stays GROWTH. */
   function setAreas() {
-    var f = calStatus("farm"), g = calStatus("hobby");
-    LIVE = ["work", "personal"].concat(f ? ["farm"] : [], g ? ["hobby"] : []);
+    var f = calStatus("farm"), g = calStatus("hobby"), fm = calStatus("family");
+    LIVE = ["work", "personal"].concat(f ? ["farm"] : [], g ? ["hobby"] : [], fm ? ["family"] : []);
     STANDBY_AREAS = (f ? [] : ["farm"]).concat(g ? [] : ["hobby"]);
     AREAS.farm.name = f && f.ok && bare(f.name || "").trim() ? bare(f.name).trim().toUpperCase().slice(0, 20) : "FARM + BEES";
     WRITABLE = ["personal"].concat(f && f.ok ? ["farm"] : [], g && g.ok ? ["hobby"] : []);
   }
   function hasFarm() { return LIVE.indexOf("farm") > -1; }
   function hasGrowth() { return LIVE.indexOf("hobby") > -1; }
+  function hasFamily() { return LIVE.indexOf("family") > -1; }
 
   /* ---------- Sync ---------- */
   function errCode(err) { return !err ? "" : err.name === "AbortError" ? "timeout" : navigator.onLine === false ? "offline" : isNetworkError(err) ? "network" : String(err.code || err.message || ""); }
@@ -845,6 +847,39 @@
   }
 
   /* ---------- Week ---------- */
+  /* 2.67: the all-day strip across the week. An all-day event is one bar over the days it covers (cut square where it runs
+     on past the week), packed into as few lanes as fit; key date marks keep their own day. Bars open the event. */
+  function wkStrip(days) {
+    var w0 = ymd(days[0].d), items = [], seen = {};
+    days.forEach(function (x, c) {
+      x.de.allDay.forEach(function (ev) {
+        if (seen[ev.id]) return; seen[ev.id] = 1;
+        var a = Math.max(0, daysBetween(w0, ev.start)), b = Math.min(days.length - 1, daysBetween(w0, ev.end) - 1);
+        items.push({ ev: ev, a: a, b: Math.max(a, b), cl: daysBetween(w0, ev.start) < 0, cr: daysBetween(w0, ev.end) - 1 > days.length - 1 });
+      });
+    });
+    items.sort(function (p, q) { return p.a - q.a || (q.b - q.a) - (p.b - p.a) || areaRank(p.ev.area) - areaRank(q.ev.area); });
+    days.forEach(function (x, c) { x.marks.forEach(function (m) { items.push({ m: m, a: c, b: c }); }); });
+    var lanes = [];
+    items.forEach(function (it) {
+      for (var l = 0; ; l++) {
+        lanes[l] = lanes[l] || [];
+        if (!lanes[l].some(function (o) { return o.a <= it.b && it.a <= o.b; })) { lanes[l].push(it); it.l = l; break; }
+      }
+    });
+    return '<div class="wkads" style="grid-template-rows: repeat(' + Math.max(1, lanes.length) + ', auto)">' + items.map(function (it) {
+      var pos = 'style="grid-column:' + (it.a + 1) + " / " + (it.b + 2) + ";grid-row:" + (it.l + 1) + '"';
+      if (it.m) return '<button type="button" class="kdspan a-' + taskArea(it.m.o.d.area) + '" ' + pos + ' data-kd="' + esc(it.m.o.id) + '">◆ ' + esc(it.m.o.d.title) + (it.m.tag ? " · " + it.m.tag : "") + "</button>";
+      state.index[it.ev.id] = it.ev;
+      var n = it.b - it.a + 1;
+      return '<button type="button" class="wkspan a-' + it.ev.area + (it.cl ? " cl" : "") + (it.cr ? " cr" : "") + pendingCls(it.ev) + '" ' + pos + ' data-id="' + esc(it.ev.id) + '" title="' + esc(it.ev.title) + '">' + esc(it.ev.title) +
+        (n > 1 || it.cl || it.cr ? '<small class="tnum">' + esc(spanLabel(it.ev)) + "</small>" : "") + "</button>";
+    }).join("") + "</div>";
+  }
+  function spanLabel(ev) {   /* "16 to 19 NOV": the days it covers (end is the day after) */
+    var a = parseYmd(ev.start), b = addDays(parseYmd(ev.end), -1);
+    return sameDay(a, b) ? p2(a.getDate()) + " " + MON[a.getMonth()] : p2(a.getDate()) + (a.getMonth() === b.getMonth() ? "" : " " + MON[a.getMonth()]) + " to " + p2(b.getDate()) + " " + MON[b.getMonth()];
+  }
   function renderWeek() {
     var r = viewRange(), list = visible(eventsFor(r)), now = new Date(), nowH = now.getHours() + now.getMinutes() / 60;
     var sc = makeScale(cssNum("--wh", 46));
@@ -863,14 +898,7 @@
       html += '<button type="button" class="wkh' + (sameDay(x.d, now) ? " today" : "") + '" data-day="' + ymd(x.d) + '">' +
         DOW[x.d.getDay()] + '<b class="tnum">' + p2(x.d.getDate()) + "</b></button>";
     });
-    if (hasAllDay) {
-      html += "<div></div>";
-      days.forEach(function (x) {
-        html += '<div class="wkad">' + x.marks.map(function (m) {
-          return '<button type="button" class="kdspan a-' + taskArea(m.o.d.area) + '" data-kd="' + esc(m.o.id) + '">◆ ' + esc(m.o.d.title) + (m.tag ? " · " + m.tag : "") + "</button>";
-        }).join("") + x.de.allDay.map(function (ev) { return '<span class="a-' + ev.area + '">' + esc(ev.title) + "</span>"; }).join("") + "</div>";
-      });
-    }
+    if (hasAllDay) html += "<div></div>" + wkStrip(days);
     html += '</div><div class="wkbody" id="tlwrap"><div class="wk"><div class="wkgut" style="height:' + sc.total + 'px">';
     for (var h = 0; h < 24; h++) {
       html += '<span class="tnum' + (isFocus(h) ? "" : " quiet") + '" style="top:' + (sc.y(h) + 2) + 'px">' + p2(h) + "</span>";
@@ -947,7 +975,7 @@
     html += prof.section();
     html += netSection();
     html += errSection();
-    html += "<section>" + phead("CALENDARS", canCreate() ? "WORK READ-ONLY · " + WRITABLE.map(function (k) { return AREAS[k].name; }).join(" + ") + (WRITABLE.length > 1 ? " TAKE" : " TAKES") + " CAPTURES" : "READ-ONLY");
+    html += "<section>" + phead("CALENDARS", canCreate() ? (hasFamily() ? "WORK + FAMILY" : "WORK") + " READ-ONLY · " + WRITABLE.map(function (k) { return AREAS[k].name; }).join(" + ") + (WRITABLE.length > 1 ? " TAKE" : " TAKES") + " CAPTURES" : "READ-ONLY");
     LIVE.forEach(function (k) {
       var cs = calStatus(k);
       html += '<div class="calrow a-' + k + '"><span class="st"></span><span><b>' + AREAS[k].name + "</b><small>" +
@@ -958,6 +986,7 @@
       html += '<div class="calrow a-' + k + '" style="opacity:.5"><span class="st"></span><span><b>' + AREAS[k].name +
         "</b><small>Separate calendar, linked in a later stage.</small></span><span class=\"pill\">STANDBY</span></div>";
     });
+    if (!hasFamily() && state.calendars.length) html += '<div class="calrow a-family" style="opacity:.5"><span class="st"></span><span><b>FAMILY</b><small>Optional, read-only: add FAMILY_CALENDAR_ID in the bridge\'s Script Properties (README → Family calendar).</small></span><span class="pill">OFF</span></div>';
     var nIgn = ignoredCount();
     html += '<label class="ov-sub" for="ignIn">IGNORED EVENTS</label>' +
       '<textarea id="ignIn" rows="3" placeholder="One title per line. Any event whose title contains it is left out of every view, count and total.">' + esc(ignoreList.join("\n")) + "</textarea>" +
@@ -1256,8 +1285,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.41.1";
-  var BRIDGE_FEATURES = [["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.42.0";
+  var BRIDGE_FEATURES = [["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -1549,7 +1578,7 @@
     $("detailSheet").style.setProperty("--c", "var(--" + ev.area + ")");
     var q = ev.pending ? queueItem(ev.cid) : null;
     $("detailSheet").innerHTML = '<div class="sbar"><span>' + AREAS[ev.area].name + "</span><span>" +
-      (q ? (q.failed ? "NOT SAVED" : "WAITING TO SAVE") : ev.area === "work" ? "READ-ONLY" : "VIEW ONLY") + "</span></div>" +
+      (q ? (q.failed ? "NOT SAVED" : "WAITING TO SAVE") : ev.area === "work" || ev.area === "family" ? "READ-ONLY" : "VIEW ONLY") + "</span></div>" +
       '<div class="sbody"><h3 id="detailTitle">' + esc(ev.title) + '</h3><div class="tnum">' + esc(when) + "</div>" +
       (ev.location ? '<div class="muted">' + esc(ev.location) + "</div>" : "") +
       (ev.busy ? '<div class="muted">Details are hidden. This calendar is shared as free/busy only, or the event is private.</div>' : "") +
@@ -5855,7 +5884,7 @@
   }
   function lmColors() {
     var cs = getComputedStyle(document.documentElement), v = function (n) { return cs.getPropertyValue(n).trim(); };
-    lm.col = { work: v("--work"), personal: v("--personal"), farm: v("--farm"), hobby: v("--hobby"), break: v("--chrome-b"), fg: v("--fg"), dim: v("--dim"),
+    lm.col = { work: v("--work"), personal: v("--personal"), farm: v("--farm"), hobby: v("--hobby"), family: v("--family"), break: v("--chrome-b"), fg: v("--fg"), dim: v("--dim"),
       a: v("--chrome-a"), b: v("--chrome-b"), c: v("--chrome-c"), bg: v("--bg"), display: v("--display"), body: v("--body") };
   }
   function lmSize() {

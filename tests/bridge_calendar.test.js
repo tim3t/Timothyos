@@ -20,6 +20,9 @@ const growth = { getName:()=>'Growth', getTimeZone:()=>'America/Chicago', getId:
   getEvents:()=>growthEvents.slice(),
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); growthEvents.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); growthEvents.push(ev); return ev; } };
+const family = { getName:()=>'Family', getTimeZone:()=>'America/Chicago', getId:()=>'family-id@group.calendar.google.com',
+  getEvents:()=>[mkEv('Sample trip', '2026-11-16T06:00:00Z', '2026-11-20T06:00:00Z', { allDay:true }), mkEv('School concert', '2026-11-17T00:00:00Z', '2026-11-17T01:30:00Z')],
+  createEvent:()=>{ throw new Error('FAMILY WRITE ATTEMPTED'); }, createAllDayEvent:()=>{ throw new Error('FAMILY WRITE ATTEMPTED'); } };
 const holEv = (t, d) => ({ getTitle:()=>t, isAllDayEvent:()=>true, getAllDayStartDate:()=>new Date(d + 'T05:00:00Z') });
 const holidays = { getName:()=>'Holidays in United States', getId:()=>'en.usa#holiday@group.v.calendar.google.com', getTimeZone:()=>'America/Chicago',
   getEvents:()=>[holEv('Veterans Day', '2026-11-11'), holEv('Thanksgiving Day', '2026-11-26'), holEv('Thanksgiving Day', '2026-11-26')],
@@ -34,7 +37,7 @@ const ctx = {
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
   Session: { getScriptTimeZone: ()=>'America/Chicago' },
   LockService: { getScriptLock: ()=>({ waitLock(){}, releaseLock(){} }) },
-  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:id==='growth-id@group.calendar.google.com'?growth:id==='en.usa#holiday@group.v.calendar.google.com'?holidays:null, getAllCalendars:()=>[personal, work, farm, growth, holidays] },
+  CalendarApp: { GuestStatus:{NO:'NO'}, getDefaultCalendar:()=>personal, getCalendarById:id=> id==='tim@work.com'?work:id==='farm-id@group.calendar.google.com'?farm:id==='growth-id@group.calendar.google.com'?growth:id==='family-id@group.calendar.google.com'?family:id==='en.usa#holiday@group.v.calendar.google.com'?holidays:null, getAllCalendars:()=>[personal, work, farm, growth, holidays] },
 };
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'),'utf8'), ctx);
@@ -98,6 +101,20 @@ assert.ok(gon.ok && gon.event.area === 'hobby' && growthEvents.length === 1, 'Gr
 assert.ok(get({ action:'events', key, from: now - 2*864e5, to: now + 6*864e5 }).events.some(x => x.area === 'hobby' && x.title === 'Pottery class'), 'Growth events read');
 delete props.GROWTH_CALENDAR_ID;
 console.log('growth calendar checks passed');
+
+// --- Family calendar (bridge 1.42): area 'family', off until FAMILY_CALENDAR_ID is set, then read, never written
+assert.ok(!get({ action:'ping', key }).calendars.some(c => c.area === 'family'), 'Family left out until linked');
+props.FAMILY_CALENDAR_ID = 'family-id@group.calendar.google.com';
+assert.deepStrictEqual(get({ action:'ping', key }).calendars.map(c => c.area + ':' + c.ok), ['work:true', 'personal:true', 'family:true']);
+const fev = get({ action:'events', key, from: Date.parse('2026-11-15T06:00:00Z'), to: Date.parse('2026-11-22T06:00:00Z') }).events.filter(x => x.area === 'family');
+assert.deepStrictEqual(fev.map(x => [x.title, x.allDay]), [['Sample trip', true], ['School concert', false]], 'Family events read, the trip as all day');
+assert.ok(fev[0].start < fev[0].end, 'a multi-day span');
+for (const it of [{ area:'family', allDay:false, start: s, end: e }, { area:'family', allDay:true, start:'2026-11-18', end:'2026-11-19' }])
+  assert.strictEqual(post({ key, action:'create', item: Object.assign({ cid:'fam-' + Math.random().toString(36).slice(2, 10), title:'Should not save' }, it) }).error, 'not_writable', 'Family is read-only');
+assert.ok(!Object.keys(ctx.WRITABLE).includes('family'));
+assert.strictEqual(ctx.AREA_LABEL.family, 'Family');
+delete props.FAMILY_CALENDAR_ID;
+console.log('family calendar checks passed');
 
 // --- holidays (bridge 1.23): found on its own, read-only, all-day, de-duplicated; never a source of events
 assert.ok(get({ action:'ping', key }).capabilities.includes('holidays'));

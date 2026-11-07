@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.67.0 · 2026-11-07 (needs bridge 1.42)
+- **The Family calendar.** Link your household's calendar (Script Property `FAMILY_CALENDAR_ID`, README → Family calendar) and it appears in its own pale pink area, FAMILY: TODAY (with a hide toggle), WEEK, MONTH and the Bridge. **Read-only**, like Work: Bridge never writes to it and CAPTURE never offers it. Its events count as busy time, never as Work hours or meetings; ASK sees them labelled Family. Until linked, **SYSTEMS → CALENDARS** shows FAMILY OFF with how to link it.
+- **WEEK's all-day strip:** an event over several days is now **one bar across those days** instead of a chip on each, squared off where it carries on past the week, packed into as few rows as fit. Tap a bar for the event.
+- **Bridge 1.42:** the Family calendar as a read-only source.
+
 ## 2.66.0 · 2026-11-07
 - **ENGINEERING · SCENE ORDER.** **ORDER** beside **+ SCENE** opens a sheet to move scenes up and down with **▲ ▼**; the bar follows. Both iPads share the order through PROFILE SYNC (the Home Assistant devices row), backups keep it, and Home Assistant isn't asked to change anything. Alphabetical until you first reorder; new scenes go last.
 - **Fixed (HOLODECK LEVEL):** if a video failed to load in the first instant after TUNE IN, before LEVEL's backup player was ready, the TV skipped to the next show instead of handing the same show to the backup. It now waits for the backup (up to 2 seconds), then hands over as intended.

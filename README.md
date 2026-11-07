@@ -38,7 +38,7 @@ On the NAS, only when you run it:
 
 | Part | Sections |
 |---|---|
-| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
+| [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), [Family calendar](#family-calendar-bridge-142), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
 | [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
@@ -208,6 +208,16 @@ Two extra Google calendars in the same personal account: **farm** (farm and bee 
 4. **SYSTEMS → REFRESH NOW** in the app.
 
 To unlink one, delete its property and run setup. The calendar itself is never deleted. Growth hours are saved to the Weekly Reviews database's **Hours Hobbies** field.
+
+### Family calendar (bridge 1.42)
+
+Your household's shared calendar (Google's **Family** calendar, or any other you can see), shown **read-only** in its own pale pink area, FAMILY. Bridge never adds to it or changes it, like Work. Its events count as busy time (free time, clashes) but never as Work hours or meetings; ASK sees them labelled Family. **CAPTURE** never offers it.
+
+1. **Find its ID:** run **setup** once; the log lists every calendar this account can see as `name -> ID`. Copy the Family line's ID (or **calendar.google.com → Settings → the calendar → Integrate calendar → Calendar ID**).
+2. **Add it:** Script Property `FAMILY_CALENDAR_ID`, value the ID. Run **setup**: `TimothyOS family calendar: OK (…)`. Then deploy a new version.
+3. **SYSTEMS → REFRESH NOW**. FAMILY appears on TODAY (tap to hide it on every view), WEEK, MONTH and the Bridge.
+
+What's on it reaches this iPad and, when you ask, Claude, like your other calendars. To unlink it, delete the property and run setup.
 
 ### Holidays
 
@@ -482,7 +492,7 @@ HORIZON and BALANCE left the Bridge in 2.63; their numbers still feed ASK and RE
 
 ### TODAY, WEEK, MONTH
 
-Your calendars in day, week and month views. The arrows beside the title move through time; **TODAY** jumps back. Tap a day in Week or Month to open it, an event for its details, an empty spot on Today or Week to capture there. The calendar chips on Today hide or show a calendar on every view. Finished events are dimmed with a ✓. **PLAN DAY** picks up to three priorities from the Master Task List (or adds a new task); tap a priority on Today to mark it ✅ Done in Notion, again to reopen. To plan tomorrow, go to tomorrow on Today and tap **PLAN** in Priorities.
+Your calendars in day, week and month views. The arrows beside the title move through time; **TODAY** jumps back. On WEEK, all-day events sit in a strip above the hours; one that lasts several days is a single bar across those days (squared off where it carries on into the next or last week), and a bar opens the event. Tap a day in Week or Month to open it, an event for its details, an empty spot on Today or Week to capture there. The calendar chips on Today hide or show a calendar on every view. Finished events are dimmed with a ✓. **PLAN DAY** picks up to three priorities from the Master Task List (or adds a new task); tap a priority on Today to mark it ✅ Done in Notion, again to reopen. To plan tomorrow, go to tomorrow on Today and tap **PLAN** in Priorities.
 
 ### INBOX
 

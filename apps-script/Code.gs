@@ -6,7 +6,9 @@
  *  - Calendars: reads Work + Personal, plus your farm calendar once linked
  *    (Script Property FARM_CALENDAR_ID) and your Growth calendar once linked
  *    (Script Property GROWTH_CALENDAR_ID, bridge 1.22). Creates events you capture
- *    on Personal, the farm calendar or Growth; never on Work. Reads Google's
+ *    on Personal, the farm calendar or Growth; never on Work. Reads your Family
+ *    calendar once linked (Script Property FAMILY_CALENDAR_ID, bridge 1.42;
+ *    read-only, like Work: nothing is ever written to it). Reads Google's
  *    US Holidays calendar (bridge 1.23, read-only; found on its own, or Script
  *    Property HOLIDAY_CALENDAR_ID) so holidays show beside Key Dates. Nothing
  *    about holidays is written anywhere.
@@ -108,7 +110,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.41.1';
+var VERSION = '1.42.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -123,7 +125,8 @@ var SOURCES = [
   { area: 'work', id: workCalendarId_ },
   { area: 'personal', id: function () { return CONFIG.PERSONAL_CALENDAR_ID; } },
   { area: 'farm', id: farmCalendarId_, optional: true },   // left out until FARM_CALENDAR_ID is set
-  { area: 'hobby', id: growthCalendarId_, optional: true }  // Growth; left out until GROWTH_CALENDAR_ID is set
+  { area: 'hobby', id: growthCalendarId_, optional: true },  // Growth; left out until GROWTH_CALENDAR_ID is set
+  { area: 'family', id: familyCalendarId_, optional: true }  // 1.42: Family, read-only (not in WRITABLE); left out until FAMILY_CALENDAR_ID is set
 ];
 // Calendars the app may add events to. Work is deliberately absent.
 var WRITABLE = {
@@ -278,12 +281,13 @@ function setup() {
     console.log('  ' + c.getName() + '  ->  ' + c.getId());
   });
   calendarStatus_().forEach(function (s) {
-    console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error + (s.area === 'farm' ? '. Check FARM_CALENDAR_ID in Script Properties against the list above' : s.area === 'hobby' ? '. Check GROWTH_CALENDAR_ID in Script Properties against the list above' : '')));
+    console.log('TimothyOS ' + s.area + ' calendar: ' + (s.ok ? 'OK (' + s.name + ')' : 'PROBLEM: ' + s.error + (s.area === 'farm' ? '. Check FARM_CALENDAR_ID in Script Properties against the list above' : s.area === 'hobby' ? '. Check GROWTH_CALENDAR_ID in Script Properties against the list above' : s.area === 'family' ? '. Check FAMILY_CALENDAR_ID in Script Properties against the list above' : '')));
   });
   if (!farmCalendarId_()) console.log('TimothyOS farm calendar: OFF. Add FARM_CALENDAR_ID in Script Properties (the ID from the list above) to link it');
   var hol = holidayCalendar_();
   console.log('TimothyOS holidays: ' + (hol ? 'OK (' + hol.getName() + ')' : 'OFF. Subscribe to a holidays calendar in Google Calendar, or add HOLIDAY_CALENDAR_ID in Script Properties'));
   if (!growthCalendarId_()) console.log('TimothyOS Growth calendar: OFF. Add GROWTH_CALENDAR_ID in Script Properties (the ID from the list above) to link it');
+  if (!familyCalendarId_()) console.log('TimothyOS Family calendar: OFF. Add FAMILY_CALENDAR_ID in Script Properties (the ID from the list above) to show it, read-only');
   var n = notionStatus_();
   console.log('Notion tasks: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
   var kd = n.dates || {};
@@ -441,6 +445,10 @@ function holidays_(from, to) {
   var res = { ok: true, version: VERSION, calendar: cal.getName(), holidays: out };
   try { cache.put(key, JSON.stringify(res), 21600); } catch (e) { /* too large to cache; fine */ }
   return res;
+}
+/** 1.42: the Family calendar's ID (area 'family'), from Script Properties. Read-only: never in WRITABLE. Empty until linked. */
+function familyCalendarId_() {
+  return String(PropertiesService.getScriptProperties().getProperty('FAMILY_CALENDAR_ID') || '').trim();
 }
 /** The Growth calendar's ID (area 'hobby' in the app, shown as GROWTH), from Script Properties. Empty until linked. */
 function growthCalendarId_() {
@@ -3496,9 +3504,9 @@ var AI_RULES = [
   "You are the ship's computer inside TimothyOS, Timothy's personal life dashboard. Address him as Captain.",
   "Style: calm, brief, concrete. Plain text: short paragraphs or simple lines starting with '- '. No headings, no tables, no emoji, no em dashes. Lead with the answer.",
   "Facts: use only the snapshot below and your tools. Never invent events, tasks, dates or numbers. If something isn't in the data, say so. Times are local.",
-  "You can read his Work and Personal calendars (and his farm calendar, area 'farm', and his Growth calendar, area 'hobby', when the snapshot lists them), his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
+  "You can read his Work and Personal calendars (and his farm calendar, area 'farm', and his Growth calendar, area 'hobby', and his household's Family calendar, area 'family', read-only, when the snapshot lists them), his Master Task List, Key Dates and Weekly Reviews. You cannot browse the web, read email, or change the app itself. Notion pages outside those databases are private and out of reach.",
   "Changes: you never change anything directly. To add a task, pick or unpick a priority, set a task's status, add a key date, add an event or reminder to the Personal calendar (or the farm calendar for farm and bee work, or the Growth calendar for personal growth and hobbies, when linked), or draft a weekly review, call the matching propose_ tool. Timothy confirms each one with a tap. After proposing, say in one line what you proposed.",
-  "The Work calendar is read-only: never propose anything for it. A reminder is a short Personal calendar event at the reminder time; his devices alert him.",
+  "The Work and Family calendars are read-only: never propose anything for them. A reminder is a short Personal calendar event at the reminder time; his devices alert him.",
   "Use exact task ids from the snapshot or get_tasks. Use Life Area, priority and key date type names exactly as listed in the snapshot."
 ].join('\n');
 
@@ -3631,7 +3639,7 @@ function speak_(body, check) {
 // Claude sees only each tool's name, description and input_schema, never the code below them, so every
 // description says what its handler actually does and refuses (bridge 1.27 audit). Keep them in step.
 var AI_TOOLS = [
-  { name: 'get_events', description: 'Calendar events from `from` to `to`, both days included, at most 62 days. Covers Work and Personal, plus the farm calendar (area Farm) and the Growth calendar (area Growth) once each is linked. Each line: weekday, date, start-end time (local) or "all day", area, title. Untitled events read "Busy". Events he declined (outside Work) and titles on his ignored list are left out, except his breaks: area BREAK (such as a lunch held as Out of office) is protected time, not a meeting and not free. At most 200 events, earliest first.',
+  { name: 'get_events', description: 'Calendar events from `from` to `to`, both days included, at most 62 days. Covers Work and Personal, plus the farm calendar (area Farm), the Growth calendar (area Growth) and the Family calendar (area Family, read-only) once each is linked. Each line: weekday, date, start-end time (local) or "all day", area, title. Untitled events read "Busy". Events he declined (outside Work) and titles on his ignored list are left out, except his breaks: area BREAK (such as a lunch held as Out of office) is protected time, not a meeting and not free. At most 200 events, earliest first.',
     input_schema: { type: 'object', properties: { from: { type: 'string', description: 'First day, yyyy-mm-dd' }, to: { type: 'string', description: 'Last day, yyyy-mm-dd, on or after from' } }, required: ['from', 'to'], additionalProperties: false } },
   { name: 'get_tasks', description: 'Two lists from the Master Task List: the tasks picked as priorities for `day` (any status, done ones included), then up to 120 OPEN tasks (every status except Done), soonest due date first, undated last. Each line: the task id in [brackets], title, status, priority, Life Area, due date and picked day. Finished tasks are not here: use get_week for what was done in a week.',
     input_schema: { type: 'object', properties: { day: { type: 'string', description: 'yyyy-mm-dd; the day whose picked priorities to list' } }, required: ['day'], additionalProperties: false } },
@@ -3653,7 +3661,7 @@ var AI_TOOLS = [
     input_schema: { type: 'object', properties: { week_start: { type: 'string', description: 'The Monday that starts the week, yyyy-mm-dd' }, went_well: { type: 'string' }, drained: { type: 'string' }, next_focus: { type: 'string' }, bearing: { type: 'string' }, summary: { type: 'string' } }, required: ['week_start'], additionalProperties: false } }
 ];
 
-var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm', hobby: 'Growth', break: 'BREAK' };
+var AREA_LABEL = { work: 'Work', personal: 'Personal', farm: 'Farm', hobby: 'Growth', family: 'Family', break: 'BREAK' };
 /**
  * 1.41: breaks, as the app's screens show them (app 2.23 / 2.31.1). A timed event whose whole title is one of his break names
  * (capitals, spacing and end punctuation aside), after an "Out of office -" / "OOO -" prefix, is protected time: kept even when
