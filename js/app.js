@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.67.0";
+  var VERSION = "2.68.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -285,7 +285,9 @@
   }
   function netDay(started, bad) {   /* today's bridge requests on this iPad: a runaway loop or a bad day shows here */
     var k = ymd(new Date()), x = lsGet(LS_NETDAY); if (!x || x.d !== k) x = { d: k, n: 0, f: 0, max: 0 };
-    x.n++; if (bad) x.f++; x.max = Math.max(x.max, Date.now() - started); lsSet(LS_NETDAY, x);
+    x.n++; if (bad) x.f++;
+    if (!document.hidden && !(lastHidden >= started)) x.max = Math.max(x.max, Date.now() - started);   /* 2.68: a request open while the iPad slept isn't "slow" */
+    lsSet(LS_NETDAY, x);
   }
   window.addEventListener("error", function (e) { if (e && e.message) errLog("page", "script error", e.message, (e.filename ? String(e.filename).replace(/[?#].*$/, "").replace(/^.*\//, "") : "?") + ":" + (e.lineno || 0) + ":" + (e.colno || 0)); });
   window.addEventListener("unhandledrejection", function (e) {
@@ -11725,6 +11727,15 @@
         if (X.v !== v || !X.on || !X.cur || !v.getAttribute("src") || v.getAttribute("src") === VA_SILENT) return;
         var c = X.cur, me = v.error, fmt = X.meta || (me && me.code === 3);
         hdErr(fmt ? "video didn't decode" : "video didn't load", "MediaError " + (me ? me.code + (me.message ? " · " + me.message : "") : "?"), c);
+        if (!fmt) { nasGate(v, c, function () { afterFail(v, c, fmt); }); return; }   /* 2.68: is the NAS there at all? */
+        afterFail(v, c, fmt);
+      });
+      v.addEventListener("playing", function () { if (X.v === v) { X.fails = 0; X.nasMiss = 0; } });
+      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
+      return v;
+    }
+    function afterFail(v, c, fmt) {   /* the NAS answered (or it's a decode failure): LEVEL steps aside, else the file is passed over */
+        if (X.v !== v || !X.on || X.cur !== c) return;
         var why = "the video " + (fmt ? "didn't decode" : "didn't load") + " with LEVEL on";
         if (lvOn() && X.bkp && !X.bk) {   /* 2.66: failed before the backup finished unlocking (a slow moment right after TUNE IN): wait for it, up to 2 s, rather than skip the show */
           var t0 = Date.now(), w = setInterval(function () {
@@ -11735,11 +11746,55 @@
         }
         if (lvOn() && lvFallback(why)) return;   /* 2.62: LEVEL steps aside first; the file isn't marked */
         failed(c, fmt ? "format" : "net");
-      });
-      v.addEventListener("playing", function () { if (X.v === v) X.fails = 0; });
-      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
-      return v;
     }
+    /* 2.68, from Timothy's ERROR LOG: six "didn't load" (MediaError 4, NotSupportedError) in two seconds, then the TV went off.
+       Safari reports a video it couldn't fetch at all that way; the iPad's link to the NAS was down (waking, Tailscale
+       reconnecting), not the files or LEVEL. So a load failure first asks the NAS for that file (HEAD, 5 s): no answer =
+       WAITING FOR THE NAS: the same channel is tried again at its live point after 2, 4, 8, 15 and 30 s, then every 30 s, for
+       5 minutes; nothing is marked or counted and LEVEL isn't paused. An answer = the file's own problem, handled as before. */
+    var NAS_WAITS = [2, 4, 8, 15, 30];
+    function nasProbe(c) {
+      if (navigator.onLine === false) return Promise.resolve({ ok: false, why: "the iPad is offline" });
+      var ac = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (ac) ac.abort(); }, 5000);
+      return fetch(url(c.it.f.path), { method: "HEAD", cache: "no-store", signal: ac ? ac.signal : undefined }).then(function (r) { clearTimeout(t); return { ok: true, code: r.status }; },
+        function (e) { clearTimeout(t); return { ok: false, why: e && e.name === "AbortError" ? "no answer in 5 s" : "no connection" }; });
+    }
+    function nasGate(v, c, go) {
+      if (X.nasWait) return;   /* already waiting */
+      if (X.nasCheck === c) return; X.nasCheck = c;
+      nasProbe(c).then(function (r) {
+        X.nasCheck = null;
+        if (X.v !== v || !X.on || X.cur !== c) return;
+        if (r.ok) { hdErr("NAS answered", "HTTP " + r.code + " for this file, so the file itself didn't load", c); go(); return; }
+        nasWaitStart(c, r.why);
+      });
+    }
+    function nasWaitStart(c, why) {
+      var v = X.v; if (v) { try { v.pause(); } catch (e) { /* fine */ } }
+      X.nasWait = { since: Date.now(), n: 0, why: why, t: 0 };
+      hdErr("waiting for the NAS", "NAS unreachable (" + why + "); nothing marked, LEVEL left on; trying again", c);
+      X.note = "WAITING FOR THE NAS · " + why + ". The show picks up as soon as it's back.";
+      paint(); if (state.screen === "holodeck") render(true);
+      nasRetry();
+    }
+    function nasRetry() {
+      var w = X.nasWait; if (!w || !X.on) { X.nasWait = null; return; }
+      var d = NAS_WAITS[Math.min(w.n, NAS_WAITS.length - 1)] * 1000;
+      if (Date.now() - w.since + d > 300000) { X.nasWait = null; hdErr("TV went off", "the NAS stayed unreachable for 5 minutes (" + w.why + ")", X.cur); off(); X.note = "The NAS was out of reach for 5 minutes. Check the iPad's Wi-Fi and Tailscale, then TUNE IN again."; render(); return; }
+      clearTimeout(w.t);
+      w.t = setTimeout(function () {
+        if (X.nasWait !== w || !X.on) return;
+        var c = at(cur(), Date.now()); if (!c) { w.n++; nasRetry(); return; }
+        nasProbe(c).then(function (r) {
+          if (X.nasWait !== w || !X.on) return;
+          if (!r.ok) { w.why = r.why; w.n++; nasRetry(); return; }
+          X.nasWait = null; X.fails = 0;
+          errLog("holodeck", "NAS back", "after " + Math.round((Date.now() - w.since) / 1000) + " s; the show picked up at its live point", "CH " + num(c.c));
+          X.note = ""; start(c, true); if (state.screen === "holodeck") render(true);
+        });
+      }, d);
+    }
+    window.addEventListener("online", function () { var w = X.nasWait; if (w) { w.n = 0; clearTimeout(w.t); w.t = setTimeout(nasRetry, 0); } });   /* back on Wi-Fi: try at once */
     function vid() {
       if (X.v) return X.v;
       var k = X.keep; if (!k) { k = document.createElement("div"); k.className = "hd-keep"; document.body.appendChild(k); X.keep = k; }   /* once: LEVEL can swap the video element (2.61) */
@@ -11781,7 +11836,8 @@
       else resume();
     }
     function start(c, seekLive) {
-      if (!c) return; var v = vid(); X.cur = c; X.note = X.note || "";
+      if (!c) return; if (X.nasWait) { clearTimeout(X.nasWait.t); X.nasWait = null; }   /* a new start (a channel change, or the NAS back) ends the wait */
+      var v = vid(); X.cur = c; X.note = X.note || "";
       X.meta = false; X.tp = Date.now(); clearInterval(X.wd);   /* 2.53.5: stalled = playing but no progress for 30 s, from the start or part way (data that stopped coming) */
       X.wd = setInterval(function () { if (!X.on || X.cur !== c) { clearInterval(X.wd); return; } if (!v.paused && !document.hidden && Date.now() - X.tp > 30000) { hdErr("video stalled", "no progress for 30 s (ready state " + v.readyState + ", network state " + v.networkState + ")", c); if (lvOn() && lvFallback("the video stalled with LEVEL on")) return; failed(c, "timeout"); } }, 5000);
       if (pl.el && !pl.el.paused) pl.el.pause();   /* one at a time: the TV pauses AUDIO */
@@ -11802,7 +11858,7 @@
       var c = at(cur(), Date.now()); if (!c) return;
       X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); render();
     }
-    function off() { lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
+    function off() { if (X.nasWait) clearTimeout(X.nasWait.t); X.nasWait = null; X.nasCheck = null; lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
        iPadOS keeps an audio player going when a Home Screen app goes to the background (AUDIO does), but stops an
        inline video. Until 2.53.3 FULL SCREEN used the iPad's own player, which carries on, so leaving the app from full

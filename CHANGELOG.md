@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.68.0 · 2026-11-07
+- **HOLODECK rides out a lost connection to the NAS.** Your error log showed the cause of "five videos in a row didn't load": every video failed within two seconds, the plain backup player too, because the iPad couldn't reach the NAS for a moment (most likely just after waking, while Wi-Fi and Tailscale reconnect). Not LEVEL, not the files.
+  - When a video won't load, HOLODECK now asks the NAS first. No answer: the screen says **WAITING FOR THE NAS**, and the same channel is tried again at its live point after 2, 4, 8, 15 and 30 seconds, then every 30 seconds, for up to 5 minutes. When the NAS is back, the show picks up. Nothing is marked unplayable, nothing counts toward "five in a row", and LEVEL stays on.
+  - The NAS answering with an error is the file's own problem, handled as before, and the error log now gives the NAS's HTTP code.
+- **Bridge stats:** "slowest" no longer counts a request left open while the iPad slept (your log's 23,476 seconds).
+
 ## 2.67.0 · 2026-11-07 (needs bridge 1.42)
 - **The Family calendar.** Link your household's calendar (Script Property `FAMILY_CALENDAR_ID`, README → Family calendar) and it appears in its own pale pink area, FAMILY: TODAY (with a hide toggle), WEEK, MONTH and the Bridge. **Read-only**, like Work: Bridge never writes to it and CAPTURE never offers it. Its events count as busy time, never as Work hours or meetings; ASK sees them labelled Family. Until linked, **SYSTEMS → CALENDARS** shows FAMILY OFF with how to link it.
 - **WEEK's all-day strip:** an event over several days is now **one bar across those days** instead of a chip on each, squared off where it carries on past the week, packed into as few rows as fit. Tap a bar for the event.

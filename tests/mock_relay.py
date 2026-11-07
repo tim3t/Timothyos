@@ -202,6 +202,14 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS" + (", DELETE" if HAOPT["delete"] else ""))
         self.send_header("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length")
         self.send_header("Vary", "Origin")
+    def do_HEAD(self):   # 2.68: HOLODECK asks for a file's headers to tell a lost NAS from a bad file; Caddy's file_server answers HEAD the same as GET
+        import io as _io
+        real, end0 = self.wfile, self.end_headers
+        def end():
+            end0(); self.wfile = _io.BytesIO()
+        self.end_headers = end
+        try: self.do_GET()
+        finally: self.wfile = real
     def do_OPTIONS(self):
         self.send_response(204); self.cors(); self.end_headers()
     def send_json(self, code, obj):

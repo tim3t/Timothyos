@@ -944,6 +944,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 | SCIENCE asks for a location | Set **Location** in **SYSTEMS → BRIDGE** |
 | SCIENCE shows no aircraft | Coverage depends on volunteers' receivers near you; the source is named under the scope. If it says it couldn't read the feed, it tries again on its own |
 | SCIENCE events don't reach Notion ("waiting to reach Notion" in the EVENT LOG) | Connect **🔭 Science Log** to the TimothyOS integration (Connect Notion), then **REFRESH NOW** |
+| HOLODECK says **WAITING FOR THE NAS** | The iPad can't reach the NAS at that moment (often the first seconds after waking, while Wi-Fi and Tailscale reconnect). It tries again on its own and picks the show up when the NAS answers; after 5 minutes it turns the TV off. If it lasts, check Tailscale on the iPad and that the NAS is on |
 | HOLODECK stops, skips, or LEVEL shows **PAUSED** | **SYSTEMS → ERROR LOG → HOLODECK** lists each failure with Safari's reason, the file and LEVEL's state; **COPY REPORT** and send it to Claude |
 | HOLODECK plays the picture but no sound | Tap **TAP FOR SOUND** if it shows. Otherwise turn **LEVEL** off on the rail: if the sound comes back, the relay isn't sending `Access-Control-Allow-Origin` with the videos (check the Caddyfile under NAS relay) |
 | SYSTEMS → NOTION → Weekly export says **SETUP**, or setup says **NEEDS THE DRIVE API** | Script editor → **Services** (+) → **Drive API** → **Add**, then run **setup** and deploy |
