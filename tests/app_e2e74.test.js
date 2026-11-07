@@ -139,6 +139,8 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   // ---- a video that won't load with LEVEL on (a fresh browser, so nothing is cached): LEVEL steps aside, the show
   // plays, the file isn't marked, the error log has Safari's code, the file and LEVEL's state
   const ctx2 = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  // 2.66: the backup unlocks a second late (as on a slow moment), so the load fails before it's ready: LEVEL must wait for it, not skip the show
+  await ctx2.addInitScript(() => { const pl = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { const r = pl.call(this); return this.id === 'hdVideoB' ? new Promise((ok, no) => setTimeout(() => r.then(ok, no), 1000)) : r; }; });
   const p2 = await ctx2.newPage(); p2.on('pageerror', e => errs.push(e.message));
   await p2.goto('http://localhost:8080/');
   const lensP = await p.evaluate(() => localStorage.getItem('tos.hololen.v1'));   /* the lengths already measured, so it can tune in at once */

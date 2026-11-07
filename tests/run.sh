@@ -160,7 +160,7 @@ LANES=(
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
 #   app_e2e80      WEEKLY NOTION EXPORT (2.65, bridge 1.41): SYSTEMS row (last copy, left out, OPEN IN DRIVE), EXPORT NOW and following a run, stalled, no Drive access, Drive full, not scheduled, older bridge; the condition (failed, over 9 days); ASK sends break names; phone
-#   app_e2e79      ENGINEERING SCENES (2.64): BEDTIME built word by word in IF / THEN, the exact automation saved, tap to run (IF skipped), hold to open, pause, TAKE CURRENT LIGHTS, edited in Home Assistant (read-only), delete refused by the relay then allowed, Timothy's own automation never touched, SYSTEMS READY / NEEDS ADMIN / RELAY BLOCKS DELETE, portrait
+#   app_e2e79      ENGINEERING SCENES (2.64): BEDTIME built word by word in IF / THEN, the exact automation saved, tap to run (IF skipped), hold to open, pause, TAKE CURRENT LIGHTS, edited in Home Assistant (read-only), delete refused by the relay then allowed, Timothy's own automation never touched, SYSTEMS READY / NEEDS ADMIN / RELAY BLOCKS DELETE, portrait; 2.66 SCENE ORDER (▲ ▼, kept on reload, new last)
 #   app_e2e38      TAROT: Bridge card, readings, Celtic Cross, meanings, spreads, Review, Ask option
 #   app_e2e39      TAROT BOOKS: IMPORT in steps, BOOKS drawer, SUGGEST, ADD/DISMISS, history, never stored (after e2e38)
 #   app_e2e40      TYPING SURVIVES SAVING: cursor and text kept while saves land, every field has an id

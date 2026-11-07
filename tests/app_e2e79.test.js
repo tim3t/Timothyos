@@ -133,6 +133,40 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
   await fetch(R + '/__haopt?admin=1&delete=0'); await p.click('[data-act="hascncheck"]');
   await until(async () => /SCENES RELAY BLOCKS DELETE/.test(await txt(p, '#sec-ha')));
 
+  // ---- 2.66 SCENE ORDER: alphabetical until reordered; ▲ ▼ in a sheet; kept on reload; a new scene goes last; shared by PROFILE SYNC
+  await fetch(R + '/__haopt?delete=1');
+  await p.click('[data-screen="engineering"].nav'); await p.waitForSelector('[data-scnnew]');
+  const mk = async nm => {
+    await p.click('[data-scnnew]'); await p.waitForSelector('#scnName'); await p.fill('#scnName', nm);
+    await p.click('[data-scnadd="off"]'); await p.click('[data-scnid="switch.pond_lights_outlet"]'); await p.click('[data-scndone]');
+    await p.click('[data-scnsave]'); await p.waitForSelector('#detailScrim', { state: 'hidden' });
+  };
+  const bar = () => p.$$eval('.scn-run b', n => n.map(x => x.textContent));
+  await mk('Alpha');
+  assert.strictEqual(await p.locator('[data-scnorder]').count(), 0, 'no ORDER with one scene');
+  await mk('Zulu'); await mk('Gaming');
+  await until(async () => (await bar()).join() === 'ALPHA,GAMING,ZULU');
+  await p.click('[data-scnorder]'); await p.waitForSelector('#detailSheet.scn-ord');
+  assert.deepStrictEqual(await p.$$eval('.scn-ordrow b', n => n.map(x => x.textContent)), ['ALPHA', 'GAMING', 'ZULU']);
+  assert.ok(await p.isDisabled('.scn-ordrow >> nth=0 >> [data-scnmv$=",-1"]') && await p.isDisabled('.scn-ordrow >> nth=2 >> [data-scnmv$=",1"]'), 'ends disabled');
+  const zid = await p.getAttribute('.scn-ordrow >> nth=2 >> [data-scnmv$=",-1"]', 'data-scnmv');
+  await p.click('[data-scnmv="' + zid + '"]'); await p.click('[data-scnmv="' + zid + '"]');
+  assert.deepStrictEqual(await p.$$eval('.scn-ordrow b', n => n.map(x => x.textContent)), ['ZULU', 'ALPHA', 'GAMING']);
+  assert.strictEqual(await p.evaluate(() => document.activeElement && document.activeElement.dataset.scnmv || ''), zid.replace(',-1', ',1'), 'focus stays on the moved scene');
+  await p.click('#detailClose');
+  assert.strictEqual((await bar()).join(), 'ZULU,ALPHA,GAMING', 'the bar follows');
+  const ord = JSON.parse(await p.evaluate(() => localStorage.getItem('tos.hascnord.v1')));
+  assert.strictEqual(ord.length, 3);
+  const H2 = await ha(); assert.ok(Object.values(H2.cfg).filter(c => /^TimothyOS · /.test(c.alias)).length === 3, 'Home Assistant holds the three scenes; nothing about order');
+  await p.reload(); await p.waitForTimeout(1200); await p.click('[data-screen="engineering"].nav');
+  await until(async () => (await bar()).join() === 'ZULU,ALPHA,GAMING');
+  await mk('Beta');
+  await until(async () => (await bar()).join() === 'ZULU,ALPHA,GAMING,BETA', 8000);
+  await p.setViewportSize({ width: 820, height: 1180 });
+  await p.click('[data-scnorder]'); await p.waitForSelector('#detailSheet.scn-ord');
+  assert.ok(await p.evaluate(() => { const r = document.getElementById('detailSheet').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1 && document.documentElement.scrollWidth <= innerWidth + 1; }), 'ORDER fits portrait');
+  await p.click('#detailClose'); await p.setViewportSize({ width: 1180, height: 820 });
+
   // ---- portrait: the modal fits
   await fetch(R + '/__haopt?delete=1');
   await p.setViewportSize({ width: 820, height: 1180 });

@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.66.0 · 2026-11-07
+- **ENGINEERING · SCENE ORDER.** **ORDER** beside **+ SCENE** opens a sheet to move scenes up and down with **▲ ▼**; the bar follows. Both iPads share the order through PROFILE SYNC (the Home Assistant devices row), backups keep it, and Home Assistant isn't asked to change anything. Alphabetical until you first reorder; new scenes go last.
+- **Fixed (HOLODECK LEVEL):** if a video failed to load in the first instant after TUNE IN, before LEVEL's backup player was ready, the TV skipped to the next show instead of handing the same show to the backup. It now waits for the backup (up to 2 seconds), then hands over as intended.
+
 ## 2.65.1 · 2026-11-06 (needs bridge 1.41.1)
 - **Weekly Notion export setup:** Google keeps the Drive API switched off for a new script and answers "permission denied", which setup read as a missing permission. **Bridge 1.41.1** tells the two apart: setup says **NEEDS THE DRIVE API** (script editor → Services → Drive API → Add) or **NEEDS DRIVE ACCESS**, each with Google's own reason, and SYSTEMS shows the same. The README has the `oauthScopes` block right in the bridge-update steps, and Weekly Notion export is linked from the contents.
 

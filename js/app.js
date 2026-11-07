@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.65.1";
+  var VERSION = "2.66.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1011,7 +1011,7 @@
     ["HOLODECK", [["holo", "Channels, styles, BREAKS, Commercials folder, look", ["tos.holo.v1"]]]],
     ["BRIDGE AND TODAY", [["log", "Intent lines (30 days) and bearings", ["tos.log.v1", "tos.bearings.v1"]], ["pins", "Pins, start screen, open panels", ["tos.pins.v1", "tos.start.v1", "tos.bopen.v1"]], ["hidden", "Calendars hidden on Today", ["tos.hidden.v1"]]]],
     ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
-    ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups", ["tos.hadev.v1", "tos.hagroups.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
+    ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups, scene order", ["tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
     ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
     ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],
     ["MEALS", [["meals", "Grocery ticks and items added by hand, PLAN or LOG", ["tos.mealgot.v1", "tos.mealview.v1"]]]],
@@ -8490,7 +8490,7 @@
   }
   function engSheetClick(b) {
     var d = b.dataset;
-    if (scnSheetClick(b)) return true;
+    if (scnSheetClick(b) || scnOrderClick(b)) return true;
     if (haSheetClick(b)) return true;
     if (d.upunit) {
       $("detailSheet").dataset.unit = d.upunit;
@@ -8791,6 +8791,33 @@
      needs DELETE in the relay's Access-Control-Allow-Methods (README → NAS relay). Both iPads read the same list from Home
      Assistant; tos.hascenes.v1 is only this iPad's copy for drawing the bar at once (a cache). */
   var LS_HASCN = "tos.hascenes.v1", LS_HASCNCHK = "tos.hascnchk.v1";
+  /* 2.66: the bar's order, as scene ids; shared by PROFILE SYNC and kept in backups. Home Assistant isn't asked to change
+     anything for it. No order yet: alphabetical. A scene the order doesn't know (new, or made on the other iPad) goes last. */
+  var LS_HASCNORD = "tos.hascnord.v1";
+  function scnOrdered() {
+    var o = lsGet(LS_HASCNORD) || [], ix = function (d) { var i = o.indexOf(d.id); return i < 0 ? 1e6 : i; };
+    return eng.scn.list.slice().sort(function (a, b) { return ix(a) - ix(b) || a.name.localeCompare(b.name); });
+  }
+  function scnOrderOpen() { eng.sheetKind = "scnord"; eng.sheetId = null; engSheet("scn-ord", ""); scnOrderPaint(); }
+  function scnOrderPaint() {
+    var L = scnOrdered();
+    $("detailSheet").innerHTML = '<div class="sbar"><span>SCENE ORDER</span><span>BOTH IPADS</span></div><div class="sbody"><div class="hg-edit">' + L.map(function (d, i) {
+      return '<div class="scn-ordrow"><span><b>' + esc(d.name.toUpperCase()) + "</b><small>" + esc(scnLine(d)) + "</small></span>" +
+        '<button type="button" class="btn sm ghost" data-scnmv="' + esc(d.id) + ',-1"' + (i === 0 ? " disabled" : "") + ' aria-label="Move ' + esc(d.name) + ' up">▲</button>' +
+        '<button type="button" class="btn sm ghost" data-scnmv="' + esc(d.id) + ',1"' + (i === L.length - 1 ? " disabled" : "") + ' aria-label="Move ' + esc(d.name) + ' down">▼</button></div>';
+    }).join("") + '</div><small class="muted">The order of the SCENES bar on ENGINEERING. PROFILE SYNC shares it with your other iPad; Home Assistant isn\'t changed. New scenes go last.</small></div>' +
+      '<div class="sfoot btnrow"><button type="button" class="btn" id="detailClose">DONE</button></div>';
+  }
+  function scnOrderClick(b) {
+    if (eng.sheetKind !== "scnord" || !b.dataset.scnmv) return false;
+    var m = b.dataset.scnmv.split(","), ids = scnOrdered().map(function (d) { return d.id; }), i = ids.indexOf(m[0]), j = i + Number(m[1]);
+    if (i < 0 || j < 0 || j >= ids.length) return true;
+    ids.splice(j, 0, ids.splice(i, 1)[0]); lsSet(LS_HASCNORD, ids);
+    scnOrderPaint(); render(true);
+    var mv = document.querySelector('[data-scnmv="' + m[0] + "," + m[1] + '"]:not([disabled])') || document.querySelector('[data-scnmv^="' + m[0] + ',"]:not([disabled])');
+    if (mv) mv.focus();   /* keep the place for the next tap */
+    return true;
+  }
   var SCN_PRE = "tos_", SCN_ALIAS = "TimothyOS · ";
   var SCN_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], SCN_DAYNM = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   var SCN_FADES = [[0, "AT ONCE"], [5, "5 SEC"], [60, "1 MIN"], [300, "5 MIN"], [900, "15 MIN"], [1800, "30 MIN"]];
@@ -8918,10 +8945,10 @@
   function scnBarHtml() {
     var S = eng.scn;
     scnLoad(false);
-    var n = S.list.length, h = '<section class="ec-sec ec-scn">' + phead("SCENES", (n ? n + (n === 1 ? " SCENE · " : " SCENES · ") : "") + "ON HOME ASSISTANT", "chrome-a", '<button type="button" class="btn sm" data-scnnew="1">+ SCENE</button>');
+    var n = S.list.length, h = '<section class="ec-sec ec-scn">' + phead("SCENES", (n ? n + (n === 1 ? " SCENE · " : " SCENES · ") : "") + "ON HOME ASSISTANT", "chrome-a", (n > 1 ? '<button type="button" class="btn sm ghost" data-scnorder="1">ORDER</button>' : "") + '<button type="button" class="btn sm" data-scnnew="1">+ SCENE</button>');
     if (S.err === "admin") h += '<div class="err">Home Assistant refused the scenes: they need a token from an admin user. Check under <b>HOME ASSISTANT</b> in Systems.</div>';
     else if (S.err) h += '<div class="err">' + esc(S.err) + "</div>";
-    h += n ? '<div class="scn-bar">' + S.list.map(function (d) {
+    h += n ? '<div class="scn-bar">' + scnOrdered().map(function (d) {
       return '<div class="scn-b' + (d.on === false || d.foreign ? " dim" : "") + '"><button type="button" class="scn-run" data-scnrun="' + esc(d.id) + '" aria-label="Run ' + esc(d.name) + '. Hold to edit."><b>' + esc(d.name.toUpperCase()) + "</b><small>" + esc(scnLine(d)) + "</small></button>" +
         '<button type="button" class="scn-more" data-scnedit="' + esc(d.id) + '" aria-label="Edit ' + esc(d.name) + '">⋯</button></div>';
     }).join("") + "</div>" : '<div class="empty">No scenes yet. <b>+ SCENE</b> makes one: IF a time, sunrise or sunset, THEN set your lights. It runs on Home Assistant, the iPads asleep or not.</div>';
@@ -8955,6 +8982,7 @@
     if (d.scnrun) { if (S.held) { S.held = false; return true; } scnRun(d.scnrun); return true; }
     if (d.scnedit) { scnOpen(d.scnedit); return true; }
     if (d.scnnew) { scnOpen(null); return true; }
+    if (d.scnorder) { scnOrderOpen(); return true; }
     return false;
   }
 
@@ -11668,7 +11696,15 @@
         if (X.v !== v || !X.on || !X.cur || !v.getAttribute("src") || v.getAttribute("src") === VA_SILENT) return;
         var c = X.cur, me = v.error, fmt = X.meta || (me && me.code === 3);
         hdErr(fmt ? "video didn't decode" : "video didn't load", "MediaError " + (me ? me.code + (me.message ? " · " + me.message : "") : "?"), c);
-        if (lvOn() && lvFallback("the video " + (fmt ? "didn't decode" : "didn't load") + " with LEVEL on")) return;   /* 2.62: LEVEL steps aside first; the file isn't marked */
+        var why = "the video " + (fmt ? "didn't decode" : "didn't load") + " with LEVEL on";
+        if (lvOn() && X.bkp && !X.bk) {   /* 2.66: failed before the backup finished unlocking (a slow moment right after TUNE IN): wait for it, up to 2 s, rather than skip the show */
+          var t0 = Date.now(), w = setInterval(function () {
+            if (X.v !== v || !X.on || X.cur !== c) { clearInterval(w); return; }
+            if (X.bk || !X.bkp || Date.now() - t0 > 2000) { clearInterval(w); if (!lvFallback(why)) failed(c, fmt ? "format" : "net"); }
+          }, 50);
+          return;
+        }
+        if (lvOn() && lvFallback(why)) return;   /* 2.62: LEVEL steps aside first; the file isn't marked */
         failed(c, fmt ? "format" : "net");
       });
       v.addEventListener("playing", function () { if (X.v === v) X.fails = 0; });
@@ -14191,7 +14227,7 @@
      writes only keys on BK_KEYS, then reloads. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
-    "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
+    "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
     "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];
