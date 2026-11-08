@@ -730,7 +730,7 @@ Many YouTube downloads are .mp4 files holding VP9 or AV1 video, which the iPad c
          - |
            set -e
            apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/783fffdea2a5b21059608c8256df57fe7f7159b7/tools/fix_videos.py', '/tmp/fix_videos.py')"
+           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/a28d7d1fea305ab1b6431bc213e8ff2c20908ca0/tools/fix_videos.py', '/tmp/fix_videos.py')"
            nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep --plays av1,opus
    ```
    - **`--plays av1,opus`:** newer iPads (M3, M4, A17 Pro and later) decode AV1 video and Opus sound, and both of yours play them, so those files are left alone. Without it the tool assumes an older iPad and would convert thousands of files that already play (your first report: 2,530 AV1 files, 410 hours). Leave it out only if you start watching on an older iPad.
