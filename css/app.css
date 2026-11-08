@@ -26,6 +26,7 @@
   --farm: #f3a83b;
   --hobby: #ff8b70;
   --personal: #56c7b8;
+  --water: #6fb7e8;     /* 2.71: ARBORETUM's pond */
   --family: #ffd0e8;    /* 2.67: Family calendar (read-only); pale pink keeps 9+ OKLab ΔE from every area and status colour, red-green blindness included */
   --ok: #7bd88f;
   --warn: #f3c44b;
@@ -3235,3 +3236,143 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
 .ml-stepnav { position: sticky; bottom: 8px; margin-top: 6px; }
 @media (max-width: 900px) { .ml-cookbody { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .ml-cookhead b { font-size: 24px; } .ml-cookhead > img { width: 100%; height: 140px; } }
+
+/* ---------- ARBORETUM (2.71, D67): the garden from above ---------- */
+.arb { grid-column: 1 / -1; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.arb > * { min-width: 0; }
+.arb-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.arb-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.arb-side { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.arb-lbl { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); }
+.arb-lbl.c { color: var(--personal); }
+.arb-lbl.o { color: var(--farm); }
+.arb-p { margin: 0; font-size: 16px; color: #c9c2b6; }
+.arb-p.muted { color: var(--dim); font-size: 15px; }
+/* the map: a 600 × 630 drawing placed in percentages */
+.arb-map { position: relative; width: 100%; max-width: 600px; aspect-ratio: 600 / 630; margin: 0 auto; }
+.arb-mz { position: absolute; padding: 0; margin: 0; cursor: pointer; color: var(--fg); font-family: var(--display); }
+.arb-mz:focus-visible, .arb-it:focus-visible { outline: 3px solid var(--hero); outline-offset: 2px; }
+.arb-mz[aria-pressed="true"] { outline: 3px solid var(--hero); outline-offset: 2px; }
+.arb-meadow { border: 0; background: rgba(243, 168, 59, .2); clip-path: polygon(18% 0, 98% 6%, 86% 100%, 0 84%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: clamp(14px, 3vw, 22px); letter-spacing: .2em; }
+.arb-meadow small { font-family: var(--body); font-size: 15px; letter-spacing: 0; color: var(--farm); }
+.arb-mini .arb-meadow { font-size: 13px; letter-spacing: .14em; }
+.arb-mini .arb-meadow[aria-pressed="true"] { outline: 0; background: rgba(243, 168, 59, .42); }
+.arb-ring { border: 2px solid rgba(86, 199, 184, .45); background: rgba(86, 199, 184, .08); border-radius: 24% / 33%; }
+.arb-ring.z2 { border-color: rgba(86, 199, 184, .65); background: rgba(86, 199, 184, .16); border-radius: 28% / 35%; }
+.arb-ring.z1 { border-color: rgba(86, 199, 184, .9); background: rgba(86, 199, 184, .28); border-radius: 33% / 34%; }
+.arb-ring .lb { position: absolute; font-size: 12px; letter-spacing: .14em; white-space: nowrap; }
+.arb-ring .lb.tr { right: 9%; top: 5%; }
+.arb-pond { border-radius: 46% 54% 50% 50% / 55% 45% 55% 45%; border: 2px solid var(--water); background: rgba(111, 183, 232, .38); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; letter-spacing: .14em; line-height: 1.1; }
+.arb-pond small { font-size: 10px; letter-spacing: .08em; color: #cfe6f6; }
+.arb-mini .arb-pond { font-size: 11px; letter-spacing: .06em; }
+.arb-shed { position: absolute; border-radius: 4px; background: var(--line); color: var(--dim); font-family: var(--display); font-size: 11px; letter-spacing: .14em; display: flex; align-items: center; justify-content: center; }
+.arb-home { position: absolute; border-radius: 20px; background: #0d0e13; border: 2px solid var(--fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: none; font-family: var(--display); font-size: 14px; letter-spacing: .2em; }
+.arb-mini .arb-home { border-radius: 10px; }
+.arb-tag { position: absolute; font-family: var(--display); font-size: 12px; letter-spacing: .16em; color: #9fe0d6; pointer-events: none; white-space: nowrap; }
+.arb-gl { position: absolute; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-content: center; align-items: center; pointer-events: none; overflow: hidden; }
+.arb-gl.v { flex-direction: column; }
+.arb-g { flex: none; width: 12px; height: 8px; border: 1.5px solid #c8a46b; border-radius: 2px; }
+.arb-gl.v .arb-g { width: 8px; height: 12px; }
+.arb-g.k-inground { width: 14px; border-style: dashed; border-color: #b08a5a; border-radius: 4px; }
+.arb-gl.v .arb-g.k-inground { width: 8px; height: 14px; }
+.arb-g.k-border { width: 22px; height: 5px; border-color: var(--chrome-a); border-radius: 3px; }
+.arb-gl.v .arb-g.k-border { width: 5px; height: 22px; }
+.arb-g.k-pots, .arb-gl.v .arb-g.k-pots { width: 6px; height: 6px; border-radius: 50%; border-color: var(--work); }
+.arb-g.k-trees, .arb-gl.v .arb-g.k-trees { width: 9px; height: 9px; border-radius: 50%; border-color: var(--ok); }
+.arb-g.k-compost, .arb-gl.v .arb-g.k-compost { width: 9px; height: 8px; border-color: var(--dim); border-radius: 1px; }
+/* zone rows and the season card */
+.arb-zrow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 62px; padding: 8px 16px; border-radius: 31px; border: 0; background: var(--panel); color: var(--fg); font-family: var(--body); text-align: left; cursor: pointer; }
+.arb-zrow:active { background: var(--panel-2); }
+.arb-zt { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.arb-zt b { font-family: var(--display); font-size: 19px; font-weight: 600; letter-spacing: .1em; }
+.arb-zt b span { font-size: 13px; font-weight: 400; color: var(--dim); letter-spacing: .14em; }
+.arb-zt small { font-size: 14px; color: #c9c2b6; }
+.arb-jobs { height: 30px; line-height: 30px; padding: 0 12px; border-radius: 15px; font-family: var(--display); font-size: 13px; letter-spacing: .14em; white-space: nowrap; background: var(--farm); color: var(--ink); flex: none; }
+.arb-sw { width: 28px; height: 28px; flex: none; border-radius: 14px; border: 2px solid var(--personal); background: rgba(86, 199, 184, .55); }
+.arb-sw.z2 { background: rgba(86, 199, 184, .32); }
+.arb-sw.z3 { background: rgba(86, 199, 184, .16); }
+.arb-sw.pond { border-color: var(--water); background: rgba(111, 183, 232, .5); border-radius: 46% 54% 50% 50% / 55% 45% 55% 45%; }
+.arb-sw.meadow { border-color: var(--farm); background: rgba(243, 168, 59, .4); }
+.arb-seas { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 14px 18px; margin-top: 6px; border-radius: 24px; border: 2px solid var(--farm); background: transparent; color: var(--fg); font-family: var(--body); text-align: left; cursor: pointer; }
+.arb-seas b { font-family: var(--display); font-size: 14px; font-weight: 400; letter-spacing: .18em; color: var(--farm); }
+.arb-seas span { font-size: 16px; }
+.arb-gname { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.arb-gname input, .arb-in { height: 46px; width: 100%; border-radius: 12px; border: 2px solid var(--line); background: #0d0e13; color: var(--fg); font-family: var(--display); font-size: 20px; letter-spacing: .06em; padding: 0 12px; }
+/* a zone, zoomed in */
+.arb-zone { min-width: 0; }
+.arb-zone.ring { border: 2px solid rgba(86, 199, 184, .6); border-radius: 60px; padding: 16px; background: rgba(86, 199, 184, .07); display: grid; gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(84px, .7fr) minmax(0, 1fr); grid-template-areas: "back back back" "left home right" "front front front"; }
+.arb-zone.ring.z1 { background: rgba(86, 199, 184, .13); }
+.arb-zone.ring.z3 { background: rgba(86, 199, 184, .04); }
+.arb-strip { border: 1px dashed #3a3d4c; border-radius: 16px; padding: 8px 10px; background: rgba(7, 8, 11, .35); display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 100px; }
+.arb-strip.s-back { grid-area: back; }
+.arb-strip.s-left { grid-area: left; min-height: 240px; }
+.arb-strip.s-right { grid-area: right; min-height: 240px; }
+.arb-strip.s-front { grid-area: front; }
+.arb-zhome { grid-area: home; border-radius: 40px; background: #0d0e13; border: 2px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--dim); font-family: var(--display); font-size: 14px; letter-spacing: .16em; text-align: center; padding: 12px; min-height: 160px; }
+.arb-zone.pond .arb-band { border: 2px solid rgba(111, 183, 232, .4); background: rgba(111, 183, 232, .1); border-radius: 44px; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.arb-zone.pond .arb-band.b0 { border-color: rgba(123, 216, 143, .35); background: rgba(123, 216, 143, .07); border-radius: 60px; padding: 16px 18px 18px; }
+.arb-zone.pond .arb-band.b2 { border-color: rgba(111, 183, 232, .55); background: rgba(111, 183, 232, .16); }
+.arb-zone.pond .arb-band.b3 { border-color: rgba(111, 183, 232, .75); background: rgba(111, 183, 232, .26); min-height: 120px; }
+.arb-zone.meadow { border: 2px dashed rgba(243, 168, 59, .5); background: rgba(243, 168, 59, .08); border-radius: 60px 60px 30px 30px; padding: 18px; display: grid; gap: 10px; }
+.arb-sh { font-family: var(--display); font-size: 12px; letter-spacing: .16em; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arb-flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; align-content: flex-start; padding: 3px; }
+.arb-add { flex: none; min-height: 48px; padding: 0 12px; border-radius: 24px; border: 2px dashed var(--personal); background: transparent; color: var(--personal); font-family: var(--display); font-size: 12px; letter-spacing: .12em; white-space: nowrap; cursor: pointer; }
+.arb-zone.pond .arb-add { border-color: var(--water); color: var(--water); }
+.arb-zone.meadow .arb-add { border-color: var(--farm); color: var(--farm); }
+.arb-it { flex: none; display: flex; align-items: center; justify-content: center; text-align: center; padding: 2px 6px; overflow: hidden; overflow-wrap: anywhere; color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.1; cursor: pointer;
+  width: 92px; height: 56px; background: rgba(200, 164, 107, .22); border: 3px solid #c8a46b; border-radius: 6px; }
+.arb-it[aria-pressed="true"] { outline: 3px solid var(--hero); outline-offset: 2px; }
+.arb-it.v { width: 56px; height: 92px; }
+.arb-it.k-inground { width: 112px; background: rgba(150, 110, 70, .28); border: 2px dashed #b08a5a; border-radius: 18px; }
+.arb-it.k-inground.v { width: 56px; height: 112px; }
+.arb-it.k-border { width: 160px; height: 48px; background: rgba(201, 155, 196, .22); border: 2px solid var(--chrome-a); border-radius: 24px; }
+.arb-it.k-border.v { width: 48px; height: 140px; }
+.arb-it.k-pots, .arb-it.k-pots.v { width: 48px; height: 48px; padding: 2px; background: rgba(157, 176, 255, .18); border: 2px dotted var(--work); border-radius: 50%; font-size: 10px; }
+.arb-it.k-trees, .arb-it.k-trees.v { width: 60px; height: 60px; background: rgba(123, 216, 143, .18); border: 2px solid var(--ok); border-radius: 50%; font-size: 11px; }
+.arb-it.k-compost, .arb-it.k-compost.v { width: 72px; height: 56px; background: rgba(157, 151, 140, .2); border: 2px solid var(--dim); }
+.arb-it.k-water { background: rgba(111, 183, 232, .3); border: 2px solid var(--water); border-radius: 28px; }
+.arb-it.k-marginal { width: 86px; height: 50px; background: rgba(86, 199, 184, .22); border: 2px solid var(--personal); border-radius: 25px; }
+.arb-it.k-grasses { width: 86px; height: 50px; background: rgba(123, 216, 143, .12); border: 2px dashed var(--ok); border-radius: 10px; }
+.arb-it.k-meadow { width: 130px; background: rgba(243, 168, 59, .18); border: 2px dashed var(--farm); border-radius: 28px; }
+/* the side panel: adding, and one bed */
+.arb-ed { background: var(--panel); border-radius: 30px 22px 22px 22px; padding: 16px 18px; gap: 11px; }
+.arb-pl, .arb-jl { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.arb-pl li, .arb-jl li { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 2px 2px 2px 14px; border-radius: 24px; background: var(--panel-2); }
+.arb-pl li > span, .arb-jl .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.arb-jl .s { width: 68px; flex: none; font-family: var(--display); font-size: 13px; letter-spacing: .12em; color: var(--dim); }
+.arb-jl small { display: block; color: var(--dim); font-size: 14px; }
+.arb-x { width: 44px; height: 44px; flex: none; border-radius: 22px; border: 0; background: var(--line); color: var(--fg); font-size: 14px; cursor: pointer; }
+.arb-addrow { display: flex; gap: 8px; align-items: center; }
+.arb-addrow input { flex: 1; min-width: 0; height: 46px; border-radius: 23px; border: 2px solid var(--line); background: #0d0e13; color: var(--fg); font-family: var(--body); font-size: 17px; padding: 0 14px; }
+.arb-tips { display: grid; gap: 6px; }
+.arb-tip { display: block; width: 100%; min-height: 48px; padding: 8px 14px; border-radius: 18px; border: 2px dashed var(--line); background: transparent; color: var(--fg); font-family: var(--body); font-size: 16px; text-align: left; cursor: pointer; }
+.arb-tip b { font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: .12em; color: var(--farm); }
+.arb-tip small { display: block; color: var(--dim); font-size: 14px; }
+.arb-end { align-items: center; margin-top: 6px; }
+.arb-fill { flex: 1; }
+/* QUICK GLANCE */
+.arb-g2 { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+.arb-gside { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.arb-gside > .chip { align-self: flex-start; }
+.arb-mini { position: relative; width: 100%; max-width: 300px; aspect-ratio: 300 / 330; }
+.arb-gmain { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.arb-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.arb-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 20px; border: 0; background: var(--panel); color: var(--fg); font-family: var(--body); text-align: left; cursor: pointer; min-height: 96px; }
+.arb-card.done { background: #0d0e13; }
+.arb-card .r { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.arb-ztag { height: 24px; line-height: 24px; padding: 0 10px; border-radius: 12px; font-family: var(--display); font-size: 12px; letter-spacing: .14em; background: var(--personal); color: var(--ink); white-space: nowrap; flex: none; }
+.arb-ztag.pond { background: var(--water); }
+.arb-ztag.meadow { background: var(--farm); }
+.arb-card .it { flex: 1; min-width: 0; font-size: 13px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arb-box { width: 26px; height: 26px; flex: none; border-radius: 13px; border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+.arb-card.done .arb-box { background: var(--ok); border-color: var(--ok); color: var(--ink); }
+.arb-card b { font-family: var(--display); font-size: 20px; font-weight: 600; letter-spacing: .05em; }
+.arb-card.done b { text-decoration: line-through; color: var(--dim); }
+.arb-card small { font-size: 14px; color: #c9c2b6; }
+@media (max-width: 820px) {
+  .arb-cols, .arb-g2 { grid-template-columns: minmax(0, 1fr); }
+  .arb-mini { max-width: 260px; }
+  .arb-zone.ring { border-radius: 36px; padding: 10px; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(64px, .5fr) minmax(0, 1fr); }
+  .arb-zhome { border-radius: 24px; font-size: 12px; letter-spacing: .1em; padding: 6px; }
+}

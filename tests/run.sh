@@ -98,7 +98,7 @@ PY
 # A lane is: name|environment|tests…   Comments name what each test covers.
 LANES=(
   "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e67.test.js app_e2e68.test.js app_e2e71.test.js app_e2e72.test.js app_e2e73.test.js app_e2e75.test.js app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js"
-  "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js"
+  "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
   "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js app_e2e79.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
@@ -160,6 +160,7 @@ LANES=(
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
+#   app_e2e83      ARBORETUM (2.71): the empty map, Zone 1 with four raised beds behind and three on the left with pots between, order and sides, kind, two-tap remove, plantings, jobs and typical jobs, the pond's depth bands, QUICK GLANCE by season with ticks for this turn of the season, the garden's name, a reload, COMPUTER, 400 px wide
 #   app_e2e82      HOLODECK waits out a lost NAS (2.68): requests refused → WAITING FOR THE NAS, nothing marked, TV on, LEVEL not paused, the show picks up when the NAS is back; the NAS answering 404 is logged with its code
 #   app_e2e81      FAMILY CALENDAR and the WEEK strip (2.67, bridge 1.42): not linked (SYSTEMS OFF), linked (read-only, colour), one bar Fri to Sun cut on the right, the Monday piece cut on the left, no overlaps, opens READ-ONLY, hide toggle, MONTH, never in CAPTURE, ASK's snapshot, portrait
 #   app_e2e80      WEEKLY NOTION EXPORT (2.65, bridge 1.41): SYSTEMS row (last copy, left out, OPEN IN DRIVE), EXPORT NOW and following a run, stalled, no Drive access, Drive full, not scheduled, older bridge; the condition (failed, over 9 days); ASK sends break names; phone

@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D57; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D67; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.70.0**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.71.0**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -345,6 +345,12 @@ App (one block before ASTROMETRICS): `ml` state, `mlView` (`tos.mealview.v1`: ta
 
 App: `ml.imp` (`mlImpHtml`, tabs link / text / photo; PASTE reads the clipboard; `mlImpGo` → the editor `ml.form` with `full`, `photo`, `via`; `mlImported` shows what was found). `mlQueue` keeps an unsent `full` when the same meal is saved again; `mlApply` never keeps `full` in `tos.meals.v1`. Cards with a photo get `.pic`. `mlAskRoute` (called first in `askSend`): a link with recipe/pinterest/pin.it, or "add/import/save (this) recipe", closes ASK and opens the import (it calls `go("meals")` before setting `ml.imp`, because tapping MEALS again clears it). COOK `ml.cook` {id, data, got, step}: `mlCookOpen` (from `data-mlcook` on TONIGHT, the day bar and the editor) reads `mealrecipe`, keeps the last 20 in `tos.mealrc.v1` (cache); `mlWake` holds a screen wake lock while open; `checkIdle` waits while COOK is open; leaving MEALS ends it. `mlView.big` is A+. Mock: `mealimport` scripted (a URL with "blocked" refuses), `mealrecipe` from saved `full`. Tests: `bridge_meals.test.js` (1.40 part), `app_e2e73`.
 
+## ARBORETUM (app 2.71, D67)
+
+Timothy's design (2026-11-08): mockup D SKYGARDEN, revised (fabric squares dropped, the Pond added as its own zone, sides as ordered strips), built empty. Module `arb` (an inner IIFE after MEALS; CSS `arb-`; `--water` token), station `arboretum` (RESOURCES), `renderArboretum`, header from `arb.head()`, clicks `arb.click(b)` (screen-guarded), `arbGo(view, zid)` for COMPUTER (go() alone would turn a second tap into the map). Tapping ARBORETUM again: `arb.home()`. No bridge or Notion change.
+
+Data: `tos.arb.v1` `{name, items[{id, zone z1|z2|z3|pond|meadow, side, name, type, plants[], jobs[{id, s, t, n}]}], done{jobId: cycle}}`, read fresh on every draw (`data()` cleans it), written whole (`save`); BK_KEYS; PROFILE SYNC group ARBORETUM, row `arb`. Item order in `items` is the order along a side. Sides: ring BACK/LEFT/RIGHT/FRONT (LEFT and RIGHT draw beds upright, `.v`), pond BANK/MARGIN/SHELF/DEEP (nested `.arb-band` b0..b3), meadow FAR/MIDDLE/NEAR. Kinds per zone in `ZKINDS`; ≤ 400 items, 40 plants, 30 jobs each. The garden's name is typed on the iPad (`#arbGName`; never put Timothy's real garden name or address in the repo). Seasons are meteorological (`seasonOf`; EARLY/MID/LATE by month); `cycle(season, date)` names the current or next turn (a winter by its January's year), so a tick lapses when the season comes round again. Typical jobs (`TIPS` by plant words, `KTIPS` by kind) are only offered. The map is a 600 × 630 drawing placed in percentages (`P()`), the glyph strips in `GLYPH`; QUICK GLANCE's small map is 300 × 330. Name and garden-name fields save on `input` (no redraw); Return in a plant or job box adds it. Test: `app_e2e83` (lane log-storage, :8105 only for the link).
+
 ## AUDIO, formerly STORAGE (app 2.16; inside HOLODECK since 2.47)
 
 - NAS: UGREEN DXP2800, UGOS Pro 1.18.1. Its own HTTPS cert is self-signed and its WebDAV refuses cross-site reads, so the app uses a **relay**: a `timothyos` Docker project with Tailscale (userspace, `TS_SERVE_CONFIG` proxies the ts.net HTTPS name to 127.0.0.1:8080) and Caddy (`file_server browse`, read-only `:ro` mounts under `/media`, CORS for `https://tim3t.github.io`, token as `Authorization: Bearer` or `?k=`). Compose is in the README; UGOS ignores compose `configs:`, so config travels in env vars written to files by the entrypoint/command. Tailscale on the NAS is on Timothy's own account, separate from the existing tailscale container that the NAS's administrator runs; leave that one alone.
@@ -434,7 +440,7 @@ Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and res
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
 - **ENGINEERING:** doors; AUTO thermostat with two setpoints; scenes triggered by motion or presence (2.64 keeps to time, sunrise, sunset and a tap).
-- **Arboretum** (plants): next station (Timothy, 2026-11-04: MEALS first, then ARBORETUM). MEALS: done (2.59). Notes in Capture: done (INBOX, 2.41).
+- ~~**Arboretum**~~: done (2.71, D67), built empty for Timothy to fill. Ideas if he asks: garden jobs in the Morning Briefing or a Bridge panel, frost nights from the weather, a photo per bed.
 - **HOLODECK:** channels (2.46) and the arch with STORAGE as AUDIO (2.47) shipped after his mockup approvals. Nothing held.
 - **RESSIKAN Phase 2, held (raise as he refines):** POCKET GRID (knobs and punch-in effects), TILT (gyroscope filter), VOICE GRAINS (mic, stays on the iPad), SKY SONATA (SCIENCE's aircraft, Kp and passes as sound), Claude's "compose from a mood" (about 1¢), and sound that carries on outside the station (a pill, as STORAGE has). **Held as a future option, only if he asks where RESSIKAN can go:** paid AI music generators (Google Lyria, ElevenLabs Music, Stable Audio); Suno and Udio have no official API; MusicGen needs a GPU the NAS lacks. Safari has no Web MIDI.
 - **The SCIENCE group** (D50): a LISTENING POST when Timothy's digital shortwave antenna is up (band conditions already in SPACE WEATHER); other sensor stations he might add (a weather station, a BirdNET-Pi for the birds in his own yard, an ADS-B receiver of his own, a lightning detector).

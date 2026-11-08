@@ -39,7 +39,7 @@ On the NAS, only when you run it:
 | Part | Sections |
 |---|---|
 | [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), [Family calendar](#family-calendar-bridge-142), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
-| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) ([HOLODECK](#holodeck), [Converting videos](#converting-videos-fix-videos)) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
+| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) ([HOLODECK](#holodeck), [Converting videos](#converting-videos-fix-videos), [ARBORETUM](#arboretum)) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
 ---
@@ -785,6 +785,17 @@ Plan dinners, build the grocery list, and keep a record of what was for dinner, 
 - **COMPUTER:** "Record dinner", "Plan meals", "Grocery list", and each meal by name. The Morning Briefing knows tonight's dinner.
 - **No signal:** changes wait on the iPad and go when the Google bridge answers, in order.
 
+### ARBORETUM
+
+The garden from above: the house as a droplet, **Zones 1 to 3** as ripples around it, **the Pond** (its own zone, between Zones 1 and 2) and **the Meadow** behind, out to the apiary. It starts empty. Everything stays on the iPad, goes to your other iPad with PROFILE SYNC (row **ARBORETUM**), and is kept in backups; nothing goes to Notion, so the weekly Notion export doesn't include it.
+
+- **MAP:** tap a ripple, the pond or the meadow (or a zone in the list) to open it. Each row shows what's in the zone and how many of this season's jobs are left; the beds and pots you add show as small marks on their side of the house. The card under the list shows what's to do now (it opens QUICK GLANCE). **THE GARDEN'S NAME** goes at the top of every ARBORETUM screen.
+- **A zone:** four sides, **BACK** (toward the meadow), **LEFT**, **RIGHT** and **FRONT**, each holding as many items as you like, in the order they really sit (left and right read top to bottom). Under **ADD WHAT** pick raised bed, in-ground, border, pot, tree or compost, then tap **+** on the side it goes on. New beds are numbered (Raised bed 1, 2…).
+- **One bed:** tap it. **NAME**, **KIND**, **SIDE** (move it to another side), **◂ EARLIER / LATER ▸** (along its side), **PLANTED** (type a plant, Return or ADD; ✕ removes one) and **THROUGH THE YEAR** (pick a season, type the job). **TYPICAL · TAP TO ADD** offers usual jobs for what's planted and the kind of bed (roses: prune in late winter, feed in spring, deadhead in summer; a raised bed: top up with compost). **REMOVE** asks twice; **DONE** closes it.
+- **The Pond** opens in depth bands, one inside the next: **BANK** (grasses and bog), **MARGIN** (shallow edge), **SHELF** (the planting ledge) and **DEEP WATER**, with its own kinds: deep water, marginal, grasses, pot. **The Meadow** has three stretches: the far end by the apiary, the middle, and near the house.
+- **QUICK GLANCE:** every job for a season, as cards with the zone and bed: **WINTER**, **SPRING**, **SUMMER**, **AUTUMN** (the current one marked NOW). Tap a zone on the small map for its jobs only, **ALL ZONES** for everything. Tap a card when it's done: the tick counts for this season only, so the job is back next year. Seasons follow the calendar months (winter is December to February).
+- **COMPUTER:** "Garden jobs this season", "Garden map", and each zone by name.
+
 ## SCIENCE
 
 ### SCIENCE (the hub)
@@ -847,7 +858,7 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 - **ALL / BRIDGE / HOLODECK / PAGE…** narrow the list. **COPY REPORT** copies the whole log with the app and bridge versions and the iPadOS version, ready to paste into a message to Claude. **CLEAR** asks twice.
 - Kept 30 days (200 lines at most), never sent anywhere and never in backups. Keys, tokens and PINs are blanked out of every line.
 
-**PROFILE SYNC** (2.54, bridge 1.36) keeps HUB and MOBILE alike: HOLODECK's channels, AUDIO's places, pins, intent lines and bearings, ignored events, balance targets, Home Assistant devices, session topic lists, landmarks, Standby and the rest of the iPad-only settings. It goes through your Google bridge and is kept in the bridge's own private storage in your Google account.
+**PROFILE SYNC** (2.54, bridge 1.36) keeps HUB and MOBILE alike: HOLODECK's channels, AUDIO's places, pins, intent lines and bearings, ignored events, balance targets, Home Assistant devices, the ARBORETUM garden, session topic lists, landmarks, Standby and the rest of the iPad-only settings. It goes through your Google bridge and is kept in the bridge's own private storage in your Google account.
 
 1. On the iPad you use most: **SYSTEMS → PROFILE SYNC → THIS IPAD IS → HUB**, then **TURN ON**. Its settings become the profile.
 2. On the other: **MOBILE**, **TURN ON**. It lists where the two iPads differ: **MERGE** (recommended: channels, landmarks and ignored events from both, otherwise the newer change), **USE HUB'S** or **USE THIS IPAD'S**. It reloads with the result.

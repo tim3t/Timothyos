@@ -2,6 +2,15 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.71.0 · 2026-11-08
+- **ARBORETUM, a new station (RESOURCES).** Your garden from above, as you sketched it: the house as a droplet, **Zones 1 to 3** as ripples around it, **the Pond** (its own zone) and **the Meadow** out to the apiary. It starts empty, for you to build out.
+  - **MAP:** tap a ripple, the pond, the meadow, or a zone in the list beside it. Each zone shows what's in it and how many of this season's jobs are left; the beds and pots you add show as small marks on their side of the house. The card below lists what's to do now. Type the garden's name under the list.
+  - **A zone:** its four sides (BACK, LEFT, RIGHT, FRONT) each hold **as many beds, pots and plots as you like, in the order they really sit**. Pick what to add (raised bed, in-ground, border, pot, tree, compost), then tap **+** on its side. Tap anything to rename it, change its kind, move it to another side, shift it ◂ EARLIER or LATER ▸, list what's planted, and give it jobs through the year. **REMOVE** asks twice.
+  - **The Pond** opens in depth bands, bank, margin, shelf and deep water, with its own kinds (deep water, marginal, grasses, pot). **The Meadow** in three stretches, from the house out to the apiary end.
+  - **Jobs:** type one for any season, or tap a **typical** one Bridge offers from what's planted (roses, tomatoes, garlic, water lilies, grasses and more) and the kind of bed.
+  - **QUICK GLANCE:** every job for a season, across the garden or one zone (tap it on the small map). Tick a job when it's done; the tick belongs to this season, so the job comes back next year.
+  - Both iPads share it through **PROFILE SYNC** (new row, ARBORETUM), and backups keep it. **COMPUTER:** "Garden jobs this season", "Garden map", and each zone.
+
 ## 2.70.0 · 2026-11-08
 - **HOLODECK's guide scrolls endlessly.** With **AUTO-SCROLL** on, channel 1 follows the last channel, then 2, 3 and round again, rolling without the old pause and jump back to the top. Scrolling the guide by hand loops the same way while AUTO-SCROLL is on, and a tap on a repeated row tunes in as usual. With it off, or when every channel fits, nothing changes.
 - **Fixed (guide):** when the guide opened during a commercial break, its first show took that break as well as its own, so it looked 19 to 22 minutes long. The break now stays with the show before it, shown at the left edge.
