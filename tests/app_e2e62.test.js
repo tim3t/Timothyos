@@ -89,14 +89,18 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   // NETWORK with breaks: a break after every 10-minute episode, each folded into its episode
   await p.click('[data-hd="tune"]');   // off
   await p.click('[data-hdkey="2"]'); await p.click('[data-hdkey="ok"]');
-  g = await cells(p, 2);
+  // the guide fills in as the channel's folders and lengths arrive: read it once it has settled (every block named, and
+  // the same two reads a second apart), as a slow full run once caught it half built
+  const settled = async (n, ms = 15000) => { const t = Date.now(); let a = null; for (;;) { const c = await cells(p, n), k = JSON.stringify(c);
+    if (c.length >= 5 && c.every(x => x.what) && k === a) return c; if (Date.now() - t > ms) return c; a = k; await p.waitForTimeout(1000); } };
+  g = await settled(2);
   assert.ok(g.length >= 5 && g.every(x => [12, 13, 15, 16].includes(mins(x.range))), 'every episode with its break: ' + JSON.stringify(g));
   const later = g.map(x => x.range + ' ' + x.what);
 
   // from the clock: the same guide after a reload
   await p.reload(); await visual();
   await p.waitForFunction(() => document.querySelectorAll('.hd-grow').length === 2 && document.querySelectorAll('.hd-grow')[1].querySelectorAll('.hd-gc:not(.wait)').length >= 5, null, { timeout: 15000 });
-  assert.deepStrictEqual((await cells(p, 2)).map(x => x.range + ' ' + x.what), later);
+  assert.deepStrictEqual((await settled(2)).map(x => x.range + ' ' + x.what), later);
 
   // a length measured under 2.52.0 (kept with the episodes) moves to the commercials' own store
   const na = await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); l['/Video/Commercials/Older One.webm'] = { s: 5, z: 1 }; localStorage.setItem('tos.hololen.v1', JSON.stringify(l)); return Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length; });

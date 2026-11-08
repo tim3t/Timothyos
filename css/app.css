@@ -2832,6 +2832,9 @@ body:has(.hd-tv.big) { overflow: hidden; }
 .hd-att { color: var(--chrome-d); }
 .hd-bad { color: var(--dim); }
 .hd-bad b { color: var(--chrome-d); font-family: var(--display); font-weight: 400; font-size: 12px; letter-spacing: .14em; margin-right: 4px; }
+.hd-bad + .hd-bad { margin-top: 6px; }
+.hd-bad.net b { color: var(--warn); }
+.hd-badfix { display: block; margin-top: 4px; color: var(--fg); }   /* 2.69: what to do about it */
 .hd-pm { width: 44px; height: 44px; border-radius: 22px; border: 2px solid var(--line); background: transparent; color: var(--fg); font-family: var(--display); font-size: 22px; line-height: 1; padding: 0; }
 .open > .hd-chrow .hd-pm { background: var(--chrome-c); border-color: var(--chrome-c); color: var(--ink); }
 .hd-more { display: grid; gap: 8px; padding: 2px 0 4px 50px; min-width: 0; }

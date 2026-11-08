@@ -21,7 +21,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');   /* not the morning briefing: it would ask the shared simulated bridge for voice while e2e48 counts those calls */ localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 86400000 }], ch: 1, look: 'crt', muted: false }));
   }, [K, U, R]);

@@ -16,7 +16,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');   /* not the morning briefing: it would ask the shared simulated bridge for voice while e2e48 counts those calls */ localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     const pr = Date.now() - 86400000;
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: pr }, { id: 2, name: 'Other Channel', dir: '/Video/Other Channel', premiere: pr }], ch: 1, look: 'crt', muted: true }));
@@ -58,6 +58,20 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await until(async () => (await log()).some(e => e.a === 'NAS answered' && /HTTP 404/.test(e.m)), 10000);
   await until(playing, 20000);   // LEVEL's backup or the next show carries on
   await fetch(R + '/__fail?n=0');
+
+  // ---- 2.69: what a failure marks. With LEVEL off (no backup to hand over to), a network error on a show that had
+  // started (MediaError 2, the NAS still answering) marks it only to try again later; a decode error (3) marks it for good
+  await p.click('[data-hd="level"]'); await until(playing, 15000);
+  const failNow = code => p.evaluate(code => { const v = document.getElementById('hdVideo'), src = decodeURIComponent(v.getAttribute('src').split('?')[0]).replace(/^https?:\/\/[^/]+/, '');
+    Object.defineProperty(v, 'error', { configurable: true, get: () => ({ code, message: '' }) }); v.dispatchEvent(new Event('error')); return src; }, code);
+  const why = path => p.evaluate(path => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'); return l[path] && l[path].s < 0 ? l[path].why : null; }, path);
+  const f2 = await failNow(2);
+  await until(async () => (await why(f2)) !== null, 8000);
+  assert.strictEqual(await why(f2), 'net', 'a network error is tried again, never marked for good');
+  await until(playing, 15000);
+  const f3 = await failNow(3);
+  await until(async () => (await why(f3)) !== null, 8000);
+  assert.strictEqual(await why(f3), 'format', 'a decode error is');
 
   await b.close();
   console.log('errors', errs);

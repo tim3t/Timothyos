@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.69.0 · 2026-11-08
+- **UNREADABLE videos, sorted out.**
+  - A network error while a show plays no longer marks that video as one the iPad can't decode for good; it's tried again after 10 minutes. Only a real decode failure marks it.
+  - An opened channel row now says why each one is out: **CAN'T DECODE ON THIS IPAD** (with what to do) or **COULDN'T REACH · TRYING AGAIN AT …**.
+- **fix-videos, a NAS tool** (README → HOLODECK → Converting videos): finds the videos the iPad can't play (mostly YouTube downloads in VP9 or AV1), reports them first, then converts each to H.264 in place, same name, same folder, same date, so nothing moves in HOLODECK. The originals go to a folder outside Video (Holodeck converts), never deleted.
+
 ## 2.68.0 · 2026-11-07
 - **HOLODECK rides out a lost connection to the NAS.** Your error log showed the cause of "five videos in a row didn't load": every video failed within two seconds, the plain backup player too, because the iPad couldn't reach the NAS for a moment (most likely just after waking, while Wi-Fi and Tailscale reconnect). Not LEVEL, not the files.
   - When a video won't load, HOLODECK now asks the NAS first. No answer: the screen says **WAITING FOR THE NAS**, and the same channel is tried again at its live point after 2, 4, 8, 15 and 30 seconds, then every 30 seconds, for up to 5 minutes. When the NAS is back, the show picks up. Nothing is marked unplayable, nothing counts toward "five in a row", and LEVEL stays on.

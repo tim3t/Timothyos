@@ -685,7 +685,32 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - Anything else: convert once: `ffmpeg -i "in.avi" -c:v libx264 -crf 20 -preset slow -c:a aac -b:a 160k -movflags +faststart "out.mp4"`
   - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
-- **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order), and measures again any video that couldn't be read. The channel list counts videos that couldn't be read as **unreadable**.
+- **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order), and measures again any video that couldn't be read. The channel list counts videos that couldn't be read as **unreadable**; open a channel's row (**+**) to see which and why: **CAN'T DECODE ON THIS IPAD** (the file is there, the picture isn't one the iPad can play: convert it, below) or **COULDN'T REACH · TRYING AGAIN AT …** (the NAS didn't answer; it's tried again on its own after 10 minutes).
+- **Converting videos (fix-videos, 2.69).** Many YouTube downloads are .mp4 files holding VP9 or AV1 video, which the iPad can't decode: they show as CAN'T DECODE ON THIS IPAD. `tools/fix_videos.py` converts them on the NAS **in place**: each converted file goes back into the same folder under the same name (and date), so the Video folder's layout never changes and each video keeps its place in its channel. Only the **originals** move out, to a folder of your choice outside Video (yours is **Holodeck converts**, one level up), in the same folder structure, as a safety copy. Nothing is deleted.
+  1. **UGOS → Docker → Project → Create**, name `fix-videos`, and paste, with the two paths replaced by your Video folder and your originals folder:
+     ```yaml
+     services:
+       fix-videos:
+         image: python:3.12-slim
+         container_name: fix-videos
+         restart: "no"
+         volumes:
+           - "/PATH/TO/Video:/video"
+           - "/PATH/TO/Holodeck converts:/keep"
+         entrypoint: ["sh", "-c"]
+         command:
+           - |
+             set -e
+             apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+             python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/FIX_VIDEOS_COMMIT/tools/fix_videos.py', '/tmp/fix_videos.py')"
+             nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep
+     ```
+  2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). The last line totals it. Nothing is changed yet.
+  3. Try three: add ` --go --limit 3` to the last line, **Redeploy**, and read the log: each says how long it took. On the iPad, **LOOK AGAIN**, then watch those three.
+  4. All of them: change the end to ` --go` and **Redeploy**. One file at a time at low priority; overnight is fine, and it's safe to stop (Stop the project): the file in progress is left as it was, and the next run carries on. HOLODECK picks up each one on **LOOK AGAIN**.
+  5. When the converted ones play well, empty **Holodeck converts** (or keep it as an archive).
+  - Slow? ` --preset veryfast` is quicker (a little bigger files). Better quality: ` --crf 18`. One channel only: ` --only "Unsolved Mysteries"`.
+  - The container sees only those two folders, from one fixed commit of this repository; it talks to nothing but Debian's and GitHub's servers while it sets up, and holds no keys.
 - **NETWORK in detail** (tap **NETWORK** beside a channel in the channel list; **IN ORDER** switches back). For a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
   - A show at random each time, never the same show twice in a row (2.53.5: no more blocks of two episodes of one show).
@@ -956,7 +981,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 | A scene is marked **EDITED IN HOME ASSISTANT** | It was changed in the Home Assistant app into something Bridge's IF / THEN can't show. Run and pause it here; change it in Home Assistant, or delete it and build it again in Bridge |
 | HOLODECK or ENGINEERING can't reach the NAS | Tailscale on the iPad must be on and signed in; check the relay address and token in **SYSTEMS → NAS RELAY** (**SAVE AND TEST**), and that the address with `?k=` opens in Safari (NAS relay, step 5) |
 | A folder shared on the NAS doesn't show in AUDIO or + ADD CHANNEL | Redeploy the `timothyos` project after adding its line, check it in Safari (NAS relay, Sharing folders), then open AUDIO again. Video channels must be under `/media/Video/` |
-| Tuning in skips through titles (a note says one "can't be played on this iPad") | Those videos have a readable header but a picture the iPad can't decode, often a download from before yt-fetch asked for H.264. They're left out on that iPad from then on; open the channel's row (**+**) to see them under **CAN'T PLAY HERE**, convert or re-download them as MP4 with H.264, then **LOOK AGAIN** |
+| Tuning in skips through titles (a note says one "can't be played on this iPad") | Those videos have a readable header but a picture the iPad can't decode, often a download from before yt-fetch asked for H.264. They're left out on that iPad from then on; open the channel's row (**+**) to see them under **CAN'T DECODE ON THIS IPAD**, convert them with **fix-videos** (HOLODECK → Converting videos), then **LOOK AGAIN** |
 | HOLODECK freezes on a new iPad (taps stop answering) | Fixed in 2.53.1: update Bridge (reload). A new or restored iPad measures your videos afresh (lengths aren't in backups); it does this gently now, and commercials only as they're needed |
 | HOLODECK says a video wouldn't play, or TUNE IN stays grey | Grey with MEASURING: wait for the first lengths (a few seconds a video). **THE IPAD CAN'T PLAY THESE VIDEOS**: the files are named .mp4 (or similar) but hold video the iPad can't decode; convert them to MP4 with H.264 (HOLODECK → VISUAL, What plays), then **LOOK AGAIN**. **COULDN'T READ THESE VIDEOS FROM THE NAS**: a slow or dropped connection; it tries again on its own every 10 minutes, or tap **LOOK AGAIN** |
 | Music stops at the end of a track while Bridge is in the background | Files over 150 MB, or a slow NAS link, can stall the hand-off: keep Bridge in Split View or Slide Over, or open it to carry on |

@@ -27,7 +27,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');   /* not the morning briefing: it would ask the shared simulated bridge for voice while e2e48 counts those calls */ localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Level Test', dir: '/Video/Level Test', premiere: Date.now() - 34000 }], ch: 1, look: 'crt', muted: false }));
   }, [K, U, R]);
@@ -146,7 +146,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   const lensP = await p.evaluate(() => localStorage.getItem('tos.hololen.v1'));   /* the lengths already measured, so it can tune in at once */
   await p2.evaluate(([k, u, r, ls]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');   /* not the morning briefing: it would ask the shared simulated bridge for voice while e2e48 counts those calls */ localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Level Test', dir: '/Video/Level Test', premiere: Date.now() - 10000 }], ch: 1, look: 'crt', muted: false }));
     localStorage.setItem('tos.hololen.v1', ls);

@@ -38,7 +38,8 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
   await p.reload(); await p.waitForTimeout(2500);
   await p.click('#status'); await until(async () => /FAMILY Family OK/.test(await txt(p, '.calrow.a-family')));
   assert.ok(/WORK \+ FAMILY READ-ONLY · /.test(await txt(p, '.sys')), 'read-only, like Work');
-  assert.strictEqual(await p.$eval('.calrow.a-family', e => getComputedStyle(e).getPropertyValue('--c').trim()), '#ffd0e8');
+  // read from the row on the page at that moment (SYSTEMS redraws as loads finish; a replaced row has no style)
+  await until(async () => (await p.evaluate(() => { const e = document.querySelector('.calrow.a-family'); return e ? getComputedStyle(e).getPropertyValue('--c').trim() : ''; })) === '#ffd0e8', 5000);
 
   // ---- WEEK: the trip is one bar over Friday to Sunday, cut square on the right; the concert on Wednesday
   await p.click('[data-screen="week"].nav'); await p.waitForSelector('.wkads');

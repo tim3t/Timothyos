@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.68.0";
+  var VERSION = "2.69.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -11629,7 +11629,11 @@
     }
     function badList(x) {   /* an opened row names the videos this iPad can't play (2.53.4), so they can be found and converted */
       var s = F[x.dir], bad = s && s.play ? s.play.filter(unreadable) : []; if (!bad.length) return "";
-      return '<small class="hd-bad"><b>CAN\'T PLAY HERE</b> ' + esc(bad.slice(0, 6).map(function (it) { return it.f.name.replace(/\.[^.]+$/, ""); }).join(" · ")) + (bad.length > 6 ? " · and " + (bad.length - 6) + " more" : "") + "</small>";
+      var names = function (l) { return esc(l.slice(0, 6).map(function (it) { return it.f.name.replace(/\.[^.]+$/, ""); }).join(" · ")) + (l.length > 6 ? " · and " + (l.length - 6) + " more" : ""); };
+      var fmt = bad.filter(function (it) { return rec(it).why === "format"; }), gone = bad.filter(function (it) { return rec(it).why !== "format"; });
+      var back = gone.length ? Math.max.apply(null, gone.map(function (it) { return (rec(it).at || 0) + HD_RETRY_MS; })) : 0;   /* 2.69: why each one, and what to do */
+      return (fmt.length ? '<small class="hd-bad"><b>CAN\'T DECODE ON THIS IPAD (' + fmt.length + ')</b> ' + names(fmt) + '<span class="hd-badfix">Convert them on the NAS with fix-videos (README → HOLODECK → Converting videos), then LOOK AGAIN.</span></small>' : "") +
+        (gone.length ? '<small class="hd-bad net"><b>COULDN\'T REACH (' + gone.length + ') · TRYING AGAIN AT ' + hm(new Date(back)) + "</b> " + names(gone) + "</small>" : "");
     }
     function chanSum(x) {   /* a channel's row folded: its style, and anything that needs a look */
       var s = F[x.dir], w = "";
@@ -11725,7 +11729,7 @@
       v.addEventListener("ended", function () { if (X.v !== v || !X.on || !X.cur) return; if (X.sleep === "end") { sleepOff("Sleep timer: the TV went off at the end of the show"); return; } var n = next(X.cur); if (n) start(n, false); else resume(); });
       v.addEventListener("error", function () {   /* its header loaded (or a decode error): the iPad can't decode it. Before that: the NAS or the network (a 404 or an outage reads like an unsupported file), tried again later */
         if (X.v !== v || !X.on || !X.cur || !v.getAttribute("src") || v.getAttribute("src") === VA_SILENT) return;
-        var c = X.cur, me = v.error, fmt = X.meta || (me && me.code === 3);
+        var c = X.cur, me = v.error, fmt = !!(me && (me.code === 3 || (me.code === 4 && X.meta)));   /* 2.69: a decode error, or "not supported" once its header was read; a network error (2) never marks a file for good */
         hdErr(fmt ? "video didn't decode" : "video didn't load", "MediaError " + (me ? me.code + (me.message ? " · " + me.message : "") : "?"), c);
         if (!fmt) { nasGate(v, c, function () { afterFail(v, c, fmt); }); return; }   /* 2.68: is the NAS there at all? */
         afterFail(v, c, fmt);

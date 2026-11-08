@@ -38,7 +38,8 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   // the folded row says so; an opened row names them
   await p.waitForFunction(() => /\d UNREADABLE/.test((document.getElementById('hdSum1') || {}).textContent || ''));
   await p.click('[data-hdopen="1"]');
-  assert.ok(/^CAN'T PLAY HERE .*Broken Picture/.test(await txt(p, '.hd-bad')), await txt(p, '.hd-bad'));
+  assert.ok(/^CAN'T DECODE ON THIS IPAD \(\d\) .*Broken Picture.*Convert them on the NAS with fix-videos \(README → HOLODECK → Converting videos\), then LOOK AGAIN\.$/.test(await txt(p, '.hd-bad')), await txt(p, '.hd-bad'));   /* 2.69: why, and what to do */
+  assert.strictEqual(await p.locator('.hd-bad.net').count(), 0, 'none of them only unreachable');
 
   // the next time round: it plays, and never tries one already left out
   await p.click('[data-hd="tune"]');   // off
@@ -68,6 +69,9 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await q.waitForFunction(() => /Five videos in a row didn't load|None of this channel's videos would load/.test(document.getElementById('content').innerText), null, { timeout: 30000 });
   assert.ok(await q.$('.hd-tune'), 'off, TUNE IN offered again');
   assert.ok(await q.evaluate(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.why === 'format')), 'an outage never marks a video unplayable');
+  if (await q.$('[data-hdopen="1"]') && !(await q.$('.hd-more:not([hidden]) .hd-bad'))) await q.click('[data-hdopen="1"]');
+  const net = await q.$('.hd-bad.net');
+  if (net) assert.ok(/^COULDN'T REACH \(\d+\) · TRYING AGAIN AT \d\d:\d\d /.test((await net.innerText()).replace(/\s+/g, ' ')), 'a refused file says it will be tried again');
   await fetch(R + '/__fail?n=0');
 
   await fetch(R + '/__reset');

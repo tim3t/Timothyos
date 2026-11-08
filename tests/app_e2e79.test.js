@@ -21,7 +21,7 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', '"today"');
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');   /* not the morning briefing: it would ask the shared simulated bridge for voice while e2e48 counts those calls */ localStorage.setItem('tos.start.v1', '"today"');
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'engineering']));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.ha.v1', JSON.stringify({ url: r + '/ha', token: 'ha-test-token' }));
