@@ -39,7 +39,7 @@ On the NAS, only when you run it:
 | Part | Sections |
 |---|---|
 | [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), [Family calendar](#family-calendar-bridge-142), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
-| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
+| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) ([HOLODECK](#holodeck), [Converting videos](#converting-videos-fix-videos)) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
 ---
@@ -686,31 +686,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
   - `+faststart` puts the index at the front, so a video starts and jumps to the middle quickly.
   - A whole series, every season folder at once (in the series folder): `for f in */*.mkv; do ffmpeg -n -i "$f" -c copy -movflags +faststart "${f%.*}.mp4"; done`
 - **LOOK AGAIN** reads every channel's folder afresh after you add videos (new ones take their place in the order), and measures again any video that couldn't be read. The channel list counts videos that couldn't be read as **unreadable**; open a channel's row (**+**) to see which and why: **CAN'T DECODE ON THIS IPAD** (the file is there, the picture isn't one the iPad can play: convert it, below) or **COULDN'T REACH · TRYING AGAIN AT …** (the NAS didn't answer; it's tried again on its own after 10 minutes).
-- **Converting videos (fix-videos, 2.69).** Many YouTube downloads are .mp4 files holding VP9 or AV1 video, which the iPad can't decode: they show as CAN'T DECODE ON THIS IPAD. `tools/fix_videos.py` converts them on the NAS **in place**: each converted file goes back into the same folder under the same name (and date), so the Video folder's layout never changes and each video keeps its place in its channel. Only the **originals** move out, to a folder of your choice outside Video (yours is **Holodeck converts**, one level up), in the same folder structure, as a safety copy. Nothing is deleted.
-  1. **UGOS → Docker → Project → Create**, name `fix-videos`, and paste, with the two paths replaced by your Video folder and your originals folder:
-     ```yaml
-     services:
-       fix-videos:
-         image: python:3.12-slim
-         container_name: fix-videos
-         restart: "no"
-         volumes:
-           - "/PATH/TO/Video:/video"
-           - "/PATH/TO/Holodeck converts:/keep"
-         entrypoint: ["sh", "-c"]
-         command:
-           - |
-             set -e
-             apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-             python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/783fffdea2a5b21059608c8256df57fe7f7159b7/tools/fix_videos.py', '/tmp/fix_videos.py')"
-             nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep
-     ```
-  2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). The last line totals it. Nothing is changed yet.
-  3. Try three: add ` --go --limit 3` to the last line, **Redeploy**, and read the log: each says how long it took. On the iPad, **LOOK AGAIN**, then watch those three.
-  4. All of them: change the end to ` --go` and **Redeploy**. One file at a time at low priority; overnight is fine, and it's safe to stop (Stop the project): the file in progress is left as it was, and the next run carries on. HOLODECK picks up each one on **LOOK AGAIN**.
-  5. When the converted ones play well, empty **Holodeck converts** (or keep it as an archive).
-  - Slow? ` --preset veryfast` is quicker (a little bigger files). Better quality: ` --crf 18`. One channel only: ` --only "Unsolved Mysteries"`.
-  - The container sees only those two folders, from one fixed commit of this repository; it talks to nothing but Debian's and GitHub's servers while it sets up, and holds no keys.
+- **UNREADABLE videos?** Most are downloads in a format the iPad can't decode: see [Converting videos (fix-videos)](#converting-videos-fix-videos) just below HOLODECK.
 - **NETWORK in detail** (tap **NETWORK** beside a channel in the channel list; **IN ORDER** switches back). For a folder of show folders (each show's episodes directly inside it, or in season folders inside it), programmed like a TV network:
   - Each broadcast day, from 6:00, has its own lineup, worked out from the date (nothing is stored; the guide and the other channels' line work as usual).
   - A show at random each time, never the same show twice in a row (2.53.5: no more blocks of two episodes of one show).
@@ -734,6 +710,35 @@ Folders on the NAS, through the relay, with an audio player for podcasts, music 
 - **Search this folder** (the box above the list) narrows the folder you're in by name; **ALL / UNPLAYED / IN PROGRESS** filter its audio files; **A TO Z / NEWEST** (and TRACK #) sort it.
 - **SLEEP** on the full player: 15 MIN, 30 MIN, 1 HOUR or END OF EPISODE pauses playback (the chip counts down). Standby then takes over as usual (see VISUAL).
 - **HIDE FOLDER** keeps a folder out of AUDIO on this iPad; **SYSTEMS → NAS RELAY** lists hidden folders with UNHIDE.
+
+### Converting videos (fix-videos)
+
+Many YouTube downloads are .mp4 files holding VP9 or AV1 video, which the iPad can't decode: they show as CAN'T DECODE ON THIS IPAD. `tools/fix_videos.py` converts them on the NAS **in place**: each converted file goes back into the same folder under the same name (and date), so the Video folder's layout never changes and each video keeps its place in its channel. Only the **originals** move out, to a folder of your choice outside Video (yours is **Holodeck converts**, one level up), in the same folder structure, as a safety copy. Nothing is deleted.
+
+1. **UGOS → Docker → Project → Create**, name `fix-videos`, and paste, with the two paths replaced by your Video folder and your originals folder:
+   ```yaml
+   services:
+     fix-videos:
+       image: python:3.12-slim
+       container_name: fix-videos
+       restart: "no"
+       volumes:
+         - "/PATH/TO/Video:/video"
+         - "/PATH/TO/Holodeck converts:/keep"
+       entrypoint: ["sh", "-c"]
+       command:
+         - |
+           set -e
+           apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
+           python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/783fffdea2a5b21059608c8256df57fe7f7159b7/tools/fix_videos.py', '/tmp/fix_videos.py')"
+           nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep
+   ```
+2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). The last line totals it. Nothing is changed yet.
+3. Try three: add ` --go --limit 3` to the last line, **Redeploy**, and read the log: each says how long it took. On the iPad, **LOOK AGAIN**, then watch those three.
+4. All of them: change the end to ` --go` and **Redeploy**. One file at a time at low priority; overnight is fine, and it's safe to stop (Stop the project): the file in progress is left as it was, and the next run carries on. HOLODECK picks up each one on **LOOK AGAIN**.
+5. When the converted ones play well, empty **Holodeck converts** (or keep it as an archive).
+- Slow? ` --preset veryfast` is quicker (a little bigger files). Better quality: ` --crf 18`. One channel only: ` --only "Unsolved Mysteries"`.
+- The container sees only those two folders, from one fixed commit of this repository; it talks to nothing but Debian's and GitHub's servers while it sets up, and holds no keys.
 
 ### ENGINEERING
 
