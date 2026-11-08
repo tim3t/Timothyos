@@ -702,7 +702,7 @@ Either way the clock decides what's on, so **TUNE IN** always joins mid-broadcas
            - |
              set -e
              apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
-             python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/FIX_VIDEOS_COMMIT/tools/fix_videos.py', '/tmp/fix_videos.py')"
+             python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/783fffdea2a5b21059608c8256df57fe7f7159b7/tools/fix_videos.py', '/tmp/fix_videos.py')"
              nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep
      ```
   2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). The last line totals it. Nothing is changed yet.
