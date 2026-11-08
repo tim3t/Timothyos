@@ -731,9 +731,10 @@ Many YouTube downloads are .mp4 files holding VP9 or AV1 video, which the iPad c
            set -e
            apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null
            python -c "import urllib.request as u; u.urlretrieve('https://raw.githubusercontent.com/tim3t/Timothyos/783fffdea2a5b21059608c8256df57fe7f7159b7/tools/fix_videos.py', '/tmp/fix_videos.py')"
-           nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep
+           nice -n 15 python -u /tmp/fix_videos.py --src /video --keep /keep --plays av1,opus
    ```
-2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). The last line totals it. Nothing is changed yet.
+   - **`--plays av1,opus`:** newer iPads (M3, M4, A17 Pro and later) decode AV1 video and Opus sound, and both of yours play them, so those files are left alone. Without it the tool assumes an older iPad and would convert thousands of files that already play (your first report: 2,530 AV1 files, 410 hours). Leave it out only if you start watching on an older iPad.
+2. **Deploy**, then read **Logs**: every video the iPad can't play, folder by folder, with what's wrong (`VP9 video, opus sound`, `HEVC tagged hev1`…) and what it will do: **CONVERT** (to H.264 and AAC, at most 1920 wide), **AUDIO** (picture kept, sound to AAC), **RETAG** (quick, lossless). Then a count of every picture and sound format, the totals, and how much disk space a conversion would take beside what's free (`--go` refuses to start if it might not fit). Nothing is changed yet.
 3. Try three: add ` --go --limit 3` to the last line, **Redeploy**, and read the log: each says how long it took. On the iPad, **LOOK AGAIN**, then watch those three.
 4. All of them: change the end to ` --go` and **Redeploy**. One file at a time at low priority; overnight is fine, and it's safe to stop (Stop the project): the file in progress is left as it was, and the next run carries on. HOLODECK picks up each one on **LOOK AGAIN**.
 5. When the converted ones play well, empty **Holodeck converts** (or keep it as an archive).

@@ -24,6 +24,7 @@ unfinished pieces left alone):
   python3 fix_videos.py --src /video --keep /keep --go             # convert
   python3 fix_videos.py --src /video --keep /keep --go --limit 3   # try three first
   python3 fix_videos.py --src /video --keep /keep --only "Unsolved Mysteries"
+  python3 fix_videos.py --src /video --keep /keep --plays av1,opus   # your iPads decode AV1 and Opus: leave those
   python3 fix_videos.py --selftest                                 # checks of the deciding (and real conversions with ffmpeg)
 """
 import argparse, json, os, re, shutil, subprocess, sys, tempfile, time
@@ -58,21 +59,22 @@ def probe(path):
             "a": a and {"codec": a.get("codec_name", "?")}, "dur": dur}
 
 
-def decide(p):
-    """(action, why) for one probed file: ok, retag, audio, convert or broken."""
+def decide(p, plays=frozenset()):
+    """(action, why) for one probed file: ok, retag, audio, convert or broken. `plays`: codecs your iPads decode beyond
+    the safe list (--plays av1,opus: newer iPads decode AV1 in hardware and play Opus sound)."""
     if not p or not p["v"]:
         return "broken", "no picture ffprobe can read"
     v, a = p["v"], p["a"]
     ten = "10" in v["pix"] or "12" in v["pix"]
-    pic_ok = (v["codec"] == "h264" and not ten and v["pix"] in ("yuv420p", "yuvj420p", "")) or (v["codec"] == "hevc" and v["tag"] == "hvc1")
-    snd_ok = a is None or a["codec"] in OK_AUDIO
+    pic_ok = (v["codec"] == "h264" and not ten and v["pix"] in ("yuv420p", "yuvj420p", "")) or (v["codec"] == "hevc" and v["tag"] == "hvc1") or v["codec"] in plays
+    snd_ok = a is None or a["codec"] in OK_AUDIO or a["codec"] in plays
     if pic_ok and snd_ok:
         return "ok", ""
     if v["codec"] == "hevc" and v["tag"] != "hvc1" and snd_ok:
         return "retag", "HEVC tagged %s (Safari wants hvc1)" % (v["tag"] or "?")
     if pic_ok:
         return "audio", "%s sound" % a["codec"]
-    return "convert", "%s%s video%s" % (v["codec"].upper(), " 10-bit" if ten else "", "" if snd_ok else ", %s sound" % a["codec"])
+    return "convert", "%s%s video %dx%d%s" % (v["codec"].upper(), " 10-bit" if ten else "", v["w"], v["h"], "" if snd_ok else ", %s sound" % a["codec"])
 
 
 def ffmpeg_cmd(action, src, out, p, crf, preset):
@@ -86,8 +88,22 @@ def ffmpeg_cmd(action, src, out, p, crf, preset):
     else:
         vf = "scale='min(%d,iw)':-2" % MAX_W   # 4K downloads come down to 1080p: the iPad's screen, and a fraction of the time
         cmd += ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-pix_fmt", "yuv420p", "-profile:v", "high", "-vf", vf]
-        cmd += ["-c:a", "copy"] if p["a"] and p["a"]["codec"] in OK_AUDIO else ["-c:a", "aac", "-b:a", "160k"]
+        cmd += ["-c:a", "copy"] if p["a"] and p["a"]["codec"] in OK_AUDIO else ["-c:a", "aac", "-b:a", "160k"]   # Opus is turned to AAC even when it plays: MP4 holds AAC best
     return cmd + ["-movflags", "+faststart", "-f", "mp4", out]
+
+
+def gb(n):
+    return "%.1f GB" % (n / 1e9)
+
+
+def space(src, keep, sizes):
+    """(bytes needed, bytes free, note): each new file is about as big as its original or smaller (re-encoded to 1080p at
+    most), and the original stays, in KEEP. On one volume both copies count; on another, KEEP needs room for the originals."""
+    total = sum(sizes) + (2e9 if sizes else 0)   # and 2 GB to spare
+    same = os.stat(src).st_dev == os.stat(keep).st_dev if os.path.isdir(keep) else True
+    if same:
+        return total, shutil.disk_usage(src).free, "(the originals stay on the same disk, in KEEP)"
+    return total, min(shutil.disk_usage(src).free, shutil.disk_usage(keep).free), "(KEEP is another disk: room there for the originals)"
 
 
 def walk(src, only):
@@ -141,6 +157,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=0, help="stop after this many conversions")
     ap.add_argument("--crf", type=int, default=20, help="H.264 quality: lower is better and bigger (18 to 23)")
     ap.add_argument("--preset", default="faster", help="x264 speed: veryfast, faster (default), medium, slow")
+    ap.add_argument("--plays", default="", help="codecs every iPad you watch on decodes, beyond H.264/HEVC/AAC: e.g. av1,opus")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args(argv)
     if a.selftest:
@@ -159,10 +176,13 @@ def main(argv=None):
         for f in files:
             if f.endswith(TMP):
                 os.remove(os.path.join(root, f)); log("removed a half-made file from an earlier run: " + os.path.join(os.path.relpath(root, src), f))
-    todo, counts, total = [], {}, 0.0
+    plays = frozenset(x.strip().lower() for x in a.plays.split(",") if x.strip())
+    todo, counts, total, vc, ac = [], {}, 0.0, {}, {}
     for path in walk(src, a.only):
-        p = probe(path); act, why = decide(p)
+        p = probe(path); act, why = decide(p, plays)
         counts[act] = counts.get(act, 0) + 1
+        k = p["v"]["codec"] if p and p["v"] else "none"; vc[k] = vc.get(k, 0) + 1
+        k = p["a"]["codec"] if p and p["a"] else "none"; ac[k] = ac.get(k, 0) + 1
         if act != "ok":
             todo.append((path, act, why, p)); total += (p and p["dur"]) or 0
     by = {}
@@ -172,10 +192,17 @@ def main(argv=None):
         log("\n%s  (%d)" % (folder, len(by[folder])))
         for path, act, why, p in by[folder]:
             log("  %-7s %s  · %s · %s" % (act.upper(), os.path.basename(path), why, mmss(p and p["dur"])))
+    summ = lambda d: " · ".join("%s %d" % (k, n) for k, n in sorted(d.items(), key=lambda x: -x[1]))
+    log("\nPictures: " + summ(vc) + "\nSound: " + summ(ac) + ("\nCounted as playable as well (--plays): " + ", ".join(sorted(plays)) if plays else ""))
     log("\n%d videos read: %d play already, %d to convert, %d to relabel, %d sound only, %d unreadable even by ffprobe. %s of video to do."
         % (sum(counts.values()), counts.get("ok", 0), counts.get("convert", 0), counts.get("retag", 0), counts.get("audio", 0), counts.get("broken", 0), mmss(total)))
+    work = [t for t in todo if t[1] != "broken"][: a.limit or None]
+    need, free, why_space = space(src, keep, [os.path.getsize(t[0]) for t in work])
+    log("Space: about %s more needed for %d file%s; %s free. %s" % (gb(need), len(work), "" if len(work) == 1 else "s", gb(free), why_space))
     if not a.go:
         log("Nothing changed. Add --go to convert (originals go to %s)." % keep); return 0
+    if need > free:
+        log("Not started: not enough free space. Free some, or do part with --only \"a folder\" or --limit N."); return 1
     done = failed = 0
     for path, act, why, p in todo:
         if act == "broken":
@@ -196,15 +223,22 @@ def selftest():
     assert decide(P("hevc", "hvc1", ac="eac3"))[0] == "ok"
     assert decide(P("hevc", "hev1")) == ("retag", "HEVC tagged hev1 (Safari wants hvc1)")
     assert decide(P("h264", "avc1", ac="opus")) == ("audio", "opus sound")
-    assert decide(P("vp9", "vp09")) == ("convert", "VP9 video")
-    assert decide(P("av1", "av01", ac="opus")) == ("convert", "AV1 video, opus sound")
-    assert decide(P("h264", "avc1", pix="yuv420p10le")) == ("convert", "H264 10-bit video")
+    assert decide(P("vp9", "vp09")) == ("convert", "VP9 video 1280x720")
+    assert decide(P("av1", "av01", ac="opus")) == ("convert", "AV1 video 1280x720, opus sound")
+    assert decide(P("h264", "avc1", pix="yuv420p10le")) == ("convert", "H264 10-bit video 1280x720")
+    pl = frozenset(["av1", "opus"])   # --plays av1,opus: newer iPads decode both
+    assert decide(P("av1", "av01", ac="opus"), pl)[0] == "ok" and decide(P("av1", "av01", pix="yuv420p10le"), pl)[0] == "ok"
+    assert decide(P("h264", "avc1", ac="opus"), pl)[0] == "ok"
+    assert decide(P("vp9", "vp09", ac="opus"), pl) == ("convert", "VP9 video 1280x720"), "VP9 still converted"
+    assert decide(P("vp9", "vp09", ac="vorbis"), pl) == ("convert", "VP9 video 1280x720, vorbis sound")
     assert decide(P("mpeg4", "mp4v"))[0] == "convert"
     assert decide(None)[0] == "broken" and decide({"v": None, "a": None, "dur": None})[0] == "broken"
     assert "-tag:v" in ffmpeg_cmd("retag", "a", "b", P("hevc", "hev1"), 20, "medium")
     c = ffmpeg_cmd("convert", "a", "b", P("vp9", ac="aac"), 20, "medium")
     assert c[c.index("-c:a") + 1] == "copy" and "libx264" in c and c[-3:] == ["-f", "mp4", "b"]
     assert mmss(185.4) == "3:05" and mmss(3725) == "1:02:05"
+    d0 = tempfile.mkdtemp(); need, free, _ = space(d0, d0, [3e9, 1e9])
+    assert need == 6e9 and free > 0 and space(d0, d0, [])[0] == 0; shutil.rmtree(d0)
     print("deciding OK")
 
     try:
@@ -228,6 +262,13 @@ def selftest():
     open(os.path.join(src, "Music", "Old" + TMP), "w").close()          # a half-made file from a stopped run: removed
     old_mtime = time.time() - 86400 * 30
     os.utime(os.path.join(src, "Music", "Song A [vp9].mp4"), (old_mtime, old_mtime))
+    assert main(["--src", src, "--keep", keep, "--plays", "opus"]) == 0     # opus counted as playable: E02 isn't listed
+    real_du = shutil.disk_usage
+    shutil.disk_usage = lambda p: real_du(p)._replace(free=10)
+    try:
+        assert main(["--src", src, "--keep", keep, "--go"]) == 1 and not os.listdir(keep), "no room: nothing started"
+    finally:
+        shutil.disk_usage = real_du
     assert main(["--src", src, "--keep", keep]) == 0                   # report only: nothing changes
     assert decide(probe(os.path.join(src, "Music", "Song A [vp9].mp4")))[0] == "convert" and not os.listdir(keep)
     assert main(["--src", src, "--keep", keep, "--go"]) == 0

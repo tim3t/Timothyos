@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## fix-videos update · 2026-11-08 (NAS tool only; app unchanged)
+- **`--plays av1,opus`:** the first report marked 2,530 AV1 files for conversion (410 hours of video), but both iPads play AV1 and Opus. With `--plays`, codecs your iPads decode are left alone, so only the files that really fail are converted. The README's setup now includes it.
+- The report adds a count of every picture and sound format, and the disk space a conversion needs beside what's free; `--go` won't start if it might not fit.
+
 ## 2.69.0 · 2026-11-08
 - **UNREADABLE videos, sorted out.**
   - A network error while a show plays no longer marks that video as one the iPad can't decode for good; it's tried again after 10 minutes. Only a real decode failure marks it.
