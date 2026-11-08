@@ -143,7 +143,7 @@ LANES=(
 #   app_e2e57      HOLODECK and Standby: none on the arch, AUDIO or while on air; VISUAL sleep timer (minutes, end of show), then Standby
 #   app_e2e54      UPDATE READY: real service worker, two versions published to a copy on :8125, each comes up whole
 #   app_e2e69      HOLODECK in the background: the sound moves to audio at the same point, follows the schedule, the picture takes back over
-#   app_e2e70      HOLODECK remote and guide (2.57): channels folded to one line (problems named), a guide row per channel, a tap with the TV off tunes in, AUTO-SCROLL (rolls, a touch holds it, remembered), phone width
+#   app_e2e70      HOLODECK remote and guide (2.57): channels folded to one line (problems named), a guide row per channel, a tap with the TV off tunes in, AUTO-SCROLL (rolls, a touch holds it, remembered), phone width; 2.70 endless AUTO-SCROLL (channel 1 after the last, no pause, hand scroll loops, taps on the repeat)
 #   app_e2e74      HOLODECK LEVEL (2.61): sound through Web Audio (CORS), LEARNING then an eased gain, loudness kept per file, a folder's average for a new file, OFF swaps in a plain element; 2.62: a stuck engine or a failed load hands over to the backup player (PAUSED, logged, not marked), TAP FOR SOUND without one; the radio stays plain, phone
 #   app_e2e75      ERROR LOG (2.62): bridge failures folded with ×n and RETRIED, script errors, unhandled promises, the CSP, scrubbing, filters, BRIDGE TODAY, COPY REPORT, reload, COMPUTER, CLEAR twice, phone
 #   app_e2e76      LOG keeps still while you write (2.62.1): the editor is measured on a hidden copy, never set to auto, portrait and landscape

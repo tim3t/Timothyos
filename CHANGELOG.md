@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.70.0 · 2026-11-08
+- **HOLODECK's guide scrolls endlessly.** With **AUTO-SCROLL** on, channel 1 follows the last channel, then 2, 3 and round again, rolling without the old pause and jump back to the top. Scrolling the guide by hand loops the same way while AUTO-SCROLL is on, and a tap on a repeated row tunes in as usual. With it off, or when every channel fits, nothing changes.
+- **Fixed (guide):** when the guide opened during a commercial break, its first show took that break as well as its own, so it looked 19 to 22 minutes long. The break now stays with the show before it, shown at the left edge.
+
 ## fix-videos update · 2026-11-08 (NAS tool only; app unchanged)
 - **`--plays av1,opus`:** the first report marked 2,530 AV1 files for conversion (410 hours of video), but both iPads play AV1 and Opus. With `--plays`, codecs your iPads decode are left alone, so only the files that really fail are converted. The README's setup now includes it.
 - The report adds a count of every picture and sound format, and the disk space a conversion needs beside what's free; `--go` won't start if it might not fit.

@@ -107,6 +107,19 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   await p.reload(); await visual();
   assert.ok(await p.evaluate(n => !Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')) && Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).length === n + 1, na));
 
+  // 2.70: the guide opening in the middle of a break. Channel 1 premiered so its first break is airing at the guide's left
+  // edge: that break belongs to the first episode (◂, off to the left), and the next episode keeps only its own break
+  // (it used to take both, making a 19 or 22 minute block)
+  const w0 = await p.evaluate(() => { const d = new Date(); d.setMinutes(d.getMinutes() < 30 ? 0 : 30, 0, 0); return d.getTime() - 1800e3; });
+  await p.evaluate(pr => { const c = JSON.parse(localStorage.getItem('tos.holo.v1')); c.chans[0].premiere = pr; localStorage.setItem('tos.holo.v1', JSON.stringify(c)); }, w0 - 660e3);
+  await p.reload(); await visual();
+  const hmOf = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Chicago' });
+  const edge = await settled(1);
+  console.log('opening in a break:', JSON.stringify(edge.slice(0, 3)));
+  assert.strictEqual(edge[0].range.split('–')[0], hmOf(w0 - 660e3), 'the first block is the episode the break follows');
+  assert.ok(edge.slice(0, 4).every(x => [12, 13, 15, 16].includes(mins(x.range))), 'every block one episode and its own break: ' + JSON.stringify(edge.slice(0, 4)));
+  assert.strictEqual(edge[1].range.split('–')[0], edge[0].range.split('–')[1], 'the next starts as the break ends');
+
   // BREAKS off: channel 2's guide has no breaks
   await p.click('[data-hdopen="2"]'); await p.click('[data-hdbrk="2"]');
   for (let i = 0; !(await plain(p, 2)); i++) { assert.ok(i < 40, 'channel 2 without breaks: ' + JSON.stringify(await cells(p, 2))); await p.waitForTimeout(250); }

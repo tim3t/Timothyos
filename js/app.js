@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.69.0";
+  var VERSION = "2.70.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -12144,6 +12144,10 @@
       var out = [], q = null, carry = 0, k = 0, u = at(c, net(c) ? W0 : Math.max(W0, c.premiere)), capped = false;
       while (u) {
         if (++k > TG_CAP) { capped = true; break; }
+        if (u.brk && !q && !carry) {   /* 2.70: the window opens in a break: it belongs to the show before it (off to the left, ◂), not to the next one, which has its own */
+          var pv = at(c, u.brk.startMs - 1);
+          if (pv && !pv.brk && pv.startMs < u.brk.startMs) q = { a: pv.startMs, b: endMs(u), short: pv.dur < TG_SHORT, slot: Math.floor((pv.startMs - W0) / TG_HALF), list: [pv] };
+        }
         if (u.brk) { if (q) q.b = endMs(u); else carry = carry || u.brk.startMs; var nb = pastBreak(u); if (!nb || nb.startMs <= u.startMs) { u = null; break; } u = nb; continue; }
         var st = u.startMs; if (st >= W1) break;
         var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slot = Math.floor((st - W0) / TG_HALF);
@@ -12175,7 +12179,9 @@
       if (!cfg.chans.length) return '<p class="hd-gempty">The guide fills in once there\'s a channel: add one under CHANNELS.</p>';
       return '<div class="hd-gh"><span class="hd-gday">' + esc(new Date(W0).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase()) + '</span><div class="hd-gtimes">' +
         [0, 1, 2, 3].map(function (i) { return '<span style="left: ' + i * 25 + '%">' + hm(new Date(W0 + i * TG_HALF)) + "</span>"; }).join("") + "</div></div>" +
-        cfg.chans.map(function (c) { return tgRow(c, W0, W1, now); }).join("") + '<span class="hd-gnow" id="hdGNow" aria-hidden="true"></span>';
+        (function (rows) {   /* 2.70: with AUTO-SCROLL on, the rows again below, so channel 1 follows the last for ever (tgLoop); out of the way of VoiceOver and Tab */
+          return rows + (cfg.gauto ? '<div class="hd-gloop" id="hdGLoop" aria-hidden="true">' + rows.replace(/<button type="button"/g, '<button type="button" tabindex="-1"') + "</div>" : "");
+        })(cfg.chans.map(function (c) { return tgRow(c, W0, W1, now); }).join("")) + '<span class="hd-gnow" id="hdGNow" aria-hidden="true"></span>';
     }
     function tgKey(now) { return [tgFrom(now), cfg.ch, X.lv, A.at || 0, A.dir, cfg.ads, cfg.chans.map(function (c) { var s = F[c.dir]; return [c.id, c.name, c.style, c.breaks, c.premiere, s ? (s.at || 0) + (s.err ? "e" : "") : "-"].join(","); }).join(";")].join("|"); }
     function tgPaint(force) {   /* worked out again every 15 ticks, or two ticks after anything it shows changes; redrawn only when it differs, so taps land; the line for now moves each second */
@@ -12193,17 +12199,28 @@
         '<button type="button" class="hd-tgb" id="hdGBack" data-hd="gback" aria-label="An hour earlier"' + (X.gw ? "" : " disabled") + '>◀</button><button type="button" class="hd-tgb" id="hdGNext" data-hd="gnext" aria-label="An hour later"' + (X.gw < 6 ? "" : " disabled") + ">▶</button></div>" +
         '<div class="hd-tgbody" id="hdTgBody"><div class="hd-tgin" id="hdTg"></div></div></section>';
     }
-    function tgAuto() {   /* AUTO-SCROLL: the rows roll up slowly, like the guide channel; a touch holds it for 30 s; at the foot, a pause, then the top */
+    function tgLoop() {   /* 2.70: the height of one set of rows when the repeat is in use (more rows than fit), else 0; the repeat is hidden when they fit */
+      var b = $("hdTgBody"), cp = $("hdGLoop"), r0 = b && b.querySelector(".hd-tgin > .hd-grow"); if (!b || !cp || !r0) return 0;
+      var h = cp.offsetTop - r0.offsetTop, fits = h + r0.offsetTop <= b.clientHeight + 2;
+      if (cp.hidden !== fits) cp.hidden = fits;
+      return fits ? 0 : h;
+    }
+    function tgAuto() {   /* AUTO-SCROLL: the rows roll up slowly, like the guide channel; a touch holds it for 30 s; channel 1 follows the last without a pause (2.70) */
       clearInterval(X.asT); X.asT = 0; if (!cfg.gauto) return;
       X.asT = setInterval(function () {
         var b = $("hdTgBody"); if (!b || state.screen !== "holodeck" || !cfg.gauto) { clearInterval(X.asT); X.asT = 0; return; }
+        var lh = tgLoop();
+        if (lh) { if (document.hidden || Date.now() < X.asHold) return; b.scrollTop += 1; if (b.scrollTop >= lh) b.scrollTop -= lh; return; }
         if (document.hidden || Date.now() < X.asHold || b.scrollHeight <= b.clientHeight + 2) return;
         if (X.asWrap) { X.asWrap = false; b.scrollTop = 0; X.asHold = Date.now() + 3000; return; }
         if (b.scrollTop + b.clientHeight >= b.scrollHeight - 1) { X.asWrap = true; X.asHold = Date.now() + 3000; return; }
         b.scrollTop += 1;
       }, 60);
     }
-    function tgBind() { var b = $("hdTgBody"); if (!b) return; ["pointerdown", "wheel", "touchstart"].forEach(function (ev) { b.addEventListener(ev, function () { X.asHold = Date.now() + 30000; X.asWrap = false; }, { passive: true }); }); }
+    function tgBind() {
+      var b = $("hdTgBody"); if (!b) return; ["pointerdown", "wheel", "touchstart"].forEach(function (ev) { b.addEventListener(ev, function () { X.asHold = Date.now() + 30000; X.asWrap = false; }, { passive: true }); });
+      b.addEventListener("scroll", function () { if (!cfg.gauto) return; var lh = tgLoop(); if (lh && b.scrollTop >= lh) b.scrollTop -= lh; }, { passive: true });   /* scrolled by hand past the last channel: into channel 1 (2.70) */
+    }
     function foldSum() {   /* the channels folded: how many, the commercials, breaks, and anything that needs a look */
       var n = cfg.chans.length, bk = cfg.chans.filter(function (x) { return x.breaks; }).length;
       var look = cfg.chans.filter(function (x) { var s = F[x.dir]; return s && ((s.err && !s.play) || (s.play && s.play.some(unreadable))); }).length + (cfg.ads && A.dir === cfg.ads && A.err && !A.play ? 1 : 0);
@@ -12370,7 +12387,7 @@
       if (d.hdg) { var gid = +d.hdg; if (gid !== cfg.ch) switchTo(gid); if (!X.on && at(cur(), Date.now())) tune(); return true; }   /* the guide: a channel or a show tunes to that channel (2.57) */
       if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); render(); return true; }
       if (d.hd === "gback" || d.hd === "gnext") { X.gw = Math.max(0, Math.min(6, X.gw + (d.hd === "gnext" ? 1 : -1))); tgPaint(true); var gk0 = $("hdGBack"), gk1 = $("hdGNext"); if (gk0) gk0.disabled = !X.gw; if (gk1) gk1.disabled = X.gw >= 6; return true; }
-      if (d.hd === "gauto") { cfg.gauto = !cfg.gauto; save(); b.setAttribute("aria-pressed", String(cfg.gauto)); X.asHold = 0; tgAuto(); return true; }
+      if (d.hd === "gauto") { cfg.gauto = !cfg.gauto; save(); b.setAttribute("aria-pressed", String(cfg.gauto)); X.asHold = 0; X.asWrap = false; tgPaint(true); tgLoop(); tgAuto(); return true; }
       if (d.hdsleep) { setSleep(d.hdsleep); X.sleepOpen = false; render(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
       if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } render(); return true; }   /* + / − on a row (2.53) */
       if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; render(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }

@@ -54,7 +54,29 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await p.dispatchEvent('#hdTgBody', 'pointerdown'); const held = (await body()).top; await p.waitForTimeout(800);
   assert.ok(Math.abs((await body()).top - held) <= 1, 'a touch holds it');
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).gauto), true, 'remembered');
-  await p.click('[data-hd="gauto"]'); await p.setViewportSize({ width: 1180, height: 820 });
+
+  // ---- 2.70: endless. The rows again below the last channel, out of VoiceOver's and Tab's way; the roll passes the last
+  // channel straight into channel 1 with no pause or jump back; scrolling by hand loops too; a tap on the repeat tunes in
+  await p.click('[data-hd="gauto"]'); await p.click('[data-hd="gauto"]');   // off and on: the hold is released
+  const loop = () => p.evaluate(() => { const b = document.getElementById('hdTgBody'), cp = document.getElementById('hdGLoop'), r0 = b.querySelector('.hd-tgin > .hd-grow');
+    return cp && !cp.hidden ? { lh: cp.offsetTop - r0.offsetTop, top: b.scrollTop, rows: cp.querySelectorAll('.hd-grow').length, hidden: cp.getAttribute('aria-hidden'), tabs: [...cp.querySelectorAll('button')].every(x => x.tabIndex === -1) } : null; });
+  const L0 = await until(loop);
+  assert.deepStrictEqual([L0.rows, L0.hidden, L0.tabs], [7, 'true', true], 'the repeat: every channel again, hidden from VoiceOver and Tab');
+  await p.$eval('#hdTgBody', (e, h) => { e.scrollTop = h - 25; }, L0.lh);   // just before channel 1 comes round again
+  const seen = []; for (let i = 0; i < 30; i++) { seen.push((await loop()).top); await p.waitForTimeout(100); }
+  const back = seen.findIndex((t, i) => i && t < seen[i - 1]);
+  console.log('rolling past the last channel:', seen.join(' '));
+  assert.ok(back > 0 && seen[back] < 20, 'it rolled on into channel 1');
+  assert.ok(seen.slice(back + 1).some(t => t > seen[back]), 'and kept rolling, no pause at the foot');
+  assert.ok(seen.slice(0, back).every((t, i) => !i || t >= seen[i - 1]), 'no jump back to the top before it');
+  await p.$eval('#hdTgBody', (e, h) => { e.scrollTop = h + 12; }, L0.lh); await p.waitForTimeout(150);
+  assert.ok((await loop()).top < 40, 'scrolled by hand past the last channel: into channel 1');
+  await p.click('#hdGLoop .hd-grow:nth-of-type(2) .hd-gch');   // channel 2, in the repeat
+  await until(async () => (await txt(p, '#eyebrow')).includes('· CH 2 · SAMPLE 2'));
+  await p.click('[data-hd="tune"]');   // off
+  await p.click('[data-hd="gauto"]');
+  assert.strictEqual(await p.$('#hdGLoop'), null, 'AUTO-SCROLL off: no repeat');
+  await p.setViewportSize({ width: 1180, height: 820 });
 
   // ---- open the channels: today's rows, remembered
   await p.click('[data-hd="chans"]');
