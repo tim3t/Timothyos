@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.43.0';
+var VERSION = '1.43.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -213,7 +213,7 @@ function doPost(e) {
   var body;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return json_({ ok: false, error: 'bad_request' }); }
   try {
-    if (body.action === 'healthput') { var refusedH = healthKeyRefusal_(body.key); return json_(refusedH ? { ok: false, error: refusedH } : healthPut_(body)); }   // 1.43: the shortcut's own key, good for this alone
+    if (body.action === 'healthput') return json_(healthPutSafe_(body));   // 1.43: the shortcut's own key, good for this alone; 1.43.1: every reply says what happened
     var refusedP = keyRefusal_(body.key);
     if (refusedP) return json_({ ok: false, error: refusedP });
     if (body.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null, export: props_('NOTION_TOKEN') ? exportStatus_() : null });
@@ -2382,10 +2382,29 @@ function healthDays_(raw, tz) {
   });
   return { days: out, used: used, skipped: skipped };
 }
+/** 1.43.1: the shortcut shows `message`, so every answer to it, refusals and failures included, carries one in plain words. */
+var HEALTH_SAY = {
+  no_key: 'The shortcut sent no key. Check the key field in Get Contents of URL.',
+  health_key_not_set: 'The bridge has no HEALTH_KEY yet. Run setup in the script editor, then paste the key into the shortcut.',
+  unauthorized: "The health key didn't match. Paste HEALTH_KEY into the shortcut's key field again, with nothing after it.",
+  nothing_to_send: "Health had nothing to send yet. Check that the Health app on this iPad shows your watch's data, and that each Find Health Samples asks for the last 3 days.",
+  notion_not_shared: 'The bridge cannot reach 🩺 Sickbay. In Notion: 🩺 Sickbay → ••• → Connections → TimothyOS.',
+  busy: 'The bridge was busy. Run the shortcut again in a minute.'
+};
+function healthPutSafe_(body) {
+  var refused = healthKeyRefusal_(body.key);
+  if (refused) return { ok: false, error: refused, message: HEALTH_SAY[refused] };
+  try { return healthPut_(body); }
+  catch (err) {
+    var code = (err && err.notion) || (lockBusy_(err) ? 'busy' : 'server_error');
+    return { ok: false, error: code, message: HEALTH_SAY[code] || 'The bridge could not save this (' + code + (err && err.message ? ': ' + String(err.message).slice(0, 160) : '') + '). Try again; if it keeps happening, send Claude this message.' };
+  }
+}
 /** From the shortcut: { lines } (≤ 400,000 characters). Days older than 14 or in the future are left out; at most 10. */
 function healthPut_(body) {
   var raw = String(body.lines || '');
-  if (!raw.trim() || raw.length > 400000) return { ok: false, error: 'bad_request' };
+  if (!raw.trim()) return { ok: false, error: 'nothing_to_send', message: HEALTH_SAY.nothing_to_send };
+  if (raw.length > 400000) return { ok: false, error: 'bad_request', message: 'Too much at once: send the last 3 days, not more.' };
   var tz = Session.getScriptTimeZone(), today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'), oldest = Utilities.formatDate(new Date(Date.now() - 14 * 864e5), tz, 'yyyy-MM-dd');
   var got = healthDays_(raw, tz), days = Object.keys(got.days).filter(function (d) { return d >= oldest && d <= today; }).sort().slice(-10);
   var lock = LockService.getScriptLock();
@@ -2403,7 +2422,8 @@ function healthPut_(body) {
     });
     PropertiesService.getScriptProperties().setProperty('HEALTH_LAST', new Date().toISOString());
     sickBump_();
-    return { ok: true, version: VERSION, days: days, used: got.used, skipped: got.skipped, message: days.length ? 'Sent ' + days.length + (days.length === 1 ? ' day' : ' days') + ' to SICKBAY.' : 'Nothing new to send.' };
+    return { ok: true, version: VERSION, days: days, used: got.used, skipped: got.skipped, message: days.length ? 'Sent ' + days.length + (days.length === 1 ? ' day' : ' days') + ' to SICKBAY.' + (got.skipped ? ' (' + got.skipped + (got.skipped === 1 ? ' line' : ' lines') + ' left out.)' : '')
+      : got.used ? 'Nothing new to send: those days are older than two weeks.' : 'Nothing could be read from the ' + got.skipped + (got.skipped === 1 ? ' line' : ' lines') + ' sent. Check each Text reads code|Value|Start Date|End Date, with both dates in ISO 8601 format and the time included.' };
   } finally {
     lock.releaseLock();
   }

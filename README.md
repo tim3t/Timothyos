@@ -825,12 +825,16 @@ Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (re
 3. In Notion, open **🩺 Sickbay** (in your hub) → **•••** → **Connections** → **TimothyOS**. Run **setup** again: the log should say `Notion sickbay: OK (0 days, 0 records)`.
 4. Build the **Bridge Health** shortcut on HUB (below), run it once, then open **SICKBAY** (SCIENCE in ALL STATIONS).
 
-**The Bridge Health shortcut** (Shortcuts on the iPad; the action names can differ a little between iPadOS versions, so the first run is the real check):
-1. **+** → name it exactly **Bridge Health** (SICKBAY's **SYNC FROM HEALTH** opens it by that name).
-2. For each measure below, add three actions:
-   - **Find Health Samples**: Type as listed, **Start Date is in the last 3 days**. For Steps, Active Energy, Exercise Minutes and Stand Minutes also set **Group By: Day**.
-   - **Repeat with Each** item in Health Samples, and inside it a **Text** action reading `code|` *Value* `|` *Start Date* `|` *End Date*: the code from the table, then the Repeat Item's **Value**, **Start Date** and **End Date** (tap each date and choose **Date Format: ISO 8601**, with the time), separated by `|` with no spaces needed. Then **Add to Variable** `Lines`.
-   - (**Duplicate** a finished block and change the Type and the code: quicker than starting over.)
+**The Bridge Health shortcut.** Shortcuts is a recipe of steps run top to bottom: the actions are listed on the right (search box at the top), the recipe on the left. Build it on HUB. The first time, build it with **Steps** alone and run it; once that works, add the other measures the same way.
+
+*With a keyboard attached:* the row of blue **variable** bubbles that normally sits above the on-screen keyboard moves to a slim bar at the **very bottom of the screen** (expand it with its arrow). Tapping any blue bubble opens a small window: **Clear Variable** empties that slot, and the list underneath picks which detail of it to use.
+
+1. **+** → tap the title → **Rename** → **Bridge Health** (SICKBAY's **SYNC FROM HEALTH** opens it by that exact name).
+2. **One block per measure**, in this order:
+   - **Find Health Samples** → **Add Filter**: **Type is** *(the type from the table)*; **Add Filter** again: **Start Date is in the last 3 days**. For Steps, Active Energy, Exercise Minutes and Stand Minutes also set **Group By: Day**. Keep **Fill Missing** off (it would invent days of zero).
+   - **Repeat with Each** (it fills in *Health Samples* itself).
+   - **Text**, dragged **inside** the repeat: type the code and `|`, then add **Repeat Item** from the variable bar and choose **Value** in its window (the bubble may still be labelled *Repeat Item*; the tick on **Value** is what counts); type `|`, add **Repeat Item** → **Start Date**, then tap that bubble → **Date Format: ISO 8601** with **Include ISO 8601 Time** on; type `|`, add **Repeat Item** → **End Date**, same date format. It reads `rhr|` Value `|` Start Date `|` End Date (spaces around the `|` don't matter).
+   - Under **End Repeat**: **Add to Variable**, which adds **Repeat Results** to a variable you name **Lines** (type the name the first time; every later block picks **Lines**). *Repeat Results* is every Text the loop made.
 
    | Code | Health type | | Code | Health type |
    |---|---|---|---|---|
@@ -840,10 +844,24 @@ Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (re
    | `active` | Active Energy | | `weight` | Weight (if a scale writes to Health) |
    | `exercise` | Exercise Minutes | | `sleep` | Sleep Analysis (its Value is the stage) |
    | `standmin` | Stand Minutes | | | |
-3. After the blocks: **Combine Text** `Lines` with **New Lines**.
-4. **Get Contents of URL**: your bridge's web app address (the one in SYSTEMS → CONNECTION), **Method POST**, **Request Body JSON** with three Text fields: `key` = your **HEALTH_KEY** (copy it from Script Properties), `action` = `healthput`, `lines` = the **Combined Text**.
-5. **Get Dictionary Value** `message` from the result, then **Show Notification** with it. A good run says **Sent 3 days to SICKBAY.**
-6. **Every morning:** **Automation → + → Time of Day** (say 7:30, daily) → **Run Immediately** → **Bridge Health**. iPadOS keeps Health locked while the screen is locked, so pick a time HUB is usually awake; otherwise tap **SYNC FROM HEALTH** in SICKBAY whenever you like. Each run sends the last 3 days, so a missed morning fills itself in, and sending a day again only updates it.
+
+   Adding a measure later: drag its four actions from the list on the right into place **above** the *Combine Text* below (not at the very bottom).
+3. **Combine Text**: **Combine Lines with New Lines** (if the slot shows something else, tap it → **Clear Variable** → pick **Lines** from the bottom bar).
+4. **Get Contents of URL**: tap the address slot (if a variable is sitting in it, tap it → **Clear Variable** first) and paste your bridge's address: script.google.com → **Deploy → Manage deployments → Web app URL**, the one ending in `/exec`. Tap the small arrow on the action: **Method POST**, **Request Body JSON**, then **Add new field → Text** three times: `key` = your **HEALTH_KEY**; `action` = `healthput`; `lines` = the **Combined Text** bubble.
+5. **Get Dictionary Value**: **Get Value for** `message` **in Contents of URL** (type the word `message`; it's not a variable).
+6. **Show Notification** with **Dictionary Value**.
+7. **Play.** Allow it to read Health and to connect to script.google.com. A good run says **Sent 3 days to SICKBAY.** If a run ever shows nothing, change the notification to show **Contents of URL** for one run: it shows the bridge's whole reply.
+
+   | The notification says | What to do |
+   |---|---|
+   | **Health had nothing to send yet** | The Health app on HUB has no watch data yet (a new watch takes a day; the iPhone must be on, unlocked once, charging, on Wi-Fi), or a Find Health Samples filter is off |
+   | **Nothing could be read from the … lines** | A date isn't in ISO 8601 with the time: tap each Start Date and End Date bubble and set it |
+   | **The health key didn't match** | Paste HEALTH_KEY into the key field again, with nothing after it |
+   | **The bridge has no HEALTH_KEY yet** | Run **setup** in the script editor |
+   | **The bridge cannot reach 🩺 Sickbay** | Notion: 🩺 Sickbay → ••• → Connections → TimothyOS |
+8. **Every morning:** **Automation → + → Time of Day** (say 7:30, daily) → **Run Immediately** → **Bridge Health**. iPadOS keeps Health locked while the screen is locked, so pick a time HUB is usually awake; otherwise tap **SYNC FROM HEALTH** in SICKBAY. Each run sends the last 3 days, so a missed morning fills itself in, and sending a day again only updates it.
+
+**A new watch** fills in over days: steps and activity within hours; resting heart rate after a full day; heart rate variability, sleep stages and breathing rate after the first night with **sleep tracking** on (iPhone: Health → Browse → Sleep → set a schedule and **Track Sleep with Apple Watch**); wrist temperature after about 5 nights; cardio fitness after a few outdoor walks. SICKBAY's readiness and "your normal" need 7 days.
 
 **Using it:**
 - **VITALS:** tap a measure for its chart (**7D / 30D / 90D**) with your normal as a band; **▲ ABOVE NORMAL** or **BELOW** means outside your usual range, not that something is wrong. Readiness starts once 7 days are in.

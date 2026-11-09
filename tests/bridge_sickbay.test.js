@@ -68,20 +68,26 @@ const get = q => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Ob
 
 
 const HK = 'h'.repeat(64);
+let r0;
 const health = (k, lines) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: k, action: 'healthput', lines: lines }) } }).text);
 
 // ---- before setup: no health key, nothing accepted
 let caps = get({ action: 'ping' }).capabilities;
 assert.ok(caps.includes('sickbay') && !caps.includes('healthkey'), caps.join());
-assert.strictEqual(health(HK, 'rhr|58|2026-11-08T08:00:00-05:00|2026-11-08T08:00:00-05:00').error, 'health_key_not_set');
+r0 = health(HK, 'rhr|58|2026-11-08T08:00:00-05:00|2026-11-08T08:00:00-05:00');
+assert.strictEqual(r0.error, 'health_key_not_set'); assert.ok(/Run setup/.test(r0.message), 'every refusal says what to do (1.43.1)');
 ctx.setup();
 assert.ok(/^[0-9a-f]{64}$/.test(props.HEALTH_KEY), 'setup makes the health key');
 props.HEALTH_KEY = HK;
 assert.ok(get({ action: 'ping' }).capabilities.includes('healthkey'));
-assert.strictEqual(health(key, 'rhr|58|2026-11-08T08:00:00-05:00|2026-11-08T08:00:00-05:00').error, 'unauthorized', 'the main key cannot send health data');
+r0 = health(key, 'rhr|58|2026-11-08T08:00:00-05:00|2026-11-08T08:00:00-05:00');
+assert.strictEqual(r0.error, 'unauthorized', 'the main key cannot send health data'); assert.ok(/didn't match/.test(r0.message));
 assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: HK, action: 'health' }) } }).text).error, 'unauthorized', 'the health key reads nothing');
 assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: HK, action: 'sickbaysave', item: { kind: 'note', id: 'n1', name: 'x' } }) } }).text).error, 'unauthorized', 'and writes nothing else');
-assert.strictEqual(health(HK, '').error, 'bad_request');
+r0 = health(HK, '');
+assert.strictEqual(r0.error, 'nothing_to_send'); assert.ok(/Health had nothing to send yet/.test(r0.message), 'an empty send explains itself (1.43.1)');
+r0 = health(HK, 'steps|6840|9 Nov 2026 at 3:24 PM|9 Nov 2026 at 3:24 PM');
+assert.ok(r0.ok && !r0.days.length && /ISO 8601/.test(r0.message), 'dates not in ISO 8601: said so: ' + r0.message);
 
 // ---- a morning's lines, as the shortcut sends them (dates relative to now, so the 14-day window holds)
 const D = n => { const d = new Date(Date.now() - n * 864e5); return fmt(d, 'America/New_York', 'yyyy-MM-dd'); };
@@ -105,6 +111,7 @@ let r = health(HK, L);
 assert.ok(r.ok, JSON.stringify(r));
 assert.deepStrictEqual(r.days, [y, t]);
 assert.strictEqual(r.skipped, 5, 'the out-of-range, unknown, unreadable and repeated lines');
+assert.strictEqual(r.message, 'Sent 2 days to SICKBAY. (5 lines left out.)');
 const day = d => pages[TDS].find(p => p.properties['App ID'] && txt(p.properties['App ID'].rich_text) === 'day-' + d);
 const data = d => JSON.parse(txt(day(d).properties.Data.rich_text));
 let Y = data(y), T = data(t);
@@ -121,6 +128,7 @@ assert.ok(props.HEALTH_LAST, 'the last send is kept');
 
 // ---- sent again with a new reading for today: merged, nothing lost, no second page
 r = health(HK, 'rhr|61|' + at(0, '07:00') + '|' + at(0, '07:00'));
+assert.strictEqual(r.message, 'Sent 1 day to SICKBAY.');
 assert.deepStrictEqual(r.days, [t]);
 T = data(t);
 assert.strictEqual(T.rhr, 61); assert.strictEqual(T.sleep.asleep, 420, 'what was there stays');

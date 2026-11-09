@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.74.1 · 2026-11-09 (needs bridge 1.43.1)
+- **The Bridge Health shortcut always says what happened.** Bridge 1.43.1 puts a plain message on every reply: **Health had nothing to send yet** (with what to check), a wrong or missing health key, dates in the wrong format, Sickbay not connected in Notion, or a busy bridge, instead of a blank notification or a bare `bad_request`.
+- **README → SICKBAY:** the shortcut steps rewritten from your first build: where the variable bubbles go with a keyboard attached, **Clear Variable**, **Repeat Results**, typing `message`, one block per measure feeding **Lines**, a table of what each notification means, and what a new watch fills in when.
+
 ## 2.74.0 · 2026-11-09 (needs bridge 1.43)
 - **SICKBAY, a new SCIENCE station: health from your Apple Watch.** Three screens, as in your mockup:
   - **VITALS:** readiness each morning (a simple guide from heart rate variability, resting heart rate and sleep, never a diagnosis), yesterday's move, exercise and stand, and six measures, each against **your normal** (the middle of your own last 30 days) with a 7, 30 or 90-day chart.
