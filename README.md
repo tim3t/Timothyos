@@ -39,7 +39,7 @@ On the NAS, only when you run it:
 | Part | Sections |
 |---|---|
 | [1 · Setup](#part-1--setup) | [Handshakes 1 to 5](#handshake-1--share-your-work-calendar-with-your-personal-account) · [Updating the Google bridge](#updating-the-google-bridge) · [Connect Notion](#connect-notion) · [Script Properties](#script-properties) · [Optional pieces](#optional-pieces) ([Weekly Notion export](#weekly-notion-export-bridge-141), [Family calendar](#family-calendar-bridge-142), calendars, holidays, Ask Claude, Ledger, Captain's Log, session notes, tarot books, [NAS relay](#nas-relay-holodeck-and-home-assistant), AI voice, Home Assistant) |
-| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) ([HOLODECK](#holodeck), [Converting videos](#converting-videos-fix-videos), [ARBORETUM](#arboretum)) · [SCIENCE](#science) · [ALWAYS AVAILABLE](#always-available) |
+| [2 · Stations](#part-2--stations) | [TIME](#time) · [REFLECT](#reflect) · [RESOURCES](#resources) ([HOLODECK](#holodeck), [Converting videos](#converting-videos-fix-videos), [ARBORETUM](#arboretum)) · [SCIENCE](#science) ([SICKBAY](#sickbay)) · [ALWAYS AVAILABLE](#always-available) |
 | [3 · Reference](#part-3--reference) | [Daily use](#daily-use) · [Condition rules](#condition-rules) · [Backup, restore and reinstalling](#backup-restore-and-reinstalling) · [Troubleshooting](#troubleshooting) · [Security model](#security-model) · [Updating the app](#updating-the-app) · [Project layout](#project-layout) |
 
 ---
@@ -193,6 +193,7 @@ All settings and keys live in **Project Settings (gear) → Script Properties**,
 | `OPENAI_API_KEY` | Reads the Morning Briefing in the AI voice Nova (OpenAI) |
 | `YNAB_PLAN_ID`, `LEDGER_FUND_CATEGORY` | Only if the plan or the fund category (default Discretionary) isn't the right one |
 | `EBIRD_API_KEY` | Optional: notable birds nearby in SCIENCE → NATURE. A free key from ebird.org/api/keygen |
+| `HEALTH_KEY` | Made by setup (bridge 1.43): the **Bridge Health** shortcut's key, good only for sending health data to SICKBAY. To replace it, delete it, run setup, and paste the new one into the shortcut |
 
 The bridge also keeps its own working values there (spend counters, the log's lock state, remembered database ids). Leave those alone.
 
@@ -811,6 +812,46 @@ Free public feeds about the sky and your surroundings, worked out from your **Lo
 - **NATURE:** what people have confirmed seeing nearby this week (iNaturalist), and notable birds: rare or out-of-season species reported to eBird within 25 km in the last 7 days, with where, how many, and the distance and direction. Birds need the optional `EBIRD_API_KEY` in Script Properties (a free key from ebird.org/api/keygen; no setup run or new deployment needed): NATURE shows them a few minutes after you add it, and looks again every hour while SCIENCE is open. Each new notable bird also lands in the EVENT LOG.
 - **EVENT LOG:** anything worth remembering lands here once: military, emergency or low aircraft, bright station passes, storms, M and X flares, nearby or big quakes, alerts, full and new moons, meteor peaks, eclipses, close asteroids, notable birds. The iPad keeps 30 days; **🔭 Science Log** in Notion keeps every one (it waits on the iPad when offline). **☆** stars one in both; starred events show on ASTROMETRICS' key-date line. **ALL DEPARTMENTS** or just the one you're on.
 - **The Bridge line:** on days with something worth knowing (a bright ISS or Tiangong pass tonight, an aurora chance, a nearby M4 quake, a meteor shower peak), one **SCIENCE** line under Condition; never a Condition item. The Morning Briefing mentions the same. **SYSTEMS → SCIENCE** turns the line off.
+
+### SICKBAY
+
+Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (readiness, yesterday's activity, resting heart rate, heart rate variability, sleep, steps, breathing rate and cardio fitness, each against **your normal**: the middle of your own last 30 days), **SLEEP** (last night's stages in four lanes, the week, the night's details) and **RECORDS** (medicines with a daily tick and a refill count, readings by hand, how-you-felt notes, appointments from your calendars, and a 90-day summary for the doctor). Readiness is a simple guide, never a diagnosis.
+
+**How the data gets here.** Apple Health has no web address Bridge could ask: it keeps your data on your devices, and iCloud carries it between them encrypted. So a shortcut on the iPad reads Health and sends it to your Google bridge with its own key, and the bridge writes one page per day.
+
+**Setup** (bridge 1.43):
+1. **The iPhone the watch is paired to stays on, charging and on Wi-Fi** (a drawer with a charger is fine). On it: **Settings → your name → iCloud → Show All → Health** on. Do the same on the iPad you'll run the shortcut on (HUB), then open **Health** there and check your watch's data shows.
+2. Update the bridge (Updating the Google bridge) and run **setup**. It makes **`HEALTH_KEY`** in Script Properties: the shortcut's own key, good for sending health data and nothing else. Your main key never goes into Shortcuts.
+3. In Notion, open **🩺 Sickbay** (in your hub) → **•••** → **Connections** → **TimothyOS**. Run **setup** again: the log should say `Notion sickbay: OK (0 days, 0 records)`.
+4. Build the **Bridge Health** shortcut on HUB (below), run it once, then open **SICKBAY** (SCIENCE in ALL STATIONS).
+
+**The Bridge Health shortcut** (Shortcuts on the iPad; the action names can differ a little between iPadOS versions, so the first run is the real check):
+1. **+** → name it exactly **Bridge Health** (SICKBAY's **SYNC FROM HEALTH** opens it by that name).
+2. For each measure below, add three actions:
+   - **Find Health Samples**: Type as listed, **Start Date is in the last 3 days**. For Steps, Active Energy, Exercise Minutes and Stand Minutes also set **Group By: Day**.
+   - **Repeat with Each** item in Health Samples, and inside it a **Text** action reading `code|` *Value* `|` *Start Date* `|` *End Date*: the code from the table, then the Repeat Item's **Value**, **Start Date** and **End Date** (tap each date and choose **Date Format: ISO 8601**, with the time), separated by `|` with no spaces needed. Then **Add to Variable** `Lines`.
+   - (**Duplicate** a finished block and change the Type and the code: quicker than starting over.)
+
+   | Code | Health type | | Code | Health type |
+   |---|---|---|---|---|
+   | `rhr` | Resting Heart Rate | | `resp` | Respiratory Rate |
+   | `hrv` | Heart Rate Variability | | `vo2` | Cardio Fitness (VO2 Max) |
+   | `steps` | Steps | | `temp` | Sleeping Wrist Temperature |
+   | `active` | Active Energy | | `weight` | Weight (if a scale writes to Health) |
+   | `exercise` | Exercise Minutes | | `sleep` | Sleep Analysis (its Value is the stage) |
+   | `standmin` | Stand Minutes | | | |
+3. After the blocks: **Combine Text** `Lines` with **New Lines**.
+4. **Get Contents of URL**: your bridge's web app address (the one in SYSTEMS → CONNECTION), **Method POST**, **Request Body JSON** with three Text fields: `key` = your **HEALTH_KEY** (copy it from Script Properties), `action` = `healthput`, `lines` = the **Combined Text**.
+5. **Get Dictionary Value** `message` from the result, then **Show Notification** with it. A good run says **Sent 3 days to SICKBAY.**
+6. **Every morning:** **Automation → + → Time of Day** (say 7:30, daily) → **Run Immediately** → **Bridge Health**. iPadOS keeps Health locked while the screen is locked, so pick a time HUB is usually awake; otherwise tap **SYNC FROM HEALTH** in SICKBAY whenever you like. Each run sends the last 3 days, so a missed morning fills itself in, and sending a day again only updates it.
+
+**Using it:**
+- **VITALS:** tap a measure for its chart (**7D / 30D / 90D**) with your normal as a band; **▲ ABOVE NORMAL** or **BELOW** means outside your usual range, not that something is wrong. Readiness starts once 7 days are in.
+- **SLEEP:** tap a night in the week to see its stages; a note appears when your bedtime varied by more than 45 minutes.
+- **RECORDS:** **+ MEDICINE** (name, when, how many left); tick it each day you take it (the count goes down; **▲ REFILL** at 7 or fewer). Tap a medicine's name to change or remove it. **+ READING** (blood pressure, weight, glucose or anything else), **+ NOTE** with a tag. Appointments are events whose titles contain one of the words listed (change them and **SAVE WORDS**). **FOR THE DOCTOR · 90-DAY SUMMARY** shares or copies a plain summary.
+- **The Bridge:** a **RECOVERY** line in the weather panel; Condition says **Take it easy** when your resting heart rate is 5 or more above your normal two mornings running, and **No health data** after two days without a sync (check the iPhone is on, charging and on Wi-Fi).
+- **Claude:** off until **SYSTEMS → SICKBAY → SHARE WITH ASK**. Then ASK and the Morning Briefing see the last two weeks of sleep, resting heart rate, heart rate variability and steps against your normal, readiness, and your medicines' names. Off, nothing about your health goes with any question.
+- **Privacy:** your health data lives in your Notion (and so in the weekly export) and on your iPads; it is never in the app's code or tests.
 
 ## ALWAYS AVAILABLE
 

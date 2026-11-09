@@ -52,6 +52,7 @@
     if (canPlan()) loadTasks(today, false);
     loadWeather(false);
     loadApiary(false);   /* the hive rhythm counts from the newest check (2.56) */
+    loadSickbay(false);
   }
   function briefSteps() {
     var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], ["Sonnet writing the briefing"]);

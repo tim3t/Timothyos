@@ -68,6 +68,7 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    items.push.apply(items, skConditions(now));   /* SICKBAY (2.74): no health data for two days; resting heart rate up two mornings */
     var upOver = upkeepOverdue(today);
     if (upOver.length) items.push({ lvl: "warn", ic: "▲", txt: upOver.length === 1 ? "Upkeep overdue" : upOver.length + " upkeep items overdue", sub: upOver.slice(0, 3).map(function (u) { return esc(u.name) + (u.cat ? " (" + esc(u.cat) + ")" : ""); }).join(" · ") + (upOver.length > 3 ? " · …" : ""), act: "engineering", go: "UPKEEP" });
     var rdue = reviewDue(now);
@@ -220,6 +221,7 @@
       (rh.winter ? "Winter: an outside look about every " + rh.every + " days" : "Every " + rh.every + " days this time of year") + '</small></span><span class="pill">REST</span></div>';
     else if (rh && rh.winter) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · OUTSIDE LOOK</span><span class="tx"><b>' + (rh.last ? "Last checked " + esc(shortDay(rh.last)) : "No check on record") + '</b><small class="ov-extra">Winter: no inspections. A look at the entrance and the weight.</small></span><span class="pill warn">DUE</span></div>';
     else if (hv) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · ' + hv.label + (rh ? (rh.over ? " · OVERDUE" : " · DUE") : "") + '</span><span class="tx"><b>' + hv.text + '</b><small class="ov-extra">' + hv.sub + (rh && rh.last ? " · last checked " + esc(shortDay(rh.last)) : "") + '</small></span><span class="pill ' + (hv.go ? "ok" : "warn") + '">' + (hv.go ? "GO" : "HOLD") + "</span></div>";
+    html += skEnvRow();
     if (fr) {
       var lvl = fr.low <= 32 ? "bad" : fr.low <= 36 ? "warn" : "ok";
       html += '<div class="ov-envrow"><span class="k">FROST WATCH · TONIGHT</span><span class="tx"><b>Low ' + Math.round(fr.low) + "°F around " + fr.at + '</b><small class="ov-extra">' +

@@ -59,7 +59,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, meals: renderMeals, arboretum: renderArboretum, astrometrics: renderAstro, inbox: renderInbox, science: renderScience, ressikan: renderRessikan, holodeck: renderHolodeck, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, meals: renderMeals, arboretum: renderArboretum, sickbay: renderSickbay, astrometrics: renderAstro, inbox: renderInbox, science: renderScience, ressikan: renderRessikan, holodeck: renderHolodeck, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
@@ -84,11 +84,12 @@
     if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
-    if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); }
+    if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); loadSickbay(false); }
     if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; ml.imp = null; if (ml.cook) { ml.cook = null; mlWake(false); } }
     if (state.screen === "meals" && screen !== "meals" && ml.cook) { ml.cook = null; mlWake(false); }   /* COOK ends when you leave MEALS */   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
-    if (screen === "arboretum" && state.screen === "arboretum") arb.home();   /* tapping ARBORETUM again: back to the map */
+    if (screen === "arboretum" && state.screen === "arboretum") arb.home();
+    if (screen === "sickbay" && state.screen === "sickbay") { skSet({ tab: "vitals" }); sk.form = null; }   /* tapping SICKBAY again: VITALS */   /* tapping ARBORETUM again: back to the map */
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */
     if (screen === "science" && state.screen === "science") { sc.tab = "sky"; sc.sel = null; }   /* tapping SCIENCE again: back to SKY TRAFFIC */
@@ -149,7 +150,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if ((state.screen === "holodeck" && holo.click(b)) || (state.screen === "arboretum" && arb.click(b)) || (state.screen === "systems" && prof.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || mlClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if ((state.screen === "holodeck" && holo.click(b)) || (state.screen === "arboretum" && arb.click(b)) || skClick(b) || skAiClick(b) || (state.screen === "systems" && prof.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || mlClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

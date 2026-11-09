@@ -23,6 +23,7 @@
     { id: "engineering", name: "ENGINEERING", g: "RESOURCES", sub: "Home Assistant devices and upkeep" },
     { id: "apiary", name: "APIARY", g: "RESOURCES", sub: "Hives, checks and honey" },
     { id: "science", name: "SCIENCE", g: "SCIENCE", sub: "Sky traffic, space weather, earth, night sky, nature" },
+    { id: "sickbay", name: "SICKBAY", g: "SCIENCE", sub: "Health from your watch: vitals, sleep, medicines, readings" },
     { id: "meals", name: "MEALS", g: "RESOURCES", sub: "Plan dinners, the grocery list, what was for dinner" },
     { id: "arboretum", name: "ARBORETUM", g: "RESOURCES", sub: "The garden from above: zones, beds, what's planted, the season's jobs" }
   ];
@@ -226,6 +227,12 @@
     A("Garden jobs this season", "ARBORETUM · QUICK GLANCE", "RESOURCES", "garden plants season jobs prune plant beds", function () { arbGo("glance"); });
     A("Garden map", "ARBORETUM · MAP", "RESOURCES", "garden plants zones beds pond meadow", function () { arbGo("map"); });
     ["z1", "z2", "z3", "pond", "meadow"].forEach(function (z) { var nm = { z1: "Zone 1", z2: "Zone 2", z3: "Zone 3", pond: "The Pond", meadow: "The Meadow" }[z]; A(nm, "ARBORETUM · WHAT'S PLANTED", "RESOURCES", "garden zone beds plants", function () { arbGo("zone", z); }); });
+    if (canSickbay()) {
+      A("Health and vitals", "SICKBAY · VITALS", "SCIENCE", "health heart rate hrv readiness watch vitals", function () { skClick({ dataset: { skgo: "vitals" } }); });
+      A("Last night's sleep", "SICKBAY · SLEEP", "SCIENCE", "sleep night deep rem bed", function () { skClick({ dataset: { skgo: "sleep" } }); });
+      A("Medicines and readings", "SICKBAY · RECORDS", "SCIENCE", "medicine pills supplements blood pressure weight notes doctor appointment", function () { skClick({ dataset: { skgo: "records" } }); });
+      A("Sync from Health", "SICKBAY · SYNC FROM HEALTH", "SCIENCE", "apple watch health shortcut sync", function () { go("sickbay"); skSync(); });
+    }
     A("Upkeep", "ENGINEERING · UPKEEP", "RESOURCES", "maintenance filter overdue", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); });
     upkeepItems().forEach(function (u) { A(u.name, "ENGINEERING · UPKEEP" + (u.cat ? " · " + u.cat : ""), "RESOURCES", "maintenance", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); }, "UPKEEP"); });
     var S = function (t, sec, w, run) { A(t, run ? sec : "SYSTEMS · " + sec, "SYSTEMS", w, run || function () { sysJump(sec); }, "SETTING"); };

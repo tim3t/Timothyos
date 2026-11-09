@@ -187,6 +187,7 @@
   }
   function refresh(force) {
     if (!state.conn || (state.screen === "systems" && !force)) return;
+    loadSickbay(false);   /* 2.74: health data stays fresh for the Bridge's Condition, not only when SICKBAY is open (at most every 2 minutes) */
     var r = viewRange(), k = rkey(r), have = state.ranges[k];
     if (!force && have && Date.now() - have.fetched < FRESH_MS) return;
     if (state.inflight[k]) return;
@@ -198,7 +199,7 @@
       if (j.version) state.bridgeVersion = j.version;
       state.caps = j.capabilities || [];
       persist();
-      prof.kick(); loadUpkeep(false);
+      prof.kick(); loadUpkeep(false); loadSickbay(false);
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();

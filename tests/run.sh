@@ -50,6 +50,7 @@ run bridge_habits.test.js
 run bridge_tarot.test.js
 run bridge_tarotbooks.test.js
 run bridge_apiary.test.js
+run bridge_sickbay.test.js
 run bridge_logsearch.test.js
 run bridge_logask.test.js
 run bridge_sessions.test.js
@@ -77,13 +78,14 @@ python3 mock_v21.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.14: + Habits, Libr
 python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search      :8103
 python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.23: + Growth, holidays :8104
 python3 mock_v24.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.24/1.25: + Tarot, books :8105
+python3 mock_sickbay.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.43: SICKBAY only     :8106
 python3 mock_relay.py 8110 >/dev/null 2>&1 & pids+=($!)   # NAS relay, one per lane that uses it: 8110
 python3 mock_relay.py 8111 >/dev/null 2>&1 & pids+=($!)   #                                                8111
 python3 mock_relay.py 8112 >/dev/null 2>&1 & pids+=($!)   #                                                8112
 # Wait until every server answers (the relays make their sample audio with ffmpeg first).
 python3 - <<'PY' || { echo "FAIL  a simulated server never started"; exit 1; }
 import socket, time, sys
-ports = [8080, 8090, 8092, 8093, 8094, 8095, 8096, 8097, 8098, 8099, 8100, 8101, 8102, 8103, 8104, 8105, 8110, 8111, 8112]
+ports = [8080, 8090, 8092, 8093, 8094, 8095, 8096, 8097, 8098, 8099, 8100, 8101, 8102, 8103, 8104, 8105, 8106, 8110, 8111, 8112]
 end = time.time() + 60
 for p in ports:
     while True:
@@ -111,6 +113,7 @@ LANES=(
   "farm|-|app_e2e19.test.js"
   "ledger|-|app_e2e20.test.js"
   "updates|-|app_e2e54.test.js"
+  "sickbay|-|app_e2e84.test.js"
 )
 #   app_e2e        linking, Day/Week/Month, detail, offline cache, phone width
 #   app_e2e6       Capture: old bridge warning, save, validation, offline queue, failure
@@ -161,6 +164,7 @@ LANES=(
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
+#   app_e2e84      SICKBAY (2.74, bridge 1.43; mock_sickbay :8106): readiness, six measures and their normal, a chart by range, Condition (Take it easy; no health data), SLEEP lanes and the week, a medicine ticked and removed, a reading, a note, the dentist from the calendar, SYSTEMS (health key, SHARE WITH ASK), 400 px wide
 #   app_e2e83      ARBORETUM (2.71): the empty map, Zone 1 with four raised beds behind and three on the left with pots between, order and sides, kind, two-tap remove, plantings, jobs and typical jobs, the pond's depth bands, QUICK GLANCE by season with ticks for this turn of the season, the garden's name, a reload, COMPUTER, 400 px wide
 #   app_e2e82      HOLODECK waits out a lost NAS (2.68): requests refused → WAITING FOR THE NAS, nothing marked, TV on, LEVEL not paused, the show picks up when the NAS is back; the NAS answering 404 is logged with its code
 #   app_e2e81      FAMILY CALENDAR and the WEEK strip (2.67, bridge 1.42): not linked (SYSTEMS OFF), linked (read-only, colour), one bar Fri to Sun cut on the right, the Monday piece cut on the left, no overlaps, opens READ-ONLY, hide toggle, MONTH, never in CAPTURE, ASK's snapshot, portrait

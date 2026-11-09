@@ -106,17 +106,19 @@ var CONFIG = {
   NOTION_UPKEEP_DATABASE: '333517b8dff9454f979cfd234847c917',
   // Your Notion Meals and Dinners: MEALS' rotation and each night's dinner, shared by every iPad (bridge 1.39).
   NOTION_MEALS_DATABASE: '880216ac00294fbca344eafc9c77a8b5',
-  NOTION_DINNERS_DATABASE: '1ba57e689aaa499eafe3f734874a1b7c'
+  NOTION_DINNERS_DATABASE: '1ba57e689aaa499eafe3f734874a1b7c',
+  // Your Notion Sickbay: Apple Health days (from a shortcut, with HEALTH_KEY), medicines, readings and notes (bridge 1.43).
+  NOTION_SICKBAY_DATABASE: '247132153b624a71ab5fb20492e98b7c'
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.42.0';
+var VERSION = '1.43.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'export'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -150,7 +152,7 @@ function doGet(e) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile'];
+var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile', 'health'];
 function read_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
@@ -168,6 +170,7 @@ function read_(p) {
   if (p.action === 'apiary') return apiary_();
   if (p.action === 'inbox') return inbox_();
   if (p.action === 'upkeep') return upkeep_();
+  if (p.action === 'health') return health_(p.from);
   if (p.action === 'meals') return meals_();
   if (p.action === 'mealrecipe') return mealRecipe_(String(p.id || ''));
   if (p.action === 'profile') return profile_();
@@ -210,6 +213,7 @@ function doPost(e) {
   var body;
   try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return json_({ ok: false, error: 'bad_request' }); }
   try {
+    if (body.action === 'healthput') { var refusedH = healthKeyRefusal_(body.key); return json_(refusedH ? { ok: false, error: refusedH } : healthPut_(body)); }   // 1.43: the shortcut's own key, good for this alone
     var refusedP = keyRefusal_(body.key);
     if (refusedP) return json_({ ok: false, error: refusedP });
     if (body.action === 'ping') return json_({ ok: true, version: VERSION, capabilities: capabilities_(), calendars: calendarStatus_(), notion: notionStatus_(), ai: aiKey_() ? aiSpend_() : null, export: props_('NOTION_TOKEN') ? exportStatus_() : null });
@@ -232,6 +236,8 @@ function doPost(e) {
     if (body.action === 'inboxremove') return json_(inboxRemove_(String(body.id || '')));
     if (body.action === 'upkeepsave') return json_(upkeepSave_(body.item));
     if (body.action === 'upkeepremove') return json_(upkeepRemove_(String(body.id || '')));
+    if (body.action === 'sickbaysave') return json_(sickbaySave_(body.item));
+    if (body.action === 'sickbayremove') return json_(sickbayRemove_(String(body.id || '')));
     if (body.action === 'mealsave') return json_(mealSave_(body.meal));
     if (body.action === 'mealremove') return json_(mealRemove_(String(body.id || '')));
     if (body.action === 'dinnerset') return json_(dinnerSet_(body.dinner));
@@ -273,6 +279,7 @@ function setup() {
     key = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
     props.setProperty('ACCESS_KEY', key);
   }
+  if (!props.getProperty('HEALTH_KEY')) props.setProperty('HEALTH_KEY', Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, ''));   // 1.43: the Health shortcut's own key (Script Properties → HEALTH_KEY)
   if (CONFIG.WORK_CALENDAR_ID && CONFIG.WORK_CALENDAR_ID.indexOf(PLACEHOLDER) === -1) {
     props.setProperty('WORK_CALENDAR_ID', CONFIG.WORK_CALENDAR_ID);
   }
@@ -308,6 +315,7 @@ function setup() {
   console.log('Notion science log: ' + scienceStatus_());
   console.log('Notion session notes: ' + sessionsStatus_());
   console.log('Notion upkeep: ' + upkeepStatus_());
+  console.log('Notion sickbay: ' + sickbayStatus_());
   console.log('Notion meals and dinners: ' + mealsStatus_());
   console.log('Profile sync: ' + profileStatus_());
   try { console.log('Weekly Notion export: ' + exportSetup_()); } catch (e) { console.log('Weekly Notion export: could not check (' + e.message + ')'); }
@@ -717,6 +725,7 @@ function schemaSpec_() {
     { key: 'meals', name: 'Meals', src: mealsSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Ingredients', 'rich_text'], ['Recipe', 'url'], ['Notes', 'rich_text'], ['Retired', 'checkbox'], ['App ID', 'rich_text'], ['Photo', 'url']] },
     { key: 'dinners', name: 'Dinners', src: dinnersSource_, need: [['Dinner', 'title'], ['Date', 'date'], ['Status', 'select'], ['Kind', 'select'], ['Meal', 'relation'], ['Note', 'rich_text']] },
     { key: 'upkeep', name: 'Upkeep', src: upkeepSource_, need: [['Name', 'title'], ['Category', 'rich_text'], ['Every', 'number'], ['Unit', 'select'], ['Last Done', 'date'], ['Last Reading', 'number'], ['Reading', 'number'], ['History', 'rich_text'], ['App ID', 'rich_text']] },
+    { key: 'sickbay', name: 'Sickbay', src: sickSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Resting HR', 'number'], ['HRV', 'number'], ['Sleep (h)', 'number'], ['Steps', 'number'], ['Data', 'rich_text'], ['App ID', 'rich_text']] },
     { key: 'sessions', name: 'Session Notes', src: sessionsSource_, need: [['Session', 'title'], ['Type', 'select'], ['Date', 'date'], ['Where', 'select'], ['Topics', 'multi_select'], ['Arriving', 'number'], ['Leaving', 'number'], ['Felt', 'select'], ['Next Session', 'date'], ['Data', 'rich_text']].concat(t(vals(SES_TEXT), 'rich_text')) }
   ];
 }
@@ -2285,6 +2294,158 @@ function upkeepStatus_() {
   catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Upkeep (... > Connections)' : ''); }
 }
 
+// ---- SICKBAY (1.43): Apple Health days from a shortcut, and medicines, readings and notes ----
+// One database, like the Apiary: Kind = Day, Medicine, Reading or Note; App ID keeps each page's identity.
+// A shortcut on Timothy's iPad reads Health and POSTs { key: HEALTH_KEY, action: 'healthput', lines } where each
+// line is CODE|VALUE|START|END (START and END as ISO 8601 dates). HEALTH_KEY can do that and nothing else; the
+// main key never goes into Shortcuts. Days are put together here, in the script's time zone, and each day's page
+// is merged with what it already holds, so sending the same days again is always safe.
+var SICK_KINDS = { day: 'Day', medicine: 'Medicine', reading: 'Reading', note: 'Note' };
+var SICK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+var HEALTH_AVG = ['rhr', 'hrv', 'resp'], HEALTH_SUM = ['steps', 'active', 'exercise', 'stand'], HEALTH_LAST = ['vo2', 'weight', 'temp'];
+var HEALTH_RANGE = { rhr: [25, 220], hrv: [1, 400], resp: [4, 60], steps: [0, 150000], active: [0, 20000], exercise: [0, 1440], stand: [0, 24], vo2: [5, 100], weight: [40, 1000], temp: [30, 45] };
+function sickSource_() { return sourceFor_(CONFIG.NOTION_SICKBAY_DATABASE, 'NOTION_SICKBAY_SOURCE'); }
+function sickGen_() { return CacheService.getScriptCache().get('skgen') || '0'; }
+function sickBump_() { CacheService.getScriptCache().put('skgen', Utilities.getUuid().slice(0, 8), 21600); }
+/** null when the health key matches; never accepts the main key, and the health key never opens anything else. */
+function healthKeyRefusal_(given) {
+  if (typeof given !== 'string' || !given) return 'no_key';
+  var hk = props_('HEALTH_KEY');
+  if (!hk) return 'health_key_not_set';
+  return given === hk ? null : 'unauthorized';
+}
+function sickData_(p) { try { var d = JSON.parse(plain_(p.Data && p.Data.rich_text) || '{}'); return d && typeof d === 'object' && !Array.isArray(d) ? d : {}; } catch (e) { return {}; } }
+function toSick_(pg) {
+  var p = pg.properties || {}, kind = sel_(p.Kind), k = Object.keys(SICK_KINDS).filter(function (x) { return SICK_KINDS[x] === kind; })[0] || null;
+  return { id: plain_(p['App ID'] && p['App ID'].rich_text) || pg.id, page: pg.id, kind: k, name: plain_(p.Name && p.Name.title), date: day_(p.Date), data: sickData_(p) };
+}
+/** The days from `from` (yyyy-mm-dd, at most 400 days back) and every medicine, reading and note. */
+function health_(from) {
+  from = realDay_(String(from || '')) ? String(from) : Utilities.formatDate(new Date(Date.now() - 120 * 864e5), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var floor = Utilities.formatDate(new Date(Date.now() - 400 * 864e5), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  if (from < floor) from = floor;
+  var cache = CacheService.getScriptCache(), k = 'health:' + sickGen_() + ':' + from, hit = cache.get(k);
+  if (hit) return JSON.parse(hit);
+  var rows = queryAll_(sickSource_(), { or: [{ property: 'Kind', select: { does_not_equal: 'Day' } }, { property: 'Date', date: { on_or_after: from } }] }, 10, [{ property: 'Date', direction: 'ascending' }]).map(toSick_);
+  var out = { ok: true, version: VERSION, from: from, last: props_('HEALTH_LAST') || null, url: 'https://www.notion.so/' + String(CONFIG.NOTION_SICKBAY_DATABASE).replace(/-/g, ''),
+    days: rows.filter(function (r) { return r.kind === 'day' && r.date; }).map(function (r) { return Object.assign({}, r.data, { date: r.date }); }),
+    items: rows.filter(function (r) { return r.kind && r.kind !== 'day'; }).map(function (r) { return { id: r.id, kind: r.kind, name: r.name, date: r.date, data: r.data }; }) };
+  try { cache.put(k, JSON.stringify(out), 120); } catch (x) { /* too large to cache */ }
+  return out;
+}
+function sickFind_(key) { return queryAll_(sickSource_(), { property: 'App ID', rich_text: { equals: key } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; })[0] || null; }
+function healthNum_(s) { var m = String(s == null ? '' : s).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : NaN; }
+function healthStage_(v) {
+  v = String(v || '').toLowerCase();
+  return /deep/.test(v) ? 'deep' : /rem/.test(v) ? 'rem' : /awake|wake/.test(v) ? 'awake' : /in ?bed/.test(v) ? 'inbed' : /core|light|asleep|sleep/.test(v) ? 'core' : null;
+}
+/** The lines a shortcut sent, put together into days: { 'yyyy-MM-dd': { rhr, …, sleep: { asleep, deep, rem, core, awake, bed, wake } } }. */
+function healthDays_(raw, tz) {
+  var acc = {}, used = 0, skipped = 0, seen = {};
+  var dayOf = function (d) { return Utilities.formatDate(d, tz, 'yyyy-MM-dd'); }, hm = function (d) { return Utilities.formatDate(d, tz, 'HH:mm'); };
+  String(raw || '').split(/\r?\n/).forEach(function (line) {
+    if (!line.trim()) return;
+    var f = line.split(/\s*[|\t]\s*/), code = String(f[0] || '').trim().toLowerCase(), start = new Date(String(f[2] || '').trim()), end = new Date(String(f[3] || f[2] || '').trim());
+    if (isNaN(start) || isNaN(end) || end < start || seen[line]) { skipped++; return; }
+    seen[line] = 1;
+    if (code === 'sleep') {
+      var st = healthStage_(f[1]); if (!st) { skipped++; return; }
+      var d = dayOf(end), a = acc[d] = acc[d] || {}, s = a._sleep = a._sleep || { deep: 0, rem: 0, core: 0, awake: 0, b: null, w: null, segs: [] };
+      if (st !== 'inbed') { s[st] += (end - start) / 60000; s.segs.push([st.charAt(0), start, end]); if (!s.b || start < s.b) s.b = start; if (!s.w || end > s.w) s.w = end; }
+      used++; return;
+    }
+    var v = healthNum_(f[1]);
+    if (code === 'standmin') { code = 'stand'; v = v / 60; }   // Stand Minutes, as some iPads list it
+    if (!HEALTH_RANGE[code] || !isFinite(v)) { skipped++; return; }
+    if (code === 'temp' && v > 60) v = (v - 32) * 5 / 9;   // °F from an iPad set to Fahrenheit
+    if (code === 'weight' && /kg/i.test(f[1])) v = v * 2.20462;
+    if (code === 'stand' && /min/i.test(f[1])) v = v / 60;
+    if (v < HEALTH_RANGE[code][0] || v > HEALTH_RANGE[code][1]) { skipped++; return; }
+    var dd = dayOf(code === 'temp' ? end : start), b = acc[dd] = acc[dd] || {};
+    if (HEALTH_AVG.indexOf(code) > -1) { b['_' + code] = b['_' + code] || []; b['_' + code].push(v); }
+    else if (HEALTH_SUM.indexOf(code) > -1) b[code] = (b[code] || 0) + v;
+    else b[code] = v;
+    used++;
+  });
+  var out = {}, r1 = function (x) { return Math.round(x * 10) / 10; };
+  Object.keys(acc).forEach(function (d) {
+    var a = acc[d], o = {};
+    HEALTH_AVG.forEach(function (c) { var l = a['_' + c]; if (l && l.length) o[c] = r1(l.reduce(function (x, y) { return x + y; }, 0) / l.length); });
+    HEALTH_SUM.forEach(function (c) { if (a[c] != null) o[c] = Math.round(a[c]); });
+    HEALTH_LAST.forEach(function (c) { if (a[c] != null) o[c] = r1(a[c]); });
+    if (a._sleep && a._sleep.b) {
+      var s = a._sleep;
+      o.sleep = { asleep: Math.round(s.deep + s.rem + s.core), deep: Math.round(s.deep), rem: Math.round(s.rem), core: Math.round(s.core), awake: Math.round(s.awake), bed: hm(s.b), wake: hm(s.w),
+        len: Math.round((s.w - s.b) / 60000), segs: s.segs.sort(function (x, y) { return x[1] - y[1]; }).slice(0, 240).map(function (g) { return [g[0], Math.round((g[1] - s.b) / 60000), Math.max(1, Math.round((g[2] - g[1]) / 60000))]; }) };   // for SLEEP's stage lanes: [d|r|c|a, minutes after bedtime, minutes]
+    }
+    if (Object.keys(o).length) out[d] = o;
+  });
+  return { days: out, used: used, skipped: skipped };
+}
+/** From the shortcut: { lines } (≤ 400,000 characters). Days older than 14 or in the future are left out; at most 10. */
+function healthPut_(body) {
+  var raw = String(body.lines || '');
+  if (!raw.trim() || raw.length > 400000) return { ok: false, error: 'bad_request' };
+  var tz = Session.getScriptTimeZone(), today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'), oldest = Utilities.formatDate(new Date(Date.now() - 14 * 864e5), tz, 'yyyy-MM-dd');
+  var got = healthDays_(raw, tz), days = Object.keys(got.days).filter(function (d) { return d >= oldest && d <= today; }).sort().slice(-10);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    days.forEach(function (d) {
+      var key = 'day-' + d, have = sickFind_(key), merged = Object.assign(have ? sickData_(have.properties || {}) : {}, got.days[d]);
+      var dt = new Date(d + 'T12:00:00Z'), name = Utilities.formatDate(dt, 'UTC', 'EEE d MMM yyyy');
+      var props = { Name: { title: rt_(name) }, Kind: { select: { name: 'Day' } }, Date: { date: { start: d } }, 'App ID': { rich_text: rt_(key) },
+        'Resting HR': { number: merged.rhr != null ? merged.rhr : null }, HRV: { number: merged.hrv != null ? merged.hrv : null },
+        'Sleep (h)': { number: merged.sleep ? Math.round(merged.sleep.asleep / 6) / 10 : null }, Steps: { number: merged.steps != null ? merged.steps : null },
+        Data: { rich_text: rtLong_(JSON.stringify(merged)) } };
+      if (have) notion_('patch', '/pages/' + have.id, { properties: props });
+      else notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: sickSource_() }, properties: props });
+    });
+    PropertiesService.getScriptProperties().setProperty('HEALTH_LAST', new Date().toISOString());
+    sickBump_();
+    return { ok: true, version: VERSION, days: days, used: got.used, skipped: got.skipped, message: days.length ? 'Sent ' + days.length + (days.length === 1 ? ' day' : ' days') + ' to SICKBAY.' : 'Nothing new to send.' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+/** From the app: one medicine, reading or note, whole: { kind, id (the app's), name, date, data }. Safe to repeat. */
+function sickbaySave_(it) {
+  it = it || {};
+  var kind = String(it.kind || ''), key = String(it.id || ''), name = String(it.name || '').trim(), date = it.date ? String(it.date) : null, data = it.data && typeof it.data === 'object' && !Array.isArray(it.data) ? it.data : {};
+  var json = JSON.stringify(data);
+  if (!SICK_KINDS[kind] || kind === 'day' || !SICK_ID.test(key) || /^day-/.test(key) || !name || name.length > 2000 || (date && !realDay_(date)) || json.length > 20000) return { ok: false, error: 'bad_request' };
+  var props = { Name: { title: rt_(name) }, Kind: { select: { name: SICK_KINDS[kind] } }, Date: { date: date ? { start: date } : null }, 'App ID': { rich_text: rt_(key) }, Data: { rich_text: rtLong_(json) } };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = sickFind_(key);
+    if (have && sel_((have.properties || {}).Kind) === 'Day') return { ok: false, error: 'not_writable' };
+    var pg = have ? notion_('patch', '/pages/' + have.id, { properties: props }) : notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: sickSource_() }, properties: props });
+    sickBump_();
+    var r = toSick_(pg);
+    return { ok: true, version: VERSION, item: { id: r.id, kind: r.kind, name: r.name, date: r.date, data: r.data } };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function sickbayRemove_(key) {
+  if (!SICK_ID.test(key) || /^day-/.test(key)) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    var have = sickFind_(key);
+    if (have && sel_((have.properties || {}).Kind) === 'Day') return { ok: false, error: 'not_writable' };
+    if (have) { notion_('patch', '/pages/' + have.id, { in_trash: true }); sickBump_(); }
+    return { ok: true, version: VERSION, removed: key };
+  } finally {
+    lock.releaseLock();
+  }
+}
+function sickbayStatus_() {
+  try { var h = health_(); return 'OK (' + h.days.length + (h.days.length === 1 ? ' day, ' : ' days, ') + h.items.length + (h.items.length === 1 ? ' record)' : ' records)') + (props_('HEALTH_KEY') ? '' : '. HEALTH_KEY not set yet: run setup'); }
+  catch (e) { return 'NOT READY: ' + (e.notion || 'notion_error') + (e.notion === 'notion_not_shared' ? '. Connect the TimothyOS integration to Sickbay (... > Connections)' : ''); }
+}
+
 // ---- Meals (bridge 1.39) ------------------------------------------------------------
 // MEALS: 🍽 Meals, a page per meal (Name, Kind, Ingredients as lines "Item · Aisle", "· have" for something always in
 // the pantry, Recipe, Notes, Retired, App ID), and 🍽 Dinners, a page per night (Dinner, Date, Status Planned or Eaten,
@@ -2658,7 +2819,7 @@ function mealRecipe_(key) {
 // by (which iPad) }; a newer change wins, item by item, and AUDIO's places merge episode by episode. Keys, tokens,
 // drafts and the AI switches are refused: they never leave the iPad.
 var PROFILE_KEY = /^tos\.[a-z0-9]+\.v\d$/;
-var PROFILE_NEVER = ['tos.conn.v1', 'tos.nas.v1', 'tos.ha.v1', 'tos.ldraft.v1', 'tos.sndraft.v1', 'tos.rdraft.v1', 'tos.tarotdraft.v1', 'tos.apdraft.v1', 'tos.logai.v1', 'tos.aifin.v1', 'tos.aitarot.v1', 'tos.aiapiary.v1', 'tos.snai.v1', 'tos.profile.v1'];
+var PROFILE_NEVER = ['tos.aisickbay.v1', 'tos.conn.v1', 'tos.nas.v1', 'tos.ha.v1', 'tos.ldraft.v1', 'tos.sndraft.v1', 'tos.rdraft.v1', 'tos.tarotdraft.v1', 'tos.apdraft.v1', 'tos.logai.v1', 'tos.aifin.v1', 'tos.aitarot.v1', 'tos.aiapiary.v1', 'tos.snai.v1', 'tos.profile.v1'];
 var PROFILE_PLAYS = 'tos.plays.v1', PROFILE_MAX = 450000, PROFILE_CHUNK = 8500;
 function profStore_() { return PropertiesService.getUserProperties(); }
 function profLoad_() {

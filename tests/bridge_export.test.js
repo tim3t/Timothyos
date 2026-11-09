@@ -142,7 +142,7 @@ const runs = runTriggers();
 const last = JSON.parse(props.EXPORT_LAST), folder = last.folder;
 console.log('first export:', runs, 'runs ·', JSON.stringify({ pages: last.pages, dbs: last.dbs, of: last.of, failed: last.failed.length, runs: last.runs, name: last.name }));
 assert.ok(runs >= 3, 'several runs: the budget is honoured');
-assert.ok(last.ok && last.pages === LOGN + 3 && last.dbs === 2 && last.of === 16 && last.failed.length === 14 && /not shared|notion_not_shared/.test(last.failed[0]));
+assert.ok(last.ok && last.pages === LOGN + 3 && last.dbs === 2 && last.of === 17 && last.failed.length === 15 && /not shared|notion_not_shared/.test(last.failed[0]));
 assert.ok(!props.EXPORT_JOB && triggers.filter(t => t.h === 'exportContinue').length === 0, 'job and its trigger cleared');
 assert.ok(notionCalls.every(c => /^get \/(databases|blocks)\/|^post \/data_sources\/[^/]+\/query$/.test(c)), 'Notion only read: ' + notionCalls.filter(c => !/^get \/(databases|blocks)\/|query$/.test(c)).join(', '));
 const names = inFolder(folder).map(f => f.name).sort();

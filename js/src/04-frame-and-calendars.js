@@ -3,10 +3,10 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "meals" || state.screen === "arboretum" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "meals" || state.screen === "arboretum" || state.screen === "sickbay" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
     if (!linked || state.screen !== "bridge") $("condSlot").hidden = true;   /* the condition pill (2.63) is the Bridge's; renderBridge fills and shows it */
-    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "meals" || state.screen === "arboretum" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "meals" || state.screen === "arboretum" || state.screen === "sickbay" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     $("todayBtn").textContent = state.screen === "review" ? "THIS WEEK" : state.screen === "astrometrics" ? "THIS YEAR" : "TODAY";
     if (state.screen === "astrometrics") $("nextBtn").disabled = as.y >= now.getFullYear(); else $("nextBtn").disabled = false;
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
@@ -58,6 +58,7 @@
     else if (state.screen === "tarot") { var th = trHead(); e.textContent = th.e; t.textContent = th.t; }
     else if (state.screen === "apiary") { var ah = apHead(); e.textContent = ah.e; t.textContent = ah.t; }
     else if (state.screen === "meals") { var mh = mlHead(); e.textContent = mh.e; t.textContent = mh.t; }
+    else if (state.screen === "sickbay") { var skh = skHead(); e.textContent = skh.e; t.textContent = skh.t; }
     else if (state.screen === "arboretum") { var abh = arb.head(); e.textContent = abh.e; t.textContent = abh.t; }
     else if (state.screen === "astrometrics") { var xh = astroHead(); e.textContent = xh.e; t.textContent = xh.t; }
     else if (state.screen === "inbox") { var ih = inboxHead(); e.textContent = ih.e; t.textContent = ih.t; }

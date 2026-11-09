@@ -41,7 +41,7 @@
     var line = function (e) { return e.allDay ? "all day · " + AREAS[e.area].name + " · " + e.title : hm(e._s) + "-" + hm(e._e) + " · " + AREAS[e.area].name + " · " + e.title + (e.pending ? " (not saved yet)" : ""); };
     add("NOW: " + DOWL[now.getDay()] + " " + today + " " + hm(now) + " (iPad local time). Week starts Monday.");
     if (hasFarm() || hasGrowth()) add("CALENDARS: WORK (read-only), PERSONAL" + (hasFarm() ? ", " + AREAS.farm.name + " (farm and bees; calendar 'farm' for proposals)" : "") + (hasGrowth() ? ", GROWTH (personal growth and hobbies; calendar 'growth' for proposals)" : ""));
-    var items = conditions(now, today, list);
+    var items = conditions(now, today, list).filter(function (i) { return !i.health || lsGet(LS_AISICK); });   /* SICKBAY's items only when shared (2.74) */
     add("CONDITION: " + (items.some(function (i) { return i.lvl === "bad"; }) ? "RED" : items.length ? "YELLOW" : "GREEN") +
       (items.length ? " · " + items.map(function (i) { return i.txt + " (" + unesc(i.sub.replace(/<[^>]+>/g, "")) + ")"; }).join(" · ") : ""));
     var de = dayEvents(list, now);
@@ -87,6 +87,8 @@
     if (tar) add(tar, "tarot readings");
     var api2 = apiaryBrief();
     if (api2) add(api2, "apiary");
+    var skb = sickbayBrief();
+    if (skb) add(skb, "health");
     return parts ? out : out.map(function (x) { return x.t; }).join("\n\n");
   }
 

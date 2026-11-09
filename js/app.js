@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.73.1";
+  var VERSION = "2.74.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -654,6 +654,7 @@
   }
   function refresh(force) {
     if (!state.conn || (state.screen === "systems" && !force)) return;
+    loadSickbay(false);   /* 2.74: health data stays fresh for the Bridge's Condition, not only when SICKBAY is open (at most every 2 minutes) */
     var r = viewRange(), k = rkey(r), have = state.ranges[k];
     if (!force && have && Date.now() - have.fetched < FRESH_MS) return;
     if (state.inflight[k]) return;
@@ -665,7 +666,7 @@
       if (j.version) state.bridgeVersion = j.version;
       state.caps = j.capabilities || [];
       persist();
-      prof.kick(); loadUpkeep(false);
+      prof.kick(); loadUpkeep(false); loadSickbay(false);
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
@@ -701,10 +702,10 @@
     var e = $("eyebrow"), t = $("title"), a = state.anchor, now = new Date();
     var linked = !!state.conn;
     renderNav();
-    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "meals" || state.screen === "arboretum" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || (state.screen === "review" && state.rvLog);
+    $("pager").hidden = !linked || state.screen === "systems" || state.screen === "dates" || state.screen === "bridge" || state.screen === "ledger" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary" || state.screen === "meals" || state.screen === "arboretum" || state.screen === "sickbay" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || (state.screen === "review" && state.rvLog);
     $("logBtn").hidden = state.screen !== "review";
     if (!linked || state.screen !== "bridge") $("condSlot").hidden = true;   /* the condition pill (2.63) is the Bridge's; renderBridge fills and shows it */
-    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "meals" || state.screen === "arboretum" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
+    $("todayBtn").hidden = (state.screen === "astrometrics" && as.y === now.getFullYear()) || state.screen === "meals" || state.screen === "arboretum" || state.screen === "sickbay" || state.screen === "inbox" || state.screen === "science" || state.screen === "ressikan" || state.screen === "holodeck" || state.screen === "review" || state.screen === "log" || state.screen === "library" || state.screen === "storage" || state.screen === "engineering" || state.screen === "tarot" || state.screen === "apiary";   /* ALL REVIEWS takes its place; this week is one tap away on the log */
     $("todayBtn").textContent = state.screen === "review" ? "THIS WEEK" : state.screen === "astrometrics" ? "THIS YEAR" : "TODAY";
     if (state.screen === "astrometrics") $("nextBtn").disabled = as.y >= now.getFullYear(); else $("nextBtn").disabled = false;
     $("topNote").textContent = !linked ? "CALENDAR CORE · NOT LINKED" : canCreate() ? "CALENDAR CORE · CAPTURE ON" : "CALENDAR CORE · READ-ONLY";
@@ -756,6 +757,7 @@
     else if (state.screen === "tarot") { var th = trHead(); e.textContent = th.e; t.textContent = th.t; }
     else if (state.screen === "apiary") { var ah = apHead(); e.textContent = ah.e; t.textContent = ah.t; }
     else if (state.screen === "meals") { var mh = mlHead(); e.textContent = mh.e; t.textContent = mh.t; }
+    else if (state.screen === "sickbay") { var skh = skHead(); e.textContent = skh.e; t.textContent = skh.t; }
     else if (state.screen === "arboretum") { var abh = arb.head(); e.textContent = abh.e; t.textContent = abh.t; }
     else if (state.screen === "astrometrics") { var xh = astroHead(); e.textContent = xh.e; t.textContent = xh.t; }
     else if (state.screen === "inbox") { var ih = inboxHead(); e.textContent = ih.e; t.textContent = ih.t; }
@@ -1016,6 +1018,7 @@
     html += ledgerSection();
     html += tarotSection();
     html += apiarySection();
+    html += sickbaySection();
     html += mealsSection();
     html += storageSection();
     html += haSection();
@@ -1058,6 +1061,7 @@
     ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],
     ["MEALS", [["meals", "Grocery ticks and items added by hand, PLAN or LOG", ["tos.mealgot.v1", "tos.mealview.v1"]]]],
     ["ARBORETUM", [["arb", "The garden: its name, beds, plantings, jobs and ticks", ["tos.arb.v1"]]]],
+    ["SICKBAY", [["sickview", "SICKBAY tabs, measure and range, appointment words", ["tos.sickview.v1"]]]],
     ["SCIENCE AND ASTROMETRICS", [["scilm", "Landmarks and overlays", ["tos.scilm.v1", "tos.scilmoff.v1", "tos.scilineoff.v1"]], ["ship", "Ship's Year", ["tos.shipyear.v1"]]]],
     ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing, headlines and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.newsoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
   ];
@@ -1299,8 +1303,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.42.0";
-  var BRIDGE_FEATURES = [["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.43.0";
+  var BRIDGE_FEATURES = [["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -2519,6 +2523,7 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    items.push.apply(items, skConditions(now));   /* SICKBAY (2.74): no health data for two days; resting heart rate up two mornings */
     var upOver = upkeepOverdue(today);
     if (upOver.length) items.push({ lvl: "warn", ic: "▲", txt: upOver.length === 1 ? "Upkeep overdue" : upOver.length + " upkeep items overdue", sub: upOver.slice(0, 3).map(function (u) { return esc(u.name) + (u.cat ? " (" + esc(u.cat) + ")" : ""); }).join(" · ") + (upOver.length > 3 ? " · …" : ""), act: "engineering", go: "UPKEEP" });
     var rdue = reviewDue(now);
@@ -2671,6 +2676,7 @@
       (rh.winter ? "Winter: an outside look about every " + rh.every + " days" : "Every " + rh.every + " days this time of year") + '</small></span><span class="pill">REST</span></div>';
     else if (rh && rh.winter) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · OUTSIDE LOOK</span><span class="tx"><b>' + (rh.last ? "Last checked " + esc(shortDay(rh.last)) : "No check on record") + '</b><small class="ov-extra">Winter: no inspections. A look at the entrance and the weight.</small></span><span class="pill warn">DUE</span></div>';
     else if (hv) html += '<div class="ov-envrow"><span class="k">HIVE CHECK · ' + hv.label + (rh ? (rh.over ? " · OVERDUE" : " · DUE") : "") + '</span><span class="tx"><b>' + hv.text + '</b><small class="ov-extra">' + hv.sub + (rh && rh.last ? " · last checked " + esc(shortDay(rh.last)) : "") + '</small></span><span class="pill ' + (hv.go ? "ok" : "warn") + '">' + (hv.go ? "GO" : "HOLD") + "</span></div>";
+    html += skEnvRow();
     if (fr) {
       var lvl = fr.low <= 32 ? "bad" : fr.low <= 36 ? "warn" : "ok";
       html += '<div class="ov-envrow"><span class="k">FROST WATCH · TONIGHT</span><span class="tx"><b>Low ' + Math.round(fr.low) + "°F around " + fr.at + '</b><small class="ov-extra">' +
@@ -2987,6 +2993,7 @@
     if (canPlan()) loadTasks(today, false);
     loadWeather(false);
     loadApiary(false);   /* the hive rhythm counts from the newest check (2.56) */
+    loadSickbay(false);
   }
   function briefSteps() {
     var st = ["Calendars"].concat(canPlan() ? ["Tasks and priorities"] : [], canDates() ? ["Key dates"] : [], wxData() ? ["Weather and hive check"] : [], ["Sonnet writing the briefing"]);
@@ -3975,7 +3982,7 @@
     var line = function (e) { return e.allDay ? "all day · " + AREAS[e.area].name + " · " + e.title : hm(e._s) + "-" + hm(e._e) + " · " + AREAS[e.area].name + " · " + e.title + (e.pending ? " (not saved yet)" : ""); };
     add("NOW: " + DOWL[now.getDay()] + " " + today + " " + hm(now) + " (iPad local time). Week starts Monday.");
     if (hasFarm() || hasGrowth()) add("CALENDARS: WORK (read-only), PERSONAL" + (hasFarm() ? ", " + AREAS.farm.name + " (farm and bees; calendar 'farm' for proposals)" : "") + (hasGrowth() ? ", GROWTH (personal growth and hobbies; calendar 'growth' for proposals)" : ""));
-    var items = conditions(now, today, list);
+    var items = conditions(now, today, list).filter(function (i) { return !i.health || lsGet(LS_AISICK); });   /* SICKBAY's items only when shared (2.74) */
     add("CONDITION: " + (items.some(function (i) { return i.lvl === "bad"; }) ? "RED" : items.length ? "YELLOW" : "GREEN") +
       (items.length ? " · " + items.map(function (i) { return i.txt + " (" + unesc(i.sub.replace(/<[^>]+>/g, "")) + ")"; }).join(" · ") : ""));
     var de = dayEvents(list, now);
@@ -4021,6 +4028,8 @@
     if (tar) add(tar, "tarot readings");
     var api2 = apiaryBrief();
     if (api2) add(api2, "apiary");
+    var skb = sickbayBrief();
+    if (skb) add(skb, "health");
     return parts ? out : out.map(function (x) { return x.t; }).join("\n\n");
   }
 
@@ -6290,6 +6299,7 @@
     { id: "engineering", name: "ENGINEERING", g: "RESOURCES", sub: "Home Assistant devices and upkeep" },
     { id: "apiary", name: "APIARY", g: "RESOURCES", sub: "Hives, checks and honey" },
     { id: "science", name: "SCIENCE", g: "SCIENCE", sub: "Sky traffic, space weather, earth, night sky, nature" },
+    { id: "sickbay", name: "SICKBAY", g: "SCIENCE", sub: "Health from your watch: vitals, sleep, medicines, readings" },
     { id: "meals", name: "MEALS", g: "RESOURCES", sub: "Plan dinners, the grocery list, what was for dinner" },
     { id: "arboretum", name: "ARBORETUM", g: "RESOURCES", sub: "The garden from above: zones, beds, what's planted, the season's jobs" }
   ];
@@ -6493,6 +6503,12 @@
     A("Garden jobs this season", "ARBORETUM · QUICK GLANCE", "RESOURCES", "garden plants season jobs prune plant beds", function () { arbGo("glance"); });
     A("Garden map", "ARBORETUM · MAP", "RESOURCES", "garden plants zones beds pond meadow", function () { arbGo("map"); });
     ["z1", "z2", "z3", "pond", "meadow"].forEach(function (z) { var nm = { z1: "Zone 1", z2: "Zone 2", z3: "Zone 3", pond: "The Pond", meadow: "The Meadow" }[z]; A(nm, "ARBORETUM · WHAT'S PLANTED", "RESOURCES", "garden zone beds plants", function () { arbGo("zone", z); }); });
+    if (canSickbay()) {
+      A("Health and vitals", "SICKBAY · VITALS", "SCIENCE", "health heart rate hrv readiness watch vitals", function () { skClick({ dataset: { skgo: "vitals" } }); });
+      A("Last night's sleep", "SICKBAY · SLEEP", "SCIENCE", "sleep night deep rem bed", function () { skClick({ dataset: { skgo: "sleep" } }); });
+      A("Medicines and readings", "SICKBAY · RECORDS", "SCIENCE", "medicine pills supplements blood pressure weight notes doctor appointment", function () { skClick({ dataset: { skgo: "records" } }); });
+      A("Sync from Health", "SICKBAY · SYNC FROM HEALTH", "SCIENCE", "apple watch health shortcut sync", function () { go("sickbay"); skSync(); });
+    }
     A("Upkeep", "ENGINEERING · UPKEEP", "RESOURCES", "maintenance filter overdue", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); });
     upkeepItems().forEach(function (u) { A(u.name, "ENGINEERING · UPKEEP" + (u.cat ? " · " + u.cat : ""), "RESOURCES", "maintenance", function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); }, "UPKEEP"); });
     var S = function (t, sec, w, run) { A(t, run ? sec : "SYSTEMS · " + sec, "SYSTEMS", w, run || function () { sysJump(sec); }, "SETTING"); };
@@ -14713,7 +14729,7 @@
      drafts: the Captain's Log draft never goes into a file. BACKUP waits until nothing is pending. RESTORE
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
      writes only keys on BK_KEYS, then reloads. */
-  var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1",
+  var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
@@ -14732,7 +14748,7 @@
   /* What's still waiting to be sent, by kind, each list counted by its own shape (2.58.1: SCIENCE's {add, star} counted
      as 2 for ever, so every iPad that had opened SCIENCE couldn't back up from 2.42 on). */
   var BK_QUEUES = [["tos.queue.v1", "capture", "captures"], ["tos.habitq.v1", "habit day", "habit days"], ["tos.tarotq.v1", "tarot change", "tarot changes"], ["tos.apiaryq.v1", "hive change", "hive changes"],
-    ["tos.inboxq.v1", "inbox change", "inbox changes"], ["tos.sciq.v1", "science log entry", "science log entries"], ["tos.upkeepq.v1", "upkeep change", "upkeep changes"], ["tos.mealq.v1", "meals change", "meals changes"]];
+    ["tos.inboxq.v1", "inbox change", "inbox changes"], ["tos.sciq.v1", "science log entry", "science log entries"], ["tos.upkeepq.v1", "upkeep change", "upkeep changes"], ["tos.mealq.v1", "meals change", "meals changes"], ["tos.sickbayq.v1", "sickbay change", "sickbay changes"]];
   function bkCount(k, v) {
     if (!v) return 0;
     if (Array.isArray(v)) return v.length;
@@ -14742,7 +14758,7 @@
   }
   function bkPendingList() { return BK_QUEUES.map(function (q) { var n = bkCount(q[0], lsGet(q[0])); return n ? n + " " + (n === 1 ? q[1] : q[2]) : ""; }).filter(Boolean); }
   function bkPending() { return BK_QUEUES.reduce(function (n, q) { return n + bkCount(q[0], lsGet(q[0])); }, 0); }
-  function bkSend() { flushQueue(true); flushHabits(); flushTarot(); flushApiary(); flushInbox(); sciFlush(); flushUpkeep(); flushMeals(); toast("Sending what's waiting…"); setTimeout(function () { if (state.screen === "systems") render(true); }, 5000); }
+  function bkSend() { flushQueue(true); flushHabits(); flushTarot(); flushApiary(); flushInbox(); sciFlush(); flushUpkeep(); flushMeals(); flushSickbay(); toast("Sending what's waiting…"); setTimeout(function () { if (state.screen === "systems") render(true); }, 5000); }
   function bkDrafts() {
     return [["tos.ldraft.v1", "Captain's Log writing"], ["tos.sndraft.v1", "session notes not yet saved"], ["tos.rdraft.v1", "a review draft"], ["tos.tarotdraft.v1", "a new tarot reading"], ["tos.apdraft.v1", "a hive check in progress"]]
       .filter(function (d) { var v = lsGet(d[0]); return v && (typeof v !== "object" || Object.keys(v).length); }).map(function (d) { return d[1]; });
@@ -14863,6 +14879,358 @@
   document.addEventListener("change", function (e) { if (e.target && e.target.id === "bkFile") bkRead(e.target.files && e.target.files[0]); });
   try { if (sessionStorage.getItem("tos.restored")) { sessionStorage.removeItem("tos.restored"); setTimeout(function () { toast("Restored from backup. Syncing your data."); }, 800); } } catch (x) { /* private mode */ }
 
+  /* ---------- SICKBAY (2.74, bridge 1.43, D70): health from the Apple Watch, medicines, readings, notes ----------
+     Timothy's mockup (2026-11-09): VITALS, SLEEP, RECORDS; a SCIENCE station. Apple Health has no web API (its data
+     never leaves his devices unencrypted), so a shortcut on HUB reads Health and POSTs it to the bridge with its own
+     HEALTH_KEY; the bridge keeps one Day page per date in 🩺 Sickbay (Notion) and the app reads them with the main
+     key. Medicines, readings and notes are pages of their own, saved through tos.sickbayq.v1 like UPKEEP's queue.
+     "Your normal" is the middle of the last 30 days (20th to 80th percentile), never anyone else's. Claude sees any
+     of it only with SYSTEMS → SICKBAY → SHARE WITH ASK (tos.aisickbay.v1); Condition items carrying `health` are left
+     out of ASK's snapshot otherwise. Health values never go in the repo, tests or commits. */
+  var LS_SICK = "tos.sickbay.v1", LS_SICKQ = "tos.sickbayq.v1", LS_SICKVIEW = "tos.sickview.v1", LS_AISICK = "tos.aisickbay.v1";
+  var SK_SHORTCUT = "Bridge Health";
+  var SK_WORDS = ["doctor", "dentist", "dr.", "physical", "appointment", "clinic", "eye exam", "checkup", "check-up", "lab work", "blood work"];
+  var SK_M = [
+    { k: "rhr", name: "RESTING HEART RATE", unit: "bpm", dp: 0, better: "low", note: "Lower is usually better. A rise of 5 or more for two mornings often comes before a cold, or after poor sleep or a late meal." },
+    { k: "hrv", name: "HEART RATE VARIABILITY", unit: "ms", dp: 0, better: "high", note: "How much the time between beats varies; higher means more recovered. Compare it only with your own normal." },
+    { k: "sleep", name: "SLEEP", unit: "hours", dp: 1, better: "high", note: "Time asleep, from the watch on your wrist overnight. SLEEP has the stages and the week." },
+    { k: "steps", name: "STEPS", unit: "steps", dp: 0, better: "high", note: "Steps for the whole day; today's count grows until the next sync." },
+    { k: "resp", name: "BREATHING RATE", unit: "per min", dp: 1, better: "mid", note: "Breaths a minute while asleep. Steady for most people; a jump can be an early sign of illness." },
+    { k: "vo2", name: "CARDIO FITNESS", unit: "VO2 max", dp: 1, better: "high", note: "Estimated by the watch from outdoor walks and runs. It moves slowly: weeks, not days." }
+  ];
+  var SK_STAGES = [["a", "AWAKE", "--sk-awake"], ["r", "REM", "--sk-rem"], ["c", "CORE", "--sk-core"], ["d", "DEEP", "--sk-deep"]];
+  var SK_READS = [["Blood pressure", "mmHg", "120/80"], ["Weight", "lb", "185.0"], ["Glucose", "mg/dL", "95"], ["Other", "", "Value"]];
+  var SK_TAGS = ["GOOD", "NOTE", "PAIN", "SICK", "TIRED"];
+  var sk = { data: lsGet(LS_SICK), q: lsGet(LS_SICKQ) || { ops: [] }, at: 0, busy: false, sending: false, err: "", form: null, arm: null, armAt: 0, night: null };
+  if (!Array.isArray(sk.q.ops)) sk.q = { ops: [] };
+  function canSickbay() { return state.caps.indexOf("sickbay") > -1; }
+  function skView() { return Object.assign({ tab: "vitals", metric: "hrv", range: 30, words: SK_WORDS.slice() }, lsGet(LS_SICKVIEW) || {}); }
+  function skSet(p) { lsSet(LS_SICKVIEW, Object.assign(skView(), p)); }
+  function skDays() { return (sk.data && Array.isArray(sk.data.days) ? sk.data.days : []).filter(function (d) { return d && /^\d{4}-\d{2}-\d{2}$/.test(d.date); }); }
+  function skDay(date) { return skDays().filter(function (d) { return d.date === date; })[0] || null; }
+  function skItems(kind) {   /* the server's list with what hasn't gone up yet laid over it */
+    var list = (sk.data && Array.isArray(sk.data.items) ? sk.data.items : []).slice();
+    sk.q.ops.forEach(function (o) {
+      list = list.filter(function (i) { return i.id !== (o.item ? o.item.id : o.id); });
+      if (o.op === "save") list.push(o.item);
+    });
+    return list.filter(function (i) { return !kind || i.kind === kind; });
+  }
+  function skVal(d, k) { if (!d) return null; if (k === "sleep") return d.sleep && d.sleep.asleep ? d.sleep.asleep / 60 : null; return typeof d[k] === "number" ? d[k] : null; }
+  function skSeries(k, n) {   /* the last n days ending today, null where nothing was sent */
+    var out = [], t = sod(new Date());
+    for (var i = n - 1; i >= 0; i--) { var d = ymd(addDays(t, -i)); out.push({ date: d, v: skVal(skDay(d), k) }); }
+    return out;
+  }
+  function skNormal(k) {   /* 20th to 80th percentile of the last 30 days before today; null until 7 days are in */
+    var xs = skSeries(k, 31).slice(0, 30).map(function (x) { return x.v; }).filter(function (v) { return v !== null; }).sort(function (a, b) { return a - b; });
+    if (xs.length < 7) return { n: xs.length, lo: null, hi: null, mid: null };
+    var q = function (p) { var i = (xs.length - 1) * p, a = Math.floor(i), b = Math.ceil(i); return xs[a] + (xs[b] - xs[a]) * (i - a); };
+    var lo = q(0.2), hi = q(0.8), mid = q(0.5);
+    if (hi - lo < Math.abs(mid) * 0.04) { lo = mid * 0.98; hi = mid * 1.02; }
+    return { n: xs.length, lo: lo, hi: hi, mid: mid };
+  }
+  function skLatest(k) { var s = skSeries(k, 3); for (var i = s.length - 1; i >= 0; i--) if (s[i].v !== null) return s[i]; return null; }
+  function skFmt(m, v) { if (v === null || v === undefined) return "–"; return m.k === "steps" ? Math.round(v).toLocaleString() : m.k === "sleep" ? skHM(v * 60) : v.toFixed(m.dp); }
+  function skHM(min) { min = Math.round(min); return Math.floor(min / 60) + " h " + p2(min % 60); }
+  function skWhere(m, v, nm) { if (v === null || nm.lo === null) return ""; return v > nm.hi ? "above" : v < nm.lo ? "below" : "in"; }
+  function skGood(m, w) { return w === "in" || (w === "above" && m.better === "high") || (w === "below" && m.better === "low"); }
+  function skReady() {   /* a simple guide, never a diagnosis: HRV and resting heart rate against your normal, last night's sleep */
+    var hrv = skLatest("hrv"), rhr = skLatest("rhr"), sl = skLatest("sleep"), nh = skNormal("hrv"), nr = skNormal("rhr");
+    if (!sl && !hrv && !rhr) return null;
+    if (nh.lo === null && nr.lo === null) return { learning: Math.max(nh.n, nr.n) };
+    var s = 75, why = [];
+    if (hrv && nh.lo !== null) { if (hrv.v > nh.hi) { s += 10; why.push("heart rate variability above your normal"); } else if (hrv.v < nh.lo) { s -= 15; why.push("heart rate variability below your normal"); } else why.push("heart rate variability in your normal"); }
+    if (rhr && nr.lo !== null) { if (rhr.v > nr.hi + 3) { s -= 15; why.push("resting heart rate up"); } else if (rhr.v < nr.lo) { s += 5; why.push("resting heart rate low"); } else why.push("resting heart rate steady"); }
+    if (sl) { if (sl.v >= 7) { s += 5; why.push(skHM(sl.v * 60) + " of sleep"); } else if (sl.v < 5) { s -= 25; why.push("only " + skHM(sl.v * 60) + " of sleep"); } else if (sl.v < 6) { s -= 15; why.push("a short night (" + skHM(sl.v * 60) + ")"); } else why.push(skHM(sl.v * 60) + " of sleep"); }
+    s = Math.max(0, Math.min(100, Math.round(s)));
+    return { score: s, lvl: s >= 80 ? "ok" : s >= 60 ? "fair" : "warn", word: s >= 80 ? "✓ GOOD" : s >= 60 ? "◆ FAIR" : "▲ LOW", why: why };
+  }
+  function skLastSync() { return sk.data && sk.data.last ? Date.parse(sk.data.last) : 0; }
+
+  /* ---- reading and saving ---- */
+  function loadSickbay(force) {
+    if (!canSickbay() || sk.busy || (!force && Date.now() - sk.at < 120000)) return Promise.resolve();
+    sk.busy = true; sk.at = Date.now();
+    return api({ action: "health", from: ymd(addDays(new Date(), -100)) }).then(function (j) {
+      sk.data = { days: j.days || [], items: j.items || [], last: j.last || null, url: j.url || "", at: Date.now() }; sk.err = "";
+      lsSet(LS_SICK, sk.data);
+    }, function (e) { sk.err = describe(e); }).then(function () { sk.busy = false; skRedraw(); flushSickbay(); });
+  }
+  function skRedraw() { if (state.screen === "sickbay" || state.screen === "bridge" || state.screen === "systems") render(true); }
+  function skQueue(op) { var key = op.item ? op.item.id : op.id; sk.q.ops = sk.q.ops.filter(function (o) { return (o.item ? o.item.id : o.id) !== key; }).concat([op]); lsSet(LS_SICKQ, sk.q); flushSickbay(); }
+  function flushSickbay() {
+    if (sk.sending || !sk.q.ops.length || !canSickbay() || !navigator.onLine) return Promise.resolve();
+    var op = sk.q.ops[0]; sk.sending = true;
+    return apiPost(op.op === "save" ? { action: "sickbaysave", item: op.item } : { action: "sickbayremove", id: op.id }, 30000).then(function (j) {
+      sk.q.ops = sk.q.ops.filter(function (o) { return o !== op; }); lsSet(LS_SICKQ, sk.q);
+      if (sk.data) {
+        sk.data.items = (sk.data.items || []).filter(function (i) { return i.id !== (op.item ? op.item.id : op.id); });
+        if (op.op === "save" && j.item) sk.data.items.push(j.item);
+        lsSet(LS_SICK, sk.data);
+      }
+      sk.sending = false; return flushSickbay();
+    }, function (e) {
+      sk.sending = false; sk.err = describe(e);
+      if (e && e.code === "bad_request") { sk.q.ops = sk.q.ops.filter(function (o) { return o !== op; }); lsSet(LS_SICKQ, sk.q); sk.err = "Notion refused a SICKBAY change; it was dropped."; }
+    });
+  }
+  function skNewId(p) { return p + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36); }
+  function skSync() {   /* SYNC FROM HEALTH: the shortcut sends, then SICKBAY reads again when Bridge is back in front */
+    sk.at = 0; toast("Opening the " + SK_SHORTCUT + " shortcut…");
+    try { window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(SK_SHORTCUT); } catch (e) { /* not on an iPad */ }
+  }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && state.screen === "sickbay") loadSickbay(true); });
+
+  /* ---- the screens ---- */
+  function skHead() {
+    var l = skLastSync();
+    return { e: "SICKBAY · " + (!canSickbay() ? "SETUP" : l ? "FROM HEALTH " + stamp(l).toUpperCase() : skDays().length ? "FROM HEALTH" : "NOT SYNCED YET"), t: "SICKBAY" };
+  }
+  function renderSickbay() {
+    loadSickbay(false);
+    var v = skView(), html = '<div class="sk">';
+    if (!canSickbay()) { $("content").innerHTML = html + phead("SICKBAY", "SETUP", "personal") + stubBox(state.conn ? "Needs the Google bridge updated to 1.43, and 🩺 Sickbay connected to the TimothyOS integration in Notion. Steps are in the README under <b>SICKBAY</b>." : "Link the calendars first.") + "</div>"; return; }
+    html += '<div class="sk-top"><div class="btnrow" role="tablist" aria-label="SICKBAY">' + [["vitals", "VITALS"], ["sleep", "SLEEP"], ["records", "RECORDS"]].map(function (t) {
+      return '<button type="button" class="chip" role="tab" style="--c: var(--chrome-d)" data-sktab="' + t[0] + '" aria-selected="' + (v.tab === t[0]) + '" aria-pressed="' + (v.tab === t[0]) + '">' + t[1] + "</button>"; }).join("") + "</div>" +
+      '<button type="button" class="chip" style="--c: var(--personal)" data-skact="sync">SYNC FROM HEALTH</button></div>';
+    if (sk.err) html += '<div class="err">' + esc(sk.err) + "</div>";
+    if (sk.q.ops.length) html += '<div class="stale">' + sk.q.ops.length + (sk.q.ops.length === 1 ? " change" : " changes") + " waiting to reach Notion.</div>";
+    html += v.tab === "sleep" ? skSleepHtml(v) : v.tab === "records" ? skRecordsHtml(v) : skVitalsHtml(v);
+    $("content").innerHTML = html + "</div>";
+  }
+  function skEmpty() {
+    return '<div class="sk-empty"><b>No health data yet.</b><span>Build the <b>' + SK_SHORTCUT + "</b> shortcut on this iPad (README → SICKBAY), run it once, then come back here. " +
+      "Your iPhone stays on, charging and on Wi-Fi so the watch can pass its data to iCloud.</span></div>";
+  }
+  function skBars(vals, lo, hi, band, last) {   /* bars from the bottom of the box, a dashed band for your normal */
+    var nums = vals.filter(function (x) { return x !== null; }).concat(band ? [band.lo, band.hi] : []);
+    if (!nums.length) return "";
+    var mn = Math.min.apply(null, nums), mx = Math.max.apply(null, nums), pad = (mx - mn) * 0.15 || Math.abs(mx) * 0.05 || 1; mn -= pad; mx += pad * 0.4;
+    var H = function (x) { return ((x - mn) / (mx - mn) * 100).toFixed(1); };
+    return (band && band.lo !== null ? '<span class="sk-band" aria-hidden="true" style="bottom:' + H(band.lo) + "%;height:" + (H(band.hi) - H(band.lo)).toFixed(1) + '%"><i>YOUR NORMAL</i></span>' : "") +
+      '<span class="sk-bars" aria-hidden="true">' + vals.map(function (x, i) {
+        var out = band && band.lo !== null && x !== null && (x > band.hi || x < band.lo);
+        return '<i class="' + (x === null ? "sk-none" : i === vals.length - 1 && last ? "sk-now" : out ? "sk-out" : "") + '" style="height:' + (x === null ? "3" : Math.max(3, H(x))) + '%"></i>'; }).join("") + "</span>";
+  }
+  function skVitalsHtml(v) {
+    if (!skDays().length) return skEmpty();
+    var r = skReady(), y = skDay(ymd(addDays(new Date(), -1))) || {}, html = '<div class="sk-row">';
+    html += '<section class="sk-ready" aria-label="Readiness"><span class="sk-lbl">READINESS · THIS MORNING</span>' + (!r ? '<b class="sk-big">–</b><small>Waiting for last night.</small>' : r.learning !== undefined
+      ? '<b class="sk-big">…</b><small>Learning your normal: ' + r.learning + " of 7 days so far. Readiness starts once a week is in.</small>"
+      : '<div class="sk-rs"><b class="sk-big">' + r.score + '</b><span class="sk-word ' + r.lvl + '">' + r.word + '</span></div><small>' + esc(r.why.join(", ").replace(/^./, function (c) { return c.toUpperCase(); })) + ". A guide, not a diagnosis.</small>") + "</section>";
+    html += '<section class="sk-today" aria-label="Yesterday"><span class="sk-lbl">YESTERDAY · ACTIVITY</span>' + [["MOVE", y.active, 500, "kcal"], ["EXERCISE", y.exercise, 30, "min"], ["STAND", y.stand, 12, "hours"]].map(function (t) {
+      var n = typeof t[1] === "number" ? t[1] : null;
+      return '<div class="sk-act"><span>' + t[0] + '</span><span class="sk-track" role="img" aria-label="' + t[0] + " " + (n === null ? "not sent" : n + " of " + t[2] + " " + t[3]) + '"><i style="width:' + (n === null ? 0 : Math.min(100, Math.round(n / t[2] * 100))) + '%"></i></span><b>' + (n === null ? "–" : n.toLocaleString() + " of " + t[2] + " " + t[3]) + "</b></div>";
+    }).join("") + "</section></div>";
+    var m = SK_M.filter(function (x) { return x.k === v.metric; })[0] || SK_M[1];
+    html += '<div class="sk-row"><div class="sk-tiles">' + SK_M.map(function (x) {
+      var l = skLatest(x.k), nm = skNormal(x.k), w = skWhere(x, l && l.v, nm), s = skSeries(x.k, 14).map(function (p) { return p.v; });
+      return '<button type="button" class="sk-tile" data-skm="' + x.k + '" aria-pressed="' + (x.k === m.k) + '"><span class="sk-th"><span>' + x.name + "</span>" +
+        (w ? '<span class="sk-flag ' + (skGood(x, w) ? "ok" : "warn") + '">' + (w === "in" ? "✓ NORMAL" : "▲ " + w.toUpperCase() + " NORMAL") + "</span>" : nm.lo === null && l ? '<span class="sk-flag">LEARNING</span>' : "") + "</span>" +
+        '<span class="sk-tv"><b>' + skFmt(x, l && l.v) + "</b><small>" + (x.k === "sleep" ? "" : x.unit) + "</small>" + '<span class="sk-spark">' + skBars(s, null, null, null, true) + "</span></span></button>";
+    }).join("") + "</div>";
+    var nm = skNormal(m.k), s = skSeries(m.k, v.range), l = skLatest(m.k), got = s.filter(function (p) { return p.v !== null; }), avg = got.length ? got.reduce(function (a, p) { return a + p.v; }, 0) / got.length : null;
+    html += '<section class="sk-detail" aria-label="' + m.name + '"><div class="sk-dh"><span class="sk-lbl c">' + m.name + '</span><span class="btnrow">' + [7, 30, 90].map(function (n) {
+      return '<button type="button" class="chip sm" style="--c: var(--personal)" data-skrange="' + n + '" aria-pressed="' + (v.range === n) + '">' + n + "D</button>"; }).join("") + "</span></div>" +
+      '<div class="sk-dv"><b>' + skFmt(m, l && l.v) + "</b><small>" + (m.k === "sleep" ? "" : m.unit + " · ") + (l ? (l.date === ymd(new Date()) ? "today" : shortDay(l.date)) : "nothing yet") + "</small></div>" +
+      '<p class="sk-p">Your normal: <b>' + (nm.lo === null ? "after 7 days (" + nm.n + " so far)" : skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + (m.k === "sleep" ? "" : " " + m.unit)) + "</b>" + (avg !== null ? " · " + v.range + "-day average " + skFmt(m, avg) : "") + "</p>" +
+      '<div class="sk-chart r' + v.range + '" role="img" aria-label="' + esc(m.name + ", last " + v.range + " days" + (got.length ? ", from " + skFmt(m, Math.min.apply(null, got.map(function (p) { return p.v; }))) + " to " + skFmt(m, Math.max.apply(null, got.map(function (p) { return p.v; }))) : ", nothing yet")) + '">' + skBars(s.map(function (p) { return p.v; }), null, null, nm, true) + "</div>" +
+      '<div class="sk-axis"><span>' + v.range + ' DAYS AGO</span><span>TODAY</span></div><p class="sk-p">' + esc(m.note) + "</p></section></div>";
+    return html;
+  }
+  function skNights() { return skDays().filter(function (d) { return d.sleep && d.sleep.asleep; }); }
+  function skSleepHtml(v) {
+    var nights = skNights();
+    if (!nights.length) return skEmpty();
+    var cur = nights.filter(function (d) { return d.date === sk.night; })[0] || nights[nights.length - 1], S = cur.sleep, len = S.len || (S.asleep + S.awake) || 1;
+    var html = '<div class="sk-row"><div class="sk-col"><section class="sk-panel" aria-label="Sleep stages"><span class="sk-lbl">STAGES · NIGHT ENDING ' + esc(shortDay(cur.date)) + " · " + esc(S.bed || "") + " TO " + esc(S.wake || "") + "</span>";
+    SK_STAGES.forEach(function (st) {
+      var segs = (S.segs || []).filter(function (g) { return g[0] === st[0]; }), tot = { a: S.awake, r: S.rem, c: S.core, d: S.deep }[st[0]] || 0;
+      html += '<div class="sk-lane"><span>' + st[1] + '</span><span class="sk-lt" role="img" aria-label="' + st[1] + ", " + skHM(tot) + " in " + segs.length + (segs.length === 1 ? " spell" : " spells") + '">' + segs.map(function (g) {
+        return '<i style="left:' + (g[1] / len * 100).toFixed(2) + "%;width:" + Math.max(0.3, g[2] / len * 100).toFixed(2) + "%;background:var(" + st[2] + ')"></i>'; }).join("") + "</span><b>" + skHM(tot) + "</b></div>";
+    });
+    if (!(S.segs || []).length) html += '<small class="muted">Only the night\'s totals came across, not the stages through the night.</small>';
+    html += "</section>";
+    var week = nights.slice(-7), mx = Math.max.apply(null, week.map(function (d) { return d.sleep.asleep; }).concat([480]));
+    html += '<section class="sk-panel sk-week" aria-label="The week"><div class="sk-dh"><span class="sk-lbl">THE LAST ' + week.length + (week.length === 1 ? " NIGHT" : " NIGHTS") + ' · HOURS ASLEEP · GOAL 7 H 30</span><span class="sk-legend">' + SK_STAGES.slice(1).map(function (st) { return '<span><i style="background:var(' + st[2] + ')"></i>' + st[1] + "</span>"; }).join("") + "</span></div>" +
+      '<div class="sk-nights"><span class="sk-goal" aria-hidden="true" style="bottom:calc(' + (450 / mx * 78).toFixed(1) + '% + 30px)"></span>' + week.map(function (d) {
+        var sl = d.sleep, on = d.date === cur.date;
+        return '<button type="button" class="sk-night" data-sknight="' + d.date + '" aria-pressed="' + on + '" aria-label="' + esc(shortDay(d.date)) + ": " + skHM(sl.asleep) + ' asleep"><small>' + skHM(sl.asleep).replace(" h ", ":") + '</small><span class="sk-stack" style="height:' + (sl.asleep / mx * 78).toFixed(1) + '%">' +
+          ["d", "r", "c"].map(function (k) { var st = SK_STAGES.filter(function (x) { return x[0] === k; })[0]; return '<i style="flex:' + ({ d: sl.deep, r: sl.rem, c: sl.core }[k] || 0) + " 0 0;background:var(" + st[2] + ')"></i>'; }).join("") +
+          "</span><b>" + DOW[parseYmd(d.date).getDay()] + "</b></button>"; }).join("") + "</div></section></div>";
+    var nt = skNormal("temp"), facts = [["In bed", skHM(len)], ["Fell asleep", S.bed || "–"], ["Woke", S.wake || "–"], ["Deep", S.asleep ? Math.round(S.deep / S.asleep * 100) + "% of the night" : "–"],
+      ["Breathing", typeof cur.resp === "number" ? cur.resp.toFixed(1) + " a minute" : "–"], ["Wrist temperature", typeof cur.temp === "number" && nt.mid !== null ? (cur.temp - nt.mid >= 0 ? "+" : "") + (cur.temp - nt.mid).toFixed(1) + "° from your normal" : typeof cur.temp === "number" ? "learning your normal" : "–"]];
+    var beds = week.map(function (d) { var p = String(d.sleep.bed || "").split(":"); var m2 = +p[0] * 60 + +p[1]; return m2 < 720 ? m2 + 1440 : m2; }).filter(function (x) { return isFinite(x); });
+    var spread = beds.length > 2 ? Math.max.apply(null, beds) - Math.min.apply(null, beds) : 0;
+    html += '<aside class="sk-panel sk-side" aria-label="The night"><span class="sk-lbl c">NIGHT ENDING ' + esc(shortDay(cur.date)) + '</span><div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep</small></div>" +
+      facts.map(function (f) { return '<div class="sk-fact"><span>' + f[0] + "</span><span>" + esc(f[1]) + "</span></div>"; }).join("") +
+      (spread > 45 ? '<div class="sk-tip"><b>▲ THIS WEEK</b><span>Bedtime varied by ' + skHM(spread) + " across these nights. A steadier bedtime usually brings more deep sleep.</span></div>" : "") + "</aside></div>";
+    return html;
+  }
+  function skAppts(v) {
+    var now = new Date(), words = (v.words || []).map(function (w) { return String(w).toLowerCase().trim(); }).filter(Boolean);
+    if (!words.length) return [];
+    return eventsFor({ from: sod(now), to: addDays(sod(now), 62) }).filter(function (e) { var t = String(e.title || "").toLowerCase(); return e._e >= now && words.some(function (w) { return t.indexOf(w) > -1; }); })
+      .sort(function (a, b) { return a._s - b._s; }).slice(0, 6);
+  }
+  function skRecordsHtml(v) {
+    var f = sk.form, today = ymd(new Date()), armed = function (id) { return sk.arm === id && Date.now() - sk.armAt < 4000; };
+    var meds = skItems("medicine").sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var html = '<div class="sk-grid"><div class="sk-col"><section class="sk-panel" aria-label="Medicines"><div class="sk-dh"><span class="sk-lbl c">MEDICINES AND SUPPLEMENTS · TODAY</span><button type="button" class="chip sm" style="--c: var(--personal)" data-skform="med">+ MEDICINE</button></div>';
+    if (f && f.k === "med") html += '<div class="sk-form"><label class="ov-sub" for="skMedName">NAME</label><input id="skMedName" type="text" maxlength="80" autocomplete="off" value="' + esc(f.name || "") + '">' +
+      '<label class="ov-sub" for="skMedWhen">WHEN</label><input id="skMedWhen" type="text" maxlength="80" autocomplete="off" placeholder="Morning, with breakfast" value="' + esc(f.when || "") + '">' +
+      '<label class="ov-sub" for="skMedLeft">HOW MANY LEFT (OPTIONAL)</label><input id="skMedLeft" type="number" inputmode="numeric" min="0" max="9999" value="' + (f.left != null ? f.left : "") + '">' +
+      '<div class="btnrow">' + (f.id ? '<button type="button" class="chip sm' + (armed(f.id) ? " ap-armed" : "") + '" data-skdel="' + esc(f.id) + '">' + (armed(f.id) ? "TAP AGAIN TO REMOVE" : "REMOVE") + "</button>" : "") +
+      '<span class="sk-fill"></span><button type="button" class="chip sm" data-skform="">CANCEL</button><button type="button" class="chip sm" style="--c: var(--personal)" aria-pressed="true" data-sksave="med">SAVE</button></div></div>';
+    html += meds.length ? meds.map(function (m) {
+      var d = m.data || {}, done = (d.taken || []).indexOf(today) > -1, left = typeof d.left === "number" ? d.left : null;
+      return '<div class="sk-med"><button type="button" class="sk-mn" data-skedit="' + esc(m.id) + '"><b>' + esc(m.name) + "</b><small>" + esc(d.when || "Tap to add when") + "</small></button>" +
+        (left !== null ? '<span class="sk-left' + (left <= 7 ? " warn" : "") + '">' + (left <= 7 ? "▲ REFILL · " : "") + left + " LEFT</span>" : "") +
+        '<button type="button" class="sk-tick" data-sktake="' + esc(m.id) + '" aria-pressed="' + done + '" aria-label="' + (done ? "Taken today: " : "Mark taken today: ") + esc(m.name) + '">' + (done ? "✓" : "") + "</button></div>";
+    }).join("") : '<p class="sk-p muted">Nothing yet. + MEDICINE adds one; tick it each day you take it.</p>';
+    var ap = skAppts(v);
+    html += '</section><section class="sk-panel" aria-label="Appointments"><span class="sk-lbl c">APPOINTMENTS · FROM YOUR CALENDARS</span>' + (ap.length ? ap.map(function (e) {
+      var dd = Math.round((sod(e._s) - sod(new Date())) / 86400000);
+      return '<div class="sk-appt"><span class="sk-ad"><b>' + e._s.getDate() + "</b><small>" + MON[e._s.getMonth()] + '</small></span><span class="sk-at"><b>' + esc(e.title) + "</b><small>" + (e.allDay ? "All day" : hm(e._s)) + " · " + esc(AREAS[e.area] ? AREAS[e.area].name : "") + "</small></span><span class=\"sk-in\">" + (dd === 0 ? "TODAY" : dd === 1 ? "TOMORROW" : "IN " + dd + " DAYS") + "</span></div>"; }).join("")
+      : '<p class="sk-p muted">None in the next two months. Events whose titles contain one of these words show here:</p>') +
+      '<div class="sk-addrow"><input id="skWords" type="text" maxlength="400" autocomplete="off" aria-label="Words that mark an appointment, separated by commas" value="' + esc((v.words || []).join(", ")) + '"><button type="button" class="chip sm" data-skact="words">SAVE WORDS</button></div>' +
+      '<button type="button" class="chip sk-doc" style="--c: var(--chrome-d)" data-skact="summary">FOR THE DOCTOR · 90-DAY SUMMARY</button></section></div>';
+    var reads = skItems("reading"), groups = {};
+    reads.forEach(function (r) { (groups[r.name] = groups[r.name] || []).push(r); });
+    skDays().forEach(function (d) { if (typeof d.weight === "number") (groups.Weight = groups.Weight || []).push({ id: "h" + d.date, name: "Weight", date: d.date, data: { v: d.weight.toFixed(1), unit: "lb", health: true } }); });
+    html += '<div class="sk-col"><section class="sk-panel" aria-label="Readings"><div class="sk-dh"><span class="sk-lbl c">READINGS · BY HAND OR FROM HEALTH</span><button type="button" class="chip sm" style="--c: var(--personal)" data-skform="read">+ READING</button></div>';
+    if (f && f.k === "read") {
+      var rw = SK_READS.filter(function (x) { return x[0] === f.what; })[0] || SK_READS[0];
+      html += '<div class="sk-form"><div class="btnrow" role="group" aria-label="What">' + SK_READS.map(function (x) { return '<button type="button" class="chip sm" style="--c: var(--personal)" data-skwhat="' + x[0] + '" aria-pressed="' + (x[0] === rw[0]) + '">' + x[0].toUpperCase() + "</button>"; }).join("") + "</div>" +
+        (rw[0] === "Other" ? '<label class="ov-sub" for="skRdName">WHAT</label><input id="skRdName" type="text" maxlength="60" autocomplete="off" value="' + esc(f.name || "") + '">' : "") +
+        '<label class="ov-sub" for="skRdVal">VALUE' + (rw[1] ? " (" + rw[1] + ")" : "") + '</label><input id="skRdVal" type="text" maxlength="40" autocomplete="off" placeholder="' + rw[2] + '">' +
+        '<div class="btnrow"><span class="sk-fill"></span><button type="button" class="chip sm" data-skform="">CANCEL</button><button type="button" class="chip sm" style="--c: var(--personal)" aria-pressed="true" data-sksave="read">SAVE</button></div></div>';
+    }
+    var gk = Object.keys(groups);
+    html += gk.length ? gk.map(function (name) {
+      var l = groups[name].sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; }).slice(-12), last = l[l.length - 1], nums = l.map(function (r) { var n = parseFloat(String(r.data.v)); return isFinite(n) ? n : null; });
+      return '<div class="sk-read"><span class="sk-rn"><small>' + esc(name.toUpperCase()) + "</small><b>" + esc(String(last.data.v)) + " <small>" + esc(last.data.unit || "") + '</small></b></span><span class="sk-rspark" role="img" aria-label="' + esc(name + ", last " + l.length + " readings, newest " + last.data.v) + '">' + skBars(nums, null, null, null, true) + '</span><span class="sk-rw">' + esc(shortDay(last.date || today)) + (last.data.health ? " · HEALTH" : "") + "</span></div>";
+    }).join("") : '<p class="sk-p muted">Nothing yet. A blood pressure cuff, a scale or a glucose meter: + READING adds what it shows. A scale that writes to Health comes across by itself.</p>';
+    var notes = skItems("note").sort(function (a, b) { return (b.date || "") < (a.date || "") ? -1 : 1; }).slice(0, 12);
+    html += '</section><section class="sk-panel" aria-label="Notes"><div class="sk-dh"><span class="sk-lbl c">HOW YOU FELT · NOTES</span><button type="button" class="chip sm" style="--c: var(--personal)" data-skform="note">+ NOTE</button></div>';
+    if (f && f.k === "note") html += '<div class="sk-form"><label class="ov-sub" for="skNote">NOTE</label><input id="skNote" type="text" maxlength="500" autocomplete="off" placeholder="How you feel today">' +
+      '<div class="btnrow" role="group" aria-label="Tag">' + SK_TAGS.map(function (t) { return '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktag="' + t + '" aria-pressed="' + ((f.tag || "NOTE") === t) + '">' + t + "</button>"; }).join("") + "</div>" +
+      '<div class="btnrow"><span class="sk-fill"></span><button type="button" class="chip sm" data-skform="">CANCEL</button><button type="button" class="chip sm" style="--c: var(--personal)" aria-pressed="true" data-sksave="note">SAVE</button></div></div>';
+    html += notes.length ? notes.map(function (n) {
+      var tag = (n.data && n.data.tag) || "NOTE";
+      return '<div class="sk-note"><span class="sk-nd">' + esc(n.date ? shortDay(n.date) : "") + '</span><span class="sk-nt">' + esc(n.name) + '</span><span class="sk-tag' + (tag === "GOOD" ? " ok" : "") + '">' + esc(tag) + '</span><button type="button" class="sk-x' + (armed(n.id) ? " armed" : "") + '" data-skdel="' + esc(n.id) + '" aria-label="' + (armed(n.id) ? "Tap again to remove this note" : "Remove this note") + '">' + (armed(n.id) ? "?" : "✕") + "</button></div>"; }).join("")
+      : '<p class="sk-p muted">A line on a bad night, a sore back, a good day: notes sit beside the numbers, so patterns show.</p>';
+    return html + "</section></div></div>";
+  }
+  function skSummary() {   /* FOR THE DOCTOR: the last 90 days as plain text, to share or copy */
+    var out = ["Health summary · " + ymd(new Date()) + " · last 90 days (from Apple Watch via Bridge)", ""];
+    SK_M.forEach(function (m) {
+      var s = skSeries(m.k, 90).filter(function (p) { return p.v !== null; }); if (!s.length) return;
+      var vals = s.map(function (p) { return p.v; }), avg = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+      out.push(m.name.charAt(0) + m.name.slice(1).toLowerCase() + ": average " + skFmt(m, avg) + (m.k === "sleep" ? "" : " " + m.unit) + ", range " + skFmt(m, Math.min.apply(null, vals)) + " to " + skFmt(m, Math.max.apply(null, vals)) + " (" + s.length + " days)");
+    });
+    var meds = skItems("medicine");
+    if (meds.length) { out.push("", "Medicines and supplements:"); meds.forEach(function (m) { out.push("- " + m.name + (m.data && m.data.when ? " (" + m.data.when + ")" : "")); }); }
+    var reads = skItems("reading").sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; });
+    if (reads.length) { out.push("", "Readings:"); reads.slice(-30).forEach(function (r) { out.push("- " + (r.date || "") + " " + r.name + ": " + r.data.v + " " + (r.data.unit || "")); }); }
+    var notes = skItems("note").sort(function (a, b) { return (a.date || "") < (b.date || "") ? -1 : 1; });
+    if (notes.length) { out.push("", "Notes:"); notes.slice(-30).forEach(function (n) { out.push("- " + (n.date || "") + " " + n.name); }); }
+    var text = out.join("\n");
+    if (navigator.share) navigator.share({ title: "Health summary", text: text }).catch(function () {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { toast("Summary copied"); }, function () { toast("Couldn't copy"); });
+  }
+  function skSaveForm(kind) {
+    var f = sk.form || {}, today = ymd(new Date()), val = function (id) { var e = $(id); return e ? e.value.trim() : ""; };
+    if (kind === "med") {
+      var name = val("skMedName"); if (!name) { toast("Give it a name"); return; }
+      var leftS = val("skMedLeft"), left = leftS === "" ? null : Math.max(0, Math.min(9999, Math.round(+leftS)));
+      var cur = f.id ? skItems("medicine").filter(function (m) { return m.id === f.id; })[0] : null, d = Object.assign({}, cur ? cur.data : {}, { when: val("skMedWhen"), left: left, taken: cur && cur.data && cur.data.taken ? cur.data.taken : [] });
+      skQueue({ op: "save", item: { kind: "medicine", id: f.id || skNewId("m"), name: name.slice(0, 80), date: null, data: d } }); toast(name + " saved");
+    } else if (kind === "read") {
+      var rw = SK_READS.filter(function (x) { return x[0] === f.what; })[0] || SK_READS[0], what = rw[0] === "Other" ? val("skRdName") : rw[0], v = val("skRdVal");
+      if (!what || !v) { toast("Fill in the reading"); return; }
+      skQueue({ op: "save", item: { kind: "reading", id: skNewId("r"), name: what.slice(0, 60), date: today, data: { v: v.slice(0, 40), unit: rw[1] } } }); toast(what + " saved");
+    } else if (kind === "note") {
+      var t = val("skNote"); if (!t) { toast("Write the note first"); return; }
+      skQueue({ op: "save", item: { kind: "note", id: skNewId("n"), name: t.slice(0, 500), date: today, data: { tag: f.tag || "NOTE" } } }); toast("Note saved");
+    }
+    sk.form = null; render(true);
+  }
+  function skClick(b) {
+    var d = b.dataset;
+    if (d.skgo !== undefined) { skSet({ tab: d.skgo || "vitals" }); sk.form = null; go("sickbay"); return true; }
+    if (state.screen !== "sickbay") return false;
+    if (d.sktab) { skSet({ tab: d.sktab }); sk.form = null; render(false); $("content").scrollTop = 0; return true; }
+    if (d.skact === "sync") { skSync(); return true; }
+    if (d.skm) { skSet({ metric: d.skm }); render(true); return true; }
+    if (d.skrange) { skSet({ range: +d.skrange }); render(true); return true; }
+    if (d.sknight) { sk.night = d.sknight; render(true); return true; }
+    if (d.skform !== undefined) { sk.form = d.skform ? { k: d.skform, what: "Blood pressure", tag: "NOTE" } : null; sk.arm = null; render(true); var first = document.querySelector(".sk-form input"); if (first) first.focus(); return true; }
+    if (d.skedit) { var m = skItems("medicine").filter(function (x) { return x.id === d.skedit; })[0]; if (m) sk.form = { k: "med", id: m.id, name: m.name, when: (m.data || {}).when || "", left: (m.data || {}).left }; render(true); return true; }
+    if (d.skwhat) { sk.form = Object.assign({}, sk.form, { what: d.skwhat }); render(true); return true; }
+    if (d.sktag) { sk.form = Object.assign({}, sk.form, { tag: d.sktag }); render(true); return true; }
+    if (d.sksave) { skSaveForm(d.sksave); return true; }
+    if (d.sktake) {
+      var today = ymd(new Date()), it = skItems("medicine").filter(function (x) { return x.id === d.sktake; })[0]; if (!it) return true;
+      var dd = Object.assign({}, it.data || {}), taken = (dd.taken || []).slice(), was = taken.indexOf(today) > -1;
+      dd.taken = was ? taken.filter(function (x) { return x !== today; }) : taken.concat([today]).slice(-60);
+      if (typeof dd.left === "number") dd.left = Math.max(0, dd.left + (was ? 1 : -1));
+      skQueue({ op: "save", item: Object.assign({}, it, { data: dd }) }); render(true); return true;
+    }
+    if (d.skdel) {
+      if (sk.arm === d.skdel && Date.now() - sk.armAt < 4000) { skQueue({ op: "remove", id: d.skdel }); sk.arm = null; if (sk.form && sk.form.id === d.skdel) sk.form = null; toast("Removed"); }
+      else { sk.arm = d.skdel; sk.armAt = Date.now(); setTimeout(function () { if (state.screen === "sickbay") render(true); }, 4100); }
+      render(true); return true;
+    }
+    if (d.skact === "words") { skSet({ words: ($("skWords") ? $("skWords").value : "").split(",").map(function (w) { return w.trim(); }).filter(Boolean).slice(0, 30) }); toast("Appointment words saved"); render(true); return true; }
+    if (d.skact === "summary") { skSummary(); return true; }
+    return false;
+  }
+
+  /* ---- beyond the station: the Bridge, Condition, SYSTEMS and ASK ---- */
+  function skEnvRow() {   /* the Bridge's weather panel: last night and readiness, on the iPad only (no AI) */
+    if (!canSickbay() || !skDays().length) return "";
+    var r = skReady(), sl = skLatest("sleep");
+    if (!r && !sl) return "";
+    return '<div class="ov-envrow"><span class="k">RECOVERY · SICKBAY</span><span class="tx"><b>' + (sl ? "Slept " + skHM(sl.v * 60) : "Sleep not in yet") + '</b><small class="ov-extra">' +
+      (r && r.why ? esc(r.why.join(", ")) : r && r.learning !== undefined ? "Learning your normal (" + r.learning + " of 7 days)" : "") + "</small></span>" +
+      (r && r.score !== undefined ? '<span class="pill ' + (r.lvl === "ok" ? "ok" : r.lvl === "warn" ? "warn" : "") + '">' + r.score + " · " + r.word.replace(/^[^A-Z]+/, "") + "</span>" : "") + "</div>";
+  }
+  function skConditions(now) {   /* `health: true` keeps them out of ASK unless SICKBAY is shared */
+    if (!canSickbay() || !sk.data || !skDays().length) return [];
+    var out = [], last = skLastSync();
+    if (last && now - last > 48 * 3600000) out.push({ lvl: "warn", ic: "◌", health: true, txt: "No health data for " + Math.floor((now - last) / 86400000) + " days", sub: "Check the iPhone is on, charging and on Wi-Fi, then SYNC FROM HEALTH in SICKBAY.", act: "sickbay", go: "SICKBAY" });
+    var nr = skNormal("rhr"), s = skSeries("rhr", 2);
+    if (nr.mid !== null && s[0].v !== null && s[1].v !== null && s[0].v >= nr.mid + 5 && s[1].v >= nr.mid + 5)
+      out.push({ lvl: "warn", ic: "▲", health: true, txt: "Take it easy", sub: "Resting heart rate " + Math.round(s[0].v) + " and " + Math.round(s[1].v) + ", about " + Math.round((s[0].v + s[1].v) / 2 - nr.mid) + " above your normal, two mornings running.", act: "sickbay", go: "SICKBAY" });
+    return out;
+  }
+  function sickbaySection() {
+    var on = !!lsGet(LS_AISICK), n = skDays().length, last = skLastSync(), hk = state.caps.indexOf("healthkey") > -1;
+    var html = "<section>" + phead("SICKBAY", canSickbay() ? (sk.err ? "PROBLEM" : "NOTION") : "SETUP");
+    if (!canSickbay()) return html + stubBox("Needs the Google bridge updated to 1.43 and 🩺 Sickbay connected to the TimothyOS integration. Steps are in the README under <b>SICKBAY</b>.") + "</section>";
+    html += '<div class="calrow"><span class="st" style="background:var(--personal)"></span><span><b>🩺 Sickbay</b><small' + (sk.err ? ' class="errtxt">' + esc(sk.err) : ">" + (sk.data ? n + (n === 1 ? " day" : " days") + " · " + (last ? "last from Health " + esc(stamp(last)) : "nothing from Health yet") : "Not loaded yet") + (sk.q.ops.length ? " · " + sk.q.ops.length + " waiting" : "")) + "</small></span>" +
+      '<span class="pill' + (sk.data && !sk.err ? " ok" : sk.err ? " bad" : "") + '">' + (sk.data && !sk.err ? "OK" : sk.err ? "ERROR" : "WAITING") + "</span></div>";
+    html += '<div class="calrow"><span class="st" style="background:var(--personal)"></span><span><b>Health key</b><small>' + (hk ? "Set in the bridge. It goes in the " + SK_SHORTCUT + " shortcut only: it can send health data and nothing else." : "Not set: run setup in the bridge (it makes HEALTH_KEY).") + '</small></span><span class="pill' + (hk ? " ok" : " warn") + '">' + (hk ? "SET" : "NEEDED") + "</span></div>";
+    html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR HEALTH</label><div class="btnrow">' +
+      '<button type="button" class="chip" data-aisick="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aisick="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
+      '<small class="muted">' + (on ? "Ask and the Morning Briefing receive the last two weeks of sleep, resting heart rate, heart rate variability and steps with your normal, readiness, and your medicines' names. They go to Anthropic with the question." : "Off: your health data is never sent with Ask questions or the Morning Briefing.") + "</small></section>";
+    return html;
+  }
+  function sickbayBrief() {   /* ASK and the Morning Briefing, only with SHARE WITH ASK */
+    if (!lsGet(LS_AISICK) || !canSickbay() || !skDays().length) return "";
+    var r = skReady(), lines = ["SICKBAY (Timothy's health from his Apple Watch, shared by his choice; a guide, never a diagnosis):"];
+    if (r && r.score !== undefined) lines.push("Readiness this morning " + r.score + " (" + r.word.replace(/^[^A-Z]+/, "") + "): " + r.why.join(", ") + ".");
+    ["sleep", "rhr", "hrv", "steps"].forEach(function (k) {
+      var m = SK_M.filter(function (x) { return x.k === k; })[0], nm = skNormal(k), s = skSeries(k, 14).filter(function (p) { return p.v !== null; });
+      if (s.length) lines.push(m.name.charAt(0) + m.name.slice(1).toLowerCase() + " (" + (k === "sleep" ? "hours asleep" : m.unit) + "), last 14 days: " + s.map(function (p) { return p.date.slice(5) + " " + skFmt(m, p.v); }).join(", ") + (nm.lo !== null ? "; normal " + skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) : ""));
+    });
+    var meds = skItems("medicine");
+    if (meds.length) lines.push("Medicines and supplements: " + meds.map(function (m) { return m.name; }).join(", "));
+    return lines.join("\n");
+  }
+  function skAiClick(b) { if (b.dataset.aisick === undefined) return false; if (b.dataset.aisick === "1") lsSet(LS_AISICK, true); else lsDel(LS_AISICK); askReshare(); render(true); return true; }
   /* ---------- Text boxes grow with their text (2.26.1) ---------- */
   /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
@@ -14924,7 +15292,7 @@
     renderHeader();
     renderStatus();
     if (!state.conn && state.screen !== "systems") { renderConnect(); return; }
-    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, meals: renderMeals, arboretum: renderArboretum, astrometrics: renderAstro, inbox: renderInbox, science: renderScience, ressikan: renderRessikan, holodeck: renderHolodeck, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
+    ({ bridge: renderBridge, review: function () { if (state.rvLog) renderReviewLog(); else renderReview(); }, ledger: renderLedger, log: renderLog, loom: renderLoom, habits: renderHabits, library: renderLibrary, storage: renderStorage, engineering: renderEngineering, tarot: renderTarot, apiary: renderApiary, meals: renderMeals, arboretum: renderArboretum, sickbay: renderSickbay, astrometrics: renderAstro, inbox: renderInbox, science: renderScience, ressikan: renderRessikan, holodeck: renderHolodeck, today: renderDay, week: renderWeek, month: renderMonth, dates: renderDatesScreen, systems: renderSystems })[state.screen]();
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
@@ -14949,11 +15317,12 @@
     if (screen === "ledger" && state.screen !== "ledger") loadLedger(false, true);   /* opening LEDGER: from YNAB itself when the copy here is over a minute old (before the redraw's own, cheaper ask) */
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
-    if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); }
+    if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); loadSickbay(false); }
     if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; ml.imp = null; if (ml.cook) { ml.cook = null; mlWake(false); } }
     if (state.screen === "meals" && screen !== "meals" && ml.cook) { ml.cook = null; mlWake(false); }   /* COOK ends when you leave MEALS */   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
-    if (screen === "arboretum" && state.screen === "arboretum") arb.home();   /* tapping ARBORETUM again: back to the map */
+    if (screen === "arboretum" && state.screen === "arboretum") arb.home();
+    if (screen === "sickbay" && state.screen === "sickbay") { skSet({ tab: "vitals" }); sk.form = null; }   /* tapping SICKBAY again: VITALS */   /* tapping ARBORETUM again: back to the map */
     if (screen === "engineering" && state.screen !== "engineering") eng.at = 0;
     if (screen === "apiary" && state.screen === "apiary") { ap.view = "yard"; ap.form = null; ap.fresh = null; ap.box = null; }   /* tapping APIARY again goes back to the yard */
     if (screen === "science" && state.screen === "science") { sc.tab = "sky"; sc.sel = null; }   /* tapping SCIENCE again: back to SKY TRAFFIC */
@@ -15014,7 +15383,7 @@
     var b = e.target.closest("button");
     if (!b) { tapToCapture(e); return; }
     if (b.disabled) return;
-    if ((state.screen === "holodeck" && holo.click(b)) || (state.screen === "arboretum" && arb.click(b)) || (state.screen === "systems" && prof.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || mlClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
+    if ((state.screen === "holodeck" && holo.click(b)) || (state.screen === "arboretum" && arb.click(b)) || skClick(b) || skAiClick(b) || (state.screen === "systems" && prof.click(b)) || rs.click(b) || astroClick(b) || inboxClick(b) || sciActs(b) || scienceClick(b) || bkClick(b) || briefClick(b) || habitsClick(b) || libraryClick(b) || storageSysClick(b) || haSysClick(b) || trClick(b) || apClick(b) || mlClick(b) || (state.screen === "storage" && storageClick(b)) || (state.screen === "engineering" && engClick(b))) return;
     if (b.dataset.id && state.index[b.dataset.id]) openDetail(state.index[b.dataset.id]);
     else if (b.dataset.kd && state.index["kd:" + b.dataset.kd]) openKeyDate(state.index["kd:" + b.dataset.kd]);
     else if (b.dataset.task) toggleDone(b.dataset.task, b.dataset.day);

@@ -2,6 +2,16 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.74.0 · 2026-11-09 (needs bridge 1.43)
+- **SICKBAY, a new SCIENCE station: health from your Apple Watch.** Three screens, as in your mockup:
+  - **VITALS:** readiness each morning (a simple guide from heart rate variability, resting heart rate and sleep, never a diagnosis), yesterday's move, exercise and stand, and six measures, each against **your normal** (the middle of your own last 30 days) with a 7, 30 or 90-day chart.
+  - **SLEEP:** last night's stages (awake, REM, core, deep) as four lanes through the night, the last seven nights stacked, the night's details, and a note when your bedtime wanders.
+  - **RECORDS:** medicines with a daily tick and refill count, readings by hand (blood pressure, weight, glucose, anything), how-you-felt notes, appointments picked from your calendars by words you choose, and a 90-day summary to share with your doctor.
+  - **The Bridge:** a RECOVERY line in the weather panel, and Condition items for a high resting heart rate two mornings running (**Take it easy**) and for two days without health data.
+  - **Claude:** off until SYSTEMS → SICKBAY → **SHARE WITH ASK**.
+- **How it syncs:** Apple Health can't be reached from the web, so the **Bridge Health** shortcut on your iPad reads it and sends it to the bridge with its own **HEALTH_KEY**, good for that and nothing else. **SYNC FROM HEALTH** runs it on demand; an automation runs it each morning. Setup and the shortcut, step by step: README → SICKBAY.
+- **Bridge 1.43:** the 🩺 Sickbay database (one page per day, plus medicines, readings and notes), `healthput` (health key only), `health`, `sickbaysave`, `sickbayremove`; setup makes HEALTH_KEY; the schema check and the weekly export include it.
+
 ## 2.73.1 · 2026-11-09
 - **Nothing changes on screen.** Behind the scenes the app's code (15,258 lines in one file) is now kept as 31 parts, one per station or concern, in `js/src/`, and joined into the same single file the iPad loads. The joined file was checked line for line against the one before it: identical. Easier and safer to change from here, as the app keeps growing.
 

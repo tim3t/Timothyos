@@ -6,7 +6,7 @@
      drafts: the Captain's Log draft never goes into a file. BACKUP waits until nothing is pending. RESTORE
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
      writes only keys on BK_KEYS, then reloads. */
-  var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1",
+  var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
@@ -25,7 +25,7 @@
   /* What's still waiting to be sent, by kind, each list counted by its own shape (2.58.1: SCIENCE's {add, star} counted
      as 2 for ever, so every iPad that had opened SCIENCE couldn't back up from 2.42 on). */
   var BK_QUEUES = [["tos.queue.v1", "capture", "captures"], ["tos.habitq.v1", "habit day", "habit days"], ["tos.tarotq.v1", "tarot change", "tarot changes"], ["tos.apiaryq.v1", "hive change", "hive changes"],
-    ["tos.inboxq.v1", "inbox change", "inbox changes"], ["tos.sciq.v1", "science log entry", "science log entries"], ["tos.upkeepq.v1", "upkeep change", "upkeep changes"], ["tos.mealq.v1", "meals change", "meals changes"]];
+    ["tos.inboxq.v1", "inbox change", "inbox changes"], ["tos.sciq.v1", "science log entry", "science log entries"], ["tos.upkeepq.v1", "upkeep change", "upkeep changes"], ["tos.mealq.v1", "meals change", "meals changes"], ["tos.sickbayq.v1", "sickbay change", "sickbay changes"]];
   function bkCount(k, v) {
     if (!v) return 0;
     if (Array.isArray(v)) return v.length;
@@ -35,7 +35,7 @@
   }
   function bkPendingList() { return BK_QUEUES.map(function (q) { var n = bkCount(q[0], lsGet(q[0])); return n ? n + " " + (n === 1 ? q[1] : q[2]) : ""; }).filter(Boolean); }
   function bkPending() { return BK_QUEUES.reduce(function (n, q) { return n + bkCount(q[0], lsGet(q[0])); }, 0); }
-  function bkSend() { flushQueue(true); flushHabits(); flushTarot(); flushApiary(); flushInbox(); sciFlush(); flushUpkeep(); flushMeals(); toast("Sending what's waiting…"); setTimeout(function () { if (state.screen === "systems") render(true); }, 5000); }
+  function bkSend() { flushQueue(true); flushHabits(); flushTarot(); flushApiary(); flushInbox(); sciFlush(); flushUpkeep(); flushMeals(); flushSickbay(); toast("Sending what's waiting…"); setTimeout(function () { if (state.screen === "systems") render(true); }, 5000); }
   function bkDrafts() {
     return [["tos.ldraft.v1", "Captain's Log writing"], ["tos.sndraft.v1", "session notes not yet saved"], ["tos.rdraft.v1", "a review draft"], ["tos.tarotdraft.v1", "a new tarot reading"], ["tos.apdraft.v1", "a hive check in progress"]]
       .filter(function (d) { var v = lsGet(d[0]); return v && (typeof v !== "object" || Object.keys(v).length); }).map(function (d) { return d[1]; });
