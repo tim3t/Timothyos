@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.71.0";
+  var VERSION = "2.72.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -11450,6 +11450,10 @@
     }
     function unknown(it) { var x = rec(it); return !(x && x.z === it.f.size) || (x.s < 0 && x.why !== "format" && !(Date.now() - (x.at || 0) < HD_RETRY_MS)); }
     function unreadable(it) { var x = rec(it); return !unknown(it) && x.s < 0; }
+    /* 2.72 (Timothy, D68): a video this iPad's chip can't decode (AV1 on an A16) is a limit of the iPad, not a fault:
+       it's left out quietly. Only what can be fixed (the NAS not answering, a missing folder) still asks for a look. */
+    function cantDecode(it) { return unreadable(it) && rec(it).why === "format"; }
+    function loudBad(it) { return unreadable(it) && rec(it).why !== "format"; }
     function lenOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
 
     /* ---- a channel's folder: the running order, what's skipped, the lengths ---- */
@@ -11614,7 +11618,7 @@
     function adsInfo() {   /* the Commercials folder's line: kept up to date as they're measured */
       if (A.dir !== cfg.ads || (!A.play && !A.err)) return "Reading the folder…";
       if (!A.play) return esc(A.err);
-      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(unreadable).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(loudBad).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
       return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
         " · " + ok + " can air · " + m + " measured, the rest as they come up · breaks on " + on + (on === 1 ? " channel" : " channels");
     }
@@ -11638,15 +11642,15 @@
       var names = function (l) { return esc(l.slice(0, 6).map(function (it) { return it.f.name.replace(/\.[^.]+$/, ""); }).join(" · ")) + (l.length > 6 ? " · and " + (l.length - 6) + " more" : ""); };
       var fmt = bad.filter(function (it) { return rec(it).why === "format"; }), gone = bad.filter(function (it) { return rec(it).why !== "format"; });
       var back = gone.length ? Math.max.apply(null, gone.map(function (it) { return (rec(it).at || 0) + HD_RETRY_MS; })) : 0;   /* 2.69: why each one, and what to do */
-      return (fmt.length ? '<small class="hd-bad"><b>CAN\'T DECODE ON THIS IPAD (' + fmt.length + ')</b> ' + names(fmt) + '<span class="hd-badfix">Convert them on the NAS with fix-videos (README → HOLODECK → Converting videos), then LOOK AGAIN.</span></small>' : "") +
-        (gone.length ? '<small class="hd-bad net"><b>COULDN\'T REACH (' + gone.length + ') · TRYING AGAIN AT ' + hm(new Date(back)) + "</b> " + names(gone) + "</small>" : "");
+      return (gone.length ? '<small class="hd-bad net"><b>COULDN\'T REACH (' + gone.length + ') · TRYING AGAIN AT ' + hm(new Date(back)) + "</b> " + names(gone) + "</small>" : "") +
+        (fmt.length ? '<small class="hd-noton">NOT ON THIS IPAD · ' + fmt.length + "</small>" : "");   /* 2.72: one dim line, no names, nothing to do */
     }
     function chanSum(x) {   /* a channel's row folded: its style, and anything that needs a look */
       var s = F[x.dir], w = "";
       if (s && s.err && !s.play) w = "CAN'T REACH THE FOLDER";
       else if (s && s.play) {
-        var nb = s.play.filter(unreadable).length, m = s.play.filter(function (it) { return !unknown(it); }).length;
-        w = nb ? nb + " UNREADABLE" : s.skip.length ? s.skip.length + " SKIPPED" : m < s.play.length ? "MEASURING " + m + " OF " + s.play.length : "";
+        var nb = s.play.filter(loudBad).length, m = s.play.filter(function (it) { return !unknown(it); }).length;
+        w = nb ? nb + " UNREADABLE" : s.play.length && s.play.every(cantDecode) ? "NONE PLAY ON THIS IPAD" : s.skip.length ? s.skip.length + " SKIPPED" : m < s.play.length ? "MEASURING " + m + " OF " + s.play.length : "";
       }
       return (net(x) ? "NETWORK" : "IN ORDER") + (x.breaks ? " · BREAKS" : "") + (w ? ' · <span class="hd-att">' + esc(w) + "</span>" : "");
     }
@@ -11839,10 +11843,10 @@
       clearInterval(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
       var nm = line(label(c.it));
       if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
-      X.note = nm + (why === "format" ? " can't be played on this iPad, so it's left out from now on." : why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");
+      X.note = why === "format" ? "" : nm + (why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");   /* 2.72: a decode failure moves on without a word */
       var n = next(c), s = F[c.c.dir];
       if (n) start(n, false);
-      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos can be played on this iPad (convert them to MP4 with H.264, then LOOK AGAIN)." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; render(); }
+      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos play on this iPad." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; render(); }
       else resume();
     }
     function start(c, seekLive) {
@@ -12077,8 +12081,8 @@
         return (named.length ? named.length + (named.length === 1 ? " show · " : " shows · ") + ne + (ne === 1 ? " episode" : " episodes") : "") + (lz ? (named.length ? " + " : "") + lz.items.length + (lz.items.length === 1 ? " video" : " videos") : "") + (!named.length && !lz ? "0 shows · 0 episodes" : "") +
           (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + " · network · a new " + (named.length ? "lineup" : "shuffle") + " every day at 6:00" + (m < n ? " · lengths " + m + " of " + n : "") + brkInfo(c);
       }
-      var nb = s.play.filter(unreadable).length;
-      return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + (nb ? ' · <span class="pill warn">' + nb + " unreadable</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : nb === n ? "nothing playable yet" : "measuring " + m + " of " + n) + brkInfo(c) +
+      var nb = s.play.filter(unreadable).length, nl = s.play.filter(loudBad).length;
+      return count(s, n) + (s.skip.length ? ' · <span class="pill warn">' + kinds(s.skip) + " skipped</span>" : "") + (nl ? ' · <span class="pill warn">' + nl + " unreadable</span>" : "") + " · in order · " + (L ? hmLong(L) + " round" : nb === n ? "nothing playable yet" : "measuring " + m + " of " + n) + brkInfo(c) +
         " · on air since " + d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " " + hm(d);
     }
     function tuneSub() {
@@ -12091,7 +12095,7 @@
       var bad = s.play.filter(unreadable);
       if (bad.length === s.play.length) {   /* every one measured and none readable: say why rather than "measuring" for ever */
         var fmt = bad.filter(function (it) { return rec(it).why === "format"; }).length;
-        return fmt === bad.length ? "THE IPAD CAN'T PLAY THESE " + bad.length + " VIDEOS · CONVERT THEM TO MP4 (H.264)" : "COULDN'T READ THESE VIDEOS FROM THE NAS · TRYING AGAIN IN A FEW MINUTES";
+        return fmt === bad.length ? "NONE OF THESE " + bad.length + " VIDEOS PLAY ON THIS IPAD" : "COULDN'T READ THESE VIDEOS FROM THE NAS · TRYING AGAIN IN A FEW MINUTES";
       }
       return "MEASURING " + s.play.filter(function (it) { return !unknown(it); }).length + " OF " + s.play.length + " VIDEOS…";
     }
@@ -12229,7 +12233,7 @@
     }
     function foldSum() {   /* the channels folded: how many, the commercials, breaks, and anything that needs a look */
       var n = cfg.chans.length, bk = cfg.chans.filter(function (x) { return x.breaks; }).length;
-      var look = cfg.chans.filter(function (x) { var s = F[x.dir]; return s && ((s.err && !s.play) || (s.play && s.play.some(unreadable))); }).length + (cfg.ads && A.dir === cfg.ads && A.err && !A.play ? 1 : 0);
+      var look = cfg.chans.filter(function (x) { var s = F[x.dir]; return s && ((s.err && !s.play) || (s.play && s.play.some(loudBad))); }).length + (cfg.ads && A.dir === cfg.ads && A.err && !A.play ? 1 : 0);
       return n + (n === 1 ? " CHANNEL" : " CHANNELS") + " · " + (cfg.ads ? "COMMERCIALS SET" : "NO COMMERCIALS") + (bk ? " · " + bk + " WITH BREAKS" : "") + (look ? ' · <span class="hd-att">' + look + (look === 1 ? " NEEDS" : " NEED") + " A LOOK</span>" : "");
     }
     /* ---- the arch: pick a program ---- */

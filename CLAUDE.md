@@ -2,7 +2,7 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D67; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D68; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.71.0**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.72.0**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -345,11 +345,15 @@ App (one block before ASTROMETRICS): `ml` state, `mlView` (`tos.mealview.v1`: ta
 
 App: `ml.imp` (`mlImpHtml`, tabs link / text / photo; PASTE reads the clipboard; `mlImpGo` → the editor `ml.form` with `full`, `photo`, `via`; `mlImported` shows what was found). `mlQueue` keeps an unsent `full` when the same meal is saved again; `mlApply` never keeps `full` in `tos.meals.v1`. Cards with a photo get `.pic`. `mlAskRoute` (called first in `askSend`): a link with recipe/pinterest/pin.it, or "add/import/save (this) recipe", closes ASK and opens the import (it calls `go("meals")` before setting `ml.imp`, because tapping MEALS again clears it). COOK `ml.cook` {id, data, got, step}: `mlCookOpen` (from `data-mlcook` on TONIGHT, the day bar and the editor) reads `mealrecipe`, keeps the last 20 in `tos.mealrc.v1` (cache); `mlWake` holds a screen wake lock while open; `checkIdle` waits while COOK is open; leaving MEALS ends it. `mlView.big` is A+. Mock: `mealimport` scripted (a URL with "blocked" refuses), `mealrecipe` from saved `full`. Tests: `bridge_meals.test.js` (1.40 part), `app_e2e73`.
 
+## HOLODECK: quiet about what an iPad can't decode (app 2.72, D68)
+
+Timothy's iPads: HUB is an M3 (plays AV1), MOBILE an A16 (can't). His choice (2026-11-09): MOBILE skips undecodable videos unseen. `cantDecode(it)` (unreadable, why `format`) and `loudBad(it)` (unreadable for any other reason) sit beside `unreadable()`; the folded row (`chanSum`), the CHANNELS header (`foldSum`), the opened row's count and the Commercials line count only `loudBad`. `badList` lists COULDN'T REACH as before and ends with one `.hd-noton` line, NOT ON THIS IPAD · n (no names). `failed()` sets no note for a decode failure. A channel where every video is `cantDecode`: NONE PLAY ON THIS IPAD (row), NONE OF THESE n VIDEOS PLAY ON THIS IPAD (guide). The error log still records each one. A mark already re-measures by itself when the file's size changes (`unknown()` compares `z`), so a converted file needs no LOOK AGAIN. Tests: `app_e2e59`, `app_e2e64`.
+
 ## ARBORETUM (app 2.71, D67)
 
 Timothy's design (2026-11-08): mockup D SKYGARDEN, revised (fabric squares dropped, the Pond added as its own zone, sides as ordered strips), built empty. Module `arb` (an inner IIFE after MEALS; CSS `arb-`; `--water` token), station `arboretum` (RESOURCES), `renderArboretum`, header from `arb.head()`, clicks `arb.click(b)` (screen-guarded), `arbGo(view, zid)` for COMPUTER (go() alone would turn a second tap into the map). Tapping ARBORETUM again: `arb.home()`. No bridge or Notion change.
 
-Data: `tos.arb.v1` `{name, items[{id, zone z1|z2|z3|pond|meadow, side, name, type, plants[], jobs[{id, s, t, n}]}], done{jobId: cycle}}`, read fresh on every draw (`data()` cleans it), written whole (`save`); BK_KEYS; PROFILE SYNC group ARBORETUM, row `arb`. Item order in `items` is the order along a side. Sides: ring BACK/LEFT/RIGHT/FRONT (LEFT and RIGHT draw beds upright, `.v`), pond BANK/MARGIN/SHELF/DEEP (nested `.arb-band` b0..b3), meadow FAR/MIDDLE/NEAR. Kinds per zone in `ZKINDS`; ≤ 400 items, 40 plants, 30 jobs each. The garden's name is typed on the iPad (`#arbGName`; never put Timothy's real garden name or address in the repo). Seasons are meteorological (`seasonOf`; EARLY/MID/LATE by month); `cycle(season, date)` names the current or next turn (a winter by its January's year), so a tick lapses when the season comes round again. Typical jobs (`TIPS` by plant words, `KTIPS` by kind) are only offered. The map is a 600 × 630 drawing placed in percentages (`P()`), the glyph strips in `GLYPH`; QUICK GLANCE's small map is 300 × 330. Name and garden-name fields save on `input` (no redraw); Return in a plant or job box adds it. Test: `app_e2e83` (lane log-storage, :8105 only for the link).
+Data: `tos.arb.v1` `{name, items[{id, zone z1|z2|z3|pond|meadow, side, name, type, plants[], jobs[{id, s, t, n}]}], done{jobId: cycle}}`, read fresh on every draw (`data()` cleans it), written whole (`save`); BK_KEYS; PROFILE SYNC group ARBORETUM, row `arb`. Item order in `items` is the order along a side. Sides: ring BACK/LEFT/RIGHT/FRONT (LEFT and RIGHT draw beds upright, `.v`), pond BANK/MARGIN/SHELF/DEEP (nested `.arb-band` b0..b3), meadow FAR/MIDDLE/NEAR. Kinds per zone in `ZKINDS`; ≤ 400 items, 40 plants, 30 jobs each. The garden's name is typed on the iPad (`#arbGName`; never put Timothy's real garden name or address in the repo). Seasons are meteorological (`seasonOf`; EARLY/MID/LATE by month); `cycle(season, date)` names the current or next turn (a winter by its January's year), so a tick lapses when the season comes round again. Typical jobs (`TIPS` by plant words, `KTIPS` by kind) are only offered. The map is a 600 × 630 drawing placed in percentages (`P()`), the glyph strips in `GLYPH`; QUICK GLANCE's small map is 300 × 330. Name and garden-name fields save on `input` (no redraw); Return in a plant or job box adds it. Test: `app_e2e83` (lane log-storage, its own :8103 only for the link; on the shared :8105 it bumped e50's schema-call count in another lane).
 
 ## AUDIO, formerly STORAGE (app 2.16; inside HOLODECK since 2.47)
 

@@ -3376,3 +3376,4 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
   .arb-zone.ring { border-radius: 36px; padding: 10px; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(64px, .5fr) minmax(0, 1fr); }
   .arb-zhome { border-radius: 24px; font-size: 12px; letter-spacing: .1em; padding: 6px; }
 }
+.hd-noton { display: block; margin-top: 6px; font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--dim); opacity: .7; }   /* 2.72: videos this iPad can't decode, said once and quietly */

@@ -19,13 +19,14 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
 
   // every video measured, none readable: say so, rather than "measuring" for ever
-  await p.waitForFunction(() => /CAN'T PLAY THESE/.test(document.body.innerText), null, { timeout: 30000 });
-  assert.ok((await txt(p, '#hdSum1')).includes('2 UNREADABLE'), 'the folded row says so (2.53)');
+  await p.waitForFunction(() => /NONE OF THESE 2 VIDEOS PLAY ON THIS IPAD/.test(document.body.innerText), null, { timeout: 30000 });
+  assert.strictEqual(await txt(p, '#hdSum1'), 'IN ORDER · NONE PLAY ON THIS IPAD', 'the folded row says so, gently (2.72)');
+  assert.ok(!/NEEDS? A LOOK/.test(await txt(p, '#hdCSum')), 'a limit of the iPad is not a problem to look at (2.72)');
   await p.click('[data-hdopen="1"]');
   const page = await txt(p, '#content');
-  assert.ok(page.includes("THE IPAD CAN'T PLAY THESE 2 VIDEOS · CONVERT THEM TO MP4 (H.264)"), page);
+  assert.ok(page.includes("NONE OF THESE 2 VIDEOS PLAY ON THIS IPAD") && !/CONVERT/.test(page), page);
   assert.ok(!/MEASURING 2 OF 2/.test(page));
-  assert.ok(page.includes('2 unreadable') && page.includes('nothing playable yet'), 'the channel list says so too');
+  assert.ok(!page.includes('2 unreadable') && page.includes('nothing playable yet') && page.includes('NOT ON THIS IPAD · 2'), 'the opened row: one quiet line (2.72)');
   const lens = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololen.v1')));
   const mine = Object.keys(lens).filter(k => k.startsWith('/Video/Broken Rips/')).map(k => lens[k]);
   assert.strictEqual(mine.length, 2); assert.ok(mine.every(x => x.s === -1 && x.why === 'format' && x.at > 0), JSON.stringify(mine));
@@ -34,7 +35,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.click('[data-hd="rescan"]');
   const at0 = Math.max(...mine.map(x => x.at));
   await p.waitForFunction(t => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'); const v = Object.keys(l).filter(k => k.startsWith('/Video/Broken Rips/')).map(k => l[k]); return v.length === 2 && v.every(x => x.at > t); }, at0, { timeout: 30000 });
-  assert.ok((await txt(p, '#content')).includes("THE IPAD CAN'T PLAY THESE 2 VIDEOS"));
+  assert.ok((await txt(p, '#content')).includes("NONE OF THESE 2 VIDEOS PLAY ON THIS IPAD"));
 
   // a length marked unreadable before 2.51.1 (no reason kept) is measured again
   await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); Object.keys(l).forEach(k => { if (k.startsWith('/Video/Broken Rips/')) l[k] = { s: -1, z: l[k].z }; }); localStorage.setItem('tos.hololen.v1', JSON.stringify(l)); });

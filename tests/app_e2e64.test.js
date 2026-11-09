@@ -35,10 +35,14 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.ok(out.length >= 1 && out.every(k => /Broken Picture/.test(k) && lens[k].why === 'format'), 'each broken one it lands on leaves the schedule: ' + JSON.stringify(out));   /* each leaving moves the clock's order on, so it may leap over others */
   assert.ok(!out.some(k => /Plays Fine/.test(k)));
 
-  // the folded row says so; an opened row names them
-  await p.waitForFunction(() => /\d UNREADABLE/.test((document.getElementById('hdSum1') || {}).textContent || ''));
+  // 2.72 (Timothy): a limit of this iPad is left quiet. No count on the folded row, no NEEDS A LOOK, no note while
+  // watching; the opened row has one dim line, without names or instructions
+  assert.ok(!/UNREADABLE/.test(await txt(p, '#hdSum1')), await txt(p, '#hdSum1'));
+  assert.ok(!/NEEDS? A LOOK/.test(await txt(p, '#hdCSum')), await txt(p, '#hdCSum'));
+  assert.ok(!/can't be played|left out/.test(await txt(p, '#content')), 'no note while watching');
   await p.click('[data-hdopen="1"]');
-  assert.ok(/^CAN'T DECODE ON THIS IPAD \(\d\) .*Broken Picture.*Convert them on the NAS with fix-videos \(README → HOLODECK → Converting videos\), then LOOK AGAIN\.$/.test(await txt(p, '.hd-bad')), await txt(p, '.hd-bad'));   /* 2.69: why, and what to do */
+  assert.ok(/^NOT ON THIS IPAD · \d$/.test(await txt(p, '.hd-noton')), await txt(p, '.hd-noton'));
+  assert.strictEqual(await p.locator('.hd-bad').count(), 0, 'no names, nothing orange');   /* 2.69: why, and what to do */
   assert.strictEqual(await p.locator('.hd-bad.net').count(), 0, 'none of them only unreachable');
 
   // the next time round: it plays, and never tries one already left out

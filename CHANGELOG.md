@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.72.0 · 2026-11-09
+- **HOLODECK leaves out quietly what an iPad can't decode.** Your MOBILE iPad (A16) can't play AV1 video, which HUB (M3) plays; those videos are now simply left out on MOBILE, with nothing to look at: no UNREADABLE count, no NEEDS A LOOK, no note while watching. The round is that much shorter on that iPad, and HUB keeps the full HOLODECK. An opened channel row ends with one dim line, **NOT ON THIS IPAD · 30**, and a channel where nothing plays says **NONE PLAY ON THIS IPAD**. Videos the NAS didn't answer for are still flagged, since those can be fixed. Converting with fix-videos (without `av1` in `--plays`) still brings any of them back everywhere.
+
 ## 2.71.0 · 2026-11-08
 - **ARBORETUM, a new station (RESOURCES).** Your garden from above, as you sketched it: the house as a droplet, **Zones 1 to 3** as ripples around it, **the Pond** (its own zone) and **the Meadow** out to the apiary. It starts empty, for you to build out.
   - **MAP:** tap a ripple, the pond, the meadow, or a zone in the list beside it. Each zone shows what's in it and how many of this season's jobs are left; the beds and pots you add show as small marks on their side of the house. The card below lists what's to do now. Type the garden's name under the list.

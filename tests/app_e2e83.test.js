@@ -1,11 +1,11 @@
-// ARBORETUM (2.71, D67; simulated bridge :8105 only for the link). Timothy's design from the 2026-11-08 mockups, built
+// ARBORETUM (2.71, D67; simulated bridge :8103, its lane's, only for the link). Timothy's design from the 2026-11-08 mockups, built
 // empty: the map (home, Zones 1 to 3 as ripples, the Pond, the Meadow), a zone zoomed in with any number of beds, pots
 // and plots per side in their real order (his example: four raised beds behind the house, three on the left with pots
 // between), the pond in depth bands, plantings, jobs through the year with typical ones offered, QUICK GLANCE by season
 // with ticks that belong to this turn of the season, the garden's name, COMPUTER, and the narrow screen.
 const { chromium } = require('playwright');
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec';
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:8103/macros/s/test/exec';   // its lane's own simulated bridge (2.72: on :8105 it set off e50's schema-call count in another lane)
 
 (async () => {
   const b = await chromium.launch(); const errs = [];
