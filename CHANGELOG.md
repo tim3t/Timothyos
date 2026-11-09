@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.73.1 · 2026-11-09
+- **Nothing changes on screen.** Behind the scenes the app's code (15,258 lines in one file) is now kept as 31 parts, one per station or concern, in `js/src/`, and joined into the same single file the iPad loads. The joined file was checked line for line against the one before it: identical. Easier and safer to change from here, as the app keeps growing.
+
 ## 2.73.0 · 2026-11-09
 - **UPKEEP asks before marking something done early.** The ✓ and **MARK DONE** on an item not yet due open a window first: **NOT DUE FOR 7 DAYS** · *Air filter is due Sun 15 Nov. Mark it done today?*, with when the next one would fall. **MARK DONE TODAY** or **CANCEL** (or tap outside). Due today, overdue or never done: one tap, as before.
 - A mileage or hours item's reading sheet now says how far off it is (*1,200 MI left before it's due.*).

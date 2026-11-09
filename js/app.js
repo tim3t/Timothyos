@@ -1,10 +1,11 @@
+/* BUILT FILE: made from js/src/ by tools/build_app.py. Edit the parts there, then run the build; changes made here are lost. */
 /* TimothyOS: Bridge overview, calendars, capture, Plan Day and Key Dates.
    Reads work + personal calendars and Notion through the Apps Script bridge.
    The Bridge screen sums it all up; Day, Week and Month show the detail. */
 (function () {
   "use strict";
 
-  var VERSION = "2.73.0";
+  var VERSION = "2.73.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";

@@ -1040,7 +1040,8 @@ Releasing a new version is described in **CLAUDE.md → Release checklist**.
 ```
 index.html               app page
 css/app.css              styles (design tokens at the top)
-js/app.js                app logic (one file, no build step)
+js/app.js                app logic: one file, built from js/src/ (don't edit it by hand)
+js/src/                  the app logic in parts, a part per station or concern (tools/build_app.py joins them)
 js/vendor/               satellite.js and Astronomy Engine (MIT), for SCIENCE's passes and night sky
 sw.js                    offline cache
 manifest.webmanifest     home screen install settings (the name Bridge)
@@ -1048,6 +1049,7 @@ version.json             current version (the app checks it for updates)
 icons/, fonts/           app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs      the Google bridge
 tools/bump_version.py    sets the version everywhere before a release
+tools/build_app.py       builds js/app.js from js/src/ (--check: is it current?)
 tools/ia_fetch.py        public access TV from the Internet Archive, run on the NAS (NAS relay, Part 1)
 tools/split_ads.py       cuts commercial compilations into singles for HOLODECK's breaks, run on the NAS
 tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,

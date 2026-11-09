@@ -2,13 +2,13 @@
 
 Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen web app on his iPad. Since 2.34 the app is named **Bridge** (home-screen name, `<title>`, manifest); **TimothyOS** is the system it runs and stays in the top bar, the repo, storage keys (`tos.*`), the Notion integration name and backup file names. Single user. He works mostly from the iPad (Safari, a-Shell), not a computer.
 
-Read `docs/DESIGN.md` (decisions D1 to D68; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+Read `docs/DESIGN.md` (decisions D1 to D69; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` before changing anything. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 ## Architecture
 
 ```
 iPad app (static, GitHub Pages: https://tim3t.github.io/Timothyos/)
-  index.html · css/app.css · js/app.js (one IIFE, no build step) · sw.js (offline shell)
+  index.html · css/app.css · js/app.js (one IIFE, built from js/src/ by tools/build_app.py since 2.73.1) · sw.js (offline shell)
   │ HTTPS: POST text/plain JSON {key, action, …} for reads and writes (2.58, bridge 1.38; the key never in a URL)
   ▼
 Google Apps Script "bridge" (apps-script/Code.gs, runs as Timothy's personal Google account)
@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.73.0**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.73.1**, **bridge 1.42.0** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -132,6 +132,7 @@ Capabilities drive the UI (`capabilities_()`): always `read`, `create`, `holiday
 
 ## Code conventions
 
+- **Edit `js/src/`, never `js/app.js`** (2.73.1, D69). The iPad still loads one file with one function and one shared scope; only the source is split. `tools/build_app.py` joins `js/src/*.js` in file-name order under a one-line BUILT FILE notice: `00-head.js` opens the function, `99-foot.js` closes it, and the parts between are its body at the usual two-space indent, so any part can call any other as before. After editing a part, run `python3 tools/build_app.py`; `tests/app_build.test.js` (first in the unit tests) fails until `js/app.js` is its exact build, which also catches a hand edit of `js/app.js`. Find code with `grep -n name js/src/*.js`. Parts: 01 core (constants, storage, dates, helpers, state), 02 bridge API and ERROR LOG, 03 calendar data (ranges, breaks, ignored events, visibility, sync), 04 the frame (header, nav, status) and DAY/WEEK/MONTH, 05 SYSTEMS (PROFILE SYNC, NEEDS YOU, version and schema checks, the export; `BRIDGE_WANT` and `BRIDGE_FEATURES` live here), 06 first-run link, detail sheet, CAPTURE, 07 key dates and Plan Day, 08 the Bridge screen, 09 briefing and voice, 10 REVIEW, 11 ASK, 12 LEDGER, 13 motion and Standby, 14 LOG and SESSIONS, 15 LOOM, list boxes, easter eggs, 16 stations and COMPUTER, 17 HABITS and LIBRARY, 18 AUDIO (the NAS player), 19 ENGINEERING and UPKEEP, 20 SCENES, 21 TAROT, 22 APIARY, 23 SCIENCE, 24 HOLODECK, 25 RESSIKAN, 26 INBOX, 27 MEALS, 28 ARBORETUM, 29 ASTROMETRICS, 30 backup and restore, 31 the app shell (growing text boxes, `render()`, `go()`, the click handlers, the update notice, the clock and start-up). A new station gets its own part, numbered between its neighbours (`27b-` is not allowed: use the next free number and renumber in a commit of its own, since order is the file order). Move code between parts only in a commit that changes nothing else, and check it with the build's line count.
 - **One name, one thing.** `js/app.js` is one function; two top-level `var`s or functions with the same name silently merge (2.43.0's landmarks `lm` took over the Loom's `lm`; fixed in 2.44.0 as `slm`). `tests/app_names.test.js` fails on any repeat; new modules use a prefix or an inner function (as `rs` does).
 - **CSS classes are global too.** A new class needs a prefix nobody uses (`hd-`, `rs-`, `sci-`, `nas-`…); grep `css/app.css` before naming one. Collisions so far: the guide's NOW row took the calendar's absolutely positioned `.now` (2.46, now `hd-now`); the arch cards took the guide's `.hd-prog` progress bar and drew 6 px tall (2.47, now `hd-pg`); scope taps took `.hit`, the charts' tooltip class (2.43, now `tap`).
 - **Never attach a redraw to a request from inside a redraw.** Each redraw starts more requests and each answer redraws again: the HOLODECK picker froze on 18 folders (2.47.1). Gather the requests (one `Promise.all`), redraw once, and start reads from the click, not from the drawing code.
@@ -417,11 +418,11 @@ App areas: `work` (blue), `personal` (teal), `farm` (amber), `hobby` (coral, lab
 
 ## Release checklist
 
-1. Make the change. Keep `README.md` (setup text describes a fresh install; Code conventions), `CHANGELOG.md`, these notes and (for decisions) `docs/DESIGN.md` in step.
-2. `python3 tools/bump_version.py X.Y.Z` (updates app.js, sw.js, index.html, version.json), and update **Current versions** at the top of this file. Without the bump the iPad keeps old files and no banner appears.
+1. Make the change in `js/src/` and run `python3 tools/build_app.py`. Keep `README.md` (setup text describes a fresh install; Code conventions), `CHANGELOG.md`, these notes and (for decisions) `docs/DESIGN.md` in step.
+2. `python3 tools/bump_version.py X.Y.Z` (updates `js/src/01-core.js` and rebuilds `js/app.js`, then sw.js, index.html, version.json), and update **Current versions** at the top of this file. Without the bump the iPad keeps old files and no banner appears.
 3. `tests/run.sh` must print `ALL PASSED` (stop stray test servers first, in a command of their own: Code conventions). Extend the matching test and its simulated bridge or relay when behavior changes; new checks are `assert` calls.
 4. Commit to `main` with the session attribution lines, push, then poll `https://tim3t.github.io/Timothyos/version.json` until it shows the new version (usually under a minute).
-5. **Bridge changes** need Timothy: copy `https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs`, replace the code in script.google.com, run `setup` (check the log), then Deploy → Manage deployments → pencil → New version. Bump `VERSION` in `Code.gs`, set `BRIDGE_WANT` in `js/app.js` to the same and add a line at the top of `BRIDGE_FEATURES` naming what it adds (`version_sync.test.js` fails otherwise), and say so clearly. Simulated bridges report `Code.gs`'s VERSION themselves (`BV`).
+5. **Bridge changes** need Timothy: copy `https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs`, replace the code in script.google.com, run `setup` (check the log), then Deploy → Manage deployments → pencil → New version. Bump `VERSION` in `Code.gs`, set `BRIDGE_WANT` in `js/src/05-systems.js` to the same (then build) and add a line at the top of `BRIDGE_FEATURES` naming what it adds (`version_sync.test.js` fails otherwise), and say so clearly. Simulated bridges report `Code.gs`'s VERSION themselves (`BV`).
 6. **`tools/ia_fetch.py`, `tools/split_ads.py` or `tools/fix_videos.py` changes:** after the push, put that commit's full hash in the README compose's raw address (a second, docs-only commit), and tell Timothy to change the address in his `ia-fetch` project on the NAS.
 7. Tell Timothy: tap **UPDATE READY**, then (if needed) **SYSTEMS → REFRESH NOW**.
 
@@ -441,7 +442,7 @@ Writing tests: arrays from `vm.runInNewContext` belong to another realm, so `dee
 
 Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34), COMPUTER (2.35), the Morning Briefing (2.36), ASTROMETRICS and the Ship's Year (2.40), Notes in Capture as the INBOX (2.41), SCIENCE (2.42), RESSIKAN (2.44), HOLODECK (2.45; channels 2.46, the arch with AUDIO 2.47, NETWORK 2.48, sleep timer 2.49, commercial breaks 2.52), `tools/ia_fetch.py`, the review clean-up (2.50: assertions, privacy, docs). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
 
-**Hardening (resumed 2026-10-23), in Timothy's order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) ~~bridge version check~~ done 2026-10-23 (2.38, below); (3) ~~Notion schema check~~ done 2026-10-23 (2.39). ~~**WAITING fix**~~ done 2026-11-04 (2.58: `go("systems")` calls `loadLedger(false)`, `loadApiary(false)`, `loadTarot(false)`; `index.html` description refreshed). ~~Keys out of URLs and a CSP~~ done 2026-11-04 (2.58, bridge 1.38: section **Requests and the page's rules** under Code conventions). Still proposed (Timothy, 2026-11-04: next after MEALS mockups as he chooses): an optional PIN that encrypts the stored keys, a key per iPad with ROTATE KEY in SYSTEMS, a weekly export of every database to Drive or the NAS, ~~an error log in SYSTEMS~~ done 2026-11-05 (2.62, with the LEVEL safety net; Apps Script quota use is shown as BRIDGE TODAY from the app's side, a true UrlFetch count would need the bridge), splitting `app.js`. The backup reminder is an UPKEEP item Timothy made himself (2026-11-04), so no app feature; a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+**Hardening (resumed 2026-10-23), in Timothy's order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) ~~bridge version check~~ done 2026-10-23 (2.38, below); (3) ~~Notion schema check~~ done 2026-10-23 (2.39). ~~**WAITING fix**~~ done 2026-11-04 (2.58: `go("systems")` calls `loadLedger(false)`, `loadApiary(false)`, `loadTarot(false)`; `index.html` description refreshed). ~~Keys out of URLs and a CSP~~ done 2026-11-04 (2.58, bridge 1.38: section **Requests and the page's rules** under Code conventions). Still proposed (Timothy, 2026-11-04: next after MEALS mockups as he chooses): an optional PIN that encrypts the stored keys, a key per iPad with ROTATE KEY in SYSTEMS, a weekly export of every database to Drive or the NAS, ~~an error log in SYSTEMS~~ done 2026-11-05 (2.62, with the LEVEL safety net; Apps Script quota use is shown as BRIDGE TODAY from the app's side, a true UrlFetch count would need the bridge), ~~splitting `app.js`~~ done 2026-11-09 (2.73.1, D69: option A, the source split into `js/src/` parts and built into the one file; option B, separate browser modules, set aside). The backup reminder is an UPKEEP item Timothy made himself (2026-11-04), so no app feature; a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
 
 Pinned for later, in no order:
 - **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
@@ -453,7 +454,7 @@ Pinned for later, in no order:
 - **Station discovery, shelved after COMPUTER (D43):** STATION BOARD (a Bridge panel of unpinned stations with a live line each, plus a count on ALL STATIONS) and ON DECK (one slot under the pins that shows the unpinned station with a reason to open now).
 - **Ship's Computer on schedules:** the Morning Briefing is done (2.36, first open after 06:00 rather than a timed trigger, Timothy's choice). Still ideas: a Sunday draft review, a hive nudge after 10 days when the weather is GO.
 - **A spoken ship's computer:** OpenAI's live (full-duplex) voice model, about $0.05 a minute, for talking with Bridge rather than reading the briefing (Timothy asked about it 2026-10-23; not planned).
-- **From the 2026-10-21 brainstorm (proposals, none approved yet):** QUARTERMASTER (one stock list for bee, farm and household supplies; running low moves an item to the Replicator Queue); ASTROMETRICS (done, 2.40); voice capture through Shortcuts; splitting `app.js` into per-station modules (no build step). My suggested order then: hardening, ARBORETUM, schedules.
+- **From the 2026-10-21 brainstorm (proposals, none approved yet):** QUARTERMASTER (one stock list for bee, farm and household supplies; running low moves an item to the Replicator Queue); ASTROMETRICS (done, 2.40); voice capture through Shortcuts; splitting `app.js` into per-station modules (done as source parts with a small build, 2.73.1). My suggested order then: hardening, ARBORETUM, schedules.
 - **Habits:** keep each day's water goal in Notion (needs a schema change: ask first).
 - **Log italics** (Unicode italic): paused by Timothy.
 - Moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.

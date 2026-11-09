@@ -3,13 +3,14 @@
 
 Usage: python3 tools/bump_version.py 1.2.0
 
-Updates js/app.js, sw.js, index.html (cache-busting ?v= and the top bar
-label) and version.json, which the installed app checks to offer
+Updates js/src/01-core.js (then rebuilds js/app.js), sw.js, index.html
+(cache-busting ?v= and the top bar label) and version.json, which the installed app checks to offer
 "UPDATE READY". Run it for every release, or iPads keep the old files.
 """
 import json
 import pathlib
 import re
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -29,7 +30,8 @@ def main():
         sys.exit(__doc__)
     v = sys.argv[1]
     major_minor = ".".join(v.split(".")[:2])
-    sub("js/app.js", r'var VERSION = "[\d.]+";', f'var VERSION = "{v}";', 1)
+    sub("js/src/01-core.js", r'var VERSION = "[\d.]+";', f'var VERSION = "{v}";', 1)
+    subprocess.run([sys.executable, str(ROOT / "tools" / "build_app.py")], check=True)   # 2.73.1: js/app.js is built from js/src/
     sub("sw.js", r'var VERSION = "[\d.]+";', f'var VERSION = "{v}";', 1)
     sub("sw.js", r"\?v=[\d.]+", f"?v={v}")
     sub("index.html", r"\?v=[\d.]+", f"?v={v}")

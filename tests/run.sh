@@ -37,6 +37,7 @@ run bridge_science.test.js
 run version_sync.test.js
 run speak_text.test.js
 run sci_sky.test.js
+run app_build.test.js
 run app_names.test.js
 run holo_net.test.js
 run backup_keys.test.js

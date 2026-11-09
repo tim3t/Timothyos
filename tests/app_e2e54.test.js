@@ -2,12 +2,13 @@
 // other. Tapping UPDATE READY must bring each one up whole: its version in the top bar, its styles applied, the
 // screen drawn, and only its own cache left. The new version waits instead of taking over on install, so it never
 // swaps in while the page is mid-reload (that left a header over a black screen, or unstyled HTML, on the iPad).
-// A copy of the app is served from a scratch folder on :8125 so the test can publish versions to it.
+// A copy of the app is served from a scratch folder on :8125 so the test can publish versions to it (with the build
+// tool since 2.73.1: bump_version.py rebuilds js/app.js from js/src/).
 const { chromium } = require('playwright');
 const assert = require('assert');
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn, execFileSync } = require('child_process');
 const R = path.join(__dirname, '..'), DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tos-upd-')), PORT = 8125, URL0 = 'http://localhost:' + PORT + '/';
-for (const f of ['index.html', 'sw.js', 'manifest.webmanifest', 'version.json', 'css', 'js', 'icons', 'fonts', 'tools/bump_version.py']) fs.cpSync(path.join(R, f), path.join(DIR, f), { recursive: true });
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest', 'version.json', 'css', 'js', 'icons', 'fonts', 'tools/bump_version.py', 'tools/build_app.py']) fs.cpSync(path.join(R, f), path.join(DIR, f), { recursive: true });
 let stamp = Date.now() / 1000;
 const publish = v => {   // the test server dates files to the second: move them on, or a same-second change reads as "not modified"
   execFileSync('python3', [path.join(DIR, 'tools/bump_version.py'), v]);
