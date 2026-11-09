@@ -267,6 +267,26 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.ok((await txt(p, '.up-row:has-text("Oil change")')).includes('5,000 MI LEFT'));
   assert.strictEqual(await p.locator('.up-row.bad').count(), 0);
 
+  // ---- 2.73 (Timothy): marking done before it's due asks first; UNDO on the toast for 10 seconds
+  assert.ok(await p.isVisible('#toast .toast-undo'), 'the done toast carries UNDO');
+  await p.click('.up-card:has-text("Blade sharpen") [data-updone]'); await p.waitForSelector('.up-early');
+  let early = await txt(p, '#detailSheet');
+  assert.ok(early.includes('NOT DUE FOR 4 DAYS') && early.includes('Blade sharpen is due Mon 19 Oct. Mark it done today?') && early.includes('The next would be due Thu 12 Nov.'), early);
+  await p.click('#detailClose'); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '.up-row:has-text("Blade sharpen")')).includes('IN 4 DAYS'), 'CANCEL changes nothing');
+  await p.click('.up-row:has-text("Blade sharpen") [data-updone]'); await p.waitForSelector('.up-early');   // the ✓ asks too
+  await p.click('[data-updoneforce]'); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '#toast')).includes('Blade sharpen done. Next 12 NOV'));
+  assert.ok(!(await txt(p, '.up-row:has-text("Blade sharpen")')).includes('IN 4 DAYS'));
+  await p.click('#toast .toast-undo'); await p.waitForTimeout(300);
+  assert.ok((await txt(p, '.up-row:has-text("Blade sharpen")')).includes('IN 4 DAYS'), 'UNDO puts it back');
+  assert.ok((await txt(p, '#toast')).includes('Blade sharpen: back as it was'));
+  const bs = (await p.evaluate(() => JSON.parse(localStorage.getItem('tos.upkeep.v1')))).find(x => x.name === 'Blade sharpen');
+  assert.strictEqual(bs.last, '2026-09-21'); assert.ok(!(bs.hist || []).includes('2026-10-15'), 'and its history');
+  await p.click('.up-row:has-text("Oil change") [data-updone]'); await p.waitForSelector('#upDoneRead');   // by reading: the sheet says how far off
+  assert.ok((await txt(p, '#detailSheet')).includes("5,000 MI left before it's due."), await txt(p, '#detailSheet'));
+  await p.click('#detailClose'); await p.waitForTimeout(300);
+
   // ---- edit, then delete (tap twice)
   await p.click('.up-row:has-text("Blade sharpen") .up-main'); await p.waitForSelector('#upName');
   assert.strictEqual(await p.inputValue('#upName'), 'Blade sharpen');

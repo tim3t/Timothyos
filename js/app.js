@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.72.0";
+  var VERSION = "2.73.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -120,10 +120,19 @@
   var toastTimer;
   function toast(msg) {
     var t = $("toast");
-    t.textContent = msg;
+    t.textContent = msg; toastUndoFn = null;
     t.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.hidden = true; }, 3000);
+  }
+  /* 2.73: a toast with UNDO for 10 seconds (UPKEEP's MARK DONE). Any later toast replaces it, and its undo with it. */
+  var toastUndoFn = null;
+  function toastUndo(msg, fn) {
+    var t = $("toast");
+    t.innerHTML = '<span>' + esc(msg) + '</span><button type="button" class="toast-undo" data-toastundo="1">UNDO</button>';
+    t.hidden = false; toastUndoFn = fn;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; toastUndoFn = null; }, 10000);
   }
 
   /* ---------- State ---------- */
@@ -8514,16 +8523,36 @@
     var list = upkeepItems().filter(function (x) { return x.id !== item.id; }); list.push(item); saveUpkeep(list);
     closeDetail(); toast(id ? "Saved" : "Added: " + name); render(true);
   }
-  function markDone(id) {
+  function markDone(id, force) {
     var list = upkeepItems(), u = list.filter(function (x) { return x.id === id; })[0];
     if (!u) return;
     if (byReading(u)) {
       engSheet("up-sheet", '<div class="sbar"><span>MARK DONE</span><span>' + esc(u.name.toUpperCase()) + '</span></div><div class="sbody"><label class="ov-sub" for="upDoneRead">' + (u.unit === "miles" ? "ODOMETER" : "HOUR METER") + ' NOW</label>' +
-        '<input type="number" id="upDoneRead" inputmode="numeric" min="0" value="' + (u.read != null ? u.read : "") + '"><div class="err" id="upErr" role="alert"></div></div>' +
+        '<input type="number" id="upDoneRead" inputmode="numeric" min="0" value="' + (u.read != null ? u.read : "") + '"><div class="err" id="upErr" role="alert"></div>' +
+        (function () { var rs = upkeepStatus(u, ymd(new Date())); return u.lastRead != null && u.read != null && /LEFT$/.test(rs.due) && !/^0 /.test(rs.due) ? '<p class="up-early-q">' + rs.due.replace(/ MI LEFT$/, " MI").replace(/ H LEFT$/, " HOURS") + " left before it's due.</p>" : ""; })() + "</div>" +
         '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-updoneread="' + esc(u.id) + '">DONE</button></div>');
       return;
     }
-    u.last = ymd(new Date()); asUpkeepDone(u); saveUpkeep(list); toast(u.name + " done. Next " + shortDay(addInterval(u.last, u.every, u.unit))); render(true);
+    var today = ymd(new Date()), st = upkeepStatus(u, today), early = u.last ? daysBetween(today, st.dueDay) : 0;
+    if (early > 0 && !force) {   /* 2.73 (Timothy): marking done before it's due asks first, however early */
+      engSheet("up-sheet up-early", '<div class="sbar"><span>NOT DUE FOR ' + early + (early === 1 ? " DAY" : " DAYS") + '</span><span>' + esc(u.name.toUpperCase()) + "</span></div>" +
+        '<div class="sbody"><p class="up-early-q">' + esc(u.name) + " is due " + esc(dayWords(st.dueDay)) + ". Mark it done today?</p>" +
+        '<p class="muted">The next would be due ' + esc(dayWords(addInterval(today, u.every, u.unit))) + ".</p></div>" +
+        '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CANCEL</button><button type="button" class="btn" data-updoneforce="' + esc(u.id) + '">MARK DONE TODAY</button></div>');
+      return;
+    }
+    var was = { last: u.last, hist: (u.hist || []).slice() };
+    u.last = today; asUpkeepDone(u); saveUpkeep(list); render(true);
+    toastUndo(u.name + " done. Next " + shortDay(addInterval(u.last, u.every, u.unit)), function () { upUndo(id, was); });
+  }
+  function dayWords(d) {   /* "Sun 15 Nov" (with the year when it isn't this one), for sentences */
+    var x = parseYmd(d), t = function (w) { return w.charAt(0) + w.slice(1).toLowerCase(); };
+    return t(DOWL[x.getDay()].slice(0, 3)) + " " + x.getDate() + " " + t(MON[x.getMonth()]) + (x.getFullYear() !== new Date().getFullYear() ? " " + x.getFullYear() : "");
+  }
+  function upUndo(id, was) {   /* UNDO on the toast: the item as it was before MARK DONE */
+    var list = upkeepItems(), u = list.filter(function (x) { return x.id === id; })[0]; if (!u) return;
+    Object.keys(was).forEach(function (k) { if (was[k] === undefined) delete u[k]; else u[k] = was[k]; });
+    saveUpkeep(list); toast(u.name + ": back as it was"); render(true);
   }
   function engSheetClick(b) {
     var d = b.dataset;
@@ -8542,11 +8571,13 @@
       else { eng.arm = "up:" + d.updel; eng.armAt = Date.now(); b.textContent = "TAP AGAIN TO DELETE"; }
       return true;
     }
+    if (d.updoneforce) { closeDetail(); markDone(d.updoneforce, true); return true; }
     if (d.updoneread) {
       var list = upkeepItems(), u = list.filter(function (x) { return x.id === d.updoneread; })[0], v = $("upDoneRead").value;
       if (v === "" || +v < 0) { $("upErr").textContent = "Enter the reading."; return true; }
-      u.lastRead = +v; u.read = +v; u.last = ymd(new Date()); asUpkeepDone(u); saveUpkeep(list); closeDetail();
-      toast(u.name + " done. Next at " + (u.lastRead + u.every).toLocaleString() + (u.unit === "miles" ? " mi" : " h")); render(true);
+      var was = { lastRead: u.lastRead, read: u.read, last: u.last, hist: (u.hist || []).slice() }, uid = u.id;
+      u.lastRead = +v; u.read = +v; u.last = ymd(new Date()); asUpkeepDone(u); saveUpkeep(list); closeDetail(); render(true);
+      toastUndo(u.name + " done. Next at " + (u.lastRead + u.every).toLocaleString() + (u.unit === "miles" ? " mi" : " h"), function () { upUndo(uid, was); });
       return true;
     }
     return false;
@@ -14959,6 +14990,7 @@
   });
   $("status").addEventListener("click", function () { if (sdFired) { sdFired = false; return; } go("systems"); });   /* a hold shows the stardate instead */
   $("fixJump").addEventListener("click", function () { fixJump("fixPanel"); });
+  $("toast").addEventListener("click", function (e) { if (!e.target.closest("[data-toastundo]") || !toastUndoFn) return; var f = toastUndoFn; toastUndoFn = null; clearTimeout(toastTimer); $("toast").hidden = true; f(); });
   var fixRaf = 0;
   $("content").addEventListener("scroll", function () { if (state.screen !== "systems" || fixRaf) return; fixRaf = requestAnimationFrame(function () { fixRaf = 0; fixJumpPaint(); }); }, { passive: true });
   $("prevBtn").addEventListener("click", function () { page(-1); });

@@ -138,7 +138,8 @@ const audio = async p => { await station(p, 'holodeck'); await p.waitForSelector
   // ---- Upkeep: in Notion, on MOBILE; MARK DONE there reaches HUB
   await station(m, 'engineering'); await m.waitForSelector('[data-updone="uS1"]');
   assert.ok((await txt(m, '#content')).includes('Sample filter'));
-  await m.click('[data-updone="uS1"]');
+  await m.click('[data-updone="uS1"]'); await m.waitForTimeout(500);
+  if (await m.isVisible('.up-early')) await m.click('[data-updoneforce]');   /* 2.73: not due yet (this test runs on the real date), so it asks first */
   const today = await m.evaluate(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
   await until(async () => (await upk('')).items.some(x => x.id === 'uS1' && x.last === today));
   await h.reload(); await h.waitForSelector('#content > *', { timeout: 15000 }); await h.waitForTimeout(1200);
