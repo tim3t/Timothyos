@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.76.0**, **bridge 1.44.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.76.1**, **bridge 1.44.1** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -360,6 +360,8 @@ Timothy's iPads: HUB is an M3 (plays AV1), MOBILE an A16 (can't). His choice (20
 ## SICKBAY (app 2.74, bridge 1.43, D70)
 
 Timothy's mockup (2026-11-09) and postulates, SCIENCE (his correction). Part `js/src/32-sickbay.js` (CSS `sk-`, stage tokens `--sk-awake/rem/core/deep`; never bare `now`/`out`/`none` classes: `.now` is the calendar's). State `sk {data, q, at, busy, sending, err, form, arm, night}`; cache `tos.sickbay.v1` (LEFT_OUT cache), queue `tos.sickbayq.v1 {ops}` (BK_QUEUES; `skQueue` keeps one op per id; `flushSickbay` in order; `bad_request` dropped), view `tos.sickview.v1 {tab, metric, range, words}` (BK_KEYS; PROFILE SYNC group SICKBAY, row `sickview`), switch `tos.aisickbay.v1` (BK_KEYS; never synced: AI switches are `PROFILE_NEVER` in the bridge). `loadSickbay(force)` (2-minute throttle) runs from `refresh()` itself, after caps, on SYSTEMS, the briefing, and on `visibilitychange` while open (the shortcut hands back), so the Bridge's Condition never runs on a stale cache. `skNormal(k)`: 20th to 80th percentile of the 30 days before today, null under 7 days. `skReady()`: 75, ±HRV against normal, −15 for resting heart rate above normal + 3, sleep bands; GOOD ≥ 80, FAIR ≥ 60, else LOW. `skConditions(now)` (items carry `health: true`; `briefing()` drops those unless shared): no `last` for 48 h; resting heart rate ≥ normal median + 5 both of the last two days. `skEnvRow()` in the Bridge's weather panel (on the iPad, no AI). `sickbayBrief()` only with the switch. SYNC FROM HEALTH: `shortcuts://run-shortcut?name=Bridge%20Health`. Every `healthput` reply carries `message` (`healthPutSafe_`, `HEALTH_SAY`, 1.43.1): the shortcut shows it as its notification, so refusals and failures must say what to do in words. Appointments: `eventsFor` the next 62 days whose titles hold one of the words. Tests: `bridge_sickbay.test.js`, `app_e2e84` (lane sickbay, `mock_sickbay.py` :8106; real date).
+
+**Bridge 1.44.1 (app 2.76.1), from Timothy's first real shortcut build (2026-11-10).** Two faults found with a Quick Look of the combined text: date bubbles without *Include ISO 8601 Time* sent `2026-11-10`, which `new Date` read as UTC midnight (every day one day early in the Americas), and a Find with Limit on applied the limit *before* Group By (three newest samples summed into one "day"). `healthWhen_` now reads a bare `yyyy-MM-dd` as noon UTC (the same calendar day from UTC-11 to UTC+11). In `healthPut_`, any day on or before `edge` (now minus 3 days in the script zone: "in the last 3 days" counts back from the run, so that day is partial) merges with the page's values winning, and is skipped when it adds nothing; newer days still overwrite field by field. README's guide was rewritten from the build that worked (drag fresh actions so Repeat and Add to Variable pick up the action above; Sort None, Limit off; Quick Look check; Time of Day automations with Auto-Lock Never).
 
 ## ARBORETUM (app 2.71, D67)
 

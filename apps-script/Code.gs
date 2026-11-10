@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.44.0';
+var VERSION = '1.44.1';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -2335,6 +2335,12 @@ function health_(from) {
 }
 function sickFind_(key) { return queryAll_(sickSource_(), { property: 'App ID', rich_text: { equals: key } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; })[0] || null; }
 function healthNum_(s) { var m = String(s == null ? '' : s).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : NaN; }
+/** 1.44.1: a date sent without its time (Include ISO 8601 Time off) is that day where you are, not midnight in London (which put
+ *  every day one day early west of it): noon UTC falls on the same calendar day in every zone from UTC-11 to UTC+11. */
+function healthWhen_(s) {
+  s = String(s == null ? '' : s).trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00Z') : new Date(s);
+}
 function healthStage_(v) {
   v = String(v || '').toLowerCase();
   return /deep/.test(v) ? 'deep' : /rem/.test(v) ? 'rem' : /awake|wake/.test(v) ? 'awake' : /in ?bed/.test(v) ? 'inbed' : /core|light|asleep|sleep/.test(v) ? 'core' : null;
@@ -2345,7 +2351,7 @@ function healthDays_(raw, tz) {
   var dayOf = function (d) { return Utilities.formatDate(d, tz, 'yyyy-MM-dd'); }, hm = function (d) { return Utilities.formatDate(d, tz, 'HH:mm'); };
   String(raw || '').split(/\r?\n/).forEach(function (line) {
     if (!line.trim()) return;
-    var f = line.split(/\s*[|\t]\s*/), code = String(f[0] || '').trim().toLowerCase(), start = new Date(String(f[2] || '').trim()), end = new Date(String(f[3] || f[2] || '').trim());
+    var f = line.split(/\s*[|\t]\s*/), code = String(f[0] || '').trim().toLowerCase(), start = healthWhen_(f[2]), end = healthWhen_(f[3] || f[2]);
     if (isNaN(start) || isNaN(end) || end < start || seen[line]) { skipped++; return; }
     seen[line] = 1;
     if (code === 'sleep') {
@@ -2406,12 +2412,17 @@ function healthPut_(body) {
   if (!raw.trim()) return { ok: false, error: 'nothing_to_send', message: HEALTH_SAY.nothing_to_send };
   if (raw.length > 400000) return { ok: false, error: 'bad_request', message: 'Too much at once: send the last 3 days, not more.' };
   var tz = Session.getScriptTimeZone(), today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd'), oldest = Utilities.formatDate(new Date(Date.now() - 14 * 864e5), tz, 'yyyy-MM-dd');
+  /* 1.44.1: "in the last 3 days" counts back from now, so the day it starts in arrives only partly (from 8 AM, say). That day,
+     and anything older, only fills what its page doesn't have yet: a complete day is never overwritten by part of itself. */
+  var edge = Utilities.formatDate(new Date(Date.now() - 3 * 864e5), tz, 'yyyy-MM-dd');
   var got = healthDays_(raw, tz), days = Object.keys(got.days).filter(function (d) { return d >= oldest && d <= today; }).sort().slice(-10);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     days.forEach(function (d) {
-      var key = 'day-' + d, have = sickFind_(key), merged = Object.assign(have ? sickData_(have.properties || {}) : {}, got.days[d]);
+      var key = 'day-' + d, have = sickFind_(key), was = have ? sickData_(have.properties || {}) : {}, part = d <= edge;
+      if (part && have && Object.keys(got.days[d]).every(function (k) { return was[k] != null; })) return;   // nothing it lacks: left as it is
+      var merged = part ? Object.assign({}, got.days[d], was) : Object.assign(was, got.days[d]);
       var dt = new Date(d + 'T12:00:00Z'), name = Utilities.formatDate(dt, 'UTC', 'EEE d MMM yyyy');
       var props = { Name: { title: rt_(name) }, Kind: { select: { name: 'Day' } }, Date: { date: { start: d } }, 'App ID': { rich_text: rt_(key) },
         'Resting HR': { number: merged.rhr != null ? merged.rhr : null }, HRV: { number: merged.hrv != null ? merged.hrv : null },

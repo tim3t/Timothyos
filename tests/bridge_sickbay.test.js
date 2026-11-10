@@ -162,7 +162,24 @@ r = post({ action: 'sickbayremove', id: 'n-test-1' });
 assert.ok(r.ok); assert.ok(pages[TDS].find(p => txt(p.properties['App ID'].rich_text) === 'n-test-1').in_trash);
 assert.ok(post({ action: 'sickbayremove', id: 'n-gone' }).ok, 'removing what is gone is fine');
 
+// ---- 1.44.1: a date with no time is that day where you are (it used to land a day early, at midnight in London)
+r = health(HK, 'steps|4321|' + D(2) + '|' + D(2));
+assert.deepStrictEqual(r.days, [D(2)], JSON.stringify(r));
+assert.strictEqual(data(D(2)).steps, 4321);
+
+// ---- 1.44.1: the oldest day of a send (3 days back, so only partly covered) fills gaps, never overwrites a complete day
+r = health(HK, 'steps|9000|' + at(3, '00:00') + '|' + at(3, '23:59'));
+assert.strictEqual(data(D(3)).steps, 9000, 'a new page is written in full');
+r = health(HK, ['steps|1200|' + at(3, '16:00') + '|' + at(3, '23:59'), 'rhr|60|' + at(3, '16:30') + '|' + at(3, '16:30'), 'steps|3100|' + at(0, '00:00') + '|' + at(0, '15:00')].join('\n'));
+assert.ok(r.ok, JSON.stringify(r));
+assert.deepStrictEqual([data(D(3)).steps, data(D(3)).rhr], [9000, 60], 'the complete count stays; the missing resting heart rate fills in');
+assert.strictEqual(data(t).steps, 3100, 'today is replaced as it grows');
+r = health(HK, 'steps|1500|' + at(3, '18:00') + '|' + at(3, '23:59'));
+assert.ok(r.ok && data(D(3)).steps === 9000, 'nothing new for that day: left alone');
+r = health(HK, 'steps|2600|' + at(2, '00:00') + '|' + at(2, '23:59'));
+assert.strictEqual(data(D(2)).steps, 2600, 'two days back is whole, and replaced');
+
 // ---- the schema check knows the database; setup reports it
 assert.ok(vm.runInContext('schemaSpec_()', ctx).some(s => s.key === 'sickbay'));
-assert.ok(/^OK \(2 days, 2 records\)/.test(vm.runInContext('sickbayStatus_()', ctx)), vm.runInContext('sickbayStatus_()', ctx));
+assert.ok(/^OK \(4 days, 2 records\)/.test(vm.runInContext('sickbayStatus_()', ctx)), vm.runInContext('sickbayStatus_()', ctx));
 console.log('bridge sickbay: OK');

@@ -820,47 +820,77 @@ Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (re
 
 **How the data gets here.** Apple Health has no web address Bridge could ask: it keeps your data on your devices, and iCloud carries it between them encrypted. So a shortcut on the iPad reads Health and sends it to your Google bridge with its own key, and the bridge writes one page per day.
 
-**Setup** (bridge 1.43):
+**Setup** (bridge 1.43; 1.44.1 for the safeguards below):
 1. **The iPhone the watch is paired to stays on, charging and on Wi-Fi** (a drawer with a charger is fine). On it: **Settings → your name → iCloud → Show All → Health** on. Do the same on the iPad you'll run the shortcut on (HUB), then open **Health** there and check your watch's data shows.
 2. Update the bridge (Updating the Google bridge) and run **setup**. It makes **`HEALTH_KEY`** in Script Properties: the shortcut's own key, good for sending health data and nothing else. Your main key never goes into Shortcuts.
 3. In Notion, open **🩺 Sickbay** (in your hub) → **•••** → **Connections** → **TimothyOS**. Run **setup** again: the log should say `Notion sickbay: OK (0 days, 0 records)`.
-4. Build the **Bridge Health** shortcut on HUB (below), run it once, then open **SICKBAY** (SCIENCE in ALL STATIONS).
+4. Build the **Bridge Health** shortcut on HUB (below), run it once, then open **SICKBAY** (SCIENCE in ALL STATIONS). Then set it to run through the day (**Through the day, by itself**, below).
 
-**The Bridge Health shortcut.** Shortcuts is a recipe of steps run top to bottom: the actions are listed on the right (search box at the top), the recipe on the left. Build it on HUB. The first time, build it with **Steps** alone and run it; once that works, add the other measures the same way.
+**The Bridge Health shortcut** (rewritten from the first real build, 2.76.1). Shortcuts is a recipe run top to bottom: actions are listed on the right (search box at the top), the recipe on the left. Build it on HUB. The finished shortcut looks like this:
 
-*With a keyboard attached:* the row of blue **variable** bubbles that normally sits above the on-screen keyboard moves to a slim bar at the **very bottom of the screen** (expand it with its arrow). Tapping any blue bubble opens a small window: **Clear Variable** empties that slot, and the list underneath picks which detail of it to use.
+```
+Find Health Samples   Type: Steps · Start Date is in the last 3 days · Group By: Day
+Repeat with each item in  Health Samples
+    Text:   steps| Value | Start Date | End Date
+End Repeat
+Add  Repeat Results  to  Lines
+    … one block like these five, per measure …
+Combine  Lines  with  New Lines
+Get Contents of URL            (POST, JSON: key, action, lines)
+Get Value for  message  in  Contents of URL
+Show Notification  Dictionary Value
+```
+
+*With a keyboard attached:* the row of blue **variable** bubbles moves to a slim bar at the **very bottom of the screen** (expand it with its arrow). Tap a bubble to choose which detail of it to use; **long-press** a slot to put a variable into it (**Select Variable**, then tap the action whose result you want).
 
 1. **+** → tap the title → **Rename** → **Bridge Health** (SICKBAY's **SYNC FROM HEALTH** opens it by that exact name).
-2. **One block per measure**, in this order:
-   - **Find Health Samples** → **Add Filter**: **Type is** *(the type from the table)*; **Add Filter** again: **Start Date is in the last 3 days**. For Steps, Active Energy, Exercise Minutes and Stand Minutes also set **Group By: Day**. Keep **Fill Missing** off (it would invent days of zero).
-   - **Repeat with Each** (it fills in *Health Samples* itself).
-   - **Text**, dragged **inside** the repeat: type the code and `|`, then add **Repeat Item** from the variable bar and choose **Value** in its window (the bubble may still be labelled *Repeat Item*; the tick on **Value** is what counts); type `|`, add **Repeat Item** → **Start Date**, then tap that bubble → **Date Format: ISO 8601** with **Include ISO 8601 Time** on; type `|`, add **Repeat Item** → **End Date**, same date format. It reads `rhr|` Value `|` Start Date `|` End Date (spaces around the `|` don't matter).
-   - Under **End Repeat**: **Add to Variable**, which adds **Repeat Results** to a variable you name **Lines** (type the name the first time; every later block picks **Lines**). *Repeat Results* is every Text the loop made.
+2. **The first block, Steps.** Build it, run it (step 8), and only then add the others.
+   - **Find Health Samples** → **Add Filter → Type is Steps**. It comes with a **Start Date** filter: set it to **is in the last 3 days**. **Group By: Day**. **Sort by: None**, **Limit: off**, **Fill Missing: off**. (A limit is applied *before* grouping: with it on you get a few minutes of steps, not days.)
+   - **Repeat with Each**: drag it **directly under** the Find. It fills in *Health Samples* by itself and brings its own **End Repeat**.
+   - **Text**, dragged **between** Repeat and End Repeat: type `steps|`, add **Repeat Item** from the bar and tap it → **Value**; type `|`, **Repeat Item** → **Start Date**, then tap it → **Date Format: ISO 8601** with **Include ISO 8601 Time on**; type `|`, **Repeat Item** → **End Date**, the same date format. **The time matters:** a date without it can land on the wrong day.
+   - **Add to Variable**, dragged **directly under End Repeat**: it fills in *Repeat Results* by itself; type **Lines** as the variable name.
+3. **Every other measure:** the same four parts with its own type and code, dragged in **under the last Add to Variable and above Combine Text**. Dragging fresh actions is the easy way: each one picks up the result of the action just above it. (Duplicating works too, by long-pressing an action's **icon**, but then the copy's Repeat and Add to Variable still point at the original block: long-press each → **Select Variable** → tap the new Find, or the new End Repeat.)
 
-   | Code | Health type | | Code | Health type |
-   |---|---|---|---|---|
-   | `rhr` | Resting Heart Rate | | `resp` | Respiratory Rate |
-   | `hrv` | Heart Rate Variability | | `vo2` | Cardio Fitness (VO2 Max) |
-   | `steps` | Steps | | `temp` | Sleeping Wrist Temperature |
-   | `active` | Active Energy | | `weight` | Weight (if a scale writes to Health) |
-   | `exercise` | Exercise Minutes | | `sleep` | Sleep Analysis (its Value is the stage) |
-   | `standmin` | Stand Minutes | | | |
+   | Code | Health type | Group By | Feeds |
+   |---|---|---|---|
+   | `steps` | Steps | **Day** | Steps tile, activity |
+   | `rhr` | Resting Heart Rate | None | **Readiness** |
+   | `hrv` | Heart Rate Variability | None | **Readiness** |
+   | `sleep` | Sleep Analysis (its Value is the stage) | None | **SLEEP**, readiness |
+   | `active` | Active Energy | **Day** | Yesterday's MOVE |
+   | `exercise` | Exercise Minutes | **Day** | Yesterday's EXERCISE |
+   | `standmin` | Stand Minutes | **Day** | Yesterday's STAND |
+   | `resp` | Respiratory Rate | None | Breathing rate tile |
+   | `vo2` | Cardio Fitness (VO2 Max) | None | Cardio fitness tile |
+   | `temp` | Sleeping Wrist Temperature | None | SLEEP details |
+   | `weight` | Weight (if a scale writes to Health) | None | RECORDS |
 
-   Adding a measure later: drag its four actions from the list on the right into place **above** the *Combine Text* below (not at the very bottom).
-3. **Combine Text**: **Combine Lines with New Lines** (if the slot shows something else, tap it → **Clear Variable** → pick **Lines** from the bottom bar).
-4. **Get Contents of URL**: tap the address slot (if a variable is sitting in it, tap it → **Clear Variable** first) and paste your bridge's address: script.google.com → **Deploy → Manage deployments → Web app URL**, the one ending in `/exec`. Tap the small arrow on the action: **Method POST**, **Request Body JSON**, then **Add new field → Text** three times: `key` = your **HEALTH_KEY**; `action` = `healthput`; `lines` = the **Combined Text** bubble.
-5. **Get Dictionary Value**: **Get Value for** `message` **in Contents of URL** (type the word `message`; it's not a variable).
-6. **Show Notification** with **Dictionary Value**.
-7. **Play.** Allow it to read Health and to connect to script.google.com. A good run says **Sent 3 days to SICKBAY.** If a run ever shows nothing, change the notification to show **Contents of URL** for one run: it shows the bridge's whole reply.
+   Steps, resting heart rate, heart rate variability and sleep give you most of SICKBAY; the rest can come later or not at all. The iPad may capitalise a code (`Rhr`): that's fine.
+4. **Combine Text**: **Combine Lines with New Lines** (if the slot shows something else, tap it → **Clear Variable** → pick **Lines**).
+5. **Get Contents of URL**: tap the address slot (if a variable is sitting in it, tap it → **Clear Variable** first) and paste your bridge's address: script.google.com → **Deploy → Manage deployments → Web app URL**, the one ending in `/exec`. Tap the small arrow on the action: **Method POST**, **Request Body JSON**, then **Add new field → Text** three times: `key` = your **HEALTH_KEY**; `action` = `healthput`; `lines` = the **Combined Text** bubble.
+6. **Get Dictionary Value**: **Get Value for** `message` **in Contents of URL** (type the word `message`; it's not a variable).
+7. **Show Notification** with **Dictionary Value**. *Quieter:* put it inside an **If** (*Dictionary Value · does not begin with · Sent*) so only problems show a banner.
+8. **Play.** Allow it to read Health (**Always Allow**, every category it lists) and to connect to script.google.com; each new measure asks once more. A good run says **Sent 3 days to SICKBAY.**
 
-   | The notification says | What to do |
-   |---|---|
-   | **Health had nothing to send yet** | The Health app on HUB has no watch data yet (a new watch takes a day; the iPhone must be on, unlocked once, charging, on Wi-Fi), or a Find Health Samples filter is off |
-   | **Nothing could be read from the … lines** | A date isn't in ISO 8601 with the time: tap each Start Date and End Date bubble and set it |
-   | **The health key didn't match** | Paste HEALTH_KEY into the key field again, with nothing after it |
-   | **The bridge has no HEALTH_KEY yet** | Run **setup** in the script editor |
-   | **The bridge cannot reach 🩺 Sickbay** | Notion: 🩺 Sickbay → ••• → Connections → TimothyOS |
-8. **Every morning:** **Automation → + → Time of Day** (say 7:30, daily) → **Run Immediately** → **Bridge Health**. iPadOS keeps Health locked while the screen is locked, so pick a time HUB is usually awake; otherwise tap **SYNC FROM HEALTH** in SICKBAY. Each run sends the last 3 days, so a missed morning fills itself in, and sending a day again only updates it.
+**Seeing what it sends:** drag **Quick Look** directly under **Combine Text** and run it. Each line should read like `steps|4210|2026-11-03T07:12:40-06:00|2026-11-03T21:48:05-06:00`: the code, the number (or the sleep stage), and two dates **with times**. Delete the Quick Look when you're done.
+
+| What you see | What to do |
+|---|---|
+| **Health had nothing to send yet** | The Health app on HUB has no watch data yet (a new watch takes a day), or a Find's filters are off |
+| **Nothing could be read from the … lines** | A date isn't ISO 8601: tap each Start Date and End Date bubble and set it |
+| **Sent 1 day** when there should be more, or a step count far too small for a day | **Limit** or **Sort** is on in a Find: turn both off |
+| Every day lands one day early, so today looks missing | A date bubble has **Include ISO 8601 Time** off. Turn it on (bridge 1.44.1 also reads a date without a time as your own day) |
+| A block's lines repeat another block's | Its Repeat or Add to Variable still points at the other block: long-press → **Select Variable** |
+| A red bubble | It points at an action you deleted: long-press → **Select Variable** → the right action |
+| **The health key didn't match** | Paste HEALTH_KEY into the key field again, with nothing after it |
+| **The bridge has no HEALTH_KEY yet** | Run **setup** in the script editor |
+| **The bridge cannot reach 🩺 Sickbay** | Notion: 🩺 Sickbay → ••• → Connections → TimothyOS |
+| HUB's Health runs hours behind the iPhone | A locked iPhone holds back its newest Health data. Unlocking it lets HUB catch up; with the passcode off it never waits (Apple Pay then stops on that iPhone) |
+
+**Through the day, by itself:**
+1. HUB: **Settings → Display & Brightness → Auto-Lock → Never**. iPadOS keeps Health locked while the screen is locked, so a run on a locked iPad finds nothing.
+2. Shortcuts → **Automation** → **+** → **Time of Day**: the time, **Every Day**, **Automation on** (it runs without asking), **Notify off**, then **Run Bridge Health**. One time per automation; to make the next, duplicate it and change the time.
+3. Four a day keeps SICKBAY fresh (8:00 AM for last night's sleep, 12:30 PM, 5:30 PM, 9:00 PM); two (8:00 AM and 5:30 PM) is plenty. Each run sends the last 3 days, so a missed run fills itself in. Because "the last 3 days" counts back from the moment it runs, the oldest of those days arrives only partly: from bridge 1.44.1 it only fills what that day's page doesn't have yet, and never overwrites it.
 
 **A new watch** fills in over days: steps and activity within hours; resting heart rate after a full day; heart rate variability, sleep stages and breathing rate after the first night with **sleep tracking** on (iPhone: Health → Browse → Sleep → set a schedule and **Track Sleep with Apple Watch**); wrist temperature after about 5 nights; cardio fitness after a few outdoor walks. SICKBAY's readiness and "your normal" need 7 days.
 

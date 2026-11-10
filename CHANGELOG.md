@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.76.1 · 2026-11-10 (needs bridge 1.44.1)
+- **SICKBAY: health days always land on the right date.** A shortcut date sent without its time used to be read as midnight in London, which put every day one day early (so today looked missing). Bridge 1.44.1 reads such a date as that day where you are. Turning **Include ISO 8601 Time** on in the shortcut is still the right setting.
+- **A partial day never overwrites a whole one.** "The last 3 days" counts back from the moment the shortcut runs, so the oldest of those days arrives only partly. From bridge 1.44.1 that day only fills in what its page doesn't have yet.
+- **README → SICKBAY:** the Bridge Health guide rewritten from the first real build: a map of the finished shortcut, building each measure by dragging fresh actions, why **Sort** and **Limit** stay off, which measures matter most, checking what's sent with **Quick Look**, a longer troubleshooting table, and running it through the day with **Time of Day** automations (Auto-Lock off on HUB).
+
 ## 2.76.0 · 2026-11-10 (needs bridge 1.44)
 - **MEALS: the menu cards are now the MEAL LIBRARY.** A row per meal: a small picture, the name, its kind, how long since it was last made and how often in 90 days, with **NOT IN A WHILE**, **DUE** or **NEW** on the right. Two columns on HUB, one on a phone.
   - **Search** finds a meal by name, or by an ingredient ("saffron" finds what uses saffron), as you type.
