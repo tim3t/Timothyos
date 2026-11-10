@@ -34,7 +34,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.74.1**, **bridge 1.43.1** (release checklist step 2 keeps this line current).
+Current versions: **app 2.75.0**, **bridge 1.43.1** (release checklist step 2 keeps this line current).
 
 ### Bridge actions
 
@@ -214,7 +214,7 @@ Screen `loom` (nav button under LOG, app 2.6). A canvas (`#lmCv` in `#lmStage`) 
 
 **Stations** (app 2.7): the bar is `#pins` (rendered by `renderNav()` from `pins()`: `tos.pins.v1` on the iPad, max 7, default TODAY WEEK LOOM REVIEW LOG HABITS LIBRARY) plus `#allBtn` (ALL STATIONS, where the empty `.fill` block was) and `#status`. `STATIONS` lists every screen with its group; `openLaunch()` shows `#launch` over `#content` (same grid cell); EDIT PINS (`state.pinEdit`) changes `tos.pins.v1`. Tests that click MONTH, DATES or LEDGER in the bar set the pre-2.7 pins with `addInitScript`. Never reuse the class `.standby` (it's the screensaver): launcher tiles use `.st-off`.
 
-**Habits** (bridge 1.14, Notion `NOTION_HABITS_DATABASE`, one page per day: Meditated, Evening Walk checkboxes, `Water (L)` number in 0.5 steps, `Debit Card` select Did Not Swipe / Swiped). Actions: GET `habits` `from` `to` (≤ 400 days, cached 2 min, generation `hgen` bumped by writes), POST `habitset` `day{date,med,walk,water,card: kept|swiped|null}` (whole day, upsert on Date). App: `hb` state, `tos.habits.v1` (370 days), `tos.habitq.v1` (unsaved days; `setHabit()` → 700 ms → `flushHabits()`, retried on refresh, online and every 30 s after a failure), water goal `tos.habitcfg.v1`. `hWin()` decides a won day (water ≥ goal; card kept); a day with no page is "not recorded", never a miss. Review rollup (`habitsWeek()`, `habitsTrend()`) is computed from the Habits database, not stored in Weekly Reviews.
+**Habits** (bridge 1.14, Notion `NOTION_HABITS_DATABASE`, one page per day: Meditated, Evening Walk checkboxes, `Water (L)` number in 0.5 steps, `Debit Card` select Did Not Swipe / Swiped). Actions: GET `habits` `from` `to` (≤ 400 days, cached 2 min, generation `hgen` bumped by writes), POST `habitset` `day{date,med,walk,water,card: kept|swiped|null}` (whole day, upsert on Date). App: `hb` state, `tos.habits.v1` (370 days), `tos.habitq.v1` (unsaved days; `setHabit()` → 700 ms → `flushHabits()`, retried on refresh, online and every 30 s after a failure), water goal `tos.habitcfg.v1`. `hWin()` decides a won day (water ≥ goal; card kept); the Bridge's WATER chip short of the goal is tinted `color-mix(--work 10% to 50%, transparent)` by progress (2.75; 50% keeps light text readable); a day with no page is "not recorded", never a miss. Review rollup (`habitsWeek()`, `habitsTrend()`) is computed from the Habits database, not stored in Weekly Reviews.
 
 **Growing text boxes** (2.26.1): `growBox(ta)` sizes any textarea except `.cl-text` (the Log has `growLog`) to its text, honouring a CSS `max-height` (then `overflow-y: auto`; Ask's `#askText` is capped at 40vh) and keeping ancestors' scroll positions. Runs on `input` (capture), after DOM changes (a body `MutationObserver` on childList and `hidden`, one pass per frame via `growAll()`), and on width change. New textareas need nothing extra. Test: `app_e2e38`.
 

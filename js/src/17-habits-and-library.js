@@ -190,10 +190,13 @@
     if (!canHabits()) return "";
     loadHabits(false);
     var d = hDay(today), goal = waterGoal(), c = d ? d.card : null, w = d && d.water != null ? d.water : 0;
-    var chip = function (attr, c2, on, label) { return '<button type="button" class="chip hb-chip" style="--c: var(--' + c2 + ')" ' + attr + ' aria-pressed="' + on + '"><span class="tick"></span>' + label + "</button>"; };
+    var chip = function (attr, c2, on, label, extra) { return '<button type="button" class="chip hb-chip" style="--c: var(--' + c2 + ")" + (extra || "") + '" ' + attr + ' aria-pressed="' + on + '"><span class="tick"></span>' + label + "</button>"; };
+    /* 2.75 (Timothy): water short of the goal tints the chip, deeper as it nears the goal (10% to 50% of WORK blue, as HABITS'
+       12-week grid shades a part-day); light text stays readable up to 50%. At the goal it fills solid, as before. */
+    var wTint = w > 0 && w < goal ? "; background: color-mix(in srgb, var(--work) " + Math.round(10 + 40 * w / goal) + "%, transparent); border-color: color-mix(in srgb, var(--work) 60%, var(--line))" : "";
     return phead("HABITS · TODAY", habitMeta()) + '<div class="hb-strip">' +
       chip('data-hbool="med"', "chrome-c", !!(d && d.med), "MEDITATED") + chip('data-hbool="walk"', "personal", !!(d && d.walk), "EVENING WALK") +
-      chip('data-hstep="0.5"', "work", w >= goal, "WATER " + litres(w) + " / " + litres(goal) + " · + ½") +
+      chip('data-hstep="0.5"', "work", w >= goal, "WATER " + litres(w) + " / " + litres(goal) + " · + ½", wTint) +
       chip('data-hcycle="1"', c === "swiped" ? "warn" : "chrome-b", c !== null, c === "kept" ? "DID NOT SWIPE" : c === "swiped" ? "SWIPED" : "DEBIT CARD · NOT YET") + "</div>" +
       (hb.err && hb.err.write ? '<div class="err" style="margin-top:10px">' + esc(hb.err.msg) + "</div>" : "");
   }

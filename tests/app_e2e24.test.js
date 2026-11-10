@@ -120,7 +120,11 @@ const navs = p => p.$$eval('#pins .nav', bs => bs.map(x => x.textContent.trim())
   console.log('strip:', strip);
   assert.ok(strip.includes('HABITS') && strip.includes('SAVED TO NOTION') && strip.includes('WATER 2 L / 3 L') && strip.includes('DID NOT SWIPE'));
   assert.strictEqual(await p.getAttribute('[data-panel="habits"] [data-hbool="med"]', 'aria-pressed'), 'true');
+  // 2.75: water short of the goal tints the chip by how near it is (2 of 3 L: 37%); none at 0, solid at the goal
+  const tint = () => p.getAttribute('[data-panel="habits"] [data-hstep="0.5"]', 'style');
+  assert.ok(/color-mix\(in srgb, var\(--work\) 37%, transparent\)/.test(await tint()), await tint());
   await p.click('[data-panel="habits"] [data-hstep="0.5"]'); await p.click('[data-panel="habits"] [data-hcycle]');   // + ½ L; card: kept → swiped
+  assert.ok(/var\(--work\) 43%/.test(await tint()), 'deeper at 2.5 of 3 L: ' + await tint());
   await p.waitForTimeout(2500);
   s = await stats();
   assert.strictEqual(s.habits['2026-10-07'].water, 2.5); assert.strictEqual(s.habits['2026-10-07'].card, 'swiped');
