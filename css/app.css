@@ -3094,6 +3094,32 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
 .ml-panel { background: var(--panel); border-radius: 0 22px 22px 0; border-left: 10px solid var(--chrome-b); padding: 14px 16px 16px; display: grid; gap: 12px; min-width: 0; }
 .ml-week { border-left-color: #f6c66b; }
 .ml-cards { border-left-color: var(--chrome-b); }
+/* 2.76: the MEAL LIBRARY: rows with a small picture, found by search, kind and order */
+.ml-libbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+.ml-libbar input { flex: 1 1 200px; min-width: 0; }
+.ml-libbar .ml-kinds { flex: 1 1 100%; min-width: 0; contain: inline-size; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.ml-libbar .ml-kinds::-webkit-scrollbar { display: none; }
+.ml-kinds .chip { flex: none; }
+.ml-libbar .btnrow { margin: 0; }
+.ml-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ml-row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 10px 6px 6px; border: 0; border-radius: 12px; background: var(--panel-2); color: var(--fg); text-align: left; box-shadow: inset 4px 0 0 var(--k); min-width: 0; }
+.ml-row > span { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.ml-row b { font-size: 16px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-row small { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-row em { font-style: normal; font-family: var(--display); font-size: 11px; letter-spacing: .12em; color: #9db0ff; white-space: nowrap; }
+.ml-row em.late { color: var(--warn); }
+.ml-pic { flex: none; width: 44px; height: 44px; margin-left: 4px; border-radius: 9px; object-fit: cover; display: grid; place-items: center; background: color-mix(in srgb, var(--k) 32%, var(--panel)); }
+i.ml-pic::before { content: attr(data-ini); font-style: normal; font-family: var(--display); font-size: 16px; font-weight: 600; letter-spacing: .06em; color: var(--fg); }
+.ml-pic.lg { width: 88px; height: 88px; border-radius: 14px; margin: 0; }
+i.ml-pic.lg::before { font-size: 28px; }
+.ml-more { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
+.ml-pick { margin-top: 10px; }
+.ml-photo { display: flex; gap: 12px; align-items: center; }
+.ml-photoc { display: grid; gap: 6px; flex: 1; min-width: 0; }
+.ml-photoc .btnrow { margin: 0; }
+.ml-file { position: relative; overflow: hidden; cursor: pointer; }
+.ml-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ml-file.busy { opacity: .6; }
 .ml-groc { border-left-color: var(--ok); gap: 8px; }
 .ml-log { border-left-color: var(--chrome-a); }
 .ml-rot { border-left-color: #9db0ff; }
@@ -3125,14 +3151,6 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
 .ml-prop span { display: grid; min-width: 0; }
 .ml-prop small { font-family: var(--display); font-size: 12px; letter-spacing: .12em; color: var(--dim); }
 .ml-prop span small:last-child { font-family: inherit; letter-spacing: 0; font-size: 14px; }
-.ml-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.ml-card { min-height: 96px; padding: 10px 12px; border-radius: 14px; border: 0; background: var(--panel-2); color: var(--fg); text-align: left; display: flex; flex-direction: column; gap: 4px; box-shadow: inset 4px 0 0 var(--k); min-width: 0; }
-.ml-card b { font-size: 17px; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
-.ml-card > small { font-size: 13px; color: var(--dim); }
-.ml-cardtop { display: flex; justify-content: space-between; gap: 6px; }
-.ml-cardtop small { font-family: var(--display); font-size: 11px; letter-spacing: .14em; color: var(--k); }
-.ml-cardtop em { font-style: normal; font-family: var(--display); font-size: 11px; letter-spacing: .12em; color: #9db0ff; }
-.ml-cardtop em.late { color: var(--warn); }
 .ml-aisle { display: grid; gap: 2px; }
 .ml-aisle h4 { margin: 4px 0 0; font-family: var(--display); font-weight: 400; font-size: 12px; letter-spacing: .18em; color: var(--ok); }
 .ml-itemrow { display: flex; align-items: center; gap: 4px; }
@@ -3154,7 +3172,6 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
 .ml-dow { font-family: var(--display); font-size: 12px; letter-spacing: .18em; color: var(--dim); padding-left: 4px; }
 .ml-day.sm { min-height: 62px; padding: 6px 8px; border-radius: 10px; }
 .ml-day.sm b { font-size: 13px; }
-.ml-pick { display: flex; flex-wrap: wrap; gap: 6px; }
 .ml-table { display: grid; gap: 2px; }
 .ml-tr { display: grid; grid-template-columns: minmax(0, 1fr) 170px 90px 120px 120px; gap: 8px; align-items: center; min-height: 40px; padding: 0 8px; border-radius: 10px; font-size: 15px; }
 .ml-tr > span:first-child { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
@@ -3183,13 +3200,13 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
   #printSheet li small { color: #444; font-size: 9pt; margin-left: auto; }
   #printSheet .ps-box { width: 9pt; height: 9pt; border: 1pt solid #000; flex: none; }
 }
-@media (max-width: 900px) { .ml-plan { grid-template-columns: minmax(0, 1fr); } .ml-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .ml-plan { grid-template-columns: minmax(0, 1fr); } .ml-rows { grid-template-columns: minmax(0, 1fr); } .ml-libbar input { flex-basis: 100%; } }
 @media (max-width: 640px) {
   .ml-days { grid-template-columns: minmax(0, 1fr); }
   .ml-day { min-height: 0; display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; }
   .ml-day span { margin-top: 0; }
   .ml-day.sm { display: flex; min-height: 54px; }
-  .ml-grid { grid-template-columns: minmax(0, 1fr); }
+  .ml-rows { grid-template-columns: minmax(0, 1fr); }
   .ml-ing { grid-template-columns: minmax(0, 1fr) 110px; }
   .ml-tr { grid-template-columns: minmax(0, 1fr) 96px 86px; }
   .ml-ph .ml-sub { flex-basis: 100%; order: 3; }
@@ -3200,8 +3217,6 @@ html.sheet-lock body { position: fixed; left: 0; right: 0; overflow: hidden; }
   .ml-day.sm b { font-size: 11px; }
 }
 /* 2.60: + FROM A RECIPE, photos on the cards, COOK */
-.ml-card.pic { padding-top: 0; overflow: hidden; }
-.ml-card.pic img { display: block; width: calc(100% + 24px); margin: 0 -12px 6px; height: 84px; object-fit: cover; border-radius: 14px 14px 0 0; }
 .ml-imp { display: grid; gap: 8px; }
 .ml-imp textarea, .ml-imp input[type="url"], .ml-imp input[type="file"] { min-height: 44px; border-radius: 10px; border: 2px solid var(--line); background: var(--bg); color: var(--fg); padding: 8px 10px; font: inherit; min-width: 0; box-sizing: border-box; width: 100%; }
 .ml-addrow.ml-two { grid-template-columns: minmax(0, 1fr) auto; }

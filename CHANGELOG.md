@@ -2,6 +2,16 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.76.0 · 2026-11-10 (needs bridge 1.44)
+- **MEALS: the menu cards are now the MEAL LIBRARY.** A row per meal: a small picture, the name, its kind, how long since it was last made and how often in 90 days, with **NOT IN A WHILE**, **DUE** or **NEW** on the right. Two columns on HUB, one on a phone.
+  - **Search** finds a meal by name, or by an ingredient ("saffron" finds what uses saffron), as you type.
+  - **Kind:** ALL, BEEF + PORK, CHICKEN, FISH, MEATLESS, BREAKFAST, OTHER (swipe the row when they don't all fit).
+  - **Order:** LONGEST AGO, MOST MADE or A TO Z. Kind and order are remembered.
+  - **24 at a time:** the first 24, then **SHOW ALL**. Search and kind do the rest, so hundreds of meals never become an endless scroll.
+  - Planning a night from a search clears the search for the next night. LOG's night picker is the same library.
+- **A photo for a meal you typed in.** The meal editor has a **PHOTO** row: **TAKE OR CHOOSE A PHOTO** (the camera or your library). It is cropped square and made small (160 px, a few KB), and kept with the meal in Notion, so both iPads show it. **REMOVE** takes it off; or paste an image link instead. A meal with no photo shows its initials on its kind's colour.
+- **Bridge 1.44:** 🍽 Meals gains a **Thumb** column (already added in Notion). The bridge saves and reads only a small JPEG there; an older app saving a meal leaves its photo alone.
+
 ## 2.75.0 · 2026-11-10
 - **The Bridge's WATER habit fills in as you drink.** Short of your goal, the chip takes on a tint of blue that deepens as you get closer (faint at the first half litre, about half strength just before the goal), the way HABITS' 12-week grid shades a part-day. At the goal it fills solid, as before.
 

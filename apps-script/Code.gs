@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.43.1';
+var VERSION = '1.44.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -722,7 +722,7 @@ function schemaSpec_() {
     { key: 'apiary', name: 'Apiary', src: apiarySource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Hive', 'relation'], ['Mites (%)', 'number'], ['Honey (lb)', 'number'], ['Data', 'rich_text']].concat(t(vals(APIARY_TEXT), 'rich_text')) },
     { key: 'inbox', name: 'Inbox', src: inboxSource_, need: [['Note', 'title'], ['Captured', 'date'], ['Status', 'select'], ['Sorted As', 'select']] },
     { key: 'science', name: 'Science Log', src: scienceSource_, need: [['Event', 'title'], ['When', 'date'], ['Department', 'select'], ['Kind', 'select'], ['Detail', 'rich_text'], ['Value', 'number'], ['Starred', 'checkbox'], ['Key', 'rich_text']] },
-    { key: 'meals', name: 'Meals', src: mealsSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Ingredients', 'rich_text'], ['Recipe', 'url'], ['Notes', 'rich_text'], ['Retired', 'checkbox'], ['App ID', 'rich_text'], ['Photo', 'url']] },
+    { key: 'meals', name: 'Meals', src: mealsSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Ingredients', 'rich_text'], ['Recipe', 'url'], ['Notes', 'rich_text'], ['Retired', 'checkbox'], ['App ID', 'rich_text'], ['Photo', 'url'], ['Thumb', 'rich_text']] },
     { key: 'dinners', name: 'Dinners', src: dinnersSource_, need: [['Dinner', 'title'], ['Date', 'date'], ['Status', 'select'], ['Kind', 'select'], ['Meal', 'relation'], ['Note', 'rich_text']] },
     { key: 'upkeep', name: 'Upkeep', src: upkeepSource_, need: [['Name', 'title'], ['Category', 'rich_text'], ['Every', 'number'], ['Unit', 'select'], ['Last Done', 'date'], ['Last Reading', 'number'], ['Reading', 'number'], ['History', 'rich_text'], ['App ID', 'rich_text']] },
     { key: 'sickbay', name: 'Sickbay', src: sickSource_, need: [['Name', 'title'], ['Kind', 'select'], ['Date', 'date'], ['Resting HR', 'number'], ['HRV', 'number'], ['Sleep (h)', 'number'], ['Steps', 'number'], ['Data', 'rich_text'], ['App ID', 'rich_text']] },
@@ -2476,6 +2476,9 @@ var MEAL_KINDS = ['Beef + Pork', 'Chicken', 'Fish', 'Meatless', 'Breakfast', 'Ot
 var MEAL_AISLES = ['Produce', 'Meat + Fish', 'Dairy', 'Bakery', 'Frozen', 'Pantry', 'Household', 'Other'];
 var DINNER_KINDS = { meal: 'Meal', leftovers: 'Leftovers', out: 'Eating out' };
 var MEAL_BACK = 120, MEAL_AHEAD = 21;
+/* 1.44: a meal's own picture, made on the iPad (a small square JPEG, about 4 KB), kept as text in Thumb: it stays in Notion and works on every iPad */
+var MEAL_THUMB = /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+={0,2}$/, MEAL_THUMB_MAX = 16000;
+function mealThumb_(t) { t = String(t || ''); return t.length <= MEAL_THUMB_MAX && MEAL_THUMB.test(t) ? t : ''; }
 function mealsSource_() { return sourceFor_(CONFIG.NOTION_MEALS_DATABASE, 'NOTION_MEALS_SOURCE'); }
 function dinnersSource_() { return sourceFor_(CONFIG.NOTION_DINNERS_DATABASE, 'NOTION_DINNERS_SOURCE'); }
 function mealsGen_() { return CacheService.getScriptCache().get('mgen') || '0'; }
@@ -2495,7 +2498,7 @@ function mealIngText_(list) { return list.map(function (x) { return x.n + ' · '
 function toMeal_(pg) {
   var p = pg.properties || {};
   return { id: plain_(p['App ID'] && p['App ID'].rich_text) || pg.id, page: pg.id, name: plain_(p.Name && p.Name.title), kind: MEAL_KINDS.indexOf(sel_(p.Kind)) > -1 ? sel_(p.Kind) : 'Other',
-    ing: mealIng_(plain_(p.Ingredients && p.Ingredients.rich_text)), recipe: (p.Recipe && p.Recipe.url) || '', photo: (p.Photo && p.Photo.url) || '', notes: plain_(p.Notes && p.Notes.rich_text), retired: !!(p.Retired && p.Retired.checkbox) };
+    ing: mealIng_(plain_(p.Ingredients && p.Ingredients.rich_text)), recipe: (p.Recipe && p.Recipe.url) || '', photo: (p.Photo && p.Photo.url) || '', thumb: mealThumb_(plain_(p.Thumb && p.Thumb.rich_text)), notes: plain_(p.Notes && p.Notes.rich_text), retired: !!(p.Retired && p.Retired.checkbox) };
 }
 function toDinner_(pg, byPage) {
   var p = pg.properties || {}, rel = (p.Meal && p.Meal.relation) || [], m = rel.length ? byPage[String(rel[0].id).replace(/-/g, '')] : null, k = sel_(p.Kind);
@@ -2518,19 +2521,22 @@ function meals_() {
   return out;
 }
 function mealFind_(key) { return queryAll_(mealsSource_(), { property: 'App ID', rich_text: { equals: key } }, 1).filter(function (pg) { return !pg.in_trash && !pg.archived; })[0] || null; }
-/** Save one meal, whole: { id (the app's), name, kind, ing [{n, a, have}], recipe, photo, notes, retired, full? }. full (1.40, from an import:
+/** Save one meal, whole: { id (the app's), name, kind, ing [{n, a, have}], recipe, photo, thumb?, notes, retired, full? }. thumb (1.44): the
+ *  iPad's small JPEG as a data: URL, '' to clear; left out (an older app), the picture there stays. full (1.40, from an import:
  *  { lines, steps, servings, time, source }) replaces the page's body with the recipe; without it the body is left as it is. */
 function mealSave_(m) {
   m = m || {};
   var key = String(m.id || ''), name = String(m.name || '').trim(), kind = String(m.kind || 'Other'), recipe = String(m.recipe || '').trim(), notes = String(m.notes || '').trim();
   var ing = Array.isArray(m.ing) ? m.ing : null, photo = String(m.photo || '').trim(), full = m.full ? mealFull_(m.full) : null;
-  if ((m.full && !full) || (photo && (!/^https:\/\/\S+$/.test(photo) || photo.length > 1000))) return { ok: false, error: 'bad_request' };
+  var thumb = m.thumb === undefined ? null : String(m.thumb || '');
+  if ((m.full && !full) || (photo && (!/^https:\/\/\S+$/.test(photo) || photo.length > 1000)) || (thumb && !mealThumb_(thumb))) return { ok: false, error: 'bad_request' };
   if (!UPKEEP_KEY.test(key) || !name || name.length > 200 || MEAL_KINDS.indexOf(kind) === -1 || !ing || ing.length > 60 || notes.length > 4000 ||
     (recipe && (!/^https?:\/\/\S+$/.test(recipe) || recipe.length > 1000)) ||
     ing.some(function (x) { return !x || typeof x.n !== 'string' || !x.n.trim() || x.n.length > 100 || /[\r\n·]/.test(x.n) || MEAL_AISLES.indexOf(x.a) === -1; })) return { ok: false, error: 'bad_request' };
   var clean = ing.map(function (x) { return { n: x.n.trim(), a: x.a, have: !!x.have }; });
   var props = { Name: { title: rt_(name) }, Kind: { select: { name: kind } }, Ingredients: { rich_text: clean.length ? rtLong_(mealIngText_(clean)) : [] }, Recipe: { url: recipe || null },
     Notes: { rich_text: notes ? rtLong_(notes) : [] }, Retired: { checkbox: m.retired === true }, 'App ID': { rich_text: rt_(key) }, Photo: { url: photo || null } };
+  if (thumb !== null) props.Thumb = { rich_text: thumb ? rtLong_(thumb) : [] };
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {

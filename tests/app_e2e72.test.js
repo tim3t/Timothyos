@@ -41,17 +41,17 @@ const lastPost = async act => (await mode('')).posts.filter(x => x[0] === act).p
   // SOMETHING ELSE: MEALS, tonight chosen; a card records it
   await p.click('#mlLine [data-mlnow="else"]'); await p.waitForSelector('.ml-days');
   assert.strictEqual(await p.getAttribute('.ml-days .ml-day.sel', 'data-mlday'), TODAY);
-  assert.ok((await txt(p, '#mlDayBar')).includes('Tap a menu card to record it.'));
+  assert.ok((await txt(p, '#mlDayBar')).includes('Tap a meal to record it.'));
   await p.click('[data-mlcard="m-curry"]');
   assert.deepStrictEqual((await until(() => lastPost('dinnerset')))[1], { date: TODAY, status: 'eaten', kind: 'meal', meal: 'm-curry' });
   assert.ok((await txt(p, `.ml-day[data-mlday="${TODAY}"]`)).includes('Sample curry EATEN ✓'));
 
-  // ---- the menu cards: longest ago first, flagged
+  // ---- the MEAL LIBRARY (2.76): a row per meal, longest ago first, flagged
   await p.clock.setFixedTime(new Date(TODAY + 'T12:00:00-06:00'));   // midday: nights are planned, not recorded
-  const cards = await p.$$eval('.ml-card', e => e.map(x => x.innerText.replace(/\s+/g, ' ').trim()));
-  assert.ok(cards[0].startsWith('MEATLESS NOT IN A WHILE Sample soup Last 60 days ago · 2× in 90 days'), cards[0]);
-  assert.ok(cards.some(c => c.startsWith('BEEF + PORK Sample tacos Last 2 days ago · 3× in 90 days')), cards.join(' | '));
-  assert.ok(cards.some(c => /^BEEF \+ PORK (DUE )?Sample pasta/.test(c)));
+  const cards = await p.$$eval('.ml-row', e => e.map(x => x.innerText.replace(/\s+/g, ' ').trim()));
+  assert.ok(cards[0] === 'Sample soup MEATLESS · 60 days ago · 2× NOT IN A WHILE', cards[0]);
+  assert.ok(cards.some(c => c.startsWith('Sample tacos BEEF + PORK · 2 days ago · 3×')), cards.join(' | '));
+  assert.ok(cards.some(c => /^Sample pasta BEEF \+ PORK/.test(c)));
   assert.ok((await txt(p, '.ml-lates')).includes('NOT IN A WHILE Sample soup · 60 DAYS'));
 
   // ---- PLAN next week: a night, then a card; on to the next open night
@@ -114,12 +114,12 @@ const lastPost = async act => (await mode('')).posts.filter(x => x[0] === act).p
   await p.fill('#mlRecipe', 'https://example.com/chili'); await p.click('[data-ml="save"]');
   const saved = (await until(() => lastPost('mealsave')))[1];
   assert.deepStrictEqual([saved.name, saved.kind, saved.ing, saved.recipe], ['Sample chili', 'Beef + Pork', [{ n: 'Beans', a: 'Pantry', have: false }, { n: 'Cheddar sharp', a: 'Dairy', have: false }, { n: 'Chili powder', a: 'Pantry', have: true }], 'https://example.com/chili']);
-  assert.ok((await txt(p, `[data-mlcard="${saved.id}"]`)).includes('NEW Sample chili Not made yet'));
+  assert.ok((await txt(p, `[data-mlcard="${saved.id}"]`)).includes('Sample chili BEEF + PORK · Not made yet NEW'));
   await p.click('[data-ml="edit"]'); await p.click(`[data-mlcard="${saved.id}"]`);
   assert.strictEqual(await p.inputValue('#mlName'), 'Sample chili');
   await p.click('[data-ml="retire"]'); await p.click('[data-ml="save"]');
   await until(async () => (await lastPost('mealsave'))[1].retired === true);
-  assert.strictEqual(await p.$(`.ml-cards [data-mlcard="${saved.id}"]`), null, 'retired: off the cards');
+  assert.strictEqual(await p.$(`.ml-cards [data-mlcard="${saved.id}"]`), null, 'retired: off the list');
   await p.click('[data-mlcard="m-pasta"]'); await p.click('[data-ml="del"]');
   assert.strictEqual(await txt(p, '[data-ml="del"]'), 'TAP AGAIN TO REMOVE');
   await p.click('[data-ml="del"]');

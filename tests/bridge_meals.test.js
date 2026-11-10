@@ -201,6 +201,20 @@ assert.strictEqual(body().filter(x => x.startsWith('numbered')).join(), 'numbere
 post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [] } });
 assert.ok(body().length === 8, 'a save without full leaves the body as it is');
 [{ photo: 'http://img.example/x.jpg' }, { full: { lines: 'x', steps: [] } }, { full: { lines: [], steps: [], source: 'ftp://x' } }].forEach(x => assert.strictEqual(post({ action: 'mealsave', meal: Object.assign({ id: 'm-x', name: 'x', kind: 'Other', ing: [] }, x) }).error, 'bad_request', JSON.stringify(x)));
+// 1.44: a picture made on the iPad, kept as text in Thumb (in pieces); left out, it stays; '' clears it; anything else is refused
+const pic = 'data:image/jpeg;base64,' + 'A'.repeat(4100) + '==';
+r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: pic } });
+assert.ok(r.ok && r.meal.thumb === pic, 'thumb saved and read back');
+assert.ok(skp.properties.Thumb.rich_text.length === 3 && skp.properties.Thumb.rich_text.every(x => x.text.content.length <= 2000), 'in pieces of 2000');
+r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [] } });
+assert.ok(r.ok && r.meal.thumb === pic, 'an older app leaves it as it is');
+['data:image/png;base64,AAAA', 'https://img.example/x.jpg', 'data:image/jpeg;base64,' + 'A'.repeat(16000), 'data:image/jpeg;base64,AA"><script>'].forEach(t =>
+  assert.strictEqual(post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: t } }).error, 'bad_request', t.slice(0, 40)));
+r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: '' } });
+assert.ok(r.ok && r.meal.thumb === '' && skp.properties.Thumb.rich_text.length === 0, 'cleared');
+skp.properties.Thumb = { rich_text: [{ plain_text: 'javascript:alert(1)', text: { content: 'javascript:alert(1)' } }] };
+cache.mgen = 'x1b';
+assert.strictEqual(post({ action: 'meals' }).meals.find(m => m.id === 'm-skillet').thumb, '', 'only a JPEG picture is read back');
 // COOK: the body read back; a page written by hand reads the same way
 let rc = post({ action: 'mealrecipe', id: 'm-skillet' });
 assert.deepStrictEqual([rc.lines, rc.steps, rc.other], [['2 lb chicken thighs', '1 cup rice'], ['One pot.'], ['Serves 4 servings · 1 h 5 min', 'From recipes.example']]);

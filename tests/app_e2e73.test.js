@@ -53,7 +53,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   assert.strictEqual(saved.name, 'Sample skillet chicken and rice');
   assert.deepStrictEqual(saved.full, { lines: ['2 lb chicken thighs', '1 cup rice', '1 onion, diced'], steps: ['Dice the onion.', 'Brown the chicken.', 'Add the rice and simmer.'], servings: '4 servings', time: '45 min', source: 'https://recipes.example/skillet' });
   assert.ok(saved.photo.startsWith('data:image/gif'), 'the dish photo goes with it');
-  assert.ok(await p.$(`[data-mlcard="${saved.id}"].pic img`), 'the card shows the photo');
+  assert.ok(await p.$(`.ml-row[data-mlcard="${saved.id}"] img.ml-pic`), 'the row shows the photo');
   const local = await p.evaluate(id => JSON.parse(localStorage.getItem('tos.meals.v1')).meals.find(m => m.id === id), saved.id);
   assert.ok(local && !local.full, 'the recipe text is sent, not kept in the meals list');
 
