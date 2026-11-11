@@ -1121,7 +1121,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 
 ## Updating the app
 
-New versions arrive from this repository within a few minutes of a push. When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it: it reads **LOADING UPDATE…** while the new version finishes downloading, then reloads into it (a few seconds at most). Closing and reopening the app also brings a downloaded update in. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
+New versions arrive from this repository about 15 minutes after a push: GitHub first runs the whole test suite, and publishes only a version that passes (a failed one never reaches the iPads; the **Actions** tab of the repository shows each run). When you return to the app, it checks for a newer version and shows **UPDATE READY · TAP TO LOAD**. Tap it: it reads **LOADING UPDATE…** while the new version finishes downloading, then reloads into it (a few seconds at most). Closing and reopening the app also brings a downloaded update in. **SYSTEMS** shows the version you're on. App updates never need the Google bridge redeployed unless the CHANGELOG says so.
 
 Releasing a new version is described in **CLAUDE.md → Release checklist**.
 
@@ -1140,6 +1140,9 @@ icons/, fonts/           app icon, self-hosted fonts (SIL Open Font License)
 apps-script/Code.gs      the Google bridge
 tools/bump_version.py    sets the version everywhere before a release
 tools/build_app.py       builds js/app.js from js/src/ (--check: is it current?)
+tools/build_site.py      puts together what GitHub Pages serves: the app's own files only (--check)
+.github/workflows/ci.yml tests every push; publishes the site only when the tests pass
+package.json             test tooling only (pins Playwright); the app itself needs no install
 tools/ia_fetch.py        public access TV from the Internet Archive, run on the NAS (NAS relay, Part 1)
 tools/split_ads.py       cuts commercial compilations into singles for HOLODECK's breaks, run on the NAS
 tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,

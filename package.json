@@ -1,0 +1,11 @@
+{
+  "name": "timothyos-tests",
+  "private": true,
+  "description": "Test tooling only. The app has no build dependencies: it is plain files (see tools/build_app.py).",
+  "scripts": {
+    "test": "bash tests/run.sh"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}
