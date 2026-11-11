@@ -197,6 +197,8 @@ const hits = {};
 
   // ---- Systems: the section, and the line turned off
   await p.click('#status'); await p.waitForSelector('#sec-science');
+  // An event logged a moment ago may still be on its way: the section redraws when it has been sent (it read "1 waiting to reach Notion" on a slower machine).
+  await until(async () => (await txt(p, '#sec-science')).includes('all in Notion')).catch(() => {});
   const sec = await txt(p, '#sec-science');
   assert.ok(sec.startsWith('SCIENCE FREE PUBLIC FEEDS') && sec.includes('all in Notion') && sec.includes('Optional: add EBIRD_API_KEY'), sec);
   await p.click('#sec-science [data-act="sciline"]');
