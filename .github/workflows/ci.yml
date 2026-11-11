@@ -39,16 +39,19 @@ jobs:
           cache: npm
       # Chromium alone, without --with-deps: the runner image already carries every library Chromium needs, and
       # --with-deps only added nine font packages the app never uses (it serves its own fonts). ffmpeg is the one
-      # system package the tests need (the simulated NAS makes its sample audio and video with it). Ubuntu's package
-      # server is sometimes unreachable from a runner for a few minutes (11 Nov 2026: two runs died here on a name
-      # lookup), so the install is tried three times, half a minute apart.
+      # system package the tests need (the simulated NAS makes its sample audio and video with it). On 11 Nov 2026
+      # Ubuntu's package server was unreachable from GitHub's runners for over an hour: one run waited 45 minutes on
+      # it. Now each try has short network timeouts and the step a 12-minute limit, so an outage fails the run in
+      # minutes with a plain message, and nothing is published (the iPads keep the last good version).
       - name: Test tooling (Playwright at the version in package-lock.json, Chromium, ffmpeg)
+        timeout-minutes: 12
         run: |
           npm ci
           npx playwright install chromium
+          apt_get() { sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 "$@"; }
           for try in 1 2 3; do
-            if sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends ffmpeg; then break; fi
-            if [ "$try" = 3 ]; then echo "::error::ffmpeg could not be installed: Ubuntu's package server did not answer."; exit 1; fi
+            if apt_get install -y --no-install-recommends ffmpeg || { apt_get update && apt_get install -y --no-install-recommends ffmpeg; }; then break; fi
+            if [ "$try" = 3 ]; then echo "::error::ffmpeg could not be installed: Ubuntu's package server did not answer. Re-run this workflow later; nothing was published."; exit 1; fi
             echo "Package server not reachable (try $try of 3). Waiting 30 seconds."; sleep 30
           done
           ffmpeg -version | head -1
