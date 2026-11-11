@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.76.1";
+  var VERSION = "2.77.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -57,13 +57,85 @@
   var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   var MONL = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
 
-  /* ---------- Storage (never throws) ---------- */
-  function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  /* ---------- Storage (never throws; 2.77: a full store is never silent) ----------
+     The browser gives this app about 5 MB. Until 2.77 a write that didn't fit was dropped without a word, and the
+     changes on their way to Notion share that space with saved copies of calendars, meals and health days.
+     Now: a write that doesn't fit first makes room by dropping SAVED COPIES (what the next sync brings back),
+     largest first, then what the iPad can measure again (lengths, tags, artwork). If it still doesn't fit, the
+     value is kept in memory (lsGet answers with it, so the app carries on and the change still goes out), tried
+     again every 30 seconds and when the app is left, and the Bridge's Condition turns red (lsFull). A saved copy
+     that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
+     notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
+  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
+    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1"];
+  var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
+  var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
+  var store = { failed: {}, skipped: {}, dropped: 0, droppedAt: 0, said: false, t: 0 };
+  function lsWrite(k, text) { try { localStorage.setItem(k, text); return true; } catch (e) { return false; } }
+  function lsIsCopy(k) { return LS_COPIES.indexOf(k) > -1 || LS_REMADE.indexOf(k) > -1; }
+  function lsMakeRoom(k, text) {
+    try {
+      var tiers = [LS_COPIES, LS_REMADE];
+      for (var t = 0; t < tiers.length; t++) {
+        var have = tiers[t].map(function (c) { var v = localStorage.getItem(c); return [c, v === null ? -1 : v.length]; }).filter(function (x) { return x[1] > -1; }).sort(function (a, b) { return b[1] - a[1]; });
+        for (var i = 0; i < have.length; i++) {
+          localStorage.removeItem(have[i][0]); store.dropped++; store.droppedAt = Date.now();
+          if (lsWrite(k, text)) return true;
+        }
+      }
+    } catch (e) { /* storage blocked altogether */ }
+    return false;
+  }
+  function lsFull() { return Object.keys(store.failed); }
+  function lsTell() {   /* said once when it fills and once when it clears; the Bridge and SYSTEMS redraw */
+    var full = lsFull().length > 0;
+    if (full === store.said) return;
+    store.said = full;
+    clearInterval(store.t); if (full) store.t = setInterval(lsRetry, 30000);
+    setTimeout(function () {
+      toast(full ? "This iPad's storage is full. Open SYSTEMS to make room." : "Storage: everything is saved on this iPad again.");
+      if (state.screen === "bridge" || state.screen === "systems") render(true);
+    }, 0);
+  }
+  function lsRetry() {
+    lsFull().forEach(function (k) { if (lsWrite(k, store.failed[k]) || lsMakeRoom(k, store.failed[k])) delete store.failed[k]; });
+    lsTell();
+    return !lsFull().length;
+  }
+  function lsGet(k) { try { var v = store.failed[k] !== undefined ? store.failed[k] : localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function lsSet(k, v) {
-    try { localStorage.setItem(k, JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; })); } catch (e) { /* storage full or blocked */ }
+    var text; try { text = JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; }); } catch (e) { text = undefined; }
+    if (text !== undefined) {
+      if (lsWrite(k, text)) { delete store.failed[k]; delete store.skipped[k]; }
+      else if (lsIsCopy(k) || LS_QUIET.indexOf(k) > -1) store.skipped[k] = true;
+      else if (lsMakeRoom(k, text)) delete store.failed[k];
+      else store.failed[k] = text;
+      lsTell();
+    }
     if (lsHook) lsHook(k);
   }
-  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } if (lsHook) lsHook(k); }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } delete store.failed[k]; delete store.skipped[k]; lsTell(); if (lsHook) lsHook(k); }
+  window.addEventListener("pagehide", function () { if (lsFull().length) lsRetry(); });
+  /* What the store holds, for SYSTEMS: characters by kind (a character is two bytes), and the largest few by name. */
+  var LS_NAMES = { cache: "Calendars", tasks: "Tasks", dates: "Key dates", weeks: "Week summaries", rlog: "Review log", habits: "Habits", library: "Library", tarot: "Tarot", apiary: "Apiary", inbox: "Inbox", ledger: "Ledger",
+    astro: "Astrometrics", sickbay: "Health days", meals: "Meals and their photos", mealrc: "Recipes read for COOK", nasart: "AUDIO artwork", nastags: "AUDIO tags", naslen: "AUDIO lengths", hololen: "HOLODECK video lengths",
+    holoadlen: "Commercial lengths", hololoud: "HOLODECK loudness", plays: "Resume points", errlog: "Error log", scilog: "Science Log", sci: "Science feeds", brief: "Morning Briefing", arb: "Arboretum", holo: "HOLODECK channels",
+    upkeep: "Upkeep", log: "Log settings", profile: "Profile sync", mealgot: "Grocery ticks and added items", pins: "Pinned stations", netlog: "Recent requests", netday: "Today's request count", sync: "Last sync", visits: "Stations opened",
+    ask: "Ask conversation", aispend: "Ask spending", queue: "Captures on their way", mealq: "Meal changes on their way", habitq: "Habit changes on their way", tarotq: "Tarot changes on their way", apiaryq: "Hive changes on their way",
+    inboxq: "Inbox changes on their way", sciq: "Science Log entries on their way", upkeepq: "Upkeep changes on their way", sickbayq: "Sickbay changes on their way" };
+  function lsName(k) { var m = /^tos\.([a-z0-9]+)\.v\d+$/.exec(k); return m ? LS_NAMES[m[1]] || 'a setting ("' + m[1] + '")' : k; }
+  function lsUsage() {
+    var out = { total: 0, copies: 0, own: 0, items: [] };
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i), n = k.length + (localStorage.getItem(k) || "").length;
+        out.total += n; if (lsIsCopy(k)) out.copies += n; else out.own += n;
+        out.items.push({ k: k, n: n, copy: lsIsCopy(k) });
+      }
+    } catch (e) { /* blocked */ }
+    out.items.sort(function (a, b) { return b.n - a.n; });
+    return out;
+  }
 
   /* ---------- Dates ---------- */
   function p2(n) { return String(n).padStart(2, "0"); }
@@ -987,6 +1059,7 @@
       "</div></section>";
 
     html += backupSection();
+    html += storeSection();
     html += prof.section();
     html += netSection();
     html += errSection();
@@ -1419,6 +1492,29 @@
     list.forEach(function (d) { schemaLines(d).forEach(function (l) { out.push(d.name + ": " + l); }); });
     return max && out.length > max ? out.slice(0, max).concat(["and " + (out.length - max) + " more"]) : out;
   }
+  /* 2.77: what this browser's storage holds, and making room in it. */
+  function storeMb(n) { var mb = n * 2 / 1048576; return (mb < 0.1 ? mb.toFixed(2) : mb.toFixed(1)) + " MB"; }
+  function storeSection() {
+    var u = lsUsage(), full = lsFull(), skipped = Object.keys(store.skipped);
+    var h = '<section id="sec-store">' + phead("THIS IPAD'S STORAGE", full.length ? "FULL · " + full.length + " NOT SAVED" : storeMb(u.total) + " USED", full.length ? "bad" : "") +
+      '<small class="muted">Bridge keeps its settings, changes on their way, and saved copies of your data in this browser, which allows about 5 MB. When something doesn\'t fit, saved copies are dropped to make room (the next sync brings them back); if that isn\'t enough, the Bridge\'s Condition says so.</small>' +
+      '<dl class="kv" style="margin-top:10px"><dt>IN USE</dt><dd class="tnum">' + storeMb(u.total) + " of about 5 MB</dd>" +
+      '<dt>KEPT ONLY HERE</dt><dd class="tnum">' + storeMb(u.own) + ' <span class="muted">settings, changes on their way, things in a backup</span></dd>' +
+      '<dt>SAVED COPIES</dt><dd class="tnum">' + storeMb(u.copies) + ' <span class="muted">refilled by a sync, or measured again</span></dd>' +
+      "<dt>LARGEST</dt><dd>" + (u.items.slice(0, 4).map(function (x) { return esc(lsName(x.k)) + ' <span class="muted tnum">' + storeMb(x.n) + (x.copy ? ", a copy" : "") + "</span>"; }).join(" · ") || '<span class="muted">Nothing yet</span>') + "</dd></dl>";
+    if (full.length) h += '<div class="err">Not saved on this iPad yet: ' + esc(full.map(lsName).join(", ")) + ". Held in memory while Bridge stays open, and tried again every 30 seconds.</div>";
+    else if (store.dropped) h += '<small class="muted">Room was made at ' + esc(stamp(store.droppedAt)) + " by dropping " + store.dropped + (store.dropped === 1 ? " saved copy" : " saved copies") + ". Nothing was lost.</small>";
+    if (skipped.length && !full.length) h += '<small class="muted">No room to keep a copy of: ' + esc(skipped.map(lsName).join(", ")) + ". It shows as usual while you are online.</small>";
+    return h + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="storeclear"' + (u.copies ? "" : " disabled") + ">CLEAR SAVED COPIES</button></div></section>";
+  }
+  function storeClear(quiet) {
+    LS_COPIES.concat(LS_REMADE).forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } });
+    var ok = lsRetry();
+    if (!quiet) toast(ok ? "Saved copies cleared. They come back as each station syncs." : "Cleared, but there still isn't room for everything.");
+    render(true);
+    return ok;
+  }
+  function fixStore() { fixRun("store", function () { storeClear(true); }, "Room made: everything is saved on this iPad"); }
   function fixSchema() { fixRun("schema", function () { return loadSchema(true); }, "Notion columns checked: they all match"); }
   function fixTickets() {
     var now = new Date();
@@ -1439,6 +1535,13 @@
           "Rename each column back to exactly the name shown (capitals, spaces and brackets count), or set its type back: the column's menu → <b>Edit property</b> → <b>Type</b>.",
           "Renamed it on purpose? Tell Claude the new name, so the bridge can follow it.",
           "Come back and tap <b>CHECK AGAIN</b>."];
+      }
+      else if (i.fix === "store") {
+        t.why = "Not saved on this iPad yet: " + esc(lsFull().map(lsName).join(", ")) + ". Bridge is holding " + (lsFull().length === 1 ? "it" : "them") + " in memory: changes still go to Notion and Google, but closing or reloading Bridge now would lose what isn't saved here.";
+        t.btn = ["fixstore", "MAKE ROOM AND SAVE"]; t.sec = ["sec-store", "THIS IPAD'S STORAGE"];
+        t.steps = ["Tap <b>MAKE ROOM AND SAVE</b>. It drops the saved copies of your calendars, meals and other data (the next sync brings them back) and saves what was waiting.",
+          "Still red? <b>THIS IPAD'S STORAGE</b> below lists what takes the most room. Measured lengths and artwork for AUDIO and HOLODECK can go too: they are measured again as you use them.",
+          "Keep Bridge open until this card says it is fixed."];
       }
       else if (i.fix === "sync") { t.why = esc(state.sync.error || "The bridge hasn't answered."); t.btn = ["fixsync", "REFRESH NOW"]; t.steps = fixSteps(state.sync.code, "REFRESH NOW"); t.sec = ["sec-conn", "CONNECTION"]; }
       else { t.why = i.sub; t.btn = ["fixqueue", "SEND NOW"]; t.sec = ["sec-capture", "CAPTURE"];
@@ -2501,6 +2604,8 @@
   /* --- condition: GREEN, YELLOW or RED, with every item that needs you --- */
   function conditions(now, today, list) {
     var items = [], data = canPlan() ? state.tasks[today] : null;
+    var unsaved = lsFull();   /* 2.77: a write that didn't fit, even after making room */
+    if (unsaved.length) items.push({ lvl: "bad", ic: "✕", txt: "This iPad's storage is full", sub: unsaved.length + (unsaved.length === 1 ? " thing isn't" : " things aren't") + " saved on this iPad yet. Keep Bridge open, and make room in SYSTEMS.", act: "systems", fix: "store", go: "SYSTEMS" });
     if (data) {
       var picked = {};
       data.focus.forEach(function (t) { picked[t.id] = 1; });
@@ -6523,6 +6628,7 @@
     S("Ask spending", "ASK CLAUDE", "cost budget claude");
     S("Recent requests", "RECENT REQUESTS", "network errors timeout");
     S("Error log", "ERROR LOG", "errors failures problems crash diagnostic report");
+    S("This iPad's storage", "THIS IPAD'S STORAGE", "space full room memory saved copies clear cache");
     if (nasConf()) S("NAS relay", "NAS RELAY", "storage nas token tailscale holodeck");
     S("Home Assistant", "HOME ASSISTANT", "token devices");
     return out;
@@ -15469,6 +15575,8 @@
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.act === "systems") { state.fixFocus = b.dataset.fix || null; go("systems"); if (state.fixFocus) setTimeout(function () { var c = $("fix-" + state.fixFocus); if (c) restartClass(c, "flash"); }, 350); }
     else if (b.dataset.act === "fixtasks") fixTasks();
+    else if (b.dataset.act === "fixstore") fixStore();
+    else if (b.dataset.act === "storeclear") storeClear(false);
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixschema") fixSchema();

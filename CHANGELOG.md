@@ -2,6 +2,13 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.77.0 · 2026-11-11
+- **A full iPad is never silent.** The browser gives Bridge about 5 MB, shared by your settings, changes on their way to Notion and Google, and saved copies of your data. Until now, when something didn't fit it was dropped without a word. Now:
+  - **Bridge makes room by itself:** it drops saved copies (calendars, meals, health days and the like), largest first. The next sync brings them back; nothing is lost.
+  - **If that isn't enough, it says so:** the Bridge's Condition turns red, **This iPad's storage is full**. What didn't fit is held in memory and tried again every 30 seconds; changes still reach Notion and Google. Tap the item for **MAKE ROOM AND SAVE**.
+  - **SYSTEMS → THIS IPAD'S STORAGE** (new): how much is in use, what is kept only here, the saved copies, the four largest items, and **CLEAR SAVED COPIES**. COMPUTER finds it ("storage").
+- **Updates now pass through a test gate.** Every version is tested on GitHub before it is published, so a release reaches the iPads about 10 minutes after it is made, and one that fails its tests never arrives. The site now serves only the app's own files.
+
 ## 2.76.1 · 2026-11-10 (needs bridge 1.44.1)
 - **SICKBAY: health days always land on the right date.** A shortcut date sent without its time used to be read as midnight in London, which put every day one day early (so today looked missing). Bridge 1.44.1 reads such a date as that day where you are. Turning **Include ISO 8601 Time** on in the shortcut is still the right setting.
 - **A partial day never overwrites a whole one.** "The last 3 days" counts back from the moment the shortcut runs, so the oldest of those days arrives only partly. From bridge 1.44.1 that day only fills in what its page doesn't have yet.

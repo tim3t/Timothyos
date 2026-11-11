@@ -1,5 +1,5 @@
 
-  var VERSION = "2.76.1";
+  var VERSION = "2.77.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -51,13 +51,85 @@
   var MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   var MONL = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
 
-  /* ---------- Storage (never throws) ---------- */
-  function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  /* ---------- Storage (never throws; 2.77: a full store is never silent) ----------
+     The browser gives this app about 5 MB. Until 2.77 a write that didn't fit was dropped without a word, and the
+     changes on their way to Notion share that space with saved copies of calendars, meals and health days.
+     Now: a write that doesn't fit first makes room by dropping SAVED COPIES (what the next sync brings back),
+     largest first, then what the iPad can measure again (lengths, tags, artwork). If it still doesn't fit, the
+     value is kept in memory (lsGet answers with it, so the app carries on and the change still goes out), tried
+     again every 30 seconds and when the app is left, and the Bridge's Condition turns red (lsFull). A saved copy
+     that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
+     notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
+  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
+    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1"];
+  var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
+  var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
+  var store = { failed: {}, skipped: {}, dropped: 0, droppedAt: 0, said: false, t: 0 };
+  function lsWrite(k, text) { try { localStorage.setItem(k, text); return true; } catch (e) { return false; } }
+  function lsIsCopy(k) { return LS_COPIES.indexOf(k) > -1 || LS_REMADE.indexOf(k) > -1; }
+  function lsMakeRoom(k, text) {
+    try {
+      var tiers = [LS_COPIES, LS_REMADE];
+      for (var t = 0; t < tiers.length; t++) {
+        var have = tiers[t].map(function (c) { var v = localStorage.getItem(c); return [c, v === null ? -1 : v.length]; }).filter(function (x) { return x[1] > -1; }).sort(function (a, b) { return b[1] - a[1]; });
+        for (var i = 0; i < have.length; i++) {
+          localStorage.removeItem(have[i][0]); store.dropped++; store.droppedAt = Date.now();
+          if (lsWrite(k, text)) return true;
+        }
+      }
+    } catch (e) { /* storage blocked altogether */ }
+    return false;
+  }
+  function lsFull() { return Object.keys(store.failed); }
+  function lsTell() {   /* said once when it fills and once when it clears; the Bridge and SYSTEMS redraw */
+    var full = lsFull().length > 0;
+    if (full === store.said) return;
+    store.said = full;
+    clearInterval(store.t); if (full) store.t = setInterval(lsRetry, 30000);
+    setTimeout(function () {
+      toast(full ? "This iPad's storage is full. Open SYSTEMS to make room." : "Storage: everything is saved on this iPad again.");
+      if (state.screen === "bridge" || state.screen === "systems") render(true);
+    }, 0);
+  }
+  function lsRetry() {
+    lsFull().forEach(function (k) { if (lsWrite(k, store.failed[k]) || lsMakeRoom(k, store.failed[k])) delete store.failed[k]; });
+    lsTell();
+    return !lsFull().length;
+  }
+  function lsGet(k) { try { var v = store.failed[k] !== undefined ? store.failed[k] : localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function lsSet(k, v) {
-    try { localStorage.setItem(k, JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; })); } catch (e) { /* storage full or blocked */ }
+    var text; try { text = JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; }); } catch (e) { text = undefined; }
+    if (text !== undefined) {
+      if (lsWrite(k, text)) { delete store.failed[k]; delete store.skipped[k]; }
+      else if (lsIsCopy(k) || LS_QUIET.indexOf(k) > -1) store.skipped[k] = true;
+      else if (lsMakeRoom(k, text)) delete store.failed[k];
+      else store.failed[k] = text;
+      lsTell();
+    }
     if (lsHook) lsHook(k);
   }
-  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } if (lsHook) lsHook(k); }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } delete store.failed[k]; delete store.skipped[k]; lsTell(); if (lsHook) lsHook(k); }
+  window.addEventListener("pagehide", function () { if (lsFull().length) lsRetry(); });
+  /* What the store holds, for SYSTEMS: characters by kind (a character is two bytes), and the largest few by name. */
+  var LS_NAMES = { cache: "Calendars", tasks: "Tasks", dates: "Key dates", weeks: "Week summaries", rlog: "Review log", habits: "Habits", library: "Library", tarot: "Tarot", apiary: "Apiary", inbox: "Inbox", ledger: "Ledger",
+    astro: "Astrometrics", sickbay: "Health days", meals: "Meals and their photos", mealrc: "Recipes read for COOK", nasart: "AUDIO artwork", nastags: "AUDIO tags", naslen: "AUDIO lengths", hololen: "HOLODECK video lengths",
+    holoadlen: "Commercial lengths", hololoud: "HOLODECK loudness", plays: "Resume points", errlog: "Error log", scilog: "Science Log", sci: "Science feeds", brief: "Morning Briefing", arb: "Arboretum", holo: "HOLODECK channels",
+    upkeep: "Upkeep", log: "Log settings", profile: "Profile sync", mealgot: "Grocery ticks and added items", pins: "Pinned stations", netlog: "Recent requests", netday: "Today's request count", sync: "Last sync", visits: "Stations opened",
+    ask: "Ask conversation", aispend: "Ask spending", queue: "Captures on their way", mealq: "Meal changes on their way", habitq: "Habit changes on their way", tarotq: "Tarot changes on their way", apiaryq: "Hive changes on their way",
+    inboxq: "Inbox changes on their way", sciq: "Science Log entries on their way", upkeepq: "Upkeep changes on their way", sickbayq: "Sickbay changes on their way" };
+  function lsName(k) { var m = /^tos\.([a-z0-9]+)\.v\d+$/.exec(k); return m ? LS_NAMES[m[1]] || 'a setting ("' + m[1] + '")' : k; }
+  function lsUsage() {
+    var out = { total: 0, copies: 0, own: 0, items: [] };
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i), n = k.length + (localStorage.getItem(k) || "").length;
+        out.total += n; if (lsIsCopy(k)) out.copies += n; else out.own += n;
+        out.items.push({ k: k, n: n, copy: lsIsCopy(k) });
+      }
+    } catch (e) { /* blocked */ }
+    out.items.sort(function (a, b) { return b.n - a.n; });
+    return out;
+  }
 
   /* ---------- Dates ---------- */
   function p2(n) { return String(n).padStart(2, "0"); }

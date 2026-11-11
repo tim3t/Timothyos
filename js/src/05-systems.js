@@ -23,6 +23,7 @@
       "</div></section>";
 
     html += backupSection();
+    html += storeSection();
     html += prof.section();
     html += netSection();
     html += errSection();
@@ -455,6 +456,29 @@
     list.forEach(function (d) { schemaLines(d).forEach(function (l) { out.push(d.name + ": " + l); }); });
     return max && out.length > max ? out.slice(0, max).concat(["and " + (out.length - max) + " more"]) : out;
   }
+  /* 2.77: what this browser's storage holds, and making room in it. */
+  function storeMb(n) { var mb = n * 2 / 1048576; return (mb < 0.1 ? mb.toFixed(2) : mb.toFixed(1)) + " MB"; }
+  function storeSection() {
+    var u = lsUsage(), full = lsFull(), skipped = Object.keys(store.skipped);
+    var h = '<section id="sec-store">' + phead("THIS IPAD'S STORAGE", full.length ? "FULL · " + full.length + " NOT SAVED" : storeMb(u.total) + " USED", full.length ? "bad" : "") +
+      '<small class="muted">Bridge keeps its settings, changes on their way, and saved copies of your data in this browser, which allows about 5 MB. When something doesn\'t fit, saved copies are dropped to make room (the next sync brings them back); if that isn\'t enough, the Bridge\'s Condition says so.</small>' +
+      '<dl class="kv" style="margin-top:10px"><dt>IN USE</dt><dd class="tnum">' + storeMb(u.total) + " of about 5 MB</dd>" +
+      '<dt>KEPT ONLY HERE</dt><dd class="tnum">' + storeMb(u.own) + ' <span class="muted">settings, changes on their way, things in a backup</span></dd>' +
+      '<dt>SAVED COPIES</dt><dd class="tnum">' + storeMb(u.copies) + ' <span class="muted">refilled by a sync, or measured again</span></dd>' +
+      "<dt>LARGEST</dt><dd>" + (u.items.slice(0, 4).map(function (x) { return esc(lsName(x.k)) + ' <span class="muted tnum">' + storeMb(x.n) + (x.copy ? ", a copy" : "") + "</span>"; }).join(" · ") || '<span class="muted">Nothing yet</span>') + "</dd></dl>";
+    if (full.length) h += '<div class="err">Not saved on this iPad yet: ' + esc(full.map(lsName).join(", ")) + ". Held in memory while Bridge stays open, and tried again every 30 seconds.</div>";
+    else if (store.dropped) h += '<small class="muted">Room was made at ' + esc(stamp(store.droppedAt)) + " by dropping " + store.dropped + (store.dropped === 1 ? " saved copy" : " saved copies") + ". Nothing was lost.</small>";
+    if (skipped.length && !full.length) h += '<small class="muted">No room to keep a copy of: ' + esc(skipped.map(lsName).join(", ")) + ". It shows as usual while you are online.</small>";
+    return h + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ghost" data-act="storeclear"' + (u.copies ? "" : " disabled") + ">CLEAR SAVED COPIES</button></div></section>";
+  }
+  function storeClear(quiet) {
+    LS_COPIES.concat(LS_REMADE).forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* blocked */ } });
+    var ok = lsRetry();
+    if (!quiet) toast(ok ? "Saved copies cleared. They come back as each station syncs." : "Cleared, but there still isn't room for everything.");
+    render(true);
+    return ok;
+  }
+  function fixStore() { fixRun("store", function () { storeClear(true); }, "Room made: everything is saved on this iPad"); }
   function fixSchema() { fixRun("schema", function () { return loadSchema(true); }, "Notion columns checked: they all match"); }
   function fixTickets() {
     var now = new Date();
@@ -475,6 +499,13 @@
           "Rename each column back to exactly the name shown (capitals, spaces and brackets count), or set its type back: the column's menu → <b>Edit property</b> → <b>Type</b>.",
           "Renamed it on purpose? Tell Claude the new name, so the bridge can follow it.",
           "Come back and tap <b>CHECK AGAIN</b>."];
+      }
+      else if (i.fix === "store") {
+        t.why = "Not saved on this iPad yet: " + esc(lsFull().map(lsName).join(", ")) + ". Bridge is holding " + (lsFull().length === 1 ? "it" : "them") + " in memory: changes still go to Notion and Google, but closing or reloading Bridge now would lose what isn't saved here.";
+        t.btn = ["fixstore", "MAKE ROOM AND SAVE"]; t.sec = ["sec-store", "THIS IPAD'S STORAGE"];
+        t.steps = ["Tap <b>MAKE ROOM AND SAVE</b>. It drops the saved copies of your calendars, meals and other data (the next sync brings them back) and saves what was waiting.",
+          "Still red? <b>THIS IPAD'S STORAGE</b> below lists what takes the most room. Measured lengths and artwork for AUDIO and HOLODECK can go too: they are measured again as you use them.",
+          "Keep Bridge open until this card says it is fixed."];
       }
       else if (i.fix === "sync") { t.why = esc(state.sync.error || "The bridge hasn't answered."); t.btn = ["fixsync", "REFRESH NOW"]; t.steps = fixSteps(state.sync.code, "REFRESH NOW"); t.sec = ["sec-conn", "CONNECTION"]; }
       else { t.why = i.sub; t.btn = ["fixqueue", "SEND NOW"]; t.sec = ["sec-capture", "CAPTURE"];

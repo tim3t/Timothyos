@@ -46,6 +46,8 @@
   /* --- condition: GREEN, YELLOW or RED, with every item that needs you --- */
   function conditions(now, today, list) {
     var items = [], data = canPlan() ? state.tasks[today] : null;
+    var unsaved = lsFull();   /* 2.77: a write that didn't fit, even after making room */
+    if (unsaved.length) items.push({ lvl: "bad", ic: "✕", txt: "This iPad's storage is full", sub: unsaved.length + (unsaved.length === 1 ? " thing isn't" : " things aren't") + " saved on this iPad yet. Keep Bridge open, and make room in SYSTEMS.", act: "systems", fix: "store", go: "SYSTEMS" });
     if (data) {
       var picked = {};
       data.focus.forEach(function (t) { picked[t.id] = 1; });

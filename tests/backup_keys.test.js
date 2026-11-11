@@ -27,6 +27,13 @@ assert.deepStrictEqual(both, [], 'listed as backed up and as left out: ' + both.
 const gone = [...out].filter(k => !all.includes(k));
 assert.deepStrictEqual(gone, [], 'no longer in the app; drop from this list: ' + gone.join(', '));
 assert.ok(!bk.has('tos.ldraft.v1'), 'the Captain\'s Log draft is never backed up');
+/* 2.77: what the app may drop to make room in a full store is only ever a saved copy, never a setting, a queue or a draft */
+const droppable = ['LS_COPIES', 'LS_REMADE'].flatMap(n => s.match(new RegExp('var ' + n + ' = \\[([\\s\\S]*?)\\];'))[1].match(/tos\.[a-z0-9]+\.v\d+/g));
+assert.ok(droppable.length >= 20, 'the lists were read: ' + droppable.length);
+assert.deepStrictEqual(droppable.filter(k => !LEFT_OUT.cache.includes(k)), [], 'dropped to make room, but not a saved copy');
+const quiet = s.match(/var LS_QUIET = \[([\s\S]*?)\];/)[1].match(/tos\.[a-z0-9]+\.v\d+/g);
+assert.deepStrictEqual(quiet.filter(k => bk.has(k) || LEFT_OUT.queue.includes(k) || LEFT_OUT.draft.includes(k)), [], 'a setting, a queue or a draft must never be quiet about not fitting');
+assert.deepStrictEqual(droppable.filter(k => ['tos.scilog.v1', 'tos.errlog.v1', 'tos.brief.v1', 'tos.sci.v1'].includes(k)), [], 'these hold what a sync cannot bring back');
 const pend = s.match(/var BK_QUEUES = \[([\s\S]*?)\];\n/)[1];   /* 2.58.1: each waiting list with its own count */
 LEFT_OUT.queue.forEach(k => assert.ok(pend.includes('"' + k + '"'), 'the pending-saves warning counts ' + k));
 console.log('backup keys: ' + bk.size + ' backed up, ' + out.size + ' left out on purpose');

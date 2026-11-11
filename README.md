@@ -992,6 +992,7 @@ Each item has a switch: off, it stays on that iPad only. **PAUSE ON THIS IPAD** 
 | Review the week | **REVIEW** (or tap **Weekly review due** on the Bridge on Sunday). Write, then **SAVE TO NOTION** |
 | Leave out booking blocks | Tap the event → **IGNORE THIS TITLE** |
 | Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** |
+| See how full this iPad's storage is, or make room | **SYSTEMS → THIS IPAD'S STORAGE** |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
@@ -1006,6 +1007,14 @@ The app syncs when opened, when you return to it, and every 5 minutes while open
 | 🟢 GREEN | None of the above |
 
 Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YOU** with the steps for that exact problem and a button for the first one. Scrolled away? The **▲ NEEDS YOU** tab on the right edge brings it back.
+
+## This iPad's storage
+
+The browser gives Bridge about 5 MB on each iPad for three kinds of thing: **what is kept only here** (settings, the garden, resume points, and changes on their way to Notion and Google), **saved copies** of your calendars, meals, health days and other data (so the app opens with something to show, even offline), and measured details such as AUDIO and HOLODECK lengths. **SYSTEMS → THIS IPAD'S STORAGE** shows how much is in use and the largest items.
+
+- **When something doesn't fit**, Bridge makes room by dropping saved copies, largest first. The next sync brings them back, and nothing is lost. The section notes when this last happened.
+- **If that isn't enough**, the Bridge's Condition turns red: **This iPad's storage is full**. What didn't fit is held in memory and tried again every 30 seconds, and your changes still go to Notion and Google, but closing or reloading Bridge would lose what isn't saved here. Tap the item, then **MAKE ROOM AND SAVE**.
+- **CLEAR SAVED COPIES** empties the copies and the measured details at any time. Each station refills its own the next time it syncs; lengths are measured again as you use AUDIO and HOLODECK.
 
 ## Backup, restore and reinstalling
 
@@ -1031,6 +1040,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 | Symptom | Fix |
 |---|---|
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
+| Condition says **This iPad's storage is full** | The browser allows Bridge about 5 MB, and something no longer fits even after Bridge dropped its saved copies. Nothing is lost while Bridge stays open, and changes still go to Notion and Google. Tap the item, then **MAKE ROOM AND SAVE**; **SYSTEMS → THIS IPAD'S STORAGE** shows what takes the most room |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |
 | "Couldn't reach the script", or OFFLINE flickers | The URL must end in `/exec` and the deployment's access must be **Anyone**. Then **SYSTEMS → RECENT REQUESTS** shows what's failing. Mostly DROPPED: the connection (Wi-Fi, VPN, content filter). Mostly TIMEOUT: Google is slow; check **Executions** in the script editor for long runs or errors |
 | A Systems row says **WAITING** | Not an error: that station hasn't been opened since the app started fresh. Open it once |
@@ -1147,7 +1157,7 @@ tools/ia_fetch.py        public access TV from the Internet Archive, run on the 
 tools/split_ads.py       cuts commercial compilations into singles for HOLODECK's breaks, run on the NAS
 tests/run.sh             all tests: the Google bridge against simulated Google, Notion, YNAB and Claude,
                          then the real app in a headless browser against simulated bridges and a simulated NAS
-                         (about 5 minutes, in lanes)
+                         (about 8 minutes, in lanes)
 CHANGELOG.md             what changed in each version
 CLAUDE.md                working notes for Claude: architecture, rules, testing, release checklist, roadmap
 docs/DESIGN.md           decisions log and the original design

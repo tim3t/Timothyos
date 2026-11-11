@@ -161,6 +161,8 @@
     else if (b.dataset.act === "plan") openPlan(parseYmd(b.dataset.day));
     else if (b.dataset.act === "systems") { state.fixFocus = b.dataset.fix || null; go("systems"); if (state.fixFocus) setTimeout(function () { var c = $("fix-" + state.fixFocus); if (c) restartClass(c, "flash"); }, 350); }
     else if (b.dataset.act === "fixtasks") fixTasks();
+    else if (b.dataset.act === "fixstore") fixStore();
+    else if (b.dataset.act === "storeclear") storeClear(false);
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixschema") fixSchema();
