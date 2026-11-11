@@ -39,22 +39,47 @@ jobs:
           cache: npm
       # Chromium alone, without --with-deps: the runner image already carries every library Chromium needs, and
       # --with-deps only added nine font packages the app never uses (it serves its own fonts). ffmpeg is the one
-      # system package the tests need (the simulated NAS makes its sample audio and video with it). On 11 Nov 2026
-      # Ubuntu's package server was unreachable from GitHub's runners for over an hour: one run waited 45 minutes on
-      # it. Now each try has short network timeouts and the step a 12-minute limit, so an outage fails the run in
-      # minutes with a plain message, and nothing is published (the iPads keep the last good version).
+      # system package the tests need (the simulated NAS makes its sample audio and video with it).
+      #
+      # ffmpeg comes from a copy kept by GitHub's own cache whenever there is one (Timothy's choice, 11 Nov 2026,
+      # after Ubuntu's package server was unreachable from GitHub's runners for hours): the .deb files Ubuntu served
+      # on the last good install, installed with dpkg, no network needed. Without a copy, or if the copy no longer
+      # installs (a new runner image), it installs from Ubuntu as before and keeps the files for next time. Short
+      # network timeouts and a 12-minute limit: an outage fails the run in minutes, and nothing is published.
+      - name: Restore the kept copy of ffmpeg
+        id: ffcache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ffmpeg-debs
+          key: ffmpeg-debs-ubuntu-24.04-v1
       - name: Test tooling (Playwright at the version in package-lock.json, Chromium, ffmpeg)
+        id: tooling
         timeout-minutes: 12
         run: |
           npm ci
           npx playwright install chromium
-          apt_get() { sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 "$@"; }
-          for try in 1 2 3; do
-            if apt_get install -y --no-install-recommends ffmpeg || { apt_get update && apt_get install -y --no-install-recommends ffmpeg; }; then break; fi
-            if [ "$try" = 3 ]; then echo "::error::ffmpeg could not be installed: Ubuntu's package server did not answer. Re-run this workflow later; nothing was published."; exit 1; fi
-            echo "Package server not reachable (try $try of 3). Waiting 30 seconds."; sleep 30
-          done
+          from_copy=no
+          if [ -n "$(ls ~/ffmpeg-debs/*.deb 2>/dev/null)" ] && sudo dpkg -i ~/ffmpeg-debs/*.deb >/dev/null 2>dpkg.err && ffmpeg -version >/dev/null 2>&1; then
+            from_copy=yes; echo "ffmpeg installed from the kept copy ($(ls ~/ffmpeg-debs/*.deb | wc -l) packages)."
+          else
+            [ -s dpkg.err ] && { echo "The kept copy did not install; installing from Ubuntu instead:"; tail -3 dpkg.err; }
+            mkdir -p ~/ffmpeg-debs/partial
+            apt_get() { sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Dir::Cache::archives="$HOME/ffmpeg-debs" -o APT::Keep-Downloaded-Packages=true "$@"; }
+            for try in 1 2 3; do
+              if apt_get install -y --no-install-recommends ffmpeg || { apt_get update && apt_get install -y --no-install-recommends ffmpeg; }; then break; fi
+              if [ "$try" = 3 ]; then echo "::error::ffmpeg could not be installed: Ubuntu's package server did not answer, and there is no kept copy yet. Re-run this workflow later; nothing was published."; exit 1; fi
+              echo "Package server not reachable (try $try of 3). Waiting 30 seconds."; sleep 30
+            done
+            sudo rm -rf ~/ffmpeg-debs/partial ~/ffmpeg-debs/lock; sudo chown -R "$USER" ~/ffmpeg-debs
+          fi
+          echo "from_copy=$from_copy" >> "$GITHUB_OUTPUT"
           ffmpeg -version | head -1
+      - name: Keep a copy of ffmpeg for runs when Ubuntu's server is down
+        if: steps.tooling.outputs.from_copy == 'no' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/ffmpeg-debs
+          key: ffmpeg-debs-ubuntu-24.04-v1
       - name: Tests
         run: |
           set -o pipefail

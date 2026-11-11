@@ -34,6 +34,10 @@ Also raised in the review, not yet agreed: a lint or type check; one shared simu
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
 
+## Done, to check
+
+- **CI keeps a copy of ffmpeg** (Timothy chose option B, 2026-11-11): on 11 November Ubuntu's package server was unreachable from GitHub's runners for hours, and three runs died in setup. The first run that installs ffmpeg from Ubuntu stores the files in GitHub's cache; later runs install from that copy. Check: the next green run says "Keep a copy of ffmpeg" ran, and the one after says "installed from the kept copy". Then move this line out.
+
 ## Decided against
 
 - **Requiring the CI check before anything lands on `main`** (a pull request per release): too clunky for one person working from an iPad (Timothy, 2026-11-11). The deploy gate (D72) already keeps an untested version off the iPads, and `main` is protected against force-pushes and deletion.
