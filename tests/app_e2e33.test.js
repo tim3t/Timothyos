@@ -4,6 +4,8 @@
 // the place kept on the iPad and offered under CONTINUE LISTENING after a reload, a pill on other
 // screens while it plays, MARK PLAYED moving to the next one, filters, phone width. Names invented.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -14,10 +16,12 @@ const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.c
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: 'k'.repeat(64) })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'loom', 'review', 'log', 'library', 'storage'])); });
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: 'k'.repeat(64) })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'loom', 'review', 'log', 'library', 'storage'])); });
+  await p.reload(); await settled(p, 1500);
 
   // ---- not set up yet: Storage points to Systems
   await home(p); await p.waitForTimeout(300);
@@ -90,7 +94,7 @@ const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.c
   await p.click('.nas-ctl.big [data-nas="toggle"]'); await p.waitForTimeout(300);
 
   // ---- after a reload: CONTINUE LISTENING picks up the place
-  await p.reload(); await p.waitForTimeout(1200);
+  await p.reload(); await settled(p, 1200);
   await home(p); await p.waitForSelector('.nas-ep');
   assert.ok((await txt(p, '.nas-cont')).includes('ep 1'));
   await p.click('.nas-ep'); await p.waitForSelector('.nas-now');

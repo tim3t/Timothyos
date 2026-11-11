@@ -3,6 +3,7 @@
 // Bridge (NOW shows LUNCH), while plain "Out of office" stays hidden. A break never counts as Work
 // hours, meetings or BALANCE. The list is edited in Systems. Fixed clock: Wed 14 Oct 2026, 12:20.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -10,11 +11,12 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-14T12:20:00-05:00'));
   await p.goto('http://localhost:8080/');
   const boot = (ign, brk) => p.evaluate(([k, ign, brk]) => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.ignore.v1', JSON.stringify(ign)); if (brk) localStorage.setItem('tos.breaks.v1', JSON.stringify(brk));
   }, [K, ign, brk]);
   // (until 2.63 BALANCE on the Bridge also showed the lunch hours left out of Work; BALANCE left the Bridge)

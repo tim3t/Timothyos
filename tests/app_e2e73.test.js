@@ -6,8 +6,9 @@
 // COMPUTER has "Add a recipe". COOK (from TONIGHT, a chosen night or the editor): ingredients to tick, the step you're on
 // (NEXT STEP, or tap one), A+ for larger type, the screen kept on; a meal with no recipe yet says how to add one.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
@@ -20,6 +21,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   await mode('cap=1&reset=1&seed=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date(TODAY + 'T12:00:00-06:00'));
   await p.addInitScript(() => { window.__wake = 0; Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: { request: () => { window.__wake++; const l = new EventTarget(); l.release = () => { window.__wake--; return Promise.resolve(); }; return Promise.resolve(l); } } }); });

@@ -7,8 +7,9 @@
 // while away, Standby shows BRIEFING READY and the wake lands on it; Systems turns it off and on and names the
 // bridge it needs; COMPUTER finds it; phone width fits; no emoji.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=briefmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=briefstats').then(r => r.json());
@@ -20,6 +21,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   await mode('cap=1&fail=0&shape=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.addInitScript(() => {   // the iPad's voice, simulated: utterances are kept so the test can start and end them
     window.__said = []; window.__cancels = 0;
     function U(t) { this.text = t; }

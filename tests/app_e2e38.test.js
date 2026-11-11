@@ -6,8 +6,10 @@
 // Systems' TAROT row and SHARE WITH ASK (off: nothing sent; on: the week's card goes with a question),
 // phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:8105';
+const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(B + '/macros/s/test/exec?key=' + K + '&action=stats').then(r => r.json());
 const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
@@ -15,10 +17,12 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
+  await quiet(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(k => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'log', 'habits', 'tarot']));
   }, K);
   await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row[data-tropen]', { timeout: 10000 });
@@ -59,7 +63,7 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   // card faces (2.27): every Major Arcana card its own mark
   const majors = await p.$$eval('.tr-pick .tr-card .art', n => n.map(x => x.innerHTML));
   assert.strictEqual(majors.length, 22); assert.strictEqual(new Set(majors).size, 22, 'no two Major Arcana marks alike');
-  await p.click('[data-trpick="M3"]'); await p.waitForTimeout(500);
+  await p.click('[data-trpick="M3"]'); await settled(p, 500);
   assert.ok((await txt(p, '#detailSheet .sbar')).startsWith('2 · CHALLENGE'), 'next position offered');
   await p.click('[data-trtab="swords"]');
   // Minor Arcana: pips for Two to Ten, one mark for the Ace, a sign above the mark for courts
@@ -67,7 +71,7 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   assert.deepStrictEqual(pips.map(x => x[0]), [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0, 0, 0]);
   assert.deepStrictEqual(pips.slice(10).map(x => x[1]), [true, true, true, true]);
   await p.check('#trRev');
-  await p.click('[data-trpick="S5"]'); await p.waitForTimeout(500);
+  await p.click('[data-trpick="S5"]'); await settled(p, 500);
   await p.click('#detailClose'); await p.waitForTimeout(300);
   assert.ok(await p.isDisabled('[data-tract="save"]'), 'not until every position has a card');
   await p.click('[data-tract="draw"]'); await p.waitForTimeout(400);
@@ -83,7 +87,7 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   assert.ok((await txt(p, '.tr-pr:nth-child(2)')).includes('FIVE OF SWORDS · REVERSED'));
   await p.screenshot({ path: D + 'tarot-reading.png', fullPage: true });
   // a note on a position: goes with the real page id once Notion has it
-  await p.waitForTimeout(800);
+  await settled(p, 800);
   await p.fill('[data-trnote="0"]', 'Growth with care.');
   s = await until(async () => { const x = await stats(); const l = x.tsaves[x.tsaves.length - 1]; return l && l.notes && l.notes[0] === 'Growth with care.' ? x : null; });
   saved = s.tsaves[s.tsaves.length - 1];
@@ -134,13 +138,13 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   await p.click('[data-tract="save"]'); await p.waitForSelector('.tr-pos');
   s = await until(async () => { const x = await stats(); return x.tarot.some(r => r.weekly && r.cards[0].id === 'M9') ? x : null; });
   assert.ok(!s.tarot.find(r => r.id === 'tr-w0').weekly, 'the earlier card this week is unmarked');
-  await p.click('[data-trgo="home"]'); await p.waitForTimeout(800);
+  await p.click('[data-trgo="home"]'); await settled(p, 800);
   assert.ok((await txt(p, '.tr-week')).includes('THE HERMIT'));
 
   // ---- Review: the week's card and readings
   await p.click('[data-screen="review"].nav'); await p.waitForTimeout(300);
   const mon = await p.evaluate(() => { const d = new Date(); d.setHours(12); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
-  await p.click('[data-rweek="' + mon + '"]'); await p.waitForTimeout(800);
+  await p.click('[data-rweek="' + mon + '"]'); await settled(p, 800);
   const rv = await txt(p, '#content');
   assert.ok(/TAROT/.test(rv) && rv.includes('THE HERMIT'), 'review shows the week\'s card');
 
@@ -151,18 +155,18 @@ const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const 
   await p.fill('#askText', Array.from({ length: 40 }, (_, i) => 'line ' + i).join('\n')); await p.waitForTimeout(100);
   const ga = await p.$eval('#askText', el => [el.offsetHeight, innerHeight * 0.4 + 1, getComputedStyle(el).overflowY]);
   assert.ok(ga[0] <= ga[1] && ga[2] === 'auto', 'Ask stops at its cap and scrolls inside: ' + ga);
-  await p.fill('#askText', 'Anything for today?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200);
+  await p.fill('#askText', 'Anything for today?'); await p.keyboard.press('Enter'); await settled(p, 1200);
   s = await stats(); assert.ok(!s.asks[s.asks.length - 1].ctx.includes('TAROT'), 'off: readings never sent');
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   await p.click('[data-aitarot="1"]');
   assert.strictEqual(await p.evaluate(() => localStorage.getItem('tos.aitarot.v1')), 'true');
-  await p.click('#askBtn'); await p.fill('#askText', 'And with the cards?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200);
+  await p.click('#askBtn'); await p.fill('#askText', 'And with the cards?'); await p.keyboard.press('Enter'); await settled(p, 1200);
   s = await stats(); const actx = s.asks[s.asks.length - 1].ctx;
   assert.ok(actx.includes("TAROT (his readings, shared by Timothy's choice)") && actx.includes("This week's card: The Hermit") && actx.includes('Sample question about the garden'), actx.slice(actx.indexOf('TAROT')));
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   // switched off again: the very next question goes without them
   await p.click('[data-aitarot="0"]');
-  await p.click('#askBtn'); await p.fill('#askText', 'One more?'); await p.keyboard.press('Enter'); await p.waitForTimeout(1200);
+  await p.click('#askBtn'); await p.fill('#askText', 'One more?'); await p.keyboard.press('Enter'); await settled(p, 1200);
   s = await stats(); assert.ok(!s.asks[s.asks.length - 1].ctx.includes('TAROT'), 'off again: not sent');
   await p.keyboard.press('Escape');
 

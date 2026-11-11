@@ -7,6 +7,7 @@
 // UPKEEP starts empty; items by time and by miles, overdue ones in the Bridge's CONDITION; GROUPS (by category and by status,
 // NEEDS ATTENTION) and HORIZON (lanes, overdue bay, BY READING, ranges) (2.55); MARK DONE, edit with category chips, delete, phone width. Fixed clock: Thu 15 Oct 2026. Names invented.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -16,11 +17,12 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   await fetch(R + '/__hareset');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-15T10:00:00-05:00'));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'loom', 'review', 'log', 'storage', 'engineering']));
   }, [K, R]);

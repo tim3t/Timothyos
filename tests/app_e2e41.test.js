@@ -5,6 +5,8 @@
 // days keep the goal they had (the 30-day rate doesn't move), a past day shows its own goal, changing back the same
 // day leaves no trace, and a goal saved by an older version becomes the first entry.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const { execFileSync } = require('child_process');
 const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110'), K = 'k'.repeat(64);
@@ -15,15 +17,17 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'habits', 'storage']));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.habitcfg.v1', JSON.stringify({ goal: 2.5 }));   // as saved before 2.30
   }, [K, R]);
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.reload(); await settled(p, 1500);
 
   // ---- STORAGE: lengths, not sizes
   const sent0 = (await (await fetch(R + '/__stats')).json()).sent;
@@ -50,7 +54,7 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
   // kept on the iPad: a second visit asks nothing
   const kept = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.naslen.v1')));
   assert.strictEqual(kept['/Music/Lengths/vbr.mp3'].s, 75);
-  await p.click('.nas-crumbs >> text=MUSIC'); await p.click('[data-nasdir="/Music/Lengths"]'); await p.waitForTimeout(800);
+  await p.click('.nas-crumbs >> text=MUSIC'); await p.click('[data-nasdir="/Music/Lengths"]'); await settled(p, 800);
   const again = (await (await fetch(R + '/__stats')).json()).sent;
   assert.strictEqual(again['/Music/Lengths/vbr.mp3'], sent['/Music/Lengths/vbr.mp3'], 'not read twice');
   assert.strictEqual(await row('end.m4a'), '1:03');

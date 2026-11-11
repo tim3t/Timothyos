@@ -3,10 +3,12 @@
 // the five steps and a link to the code; APP shows UPDATE TO; once the bridge reports the right version, CHECK
 // AGAIN clears it; a newer bridge never warns; no emoji.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const fs = require('fs'), path = require('path');
 const WANT = fs.readFileSync(path.join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8').match(/var VERSION = '([\d.]+)'/)[1];
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
 
@@ -14,10 +16,12 @@ const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
   await setv('1.29.0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, U]);
-  await p.reload(); await p.waitForSelector('.ov-cond', { timeout: 10000 }); await p.waitForTimeout(1200);
+  await p.reload(); await p.waitForSelector('.ov-cond', { timeout: 10000 }); await settled(p, 1200);
 
   // ---- an older bridge: a YELLOW item in Condition, naming what's missing
   const item = p.locator('.ov-alert', { hasText: 'Google bridge out of date' });
@@ -46,7 +50,7 @@ const setv = v => fetch(B + '&action=setversion&v=' + v).then(r => r.json());
 
   // ---- a newer bridge than the app knows: no warning
   await setv('9.0.0');
-  await p.click('#status'); await p.click('#refreshBtn'); await p.waitForTimeout(1500);
+  await p.click('#status'); await p.click('#refreshBtn'); await settled(p, 1500);
   assert.ok((await txt(p, '#sec-app')).includes('BRIDGE VERSION 9.0.0 UP TO DATE'));
   await p.click('.elbow'); await p.waitForTimeout(300);
   assert.strictEqual(await p.locator('.ov-alert', { hasText: 'Google bridge out of date' }).count(), 0);

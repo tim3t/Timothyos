@@ -7,8 +7,9 @@
 // it off the cards; REMOVE takes two taps. LOG: five weeks to fill in, and the rotation table. Every change goes to
 // the bridge in order. SYSTEMS has its row; phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
@@ -20,6 +21,7 @@ const lastPost = async act => (await mode('')).posts.filter(x => x[0] === act).p
   await mode('cap=1&reset=1&seed=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date(TODAY + 'T18:30:00-06:00'));
   await p.goto('http://localhost:8080/');

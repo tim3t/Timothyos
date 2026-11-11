@@ -3,6 +3,8 @@
 // v2.4 frame with a data-length indicator, and a file whose tags were remembered before it was numbered (read again
 // because the file changed). The folder sorts 1 to 6, says how many are numbered, and READ TAGS AGAIN reads them anew.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110'), K = 'k'.repeat(64), C = '/Podcasts/Show C/';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -12,16 +14,18 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, c, r]) => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'storage']));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     // remembered by an earlier version, before the file had its number: no file stamp, no number
     localStorage.setItem('tos.nastags.v1', JSON.stringify({ [c + 'f stale.mp3']: { t: '', a: '', al: '', n: 0, d: 0, s: 1 } }));
   }, [K, C, R]);
-  await p.reload(); await p.waitForTimeout(1200);
+  await p.reload(); await settled(p, 1200);
 
   const s0 = await sent();
   await audio(p); await p.waitForSelector('.nas-share');

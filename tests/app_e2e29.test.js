@@ -3,13 +3,15 @@
 // Systems); "Make it so" / "Computer, end program" in ASK (never sent to Claude; the second ends in
 // Standby); and Q, about one launch in 500 (forced here). None of them changes any data.
 const { chromium } = require('playwright');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
-const stats = async () => (await (await fetch('http://127.0.0.1:8103/x/exec?action=stats&key=' + K)).json());
+const stats = async () => (await (await fetch('http://127.0.0.1:' + P8103 + '/x/exec?action=stats&key=' + K)).json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const CONN = JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: K });
+const CONN = JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: K });
 async function open(b, random) {
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.addInitScript(r => { Math.random = () => r; }, random);
   const p = await ctx.newPage();
   await p.clock.setFixedTime(new Date('2026-10-09T09:16:00-05:00'));

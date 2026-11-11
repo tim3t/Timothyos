@@ -4,8 +4,10 @@
 // the picture is paused meanwhile and nothing is measured. Coming back, the audio stops and the picture takes over at
 // the live point. A muted TV stays silent away; OFF clears it all; AUDIO starting turns it off as before.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const st = p => p.evaluate(() => {
   const v = document.getElementById('hdVideo'), a = document.getElementById('hdRadio'), src = e => decodeURIComponent((e && e.getAttribute('src')) || '');
   return { v: v && { src: src(v), paused: v.paused, t: v.currentTime }, a: a && { src: src(a), paused: a.paused, t: a.currentTime } };
@@ -17,6 +19,8 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
@@ -25,7 +29,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 86400000 }], ch: 1, look: 'crt', muted: false }));
   }, [K, U, R]);
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.reload(); await settled(p, 1500);
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
   await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 });
   await p.click('.hd-tune');
@@ -54,10 +58,10 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
 
   // ---- a muted TV stays silent away
   await p.click('.hd-mute'); await p.waitForTimeout(200);
-  await away(p); await p.waitForTimeout(800);
+  await away(p); await settled(p, 800);
   s = await st(p);
   assert.ok(!s.a.src, 'muted: no sound away');
-  await back(p); await p.click('.hd-mute'); await p.waitForTimeout(500);
+  await back(p); await p.click('.hd-mute'); await settled(p, 500);
 
   // ---- OFF while away clears it; turning on again works
   await away(p); await until(async () => { const x = await st(p); return x.a.src && x; });

@@ -4,18 +4,22 @@
 // page where it is: it can't be scrolled underneath (as iPadOS would), taps land on what's drawn, PLAN TODAY adds a
 // task and sets priorities, and closing the sheet leaves the page exactly where it was. The same for CAPTURE.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec';
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
 const hits = (p, id) => p.evaluate(id => { const el = document.getElementById(id), r = el.getBoundingClientRect(), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && (h === el || el.contains(h)); }, id);
 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 820, height: 1180 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   const posts = []; p.on('request', r => { if (r.method() === 'POST') posts.push(JSON.parse(r.postData() || '{}').action); });
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, U]);
-  await p.reload(); await p.waitForSelector('#planBtn'); await p.waitForTimeout(2500);
+  await p.reload(); await p.waitForSelector('#planBtn'); await settled(p, 2500);
 
   // ---- portrait: the page is taller than the screen and scrolls
   const tall = await p.evaluate(() => document.scrollingElement.scrollHeight - innerHeight);

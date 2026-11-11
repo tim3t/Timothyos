@@ -5,8 +5,9 @@
 // initials; a bad image link is refused. A night planned from a search clears the search. LOG's picker is the same
 // library. Phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const post = b => fetch(U, { method: 'POST', body: JSON.stringify(Object.assign({ key: K }, b)) }).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -24,6 +25,7 @@ const lastPost = async act => (await mode('')).posts.filter(x => x[0] === act).p
   }
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date(TODAY + 'T12:00:00-06:00'));
   await p.goto('http://localhost:8080/');

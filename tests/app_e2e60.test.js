@@ -3,18 +3,22 @@
 // seeked to the wrong place. Run twice: as Chromium is, and with focus refused as on the iPad. The thumb only moves
 // forward, the clock follows the finger, and letting go plays from there. Simulated relay.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 async function run(MODE) {
   await fetch(R + '/__reset');
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true, serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   if (MODE === 'safari') await ctx.addInitScript(() => document.addEventListener('focusin', e => { if (e.target.type === 'range') e.target.blur(); }, true));
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck'])); }, [K, R]);
+  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck'])); }, [K, R]);
   await p.reload(); await p.waitForSelector('[data-screen="holodeck"].nav'); await p.click('[data-screen="holodeck"].nav');
-  await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-share'); await p.click('.nas-share >> text=PODCASTS'); await p.waitForTimeout(1500);
+  await p.click('[data-hdprog="audio"]'); await p.waitForSelector('.nas-share'); await p.click('.nas-share >> text=PODCASTS'); await settled(p, 1500);
   await p.click('.nas-row >> text=Show A'); await p.waitForSelector('[data-nasplay]'); await p.click('[data-nasplay="/Podcasts/Show A/ep 1.wav"]');
   await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a && !a.paused && a.currentTime > 1; }, null, { timeout: 10000 });
   await p.click('[data-hdgo="arch"]'); await p.click('[data-hdprog="audio"]'); await p.waitForSelector('#nasSeekBig:not([disabled])');
@@ -29,7 +33,7 @@ async function run(MODE) {
     await p.waitForTimeout(125); samples.push(await st());
   }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  await p.waitForTimeout(800); const end = await st();
+  await settled(p, 800); const end = await st();
   const back = samples.filter((s, i) => i && s.v < samples[i - 1].v).length;
   console.log(MODE, 'thumb while held:', samples.map(s => s.v).join(','), '| after:', end.v, 'playing at', end.cur);
   assert.strictEqual(back, 0, MODE + ': the thumb never jumps back under the finger');

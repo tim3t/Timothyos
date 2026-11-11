@@ -5,8 +5,10 @@
 // (an error logged with a key and an address in it comes out scrubbed). COMPUTER's "Copy diagnostics" does the same.
 // Phone width.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
@@ -16,6 +18,8 @@ const NAS = 'nas-token-' + 'n'.repeat(40);
   await mode('cap=1&reset=1&seed=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, nas]) => {
@@ -28,7 +32,7 @@ const NAS = 'nas-token-' + 'n'.repeat(40);
     // a capture waiting to be sent, with a title that must not appear
     localStorage.setItem('tos.mealgot.v1', JSON.stringify({ wk: '', got: {}, extra: [{ n: 'Secret groceries', a: 'Pantry' }] }));
   }, [K, U, NAS]);
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.reload(); await settled(p, 1500);
   await p.click('[data-screen="meals"].nav'); await p.waitForSelector('.ml-row');
 
   // ---- SYSTEMS: the section, near the top
@@ -47,7 +51,7 @@ const NAS = 'nas-token-' + 'n'.repeat(40);
   for (const want of ['TimothyOS DIAGNOSTICS', 'APP ' + ver, 'BRIDGE deployed ', 'this app needs ', 'FEATURES ', 'meals', 'SYNC ', 'BRIDGE TODAY ', 'CONDITION ', 'WAITING TO SEND ',
     'STORAGE ', 'of about 5 MB', 'PROFILE SYNC off', 'LINKS NAS relay set · Home Assistant not set · pinned today, meals', 'ERRORS 1 kept', '[BRIDGE] events: timed out at (an address)'])
     assert.ok(r.includes(want), 'the report has "' + want + '":\n' + r);
-  for (const never of [K, NAS, '127.0.0.1:8105', 'script.google.com', 'ts.net', 'AKfyc', 'Secret groceries', 'Sample '])
+  for (const never of [K, NAS, '127.0.0.1:' + P8105 + '', 'script.google.com', 'ts.net', 'AKfyc', 'Secret groceries', 'Sample '])
     assert.ok(!r.includes(never), 'the report must not hold "' + never + '":\n' + r);
   assert.ok(r.split('\n').length < 80, 'short enough to paste');
 

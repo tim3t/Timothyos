@@ -5,6 +5,7 @@
 // A copy of the app is served from a scratch folder on :8125 so the test can publish versions to it (with the build
 // tool since 2.73.1: bump_version.py rebuilds js/app.js from js/src/).
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn, execFileSync } = require('child_process');
 const R = path.join(__dirname, '..'), DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'tos-upd-')), PORT = 8125, URL0 = 'http://localhost:' + PORT + '/';
@@ -31,6 +32,7 @@ const whole = p => p.evaluate(() => ({
   publish('9.9.0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, serviceWorkers: 'allow' });
+  await quiet(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto(URL0);
   await p.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 15000 });
@@ -59,14 +61,14 @@ const whole = p => p.evaluate(() => ({
   }
 
   // ---- offline (2.50): the app opens from its saved copy; a hosting error never replaces that copy
-  await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(800);
+  await ctx.setOffline(true); await p.reload(); await settled(p, 800);
   w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn && w.css, 'opens offline: ' + JSON.stringify(w));
   await ctx.setOffline(false);
   fs.writeFileSync(path.join(DIR, '__fail'), '1');   // the host answers 500 to everything
-  await p.reload(); await p.waitForTimeout(800);
+  await p.reload(); await settled(p, 800);
   w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn && w.css, 'a 500 from the host shows the saved app: ' + JSON.stringify(w));
   fs.rmSync(path.join(DIR, '__fail'));
-  await ctx.setOffline(true); await p.reload(); await p.waitForTimeout(800);
+  await ctx.setOffline(true); await p.reload(); await settled(p, 800);
   w = await whole(p); assert.ok(w.bar === 'TIMOTHYOS 9.11' && w.drawn, 'the saved copy is still the app, not the error page: ' + JSON.stringify(w));
   await ctx.setOffline(false);
   const cached = await p.evaluate(() => caches.keys().then(ks => Promise.all(ks.map(k => caches.open(k).then(c => c.keys())))).then(rs => [].concat(...rs).map(r => r.url)));

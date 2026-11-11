@@ -3,8 +3,10 @@
 // chosen; ⌫ steps back through digits, then the word; the keyboard works (letters a b g d t o);
 // a wrong code says so and how many tries are left; a lockout says until when. Sample code only.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:8103/x/exec?key=' + K + '&action=';
+const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:' + P8103 + '/x/exec?key=' + K + '&action=';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contains('w') ? 'W' : 'd') + (i.classList.contains('on') ? '+' : '-')).join(' '));
 
@@ -12,10 +14,12 @@ const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contai
   await fetch(M + 'pincode');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: 'k'.repeat(64) })); });
-  await p.reload(); await p.waitForTimeout(1800);
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.reload(); await settled(p, 1800);
   await p.click('[data-screen="log"].nav'); await p.waitForTimeout(400);
 
   // ---- the panel: six code words over the keypad; digits wait for a word
@@ -39,7 +43,7 @@ const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contai
 
   // ---- the wrong word with the right digits is refused
   await p.click('[data-lpin="ALPHA"]'); for (const k of '1701') await p.click('[data-lpin="' + k + '"]');
-  await p.waitForTimeout(800);
+  await settled(p, 800);
   console.log('wrong:', await txt(p, '.cl-msg'));
   assert.strictEqual(await txt(p, '.cl-msg'), 'Authorization not recognized. 4 tries left before a lock.');
   assert.strictEqual(await filled(p), 'W- d- d- d- d-', 'cleared for another go');
@@ -54,19 +58,19 @@ const filled = p => p.$$eval('.cl-dots i', is => is.map(i => (i.classList.contai
   await p.click('[data-lact="lock"]'); await p.waitForTimeout(300);
 
   // ---- Systems describes it
-  await p.click('#status'); await p.waitForTimeout(500);
+  await p.click('#status'); await settled(p, 500);
   assert.ok((await txt(p, 'section:has(.phead:has-text("CAPTAIN\'S LOG"))')).includes('Authorization code set (a code word and four digits)'));
 
   // ---- phone width
   await p.setViewportSize({ width: 400, height: 860 });
   await p.click('#pins [data-screen="log"]').catch(async () => { await p.click('#allBtn'); await p.click('[data-station="log"]'); });
-  await p.waitForTimeout(500);
+  await settled(p, 500);
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth) <= 400, 'no sideways scroll');
   await p.screenshot({ path: D + 'log-auth-phone.png', fullPage: true });
   await p.setViewportSize({ width: 1180, height: 820 }); await p.waitForTimeout(300);
 
   // ---- five wrong: locked, and it says until when
-  for (let n = 0; n < 5; n++) { await p.keyboard.type('b0000'); await p.waitForTimeout(500); }
+  for (let n = 0; n < 5; n++) { await p.keyboard.type('b0000'); await settled(p, 500); }
   console.log('locked:', await txt(p, '.cl-msg'));
   assert.ok(/^Locked until \d\d:\d\d after five wrong tries\. Each lockout in a row lasts twice as long\.$/.test(await txt(p, '.cl-msg')));
 

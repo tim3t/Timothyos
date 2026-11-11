@@ -5,8 +5,10 @@
 // export failed or is over 9 days old. ASK sends the break names with each question so the bridge keeps a lunch held as
 // Out of office as a BREAK. Phone width.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=exportmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -17,17 +19,19 @@ const row = p => txt(p, '#sec-notion').then(t => t.slice(t.indexOf('Weekly expor
   await mode('cap=1&state=ok&nowerr=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.breaks.v1', JSON.stringify(['Lunch', 'Walk'])); localStorage.setItem('tos.ignore.v1', JSON.stringify(['Out of office'])); }, [K, U]);
-  const fresh = async st => { await mode('state=' + st); await p.evaluate(() => localStorage.removeItem('tos.export.v1')); await p.reload(); await p.waitForTimeout(1800); };
+  const fresh = async st => { await mode('state=' + st); await p.evaluate(() => localStorage.removeItem('tos.export.v1')); await p.reload(); await settled(p, 1800); };
   const systems = async () => { await p.click('#status'); await p.waitForSelector('#sec-notion'); await until(async () => !/Checking…/.test(await row(p))); return row(p); };
   const cond = async (re) => { await p.locator('[data-screen="bridge"]:visible').first().click(); await p.waitForSelector('#content .rb-alerts');
     const t = async () => (await p.textContent('#content .rb-alerts')).replace(/\s+/g, ' ').trim();
-    if (re) { try { await until(async () => re.test(await t()), 5000); } catch (e) { /* the assert below shows the text */ } } else await p.waitForTimeout(800);
+    if (re) { try { await until(async () => re.test(await t()), 5000); } catch (e) { /* the assert below shows the text */ } } else await settled(p, 800);
     return t(); };
-  await p.reload(); await p.waitForTimeout(1800);
+  await p.reload(); await settled(p, 1800);
 
   // ---- the last copy, in SYSTEMS
   let r = await systems();
@@ -82,12 +86,12 @@ const row = p => txt(p, '#sec-notion').then(t => t.slice(t.indexOf('Weekly expor
   // ---- an older bridge: the row asks for the update, nothing else changes
   await mode('cap=0&state=ok');
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (!/^tos\.(conn|start|breaks|ignore)\.v1$/.test(k)) localStorage.removeItem(k); });
-  await p.reload(); await p.waitForTimeout(2500); r = await systems();
+  await p.reload(); await settled(p, 2500); r = await systems();
   assert.ok(/^Weekly export Needs the Google bridge updated to \d+\.\d+\.\d+\. SETUP/.test(r), r);
   await mode('cap=1');
 
   // ---- ASK sends the break names with the ignored titles
-  await p.locator('[data-screen="bridge"]:visible').first().click(); await p.waitForTimeout(500);
+  await p.locator('[data-screen="bridge"]:visible').first().click(); await settled(p, 500);
   await p.click('#askBtn'); await p.waitForSelector('#askText');
   await p.fill('#askText', 'When am I free today?'); await p.click('#askSend');
   const a = await until(async () => (await stats()).asks.filter(x => x.last === 'When am I free today?').pop());

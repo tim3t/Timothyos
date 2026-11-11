@@ -4,16 +4,18 @@
 // minute's redraw waits until you leave the field, so the field isn't swapped out under the iPad's emoji keyboard.
 // Search boxes still redraw while in use.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const E = 'Hive 🐝 ❤️ 👨‍👩‍👧 1️⃣ 🇺🇸 check';
 
 (async () => {
   await fetch(B + '&action=inboxmode&cap=1&fail=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
-  const sent = []; p.on('request', r => { if (r.method() === 'POST' && /8105/.test(r.url())) sent.push(JSON.parse(r.postData() || '{}')); });
+  const sent = []; p.on('request', r => { if (r.method() === 'POST' && r.url().includes(':' + P8105 + '/')) sent.push(JSON.parse(r.postData() || '{}')); });
   await p.clock.install({ time: new Date('2026-10-26T09:10:00-05:00') });
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'loom'])); }, [K, U]);

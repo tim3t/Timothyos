@@ -6,6 +6,7 @@
 // what's in the file, RESTORE brings everything back and links the app. A hand-made file with keys outside the list
 // restores only listed ones. Phone width.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert'); const fs = require('fs'); const { webcrypto } = require('crypto');
 const D = __dirname + '/out/', K = 'k'.repeat(64), BR = 'http://127.0.0.1:8098/macros/s/test/exec', PASS = 'sample passphrase 1';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -40,6 +41,7 @@ async function make(keys, pass) {   // a file made outside the app, the same way
   const b = await chromium.launch(); const errs = [];
   const opts = { viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', acceptDownloads: true };
   const ctx = await b.newContext(opts);
+  await quiet(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, br, setup, never]) => {
@@ -50,7 +52,7 @@ async function make(keys, pass) {   // a file made outside the app, the same way
     localStorage.setItem('tos.sciq.v1', JSON.stringify({ add: [], star: {} }));   // SCIENCE's list, empty: nothing waiting (2.58.1; it counted as 2)
     localStorage.setItem('tos.upkeepq.v1', JSON.stringify({ ops: [], mig: true }));
   }, [K, BR, SETUP, NEVER]);
-  await p.reload(); await p.waitForTimeout(800);
+  await p.reload(); await settled(p, 800);
 
   // ---- BACKUP waits for pending saves and says which drafts stay out
   await p.click('#status'); await p.waitForSelector('#sec-backup');
@@ -86,6 +88,7 @@ async function make(keys, pass) {   // a file made outside the app, the same way
 
   // ---- a fresh install: restore from the link screen
   const ctx2 = await b.newContext(opts), q = await ctx2.newPage(); q.on('pageerror', e => errs.push(e.message));
+  await quiet(ctx2);
   await q.goto('http://localhost:8080/'); await q.waitForSelector('#connForm');
   assert.ok((await txt(q, '.bk-connect')).includes('OR RESTORE THIS IPAD'));
   await q.setInputFiles('#bkFile', path); await q.waitForSelector('#bkRPass');
@@ -109,7 +112,7 @@ async function make(keys, pass) {   // a file made outside the app, the same way
   await q.click('#status'); await q.waitForSelector('#sec-backup');
   await q.setInputFiles('#bkFile', crafted); await q.waitForSelector('#bkRPass');
   await q.fill('#bkRPass', PASS); await q.click('[data-act="bkopen"]'); await q.waitForSelector('.bk-plan');
-  await q.click('[data-act="bkapply"]'); await q.waitForSelector('#status'); await q.waitForTimeout(800);
+  await q.click('[data-act="bkapply"]'); await q.waitForSelector('#status'); await settled(q, 800);
   const after = await q.evaluate(() => [localStorage.getItem('tos.pins.v1'), localStorage.getItem('tos.ldraft.v1'), localStorage.getItem('evil.key'), localStorage.getItem('tos.ignore.v1')]);
   assert.deepStrictEqual(after, ['["week"]', null, null, '["Sample block"]'], 'listed and valid only');
 

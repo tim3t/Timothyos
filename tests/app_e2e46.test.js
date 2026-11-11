@@ -5,8 +5,10 @@
 // it never opens before the app is linked; a swipe down on the bar opens it without opening a station; visits
 // are recorded; phone width fits; no emoji.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=apmode&' + q).then(r => r.json());
 const open = p => p.evaluate(() => { const s = document.querySelector('#cmdScrim'); return !s.hidden && !s.classList.contains('closing'); });
@@ -18,11 +20,13 @@ const DAY = 864e5;
   await mode('on=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
 
   // ---- not linked: no COMPUTER
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(600);
+  await p.evaluate(() => localStorage.clear()); await p.reload(); await settled(p, 600);
   assert.ok(await p.isDisabled('#cmdBtn'), 'COMPUTER waits for the link');
   await p.keyboard.press('Meta+k'); await p.waitForTimeout(200);
   assert.ok(!(await open(p)), '⌘K does nothing before linking');
@@ -45,9 +49,9 @@ const DAY = 864e5;
   console.log('empty:', empty.slice(0, 400));
   assert.ok(empty.includes('RECENT') && empty.indexOf('APIARY') < empty.indexOf('LEDGER'), 'recent stations, newest first');
   assert.ok(empty.includes('NOT OPENED LATELY'), empty);
-  const quiet = empty.slice(empty.indexOf('NOT OPENED LATELY'));
-  assert.ok(/LIBRARY Not opened in 30 days/.test(quiet) && /REVIEW Last opened 20 days ago/.test(quiet), quiet);
-  assert.ok(!/MONTH/.test(quiet), 'opened two days ago: not quiet');
+  const notLately = empty.slice(empty.indexOf('NOT OPENED LATELY'));
+  assert.ok(/LIBRARY Not opened in 30 days/.test(notLately) && /REVIEW Last opened 20 days ago/.test(notLately), notLately);
+  assert.ok(!/MONTH/.test(notLately), 'opened two days ago: not in the list');
   assert.ok(!/LEDGER|APIARY/.test(quiet), 'pinned stations never listed as quiet');
   assert.strictEqual(await p.getAttribute('#cmdList .cmd-row', 'aria-selected'), 'true', 'the first row is chosen');
   await p.screenshot({ path: D + 'computer-empty.png' });
@@ -88,7 +92,7 @@ const DAY = 864e5;
   for (let i = 0; i < star; i++) await p.keyboard.press('ArrowDown');
   assert.strictEqual(await p.$eval('#cmdList .cmd-row[aria-selected="true"] b', e => e.textContent), 'The Star', 'arrow keys moved the choice to The Star');
   assert.strictEqual(await p.getAttribute('#cmdText', 'aria-activedescendant'), await p.$eval('#cmdList .cmd-row[aria-selected="true"]', e => e.id));
-  await p.keyboard.press('Enter'); await p.waitForTimeout(600);
+  await p.keyboard.press('Enter'); await settled(p, 600);
   assert.strictEqual(await txt(p, '#title'), 'TAROT');
   assert.ok(await p.isVisible('#detailSheet') && /star/i.test(await txt(p, '#detailSheet')), 'The Star history is open');
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
@@ -96,7 +100,7 @@ const DAY = 864e5;
   // ---- a setting: Systems, at BACKUP AND RESTORE
   r = await ask(p, 'backup');
   assert.ok(r[0].startsWith('Make a backup | SYSTEMS · BACKUP AND RESTORE | SETTING'), r.join('\n'));
-  await p.click('#cmdList .cmd-row'); await p.waitForTimeout(700);
+  await p.click('#cmdList .cmd-row'); await settled(p, 700);
   assert.strictEqual(await txt(p, '#title'), 'SYSTEMS');
   const top = await p.evaluate(() => { const s = [...document.querySelectorAll('#content section')].find(x => /^BACKUP AND RESTORE/.test(x.querySelector('.phead h2').textContent)); const c = document.querySelector('#content').getBoundingClientRect(); return Math.round(s.getBoundingClientRect().top - c.top); });
   assert.ok(top >= -20 && top < 120, 'scrolled to BACKUP AND RESTORE (' + top + ')');
@@ -130,6 +134,8 @@ const DAY = 864e5;
 
   // ---- swipe down on the bar (touch): opens COMPUTER, and the station under the finger stays shut
   const tctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', hasTouch: true });
+  await quiet(tctx);
+  await lane(tctx);
   const t = await tctx.newPage(); t.on('pageerror', e => errs.push(e.message));
   await t.goto('http://localhost:8080/');
   await t.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('today')); }, [K, U]);

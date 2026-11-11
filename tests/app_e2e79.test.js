@@ -6,8 +6,10 @@
 // read-only, deletes with the relay refusing DELETE and then allowing it, never touches Timothy's own automation, and
 // shows SCENES' state in SYSTEMS (READY, NEEDS ADMIN, RELAY BLOCKS DELETE). Portrait too.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const ha = () => fetch(R + '/__hacfg').then(r => r.json());
@@ -17,6 +19,8 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
   await fetch(R + '/__hareset');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
@@ -30,7 +34,7 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
       { id: 'light.skylight_2', name: 'Skylight 2', style: 'color', g: 'g1' }, { id: 'light.barn_porch', name: 'Barn Porch', style: 'dimmer', g: 'g1' },
       { id: 'switch.pond_lights_outlet', name: 'Pond Lights Outlet', style: 'toggle', g: null }]));
   }, [K, U, R]);
-  await p.reload(); await p.waitForTimeout(1200);
+  await p.reload(); await settled(p, 1200);
   await p.click('[data-screen="engineering"].nav'); await p.waitForSelector('.ec-scn');
   assert.ok(/No scenes yet/.test(await txt(p, '.ec-scn')), 'empty at first');
   assert.deepStrictEqual(await p.$$eval('.ec-sec > .phead h2', n => n.map(x => x.textContent)).then(x => x.slice(0, 2)), ['SCENES', 'LIGHTS AND SWITCHES'], 'SCENES above the lights');
@@ -105,7 +109,7 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
 
   // ---- changed in the Home Assistant app into something Bridge can't show: read-only here
   await fetch(R + '/__hacfg?id=' + ids[0]);
-  await p.reload(); await p.waitForTimeout(1200); await p.click('[data-screen="engineering"].nav');
+  await p.reload(); await settled(p, 1200); await p.click('[data-screen="engineering"].nav');
   await until(async () => /EDITED IN HOME ASSISTANT/.test(await txt(p, '.ec-scn')));
   await p.click('[data-scnedit="' + ids[0] + '"]'); await p.waitForSelector('#detailSheet.scn-sheet');
   assert.ok(/EDITED IN HOME ASSISTANT/.test(await txt(p, '#detailSheet')) && await p.locator('[data-scnsave]').count() === 0 && await p.isVisible('[data-scntry]'), 'run or pause, never saved over');
@@ -158,7 +162,7 @@ const calls = () => fetch(R + '/__stats').then(r => r.json()).then(j => j.calls)
   const ord = JSON.parse(await p.evaluate(() => localStorage.getItem('tos.hascnord.v1')));
   assert.strictEqual(ord.length, 3);
   const H2 = await ha(); assert.ok(Object.values(H2.cfg).filter(c => /^TimothyOS · /.test(c.alias)).length === 3, 'Home Assistant holds the three scenes; nothing about order');
-  await p.reload(); await p.waitForTimeout(1200); await p.click('[data-screen="engineering"].nav');
+  await p.reload(); await settled(p, 1200); await p.click('[data-screen="engineering"].nav');
   await until(async () => (await bar()).join() === 'ZULU,ALPHA,GAMING');
   await mk('Beta');
   await until(async () => (await bar()).join() === 'ZULU,ALPHA,GAMING,BETA', 8000);

@@ -5,8 +5,9 @@
 // refuses, Moira reads it; Systems shows Nova and the month's estimate, plays a test line, turns it off (no audio
 // asked for, Moira reads) and on, and names what an older bridge needs.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const brief = q => fetch(B + '&action=briefmode&' + q).then(r => r.json());
 const voice = q => fetch(B + '&action=voicemode&' + q).then(r => r.json());
@@ -21,6 +22,7 @@ const reset = () => Promise.all([brief('cap=0&fail=0&shape=0'), voice('cap=0&fai
   await brief('cap=1&fail=0&shape=0&reset=1'); await voice('cap=1&fail=0&slow=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.addInitScript(() => {
     window.__said = []; window.__plays = []; window.__pauses = 0;
     function U(t) { this.text = t; }

@@ -9,6 +9,7 @@
 // radio band's needle; STORAGE gone from ALL STATIONS. 2.48: a NETWORK channel (show folders, two levels, programmed
 // like TV: show names, never the same show twice in a row, UP NEXT), back to IN ORDER.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -21,12 +22,13 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await fetch(R + '/__reset');   /* the relay as it started: earlier runs may have added folders */
   const T0 = new Date('2026-10-28T14:00:00-05:00').getTime();
   await p.clock.setFixedTime(T0);   /* a fixed afternoon: NETWORK's lineup is the same every run and never near the 6:00 change */
   await p.goto('http://localhost:8080/');
-  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, R]);
+  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, R]);
   await p.reload(); await p.waitForSelector('#allBtn');
 
   // ---- from ALL STATIONS → RESOURCES; no folder yet: the picker opens on /Video

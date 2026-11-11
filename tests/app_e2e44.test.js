@@ -6,8 +6,9 @@
 // added to; TRUE UP STACK (feeder, excluder, a super with its own frame count, moved and removed pieces, logged
 // on an earlier date); a failed save waits with RETRY; Systems' row and SHARE WITH ASK; no emoji; phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:8105/macros/s/test/exec?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const aps = () => fetch(B + '&action=apstats').then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
@@ -19,10 +20,11 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   await mode('on=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(k => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'apiary']));
   }, K);
   await p.reload(); await p.waitForSelector('[data-screen="apiary"].nav', { timeout: 10000 });

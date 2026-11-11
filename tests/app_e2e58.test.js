@@ -5,8 +5,9 @@
 // previews before sending, and ADD TO NEXT TIME writes one line (UNDO takes it out); topic lists edited in Systems;
 // locking forgets everything but an unsaved draft. Invented sessions and wording throughout.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=sesmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json()).then(j => j.ses);
@@ -16,6 +17,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await mode('cap=1&reset=1&fail=0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-28T15:00:00-05:00'));
   await p.goto('http://localhost:8080/');

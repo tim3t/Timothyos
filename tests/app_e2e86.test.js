@@ -5,8 +5,9 @@
 // card in SYSTEMS says what isn't saved; once there is room MAKE ROOM AND SAVE writes it, the Condition clears, and it
 // is still there after a reload. CLEAR SAVED COPIES empties the copies. COMPUTER finds the section. Phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
@@ -24,6 +25,7 @@ const saved = (p, name) => p.evaluate(n => (localStorage.getItem('tos.mealgot.v1
   await mode('cap=1&reset=1&seed=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date(TODAY + 'T12:00:00-06:00'));
   await p.goto('http://localhost:8080/');

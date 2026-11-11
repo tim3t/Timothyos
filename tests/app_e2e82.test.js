@@ -4,14 +4,18 @@
 // LEVEL not paused, tried again at the live point, and the show picks up when the NAS is back; five instant failures in a
 // row no longer turn the TV off. The NAS answering with an error: the file's own problem, logged with the HTTP code.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
 
 (async () => {
   await fetch(R + '/__fail?n=0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u, r]) => {
@@ -21,7 +25,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
     const pr = Date.now() - 86400000;
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: pr }, { id: 2, name: 'Other Channel', dir: '/Video/Other Channel', premiere: pr }], ch: 1, look: 'crt', muted: true }));
   }, [K, U, R]);
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.reload(); await settled(p, 1500);
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
   await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 30000 });
   await p.click('.hd-tune');
@@ -37,7 +41,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   let L = await log();
   console.log('log:', L.slice(0, 4).map(e => e.a + ': ' + e.m).join(' | '));
   assert.ok(L.some(e => e.s === 'holodeck' && e.a === 'waiting for the NAS' && /NAS unreachable \(no connection\)/.test(e.m)), 'the cause is named');
-  await p.waitForTimeout(9000);   // 2 s, 4 s and 8 s tries go by
+  await settled(p, 9000);   // 2 s, 4 s and 8 s tries go by
   L = await log();
   assert.ok(!L.some(e => e.a === 'TV went off'), 'the TV stays on');
   assert.ok(!L.some(e => e.a === 'LEVEL paused'), 'LEVEL isn\'t blamed');

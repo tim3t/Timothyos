@@ -5,8 +5,9 @@
 // date), SKIP drops a card; QUEUE by hand; KEEP moves a note to KEPT; ✕ asks twice; SORT IT NOW brings a kept note
 // back; each note is marked Sorted with what it became; COMPUTER finds notes. Invented notes throughout.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=inboxmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=inboxstats').then(r => r.json());
@@ -18,6 +19,7 @@ const note = async n => (await stats()).notes.find(x => x.id === id(n));
   await mode('cap=1&fail=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-24T07:58:00-05:00'));
   await p.goto('http://localhost:8080/');

@@ -4,12 +4,14 @@
 // between), the pond in depth bands, plantings, jobs through the year with typical ones offered, QUICK GLANCE by season
 // with ticks that belong to this turn of the season, the garden's name, COMPUTER, and the narrow screen.
 const { chromium } = require('playwright');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8103/macros/s/test/exec';   // its lane's own simulated bridge (2.72: on :8105 it set off e50's schema-call count in another lane)
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec';   // its lane's own simulated bridge (2.72: on :8105 it set off e50's schema-call count in another lane)
 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-11-08T10:00:00-06:00'));   // late autumn
   await p.goto('http://localhost:8080/');

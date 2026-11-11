@@ -2,7 +2,9 @@
 # TimothyOS test runner.
 #   tests/run.sh            run everything
 #   tests/run.sh bridge     only the Apps Script bridge tests (no browser needed)
-#   JOBS=1 tests/run.sh     browser lanes one at a time (default 3 side by side)
+#   JOBS=1 tests/run.sh     browser lanes one at a time (default 6 side by side)
+#   ONLY="app_e2e22.test.js app_e2e24.test.js" tests/run.sh
+#                           just those browser tests, in their lanes, with every simulated server (no bridge tests)
 #
 # Needs: node, python3. Browser tests also need Playwright with Chromium
 # (globally installed, or `npm i -D playwright` in the repo root).
@@ -25,6 +27,7 @@ run() {  # run <file>: passes if node exits 0 and no page errors were printed; r
   return 0
 }
 
+if [ -z "${ONLY:-}" ]; then
 echo "== Bridge (Apps Script, simulated Google + Notion)"
 run bridge_calendar.test.js
 run bridge_notion.test.js
@@ -59,6 +62,7 @@ run bridge_sessions.test.js
 run bridge_profile.test.js
 run bridge_news.test.js
 run bridge_export.test.js
+fi
 [ "${1:-}" = "bridge" ] && exit $fail
 
 echo "== App (browser, against simulated bridges)"
@@ -81,13 +85,20 @@ python3 mock_v22.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.16: + Log search  
 python3 mock_v23.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.23: + Growth, holidays :8104
 python3 mock_v24.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.24/1.25: + Tarot, books :8105
 python3 mock_sickbay.py >/dev/null 2>&1 & pids+=($!)   # bridge 1.43: SICKBAY only     :8106
+# 2026-11-11 (D76): the long lanes are split, each with its own copy of the simulated bridge it needs (a copy keeps
+# its own state, so lanes can't disturb each other) and its own relay. Ports: lane table below.
+for p in 8113 8114 8115 8116 8118 8119 8121 8129; do python3 mock_v24.py $p >/dev/null 2>&1 & pids+=($!); done   # copies of :8105
+for p in 8117 8128; do python3 mock_v23.py $p >/dev/null 2>&1 & pids+=($!); done   # copies of :8104
+python3 mock_v22.py 8120 >/dev/null 2>&1 & pids+=($!)   # a copy of :8103
+for p in 8122 8123 8124 8126 8127 8130; do python3 mock_relay.py $p >/dev/null 2>&1 & pids+=($!); done   # more relays
 python3 mock_relay.py 8110 >/dev/null 2>&1 & pids+=($!)   # NAS relay, one per lane that uses it: 8110
 python3 mock_relay.py 8111 >/dev/null 2>&1 & pids+=($!)   #                                                8111
 python3 mock_relay.py 8112 >/dev/null 2>&1 & pids+=($!)   #                                                8112
 # Wait until every server answers (the relays make their sample audio with ffmpeg first).
 python3 - <<'PY' || { echo "FAIL  a simulated server never started"; exit 1; }
 import socket, time, sys
-ports = [8080, 8090, 8092, 8093, 8094, 8095, 8096, 8097, 8098, 8099, 8100, 8101, 8102, 8103, 8104, 8105, 8106, 8110, 8111, 8112]
+ports = [8080, 8090, 8092, 8093, 8094, 8095, 8096, 8097, 8098, 8099, 8100, 8101, 8102, 8103, 8104, 8105, 8106, 8110, 8111, 8112,
+         8113, 8114, 8115, 8116, 8117, 8118, 8119, 8120, 8121, 8122, 8123, 8124, 8126, 8127, 8128, 8129, 8130]
 end = time.time() + 60
 for p in ports:
     while True:
@@ -102,10 +113,16 @@ PY
 # nothing (each relay lane has its own relay, RELAY_PORT) and run side by side, up to $JOBS at once, longest first.
 # A lane is: name|environment|tests…   Comments name what each test covers.
 LANES=(
-  "tarot-apiary|RELAY_PORT=8112|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e67.test.js app_e2e68.test.js app_e2e71.test.js app_e2e72.test.js app_e2e73.test.js app_e2e85.test.js app_e2e86.test.js app_e2e87.test.js app_e2e75.test.js app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js"
-  "log-storage|RELAY_PORT=8110|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
+  "tarot-apiary-1|RELAY_PORT=8112 PORT_8105=8105|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e67.test.js"
+  "tarot-apiary-2|RELAY_PORT=8122 PORT_8105=8113|app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e68.test.js app_e2e71.test.js"
+  "meals|RELAY_PORT=8123 PORT_8105=8114|app_e2e72.test.js app_e2e73.test.js app_e2e85.test.js app_e2e86.test.js app_e2e87.test.js app_e2e75.test.js"
+  "tarot-apiary-4|RELAY_PORT=8124 PORT_8105=8115|app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js"
+  "log-storage-1|RELAY_PORT=8110 PORT_8103=8103 PORT_8105=8119|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js"
+  "log-storage-2|RELAY_PORT=8127 PORT_8103=8120 PORT_8105=8121|app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
-  "growth-engineering|RELAY_PORT=8111|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js app_e2e79.test.js"
+  "growth-engineering-1|RELAY_PORT=8111 PORT_8104=8104 PORT_8105=8116|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js"
+  "growth-engineering-2|RELAY_PORT=8126 PORT_8104=8117 PORT_8105=8118|app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js"
+  "growth-engineering-3|RELAY_PORT=8130 PORT_8104=8128 PORT_8105=8129|app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js app_e2e79.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
   "log-loom|-|app_e2e22.test.js app_e2e23.test.js app_e2e76.test.js"
   "stations|-|app_e2e24.test.js app_e2e25.test.js"
@@ -189,14 +206,17 @@ run_lane() {  # run_lane <index>: the lane's tests in order; its report goes to 
   local spec="${LANES[$1]}" name env tests t0=$SECONDS
   name="${spec%%|*}"; env="${spec#*|}"; tests="${env#*|}"; env="${env%%|*}"
   (
-    [ "$env" != "-" ] && export "$env"
+    [ "$env" != "-" ] && export $env   # one or more NAME=value, separated by spaces
     echo "-- lane $name"
-    for t in $tests; do run "$t" || touch "$lanes_dir/$1.failed"; done
+    for t in $tests; do
+      if [ -n "${ONLY:-}" ] && ! printf ' %s ' $ONLY | grep -qF " $t "; then continue; fi
+      run "$t" || touch "$lanes_dir/$1.failed"
+    done
   ) > "$lanes_dir/$1.log" 2>&1
   echo "   lane $name done in $((SECONDS - t0))s"
 }
 export VERBOSE="${VERBOSE:-}"
-JOBS="${JOBS:-3}"
+JOBS="${JOBS:-6}"   # 2026-11-11: most of a browser test's time is waiting, so 6 lanes at once run well on 4 cores
 help wait 2>/dev/null | grep -q -- "-n" || JOBS=1   # bash before 4.3: one lane at a time
 started=$SECONDS; lane_pids=()
 for i in "${!LANES[@]}"; do
@@ -208,7 +228,7 @@ done
 for i in "${!LANES[@]}"; do cat "$lanes_dir/$i.log"; [ -e "$lanes_dir/$i.failed" ] && fail=1; done
 # Timing-sensitive (samples the standby fade frame by frame), so it runs alone once the lanes are done.
 echo "-- alone"
-run app_e2e21.test.js || true
+if [ -z "${ONLY:-}" ] || printf ' %s ' $ONLY | grep -qF " app_e2e21.test.js "; then run app_e2e21.test.js || true; fi
 echo "   browser tests took $((SECONDS - started))s"
 
 echo

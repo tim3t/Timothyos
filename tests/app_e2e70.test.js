@@ -5,6 +5,8 @@
 // sideways inside its box with the channel column in place, the keypad goes to six keys a row, and the page never
 // scrolls sideways.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -13,11 +15,13 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, r]) => {
     localStorage.clear();
-    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
+    localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     const d = Date.now() - 3600e3, dirs = ['Test Channel', 'Test Series', 'Test Network', 'Test Channel', 'Test Series', 'Test Channel', 'Not There'];
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: dirs.map((x, i) => ({ id: i + 1, name: 'Sample ' + (i + 1), dir: '/Video/' + x, premiere: d - i * 7000, style: x === 'Test Network' ? 'network' : 'order' })), ch: 1, look: 'clean', muted: true }));
@@ -51,7 +55,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await p.click('[data-hd="gauto"]');
   assert.strictEqual(await p.getAttribute('[data-hd="gauto"]', 'aria-pressed'), 'true');
   await until(async () => (await body()).top > 8);
-  await p.dispatchEvent('#hdTgBody', 'pointerdown'); const held = (await body()).top; await p.waitForTimeout(800);
+  await p.dispatchEvent('#hdTgBody', 'pointerdown'); const held = (await body()).top; await settled(p, 800);
   assert.ok(Math.abs((await body()).top - held) <= 1, 'a touch holds it');
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.holo.v1')).gauto), true, 'remembered');
 

@@ -5,8 +5,9 @@
 // Upkeep that is due reaches the briefing. NEWS: the two newest NPR headlines, added after Claude's paragraphs exactly
 // as written, with links, never sent to Claude; NO HEADLINES in SYSTEMS turns them off; a feed that fails costs nothing.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = (a, q) => fetch(B + '&action=' + a + '&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=briefstats').then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -25,6 +26,7 @@ const reset = () => Promise.all([mode('briefmode', 'cap=0&fail=0&shape=0'), mode
   await mode('briefmode', 'cap=1&fail=0&shape=0&reset=1'); await mode('apmode', 'on=1'); await mode('newsmode', 'cap=1&fail=0&reset=1'); await mode('voicemode', 'cap=0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.route('https://api.open-meteo.com/**', r => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(weather()) }));
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date(TODAY + 'T07:30:00-06:00'));

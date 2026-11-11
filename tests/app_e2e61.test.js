@@ -4,11 +4,13 @@
 // And what the measurement is for still works: with the keyboard up (a smaller viewport while typing) the panel sits
 // above it, and fills the screen again once the field lets go. Simulated bridge on :8104.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64);
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, serviceWorkers: 'block', timezoneId: 'America/Chicago' });
+  await lane(ctx);
   await ctx.addInitScript(() => {
     window.__vv = { h: null, hidden: false };
     const vv = window.visualViewport, real = Object.getOwnPropertyDescriptor(VisualViewport.prototype, 'height');
@@ -19,7 +21,7 @@ const K = 'k'.repeat(64);
   const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-06T09:46:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('today')); }, K);
+  await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('today')); }, K);
   await p.reload(); await p.waitForTimeout(1500);
   // into the background with audio playing: hidden, the app switcher shrinks the viewport, a resize lands
   await p.evaluate(() => { window.__vv.hidden = true; document.dispatchEvent(new Event('visibilitychange')); window.__vv.h = 77; visualViewport.dispatchEvent(new Event('resize')); });

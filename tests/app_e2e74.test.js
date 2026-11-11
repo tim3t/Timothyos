@@ -7,8 +7,10 @@
 // does a video that won't load with LEVEL on (not marked); the next TUNE IN levels again; with no backup, TAP FOR SOUND
 // starts afresh. The background radio stays a plain <audio>. SYSTEMS → ERROR LOG lists HOLODECK's lines.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
 const lvl = p => p.evaluate(() => { const e = document.getElementById('hdLvl'); return e ? e.textContent : null; });
 const db = t => { const m = /^([+−])(\d+\.\d) DB$/.exec(t || ''); return m ? (m[1] === '−' ? -1 : 1) * +m[2] : null; };
@@ -19,6 +21,8 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   await fetch(R + '/__mkdir?d=' + encodeURIComponent('/Video/Level Test'));
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   await ctx.addInitScript(() => {   /* the routed engine, so the test can see and stall it */
     const C = window.AudioContext, o = C.prototype.createMediaElementSource;
     C.prototype.createMediaElementSource = function (el) { window.__lv = this; window.__lvN = (window.__lvN || 0) + 1; return o.call(this, el); };
@@ -31,7 +35,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' })); localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Level Test', dir: '/Video/Level Test', premiere: Date.now() - 34000 }], ch: 1, look: 'crt', muted: false }));
   }, [K, U, R]);
-  await p.reload(); await p.waitForTimeout(1200);
+  await p.reload(); await settled(p, 1200);
   await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]');
   await p.waitForSelector('#hdLvl');
   assert.strictEqual(await lvl(p), 'ON', 'LEVEL is on by default');
@@ -46,7 +50,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   assert.ok(await p.evaluate(() => window.__lv && window.__lv.state === 'running'), 'the engine runs');
   assert.strictEqual(await lvl(p), 'LEARNING', 'nothing known yet');
   const g1 = await until(async () => db(await lvl(p)), 12000);
-  await p.waitForTimeout(2500);
+  await settled(p, 2500);
   const g2 = db(await lvl(p));
   assert.ok(g1 > 0 && g2 > g1, 'the gain rises for a quiet show, a step at a time: ' + g1 + ' then ' + g2);
   assert.ok(g2 - g1 < 2, 'eased, never a jump: ' + g1 + ' → ' + g2);
@@ -57,7 +61,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   assert.ok(q && q.n >= 5 && q.l < -34 && q.l > -47, 'the quiet show measured near -41: ' + JSON.stringify(q));
   const s0 = db(await lvl(p));
   assert.ok(s0 > 11, 'the loud show starts at the folder\'s level (all quiet so far): ' + s0);
-  await p.waitForTimeout(6000);
+  await settled(p, 6000);
   const s1 = db(await lvl(p));
   assert.ok(s1 < s0 - 1, 'and eases down as it hears the loud show: ' + s0 + ' → ' + s1);
 
@@ -139,6 +143,8 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   // ---- a video that won't load with LEVEL on (a fresh browser, so nothing is cached): LEVEL steps aside, the show
   // plays, the file isn't marked, the error log has Safari's code, the file and LEVEL's state
   const ctx2 = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx2);
+  await lane(ctx2);
   // 2.66: the backup unlocks a second late (as on a slow moment), so the load fails before it's ready: LEVEL must wait for it, not skip the show
   await ctx2.addInitScript(() => { const pl = HTMLMediaElement.prototype.play; HTMLMediaElement.prototype.play = function () { const r = pl.call(this); return this.id === 'hdVideoB' ? new Promise((ok, no) => setTimeout(() => r.then(ok, no), 1000)) : r; }; });
   const p2 = await ctx2.newPage(); p2.on('pageerror', e => errs.push(e.message));
@@ -151,7 +157,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Level Test', dir: '/Video/Level Test', premiere: Date.now() - 10000 }], ch: 1, look: 'crt', muted: false }));
     localStorage.setItem('tos.hololen.v1', ls);
   }, [K, U, R, lensP]);
-  await p2.reload(); await p2.waitForTimeout(1200);
+  await p2.reload(); await settled(p2, 1200);
   await p2.click('[data-screen="holodeck"].nav'); await p2.waitForSelector('.hd-arch'); await p2.click('[data-hdprog="visual"]');
   await p2.waitForSelector('.hd-tune:not([disabled])', { timeout: 20000 });
   await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Level Test/0') + '&code=404&n=1');

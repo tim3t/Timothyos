@@ -5,20 +5,24 @@
 // TODAY counts requests; COPY REPORT copies it with the versions; CLEAR asks twice; COMPUTER finds it. (backup_keys:
 // never in a backup.)
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec';
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
 const log = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]'));
 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:8080' });
   const p = await ctx.newPage();
   p.on('pageerror', e => { if (!/test boom|test rejection/.test(e.message)) errs.push(e.message); });   /* the two thrown on purpose */
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, U]);
-  await p.reload(); await p.waitForTimeout(2500);
+  await p.reload(); await settled(p, 2500);
 
   // ---- nothing yet
   await p.click('#status'); await p.waitForSelector('#sec-errlog');
@@ -74,12 +78,12 @@ const log = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1
   assert.ok(!/supersecret/.test(clip));
 
   // ---- kept across a reload; never in a backup; COMPUTER finds it
-  await p.reload(); await p.waitForTimeout(2000);
+  await p.reload(); await settled(p, 2000);
   assert.ok((await log(p)).length >= 4, 'kept on the iPad');
   await p.keyboard.press('Meta+k'); await p.waitForSelector('#cmdScrim:not([hidden]):not(.closing)');
   await p.fill('#cmdText', 'error log'); await p.waitForTimeout(200);
   assert.ok(/Error log/.test(await p.textContent('#cmdScrim')), 'COMPUTER lists it');
-  await p.keyboard.press('Enter'); await p.waitForTimeout(600);
+  await p.keyboard.press('Enter'); await settled(p, 600);
   assert.ok(await p.$('#sec-errlog'), 'and opens SYSTEMS at it');
 
   // ---- CLEAR asks twice

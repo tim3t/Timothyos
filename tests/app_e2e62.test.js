@@ -4,6 +4,7 @@
 // the same guide. Simulated relay; invented files. Lengths are rewritten after measuring so episodes and commercials
 // are long enough to land inside a break.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -16,10 +17,16 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   await fetch(R + '/__reset'); await fetch(R + '/__mkdir?d=' + encodeURIComponent('/Video/Commercials'));
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  // The guide follows the clock in half-hour columns, and this test reads it twice to compare: a :00 or :30 falling
+  // between the two reads moved every block (2026-11-10). The page's clock starts at :07 or :37 of this hour and runs
+  // at its normal pace from there, so the whole test sits inside one half hour, on today's date as the relay expects.
+  const start = new Date(); start.setMinutes(start.getMinutes() < 30 ? 7 : 37, 0, 0);
+  await p.clock.install({ time: start }); await p.clock.resume();
   const visual = async () => { await p.waitForSelector('[data-screen="holodeck"].nav'); await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd-ads'); };
   await p.goto('http://localhost:8080/');
-  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
+  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Test Channel', dir: '/Video/Test Channel', premiere: Date.now() - 3600e3 }, { id: 2, name: 'Test Network', dir: '/Video/Test Network', premiere: Date.now() - 3600e3, style: 'network' }], ch: 1, look: 'clean', muted: true, copen: true })); }, [K, R]);
   await p.reload(); await visual();
@@ -91,8 +98,10 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   await p.click('[data-hdkey="2"]'); await p.click('[data-hdkey="ok"]');
   // the guide fills in as the channel's folders and lengths arrive: read it once it has settled (every block named, and
   // the same two reads a second apart), as a slow full run once caught it half built
-  const settled = async (n, ms = 15000) => { const t = Date.now(); let a = null; for (;;) { const c = await cells(p, n), k = JSON.stringify(c);
-    if (c.length >= 5 && c.every(x => x.what) && k === a) return c; if (Date.now() - t > ms) return c; a = k; await p.waitForTimeout(1000); } };
+  // 2026-11-11: up to 40 s (measuring lengths is slow on a busy machine), and a guide that never finishes fails here, by
+  // name, instead of being compared half built (which is how this test used to fail when the machine was busy).
+  const settled = async (n, ms = 40000) => { const t = Date.now(); let a = null; for (;;) { const c = await cells(p, n), k = JSON.stringify(c);
+    if (c.length >= 5 && c.every(x => x.what) && k === a) return c; if (Date.now() - t > ms) throw new Error('the guide never finished filling in: ' + k); a = k; await p.waitForTimeout(1000); } };
   g = await settled(2);
   assert.ok(g.length >= 5 && g.every(x => [12, 13, 15, 16].includes(mins(x.range))), 'every episode with its break: ' + JSON.stringify(g));
   const later = g.map(x => x.range + ' ' + x.what);

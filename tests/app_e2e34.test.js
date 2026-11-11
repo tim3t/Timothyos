@@ -2,21 +2,25 @@
 // Growth Life Area lands there), standby until the Growth calendar is linked, then a live area:
 // Today, Systems, Capture (its own chip), the BALANCE minimum in Systems, Review hours.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8103, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
 const conn = port => JSON.stringify({ url: 'http://127.0.0.1:' + port + '/macros/s/test/exec', key: K });
-const stats = async () => (await (await fetch('http://127.0.0.1:8104/x/exec?action=stats&key=' + K)).json());
+const stats = async () => (await (await fetch('http://127.0.0.1:' + P8104 + '/x/exec?action=stats&key=' + K)).json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   const setup = port => p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', c); localStorage.setItem('tos.start.v1', '"today"'); }, conn(port));
 
   // --- not linked (bridge 1.21): GROWTH on standby, no HOBBIES anywhere
-  await setup(8103); await p.reload(); await p.waitForTimeout(1800);
+  await setup(+P8103); await p.reload(); await settled(p, 1800);
   assert.ok((await txt(p, '.arow.stub.a-hobby')).includes('GROWTH'));
   await p.click('#capBtn'); await p.waitForTimeout(200);
   assert.ok(await p.isDisabled('#capGrowth')); assert.ok((await p.textContent('#capGrowth')).includes('GROWTH'));
@@ -24,11 +28,11 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.ok(!(await p.evaluate(() => document.body.innerText)).includes('HOBBIES'), 'renamed');
 
   // --- linked (bridge 1.22)
-  await setup(8104); await p.reload(); await p.waitForTimeout(2000);
+  await setup(+P8104); await p.reload(); await settled(p, 2000);
   const row = await txt(p, '.arow.a-hobby');
   console.log('today growth:', row);
   assert.ok(row.startsWith('GROWTH') && !row.includes('STANDBY') && /\d ITEMS?$/.test(row) && !row.includes('undefined'), row);
-  await p.click('.elbow'); await p.waitForTimeout(600);
+  await p.click('.elbow'); await settled(p, 600);
   assert.strictEqual(await p.locator('.ov-bal').count(), 0, 'BALANCE left the Bridge in 2.63 (its targets stay in Systems)');
 
   await p.click('#status'); await p.waitForTimeout(400);
@@ -41,14 +45,14 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.ok(!(await p.isDisabled('#capGrowth')));
   await p.click('#capGrowth');
   assert.strictEqual(await p.textContent('#capMode'), 'GROWTH CALENDAR');
-  await p.fill('#capText', 'Sketching hour'); await p.click('#capSave'); await p.waitForTimeout(1500);
+  await p.fill('#capText', 'Sketching hour'); await p.click('#capSave'); await settled(p, 1500);
   assert.ok((await stats()).createdAreas.some(x => x[0] === 'Sketching hour' && x[1] === 'hobby'), 'saved to the Growth calendar');
 
   // --- Review shows Growth hours
-  await p.click('[data-screen="review"].nav'); await p.waitForTimeout(800);
+  await p.click('[data-screen="review"].nav'); await settled(p, 800);
   /* this week's card, by its date: it is "cur" most of the week but "due" from Sunday 14:00 (2.26: failed on Sunday evenings) */
   const mon34 = await p.evaluate(() => { const d = new Date(); d.setHours(12); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
-  await p.click('.rl-card[data-rweek="' + mon34 + '"]'); await p.waitForTimeout(1500);
+  await p.click('.rl-card[data-rweek="' + mon34 + '"]'); await settled(p, 1500);
   const rows = (await p.locator('.rv-row').allInnerTexts()).map(t => t.replace(/\s+/g, ' ').trim());
   console.log('review rows:', rows.join(' | '));
   assert.ok(rows.some(r => r.startsWith('GROWTH')), 'Growth hours in the review');

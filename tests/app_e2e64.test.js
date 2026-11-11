@@ -4,6 +4,7 @@
 // schedule on this iPad, the run carries on to one that plays, the folded row says how many, and an opened row names
 // them. Simulated relay; invented files.
 const { chromium } = require('playwright');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -12,10 +13,11 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await fetch(R + '/__reset'); await fetch(R + '/__mkdir?d=' + encodeURIComponent('/Video/Rough Cuts'));
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   const visual = async () => { await p.waitForSelector('[data-screen="holodeck"].nav'); await p.click('[data-screen="holodeck"].nav'); await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd-rail'); };
   await p.goto('http://localhost:8080/');
-  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
+  await p.evaluate(([k, r]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck']));
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, copen: true, look: 'clean', muted: true })); }, [K, R]);
   await p.reload(); await visual();
@@ -62,10 +64,11 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   // none is marked as one the iPad can't play
   await fetch(R + '/__fail?prefix=' + encodeURIComponent('/Video/Rough Cuts/') + '&code=404&n=999');
   const ctx2 = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx2);
   const q = await ctx2.newPage(); q.on('pageerror', e => errs.push(e.message));
   const lensNow = await p.evaluate(() => localStorage.getItem('tos.hololen.v1'));
   await q.goto('http://localhost:8080/');
-  await q.evaluate(([k, r, l]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
+  await q.evaluate(([k, r, l]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'holodeck'])); localStorage.setItem('tos.hololen.v1', l);   /* lengths known, as on the iPad that measured them */
     localStorage.setItem('tos.holo.v1', JSON.stringify({ chans: [{ id: 1, name: 'Rough Cuts', dir: '/Video/Rough Cuts', premiere: Date.now() - 3600e3 }], ch: 1, copen: true, look: 'clean', muted: true })); }, [K, R, lensNow]);
   await q.reload(); await q.click('[data-screen="holodeck"].nav'); await q.waitForSelector('.hd-arch'); await q.click('[data-hdprog="visual"]');

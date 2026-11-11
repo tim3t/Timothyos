@@ -2,6 +2,8 @@
 // calendar events (no hours, meetings or BALANCE), a HOLIDAYS filter on DATES, a read-only card with
 // HIDE THIS HOLIDAY (uses the IGNORED EVENTS list), and a status row in Systems. Dates are invented.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -9,9 +11,11 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8104/macros/s/test/exec', key: k })); }, K);
+  await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k })); }, K);
   await p.reload(); await p.waitForSelector('.rb-comms .ov-kd', { timeout: 10000 });
 
   // ---- Bridge (2.63: COMMS' KEY DATE row): the next date is a holiday, tagged
@@ -32,14 +36,14 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
     if (Math.abs(end - nowMin) > 1) assert.strictEqual(e.past, end < nowMin, 'past matches its end time: ' + JSON.stringify(e));
   }
   console.log('today blocks:', evs.map(e => (e.past ? '✓' : '·') + e.tm).join(' '));
-  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(500);
+  await p.click('[data-screen="week"].nav'); await settled(p, 500);
   if (new Date().getDay() !== 1) assert.ok(await p.locator('.wkb.past').count() > 0, 'Week dims finished blocks (earlier days this week)');
   await p.screenshot({ path: D + 'past-week.png' });
-  await p.click('.elbow'); await p.waitForTimeout(500);
+  await p.click('.elbow'); await settled(p, 500);
 
   // ---- not events: no hours, no blocks
   assert.ok(!(await p.evaluate(() => [...document.querySelectorAll('.ov-now, .ov-wk')].some(e => /Veterans Day/.test(e.textContent)))), 'not in Now/Next or Horizon');
-  await p.click('[data-screen="week"].nav'); await p.waitForTimeout(600);
+  await p.click('[data-screen="week"].nav'); await settled(p, 600);
   assert.strictEqual(await p.locator('.wkb[title^="Veterans Day"]').count(), 0, 'no Week block');
 
   // ---- DATES: HOLIDAYS filter

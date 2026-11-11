@@ -4,8 +4,9 @@
 // from each task's Focus Date, then swap in the fresh list; picks you've changed meanwhile are kept.
 // All tasks are invented sample data.
 const { chromium } = require('playwright');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:8103/x/exec?key=' + K + '&action=';
+const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:' + P8103 + '/x/exec?key=' + K + '&action=';
 const call = async q => (await (await fetch(M + q)).json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const picked = p => p.$$eval('#planSheet .cand[aria-pressed="true"] b', bs => bs.map(b => b.textContent));
@@ -18,10 +19,11 @@ const picked = p => p.$$eval('#planSheet .cand[aria-pressed="true"] b', bs => bs
   await call('tslow&s=3');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-06T08:27:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: 'k'.repeat(64) })); localStorage.setItem('tos.tasks.v1', JSON.stringify(c)); }, cached);
+  await p.evaluate(c => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: 'k'.repeat(64) })); localStorage.setItem('tos.tasks.v1', JSON.stringify(c)); }, cached);
   const before = (await call('stats')).batches.length;
   await p.reload(); await p.waitForTimeout(500);
 

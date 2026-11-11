@@ -3,18 +3,20 @@
 // lines into bullets and back without dropping the keyboard. The LOG saves the text as typed (the
 // bridge makes real Notion list items); drafts keep the bullets. All text is invented.
 const { chromium } = require('playwright');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:8103/x/exec?key=' + K + '&action=';
+const D = __dirname + '/out/', K = 'k'.repeat(64), M = 'http://127.0.0.1:' + P8103 + '/x/exec?key=' + K + '&action=';
 const call = async q => (await (await fetch(M + q)).json());
 
 (async () => {
   await call('pincode');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-09T20:10:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1800);
 
   // ---- LOG

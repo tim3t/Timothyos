@@ -5,6 +5,7 @@
 // removed in two taps; a reading; a note added and removed; the dentist from the Personal calendar. SYSTEMS: the
 // section, the health key, SHARE WITH ASK. Phone width. Runs on the real date: the simulated days are relative to it.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:8106/macros/s/test/exec', CTL = 'http://127.0.0.1:8106/?action=';
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
@@ -13,6 +14,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await fetch(CTL + 'skreset');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => {
@@ -20,7 +22,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
     localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.briefoff.v1', 'true');
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'sickbay'])); localStorage.setItem('tos.start.v1', JSON.stringify('bridge'));
   }, [K, U]);
-  await p.reload(); await p.waitForTimeout(1500);
+  await p.reload(); await settled(p, 1500);
   const txt = s => p.innerText(s);
 
   // ---- the Bridge: resting heart rate up two mornings
@@ -104,7 +106,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   // ---- nothing new from Health for three days: Condition says so
   await fetch(CTL + 'skmode&stale=1');
   await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
-  await p.reload(); await p.waitForTimeout(1200);
+  await p.reload(); await settled(p, 1200);
   await p.click('.elbow[data-screen="bridge"]');
   await until(async () => /No health data for 3 days/.test(await txt('#content')), 15000).catch(async e => { console.log('BRIDGE TEXT:', (await txt('#content')).slice(0, 600)); console.log('SCREEN', await p.evaluate(() => document.querySelector('#title').textContent), 'ERRS', JSON.stringify(errs), 'CACHE', await p.evaluate(() => (localStorage.getItem('tos.sickbay.v1') || 'none').slice(0, 120)), 'Q', await p.evaluate(() => localStorage.getItem('tos.sickbayq.v1'))); throw e; });
   await fetch(CTL + 'skmode&stale=0');

@@ -5,8 +5,10 @@
 // ORDERS OF THE DAY, BODY + HOME, COMMS (rows always in the same order); one card style; no sideways scroll; a redraw
 // leaves the page where it was; in portrait the columns stack in the same order.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const ORDER = ['BRIEFING', 'INBOX', 'SCIENCE', 'KEY DATE', 'BEARING', 'TAROT'];
 
@@ -16,13 +18,15 @@ const ORDER = ['BRIEFING', 'INBOX', 'SCIENCE', 'KEY DATE', 'BEARING', 'TAROT'];
   const b = await chromium.launch(); const errs = [];
   for (const [w, h] of [[1180, 820], [820, 1180]]) {
     const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: true, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+    await quiet(ctx);
+    await lane(ctx);
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
     await p.goto('http://localhost:8080/');
     await p.evaluate(([k, u]) => {
       localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', '"bridge"');
       localStorage.setItem('tos.bearings.v1', JSON.stringify(['Steady hands', 'Open door']));
     }, [K, U]);
-    await p.reload(); await p.waitForSelector('.rb-ribbon'); await p.waitForTimeout(2500);
+    await p.reload(); await p.waitForSelector('.rb-ribbon'); await settled(p, 2500);
     const tag = w + 'x' + h + ': ';
 
     // ---- gone: HORIZON and BALANCE
@@ -51,7 +55,7 @@ const ORDER = ['BRIEFING', 'INBOX', 'SCIENCE', 'KEY DATE', 'BEARING', 'TAROT'];
     assert.strictEqual(left, '78.57%', tag + 'at 18:00');
     await p.click('.rb-add'); await p.waitForSelector('#capScrim:not([hidden])');
     assert.ok(await p.isVisible('#capForm'), tag + '+ opens CAPTURE');
-    await p.keyboard.press('Escape'); await p.waitForTimeout(500);
+    await p.keyboard.press('Escape'); await settled(p, 500);
 
     // ---- three columns, one card style
     const cards = await p.$$eval('.rb-cols > .rb-card', cs => cs.map(c => { const r = c.getBoundingClientRect(), s = getComputedStyle(c); return { x: Math.round(r.left), y: Math.round(r.top), h2: c.querySelector('.phead h2').textContent, bg: s.backgroundColor, rad: s.borderRadius }; }));
@@ -81,12 +85,12 @@ const ORDER = ['BRIEFING', 'INBOX', 'SCIENCE', 'KEY DATE', 'BEARING', 'TAROT'];
     await p.waitForTimeout(100);
     const before = await pos();
     assert.ok(before.y + before.c > 100, tag + 'scrolled: ' + JSON.stringify(before));
-    await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await p.waitForTimeout(600);   /* back to the app: the Bridge redraws */
+    await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); await settled(p, 600);   /* back to the app: the Bridge redraws */
     assert.deepStrictEqual(await pos(), before, tag + 'the redraw keeps the page where it was');
     await p.screenshot({ path: D + 'bridge-ribbon-' + (w > 860 ? 'landscape' : 'portrait') + '.png', fullPage: true });
 
     // ---- the dinner pin opens MEALS; leaving the Bridge hides the pill
-    await p.click('.rb-pin.pin-dinner'); await p.waitForTimeout(600);
+    await p.click('.rb-pin.pin-dinner'); await settled(p, 600);
     assert.strictEqual(await p.textContent('#title'), 'MEALS');
     assert.ok(await p.isHidden('#condSlot'), tag + 'the pill is the Bridge\'s');
     await ctx.close();

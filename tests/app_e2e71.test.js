@@ -5,8 +5,10 @@
 // WAITING until those stations were opened). The page's Content-Security-Policy blocks a service it doesn't list, and
 // RECENT REQUESTS names what was blocked.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = (a, q) => fetch(B + '&action=' + a + '&' + q).then(r => r.json());
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
 
@@ -14,8 +16,10 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
   await mode('readmode', 'post=1&get=1&reset=1'); await mode('apmode', 'on=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
-  let seen = []; p.on('request', r => { if (r.url().includes(':8105/')) seen.push({ m: r.method(), url: r.url(), body: r.postData() || '' }); });
+  let seen = []; p.on('request', r => { if (r.url().includes(':' + P8105 + '/')) seen.push({ m: r.method(), url: r.url(), body: r.postData() || '' }); });
   const act = x => x.m === 'POST' ? JSON.parse(x.body).action : new URL(x.url).searchParams.get('action');
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, U]);
@@ -38,8 +42,10 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
   // ---- an older bridge: reads fall back to GET (the key in the address, as before 2.58), and everything still loads
   await mode('readmode', 'post=0');
   const ctx2 = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx2);
+  await lane(ctx2);
   const p2 = await ctx2.newPage(); p2.on('pageerror', e => errs.push(e.message));
-  let s2 = []; p2.on('request', r => { if (r.url().includes(':8105/')) s2.push({ m: r.method(), url: r.url(), body: r.postData() || '' }); });
+  let s2 = []; p2.on('request', r => { if (r.url().includes(':' + P8105 + '/')) s2.push({ m: r.method(), url: r.url(), body: r.postData() || '' }); });
   await p2.goto('http://localhost:8080/');
   await p2.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); }, [K, U]);
   s2 = []; await p2.reload();
@@ -54,7 +60,7 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
   await p2.waitForFunction(() => /^SYNCED/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   const after = s2.filter(x => x.m === 'GET');
   assert.ok(after.length <= 2, 'at most the one refused GET per read in flight: ' + after.map(x => x.url).join(' '));
-  s2 = []; await p2.click('[data-act="refresh"]'); await p2.waitForTimeout(1500);
+  s2 = []; await p2.click('[data-act="refresh"]'); await settled(p2, 1500);
   assert.ok(s2.length && s2.every(x => x.m === 'POST'), 'from then on, POST only');
 
   // ---- the Content-Security-Policy: a service it doesn't list is blocked, and SYSTEMS says so

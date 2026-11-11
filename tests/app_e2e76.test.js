@@ -4,6 +4,7 @@
 // caret with it. Now a hidden copy is measured: the editor's height is never "auto" and never drops while text is
 // added, the page (portrait) or #content (landscape) stays where it was, and the editor is as tall as its text.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
 const K = 'k'.repeat(64);
 
@@ -12,10 +13,11 @@ const K = 'k'.repeat(64);
   const b = await chromium.launch(); const errs = [];
   for (const [w, h] of [[820, 1180], [1180, 820]]) {
     const ctx = await b.newContext({ viewport: { width: w, height: h }, hasTouch: true, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+    await quiet(ctx);
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
     await p.goto('http://localhost:8080/');
     await p.evaluate(k => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8101/macros/s/test/exec', key: k })); localStorage.setItem('tos.start.v1', '"today"'); }, K);
-    await p.reload(); await p.waitForTimeout(1500);
+    await p.reload(); await settled(p, 1500);
     await p.click('[data-screen="log"].nav'); await p.waitForTimeout(400);
     for (const k of '135790') await p.click('[data-lpin="' + k + '"]');
     await p.waitForSelector('.cl-text', { timeout: 10000 });

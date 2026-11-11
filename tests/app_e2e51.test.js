@@ -5,8 +5,9 @@
 // counts only (never the Log; tarot only with its switch), prints, reads aloud in Moira, and on 31 December after
 // 06:00 compiles itself as the whole year. Invented data throughout.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const astro = q => fetch(B + '&action=astromode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=astrostats').then(r => r.json());
@@ -15,6 +16,7 @@ const UPKEEP = [{ id: 'u1', name: 'Juniper filter', cat: 'home', every: 3, unit:
 
 async function open(b, when, start, setup) {
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.addInitScript(() => {
     window.__said = [];
     function U(t) { this.text = t; }

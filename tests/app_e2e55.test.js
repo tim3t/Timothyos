@@ -4,8 +4,9 @@
 // FREEFORM, the ring inside the field; DRIFT: modes, bed, a touch, the sleep timer; RECORD a take and SAVE TO FILES;
 // leaving goes quiet; settings kept on the iPad across a reload; COMPUTER finds it; phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec';
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const saved = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.ressikan.v1') || 'null'));
 const until = async (fn, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
@@ -15,6 +16,7 @@ const drag = async (p, sel, dy) => { const b = await box(p, sel); await p.mouse.
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] }); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', acceptDownloads: true });
+  await lane(ctx);
   await ctx.addInitScript(() => { const C = window.AudioContext; window.__acs = []; window.AudioContext = class extends C { constructor(o) { super(o); window.__acs.push(this); } }; });   // to see each sound engine
   const acs = p => p.evaluate(() => window.__acs.map(a => a.state));
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));

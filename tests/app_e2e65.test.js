@@ -7,8 +7,10 @@
 // on MOBILE, and MARK DONE there reaches HUB. HOLODECK asks for a missing channel folder once, not on every redraw.
 // Phone width.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const prof = q => fetch(B + '&action=profmode&' + q).then(r => r.json());
@@ -43,11 +45,13 @@ const audio = async p => { await station(p, 'holodeck'); await p.waitForSelector
   };
   const open = async (data, w) => {
     const ctx = await b.newContext({ viewport: { width: w || 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+    await lane(ctx);
+    await quiet(ctx);
     const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
     p.lists = 0; p.on('request', r => { if (r.url().includes('/Video/Sample')) p.lists++; });   // the channels' folders aren't on the relay
     await p.goto('http://localhost:8080/');
     await p.evaluate(([k, u, d]) => { localStorage.clear(); sessionStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('bridge')); Object.keys(d).forEach(x => localStorage.setItem(x, JSON.stringify(d[x]))); }, [K, U, data]);
-    await p.reload(); await p.waitForSelector('#content > *', { timeout: 15000 }); await p.waitForTimeout(1200);
+    await p.reload(); await p.waitForSelector('#content > *', { timeout: 15000 }); await settled(p, 1200);
     return p;
   };
   const h = await open(HUB), m = await open(MOB);
@@ -119,12 +123,12 @@ const audio = async p => { await station(p, 'holodeck'); await p.waitForSelector
   await h.fill('#ignIn', 'Sample block A\nSample block C'); await h.click('[data-act="ignsave"]');
   await until(async () => (await prof('')).items['tos.ignore.v1'].v.includes('Sample block C'));
   assert.ok(!(await prof('')).items['tos.ignore.v1'].v.every(x => x === 'Sample block B'), 'MOBILE\'s own list did not go up');
-  await m.click('[data-pf="sync"]'); await m.waitForTimeout(1500);
+  await m.click('[data-pf="sync"]'); await settled(m, 1500);
   assert.deepStrictEqual(await ls(m, 'tos.ignore.v1'), ['Sample block B'], 'and HUB\'s change did not come in');
 
   // ---- AUDIO on MOBILE starts where HUB stopped
   await audio(m);
-  await m.waitForTimeout(1500);
+  await settled(m, 1500);
   assert.ok(m.lists <= 6, 'a channel whose folder is missing is asked for once, not on every redraw (2.54): ' + m.lists);
   await m.click('.nas-share >> text=PODCASTS'); await m.waitForSelector('.nas-row');
   await m.click('.nas-row >> text=Show A'); await m.waitForSelector('[data-nasplay]');
@@ -138,11 +142,11 @@ const audio = async p => { await station(p, 'holodeck'); await p.waitForSelector
   // ---- Upkeep: in Notion, on MOBILE; MARK DONE there reaches HUB
   await station(m, 'engineering'); await m.waitForSelector('[data-updone="uS1"]');
   assert.ok((await txt(m, '#content')).includes('Sample filter'));
-  await m.click('[data-updone="uS1"]'); await m.waitForTimeout(500);
+  await m.click('[data-updone="uS1"]'); await settled(m, 500);
   if (await m.isVisible('.up-early')) await m.click('[data-updoneforce]');   /* 2.73: not due yet (this test runs on the real date), so it asks first */
   const today = await m.evaluate(() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
   await until(async () => (await upk('')).items.some(x => x.id === 'uS1' && x.last === today));
-  await h.reload(); await h.waitForSelector('#content > *', { timeout: 15000 }); await h.waitForTimeout(1200);
+  await h.reload(); await h.waitForSelector('#content > *', { timeout: 15000 }); await settled(h, 1200);
   await station(h, 'engineering'); await h.waitForSelector('[data-updone="uS1"]');
   await until(async () => ((await ls(h, 'tos.upkeep.v1')) || []).some(x => x.id === 'uS1' && x.last === today));
   assert.strictEqual((await ls(h, 'tos.upkeepq.v1')).ops.length, 0, 'nothing left to send');
@@ -153,7 +157,7 @@ const audio = async p => { await station(p, 'holodeck'); await p.waitForSelector
   assert.ok((await txt(m, '#sec-sync')).includes('PAUSED ON THIS IPAD'));
   const n = (await prof('')).puts.length;
   await m.fill('#ignIn', 'Sample block D'); await m.click('[data-act="ignsave"]');
-  await m.click('[data-pfrow="ignore"]'); await m.waitForTimeout(5000);
+  await m.click('[data-pfrow="ignore"]'); await settled(m, 5000);
   assert.strictEqual((await prof('')).puts.length, n, 'paused: nothing sent');
 
   // ---- phone width

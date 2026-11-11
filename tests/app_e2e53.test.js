@@ -8,8 +8,9 @@
 // on the iPad, never sent to the bridge. An eBird key added later shows in NATURE within minutes (2.50.1). Invented
 // aircraft, events and places throughout.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=scimode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=scistats').then(r => r.json());
@@ -56,6 +57,7 @@ const hits = {};
   await mode('cap=1&log=1&birds=0&fail=0&reset=1');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   await ctx.route(u => !/^http:\/\/(localhost|127\.0\.0\.1)/.test(u.href), route => {
     const u = route.request().url(), k = Object.keys(FEEDS).find(x => u.includes(x));
     if (u.includes('photos.test')) { hits.photo = (hits.photo || 0) + 1; return route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }); }
@@ -64,7 +66,7 @@ const hits = {};
     route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(FEEDS[k]) });
   });
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
-  const toBridge = []; p.on('request', r => { if (r.url().includes(':8105/')) toBridge.push(r.url() + ' ' + (r.postData() || '')); });
+  const toBridge = []; p.on('request', r => { if (r.url().includes(':' + P8105 + '/')) toBridge.push(r.url() + ' ' + (r.postData() || '')); });
   await ctx.grantPermissions(['geolocation']); await ctx.setGeolocation({ latitude: 44.9, longitude: -93.3 });
   await p.clock.setFixedTime(new Date(NOW));
   await p.goto('http://localhost:8080/');

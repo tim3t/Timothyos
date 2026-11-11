@@ -4,9 +4,11 @@
 // A save Apps Script refuses because another request holds its lock ("busy") is retried quietly, with no red error.
 // Leaving the app saves at once. Every other text field the app draws has a stable id, so a redraw keeps it too.
 const { chromium } = require('playwright');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
+const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
 const fs = require('fs');
-const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:8105/macros/s/test/exec?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const ctl = q => fetch(B + '&action=' + q).then(r => r.json());
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
@@ -14,10 +16,12 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
 (async () => {
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
+  await quiet(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(k => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'tarot']));
   }, K);
   await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
@@ -36,7 +40,7 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
     await p.keyboard.type(part, { delay: 35 });
     const focus = await p.evaluate(() => document.activeElement && document.activeElement.dataset.trnote);
     assert.strictEqual(focus, '0', 'the cursor stays in the note after: ' + part);
-    await p.waitForTimeout(1700);   // long enough for a save to start
+    await settled(p, 1700);   // long enough for a save to start
   }
   const full = parts.join('');
   assert.strictEqual(await p.inputValue(note), full, 'nothing typed is lost on screen');
@@ -44,14 +48,14 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
   const sel = await p.$eval(note, el => [el.selectionStart, el.value.length]);
   assert.strictEqual(sel[0], sel[1], 'the caret stays at the end');
   await until(async () => { const s = await stats(); const l = s.tsaves[s.tsaves.length - 1]; return l && l.notes && l.notes[0] === full && !l.cid; }, 20000);
-  await p.waitForTimeout(2500);
+  await settled(p, 2500);
   assert.strictEqual(await p.inputValue(note), full, 'still all there after every save has landed');
   const newId = (await stats()).tarot.find(r => r.q === 'Sample question while typing').id;
   assert.strictEqual((await stats()).tarot.find(r => r.id === newId).notes[0], full);
 
   // ---- WHAT IT SAYS the same way
   await p.click('[data-trsum]');
-  await p.keyboard.type('The reading as a whole, ', { delay: 30 }); await p.waitForTimeout(1700);
+  await p.keyboard.type('The reading as a whole, ', { delay: 30 }); await settled(p, 1700);
   await p.keyboard.type('typed across a save.', { delay: 30 });
   assert.strictEqual(await p.evaluate(() => 'trsum' in document.activeElement.dataset), true);
   await until(async () => { const s = await stats(); return s.tarot.find(r => r.id === newId).sum === 'The reading as a whole, typed across a save.'; }, 20000);
@@ -68,7 +72,7 @@ const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const
   await ctl('slowsave&ms=0'); await ctl('busysave&n=3');
   const n1 = await p.inputValue('[data-trnote="1"]');
   await p.focus('[data-trnote="1"]'); await p.keyboard.press('Control+End'); await p.keyboard.type('Saved despite a busy bridge.', { delay: 20 });
-  await p.waitForTimeout(2500);
+  await settled(p, 2500);
   assert.strictEqual(await p.locator('.tr .err').count(), 0, 'no red error while it retries');
   await until(async () => { const s = await stats(); return s.tarot.find(r => r.id === 'tr-r1').notes[1] === n1 + 'Saved despite a busy bridge.'; }, 25000);
   assert.strictEqual(await p.locator('.tr .err').count(), 0);

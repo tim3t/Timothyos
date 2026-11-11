@@ -20,8 +20,9 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 In Timothy's order; each one is confirmed with him before it starts.
 
-1. **Steadier tests.** Pin the clock in the browser tests that run on real time (37 of 79 on 2026-11-11), replace fixed waits with waits for a condition (744 `waitForTimeout` calls, about 43% of test time), and fix the HOLODECK commercial-breaks guide test (`app_e2e62`), which fails at certain times of day: it was rerun on 2026-11-10, not fixed. Since D72 a flaky test delays a release.
-2. **Two security tidy-ups.** Tell Claude, in every prompt that carries calendar, recipe-page or Notion text, to treat that text as data and never as instructions. Convert a recipe's remote photo to a stored thumbnail at import, so MEALS stops loading images from recipe sites.
+1. **Two security tidy-ups.** Tell Claude, in every prompt that carries calendar, recipe-page or Notion text, to treat that text as data and never as instructions. Convert a recipe's remote photo to a stored thumbnail at import, so MEALS stops loading images from recipe sites.
+
+**Steadier tests, what's left (item 5, done in part 2026-11-11, D76):** the frozen-clock tests (most of the heavy ones: e13, e16 to e25, e28 to e31, e37) still use fixed waits, about 450 s of the suite's 1,460 test-seconds; the next step is to start their page clocks at the chosen time and let them run (as e62 now does) so `settled()` can work there, test by test. Also: check the real-clock tests at several times of day (late evening, just after midnight) for time-of-day failures.
 
 Also raised in the review, not yet agreed: a lint or type check; one shared simulated bridge in place of the 18 hand-written ones (the app is never tested against the real `Code.gs`); tests named for what they cover; a "trial first" rule for anything on a platform we don't control (Shortcuts, Health, Home Assistant, YouTube); narrowing the page's connection rules; separate read and write keys; a lock inside the app for an iPad left unlocked.
 
@@ -32,10 +33,6 @@ Also raised in the review, not yet agreed: a lint or type check; one shared simu
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
-
-## Done, to check
-
-- **CI keeps a copy of ffmpeg** (Timothy chose option B, 2026-11-11): on 11 November Ubuntu's package server was unreachable from GitHub's runners for hours, and three runs died in setup. The first run that installs ffmpeg from Ubuntu stores the files in GitHub's cache; later runs install from that copy. The copy was saved by the 2.78.0 run (11 Nov, about 18:05 UTC). Check: the next run's setup says "ffmpeg installed from the kept copy". Then move this line out.
 
 ## Decided against
 

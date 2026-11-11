@@ -3,8 +3,10 @@
 // SYSTEMS; never offered to CAPTURE; ASK's snapshot names it. WEEK draws a multi-day all-day event as one bar across its days,
 // cut square where it runs past the week, and the bar opens the event. Unlinked, SYSTEMS shows FAMILY OFF with how to link it.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const K = 'k'.repeat(64), U = 'http://127.0.0.1:8105/macros/s/test/exec', B = U + '?key=' + K;
+const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const fam = q => fetch(B + '&action=familymode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -22,11 +24,13 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
   await fam('on=0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(([k, u]) => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: u, key: k })); localStorage.setItem('tos.start.v1', JSON.stringify('today'));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month'])); }, [K, U]);
-  await p.reload(); await p.waitForTimeout(2000);
+  await p.reload(); await settled(p, 2000);
 
   // ---- not linked: SYSTEMS says how
   await p.click('#status'); await p.waitForSelector('.calrow.a-family');
@@ -35,7 +39,7 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
   // ---- linked
   await fam('on=1');
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k === "tos.cache.v1") localStorage.removeItem(k); });
-  await p.reload(); await p.waitForTimeout(2500);
+  await p.reload(); await settled(p, 2500);
   await p.click('#status'); await until(async () => /FAMILY Family OK/.test(await txt(p, '.calrow.a-family')));
   assert.ok(/WORK \+ FAMILY READ-ONLY · /.test(await txt(p, '.sys')), 'read-only, like Work');
   // read from the row on the page at that moment (SYSTEMS redraws as loads finish; a replaced row has no style)
@@ -71,7 +75,7 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
   await p.click('[data-screen="today"].nav'); await p.click('[data-toggle="family"]');
 
   // ---- MONTH shows it
-  await p.click('[data-screen="month"].nav'); await p.waitForTimeout(500);
+  await p.click('[data-screen="month"].nav'); await settled(p, 500);
   assert.ok((await txt(p, '#content')).includes('Sample trip'), 'on MONTH');
 
   // ---- CAPTURE never offers Family

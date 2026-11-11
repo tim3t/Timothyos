@@ -4,21 +4,23 @@
 // from the results has RESULTS, NEWER and OLDER; EXACT WORD off widens it; locking forgets it all.
 // All entries are invented sample text.
 const { chromium } = require('playwright');
+const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64);
-const stats = async () => (await (await fetch('http://127.0.0.1:8103/x/exec?action=stats&key=' + K)).json());
+const stats = async () => (await (await fetch('http://127.0.0.1:' + P8103 + '/x/exec?action=stats&key=' + K)).json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const dates = p => p.$$eval('.cl-hit', bs => bs.map(b => b.dataset.lfound));
 async function unlock(p) { for (const k of '135790') await p.click('[data-lpin="' + k + '"]'); await p.waitForSelector('#clFind', { timeout: 5000 }); }
 
 (async () => {
-  await fetch('http://127.0.0.1:8103/x/exec?action=idxhold&key=' + K);
+  await fetch('http://127.0.0.1:' + P8103 + '/x/exec?action=idxhold&key=' + K);
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-08T20:30:00-05:00'));
   await p.goto('http://localhost:8080/');
-  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8103/macros/s/test/exec', key: 'k'.repeat(64) })); });
+  await p.evaluate(() => { localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec', key: 'k'.repeat(64) })); });
   await p.reload(); await p.waitForTimeout(1800);
   await p.click('[data-screen="log"].nav'); await p.waitForTimeout(400);
   await unlock(p);

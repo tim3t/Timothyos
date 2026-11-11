@@ -5,8 +5,10 @@
 // WHAT IT SAYS the same way; an error shows in place; the card's history sheet has the books without SUGGEST; book
 // text is never written to the iPad's storage; phone width; an older bridge shows no BOOKS at all.
 const { chromium } = require('playwright');
+const { quiet, settled } = require('./lib/settle');
+const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:8105/macros/s/test/exec?key=' + K;
+const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const tb = () => fetch(B + '&action=tbstats').then(r => r.json()).then(j => j.tb);
@@ -17,10 +19,12 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const 
   await mode('on=1&made=0');
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  await quiet(ctx);
+  await lane(ctx);
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
   await p.evaluate(k => {
-    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:8105/macros/s/test/exec', key: k }));
+    localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'review', 'tarot']));
   }, K);
   await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
@@ -66,7 +70,7 @@ const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const 
   assert.ok(sug.includes('SUGGESTED FROM YOUR BOOKS · NOT SAVED') && sug.includes('Sample suggestion for P4.') && sug.includes('SONNET') && sug.includes('0.9¢'), sug);
   let sent = (await tb()).suggests.slice(-1)[0];
   assert.deepStrictEqual([sent.mode, sent.at, sent.q, sent.cards.length, sent.cards[2].rev, sent.cards[2].pos, sent.cards[0].note], ['card', 2, 'Sample question about the garden', 3, true, 'FUTURE', 'Fast start']);
-  await p.waitForTimeout(1500);
+  await settled(p, 1500);
   assert.strictEqual((await stats()).tsaves.length, saves0, 'a suggestion alone saves nothing');
   await p.screenshot({ path: D + 'tarotbooks-suggest.png' });
   // DISMISS: gone, the note untouched
