@@ -35,7 +35,7 @@ Also raised in the review, not yet agreed: a lint or type check; one shared simu
 
 ## Done, to check
 
-- **CI keeps a copy of ffmpeg** (Timothy chose option B, 2026-11-11): on 11 November Ubuntu's package server was unreachable from GitHub's runners for hours, and three runs died in setup. The first run that installs ffmpeg from Ubuntu stores the files in GitHub's cache; later runs install from that copy. Check: the next green run says "Keep a copy of ffmpeg" ran, and the one after says "installed from the kept copy". Then move this line out.
+- **CI keeps a copy of ffmpeg** (Timothy chose option B, 2026-11-11): on 11 November Ubuntu's package server was unreachable from GitHub's runners for hours, and three runs died in setup. The first run that installs ffmpeg from Ubuntu stores the files in GitHub's cache; later runs install from that copy. The copy was saved by the 2.78.0 run (11 Nov, about 18:05 UTC). Check: the next run's setup says "ffmpeg installed from the kept copy". Then move this line out.
 
 ## Decided against
 
