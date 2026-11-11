@@ -163,6 +163,8 @@
     else if (b.dataset.act === "fixtasks") fixTasks();
     else if (b.dataset.act === "fixstore") fixStore();
     else if (b.dataset.act === "storeclear") storeClear(false);
+    else if (b.dataset.act === "diagcopy") diagCopy(false);
+    else if (b.dataset.act === "diagshare") diagCopy(true);
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixschema") fixSchema();

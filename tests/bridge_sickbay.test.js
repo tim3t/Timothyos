@@ -111,7 +111,7 @@ let r = health(HK, L);
 assert.ok(r.ok, JSON.stringify(r));
 assert.deepStrictEqual(r.days, [y, t]);
 assert.strictEqual(r.skipped, 5, 'the out-of-range, unknown, unreadable and repeated lines');
-assert.strictEqual(r.message, 'Sent 2 days to SICKBAY. (5 lines left out.)');
+assert.strictEqual(r.message, 'Sent 2 days to SICKBAY. (6 lines left out: 1 the same line again, 1 a number out of range, 1 a code it does not know (pulse), 1 no number, 1 no date it could read, 1 older than two weeks.)', 'each left-out line says why (1.45)');
 const day = d => pages[TDS].find(p => p.properties['App ID'] && txt(p.properties['App ID'].rich_text) === 'day-' + d);
 const data = d => JSON.parse(txt(day(d).properties.Data.rich_text));
 let Y = data(y), T = data(t);
@@ -161,6 +161,22 @@ assert.strictEqual(post({ action: 'sickbayremove', id: 'day-' + t }).error, 'bad
 r = post({ action: 'sickbayremove', id: 'n-test-1' });
 assert.ok(r.ok); assert.ok(pages[TDS].find(p => txt(p.properties['App ID'].rich_text) === 'n-test-1').in_trash);
 assert.ok(post({ action: 'sickbayremove', id: 'n-gone' }).ok, 'removing what is gone is fine');
+
+// ---- 1.45: check mode reads the lines and says how, line by line, and saves nothing
+const pagesBefore = JSON.stringify(pages[TDS]);
+const chk = (k, lines, check) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: k, action: 'healthput', lines, check }) } }).text);
+r = chk(HK, ['steps|4210|' + at(1, '00:00') + '|' + at(1, '23:59'), 'Rhr|61|' + at(0, '07:00') + '|' + at(0, '07:00'), 'sleep|Asleep Deep|' + at(0, '01:00') + '|' + at(0, '01:45'),
+  'pulse|60|' + at(0, '08:00') + '|' + at(0, '08:00'), 'hrv|48|' + D(0) + '|' + D(0), 'steps|900|' + at(30, '12:00') + '|' + at(30, '12:30')].join('\n'), 'yes');
+assert.ok(r.ok && r.check === true, JSON.stringify(r));
+assert.strictEqual(JSON.stringify(pages[TDS]), pagesBefore, 'nothing saved');
+assert.deepStrictEqual(r.days, [y, t]);
+assert.strictEqual(r.message, 'Check only, nothing saved. Read steps 1, rhr 1, sleep 1, hrv 1 (' + y + ' to ' + t + '). 2 left out: 1 a code it does not know (pulse), 1 older than two weeks. 1 date has no time: turn on Include ISO 8601 Time in the shortcut. Take the check field out to send for real.');
+assert.deepStrictEqual(r.lines, ['1: steps 4210 → ' + y, '2: rhr 61 → ' + t, '3: sleep deep 45 min → ' + t, '4: pulse, left out: a code it does not know', '5: hrv 48 → ' + t + ' (no time)', '6: steps, left out: older than two weeks']);
+assert.strictEqual(chk(HK, 'nothing|here|at all', true).message, 'Check only, nothing saved. Nothing could be read. 1 left out: 1 no date it could read. Take the check field out to send for real.');
+assert.strictEqual(chk('wrong', 'steps|1|' + D(0) + '|' + D(0), 'yes').error, 'unauthorized', 'check mode needs the health key too');
+// a real send says when dates came without a time
+r = health(HK, 'hrv|50|' + D(0) + '|' + D(0));
+assert.strictEqual(r.message, 'Sent 1 day to SICKBAY. 1 date has no time: turn on Include ISO 8601 Time in the shortcut.');
 
 // ---- 1.44.1: a date with no time is that day where you are (it used to land a day early, at midnight in London)
 r = health(HK, 'steps|4321|' + D(2) + '|' + D(2));

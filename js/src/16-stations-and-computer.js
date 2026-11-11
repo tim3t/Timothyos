@@ -248,6 +248,7 @@
     S("Recent requests", "RECENT REQUESTS", "network errors timeout");
     S("Error log", "ERROR LOG", "errors failures problems crash diagnostic report");
     S("This iPad's storage", "THIS IPAD'S STORAGE", "space full room memory saved copies clear cache");
+    S("Copy diagnostics", "DIAGNOSTICS", "report problem debug support claude help broken", function () { diagCopy(false); });
     if (nasConf()) S("NAS relay", "NAS RELAY", "storage nas token tailscale holodeck");
     S("Home Assistant", "HOME ASSISTANT", "token devices");
     return out;

@@ -8,7 +8,7 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.44.1 | Apps Script: paste `Code.gs`, run setup, new deployment version | Health days land on the right date; a partial day never overwrites a whole one. SYSTEMS shows the deployed version |
+| Deploy bridge 1.45.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Includes 1.44.1 (health days on the right date; a partial day never overwrites a whole one) and 1.45 (the shortcut's check mode, reasons for left-out lines). SYSTEMS shows the deployed version |
 | Rotate `HEALTH_KEY` | Apps Script: delete the property, run setup, paste the new key into the Bridge Health shortcut | Routine rotation, agreed 2026-11-11 |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | A stray day page from the first shortcut runs | Notion: 🩺 Sickbay | One day page dated a day early (before the 1.44.1 date fix): delete it |
@@ -22,7 +22,6 @@ In Timothy's order; each one is confirmed with him before it starts.
 
 1. **Steadier tests.** Pin the clock in the browser tests that run on real time (37 of 79 on 2026-11-11), replace fixed waits with waits for a condition (744 `waitForTimeout` calls, about 43% of test time), and fix the HOLODECK commercial-breaks guide test (`app_e2e62`), which fails at certain times of day: it was rerun on 2026-11-10, not fixed. Since D72 a flaky test delays a release.
 2. **Two security tidy-ups.** Tell Claude, in every prompt that carries calendar, recipe-page or Notion text, to treat that text as data and never as instructions. Convert a recipe's remote photo to a stored thumbnail at import, so MEALS stops loading images from recipe sites.
-3. **Faster diagnosis.** A bridge mode that answers with how it read each line of a `healthput` (nothing saved), and **COPY DIAGNOSTICS** in SYSTEMS (versions, last errors, queue sizes, storage) so a problem can be sent as text, not screenshots.
 
 Also raised in the review, not yet agreed: a lint or type check; one shared simulated bridge in place of the 18 hand-written ones (the app is never tested against the real `Code.gs`); tests named for what they cover; a "trial first" rule for anything on a platform we don't control (Shortcuts, Health, Home Assistant, YouTube); narrowing the page's connection rules; separate read and write keys; a lock inside the app for an iPad left unlocked.
 

@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.44.1';
+var VERSION = '1.45.0';
 var NOTION_VERSION = '2025-09-03';
 var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'];
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
@@ -2346,28 +2346,39 @@ function healthStage_(v) {
   return /deep/.test(v) ? 'deep' : /rem/.test(v) ? 'rem' : /awake|wake/.test(v) ? 'awake' : /in ?bed/.test(v) ? 'inbed' : /core|light|asleep|sleep/.test(v) ? 'core' : null;
 }
 /** The lines a shortcut sent, put together into days: { 'yyyy-MM-dd': { rhr, …, sleep: { asleep, deep, rem, core, awake, bed, wake } } }. */
-function healthDays_(raw, tz) {
-  var acc = {}, used = 0, skipped = 0, seen = {};
+/** 1.45: why a line was left out, in words for the shortcut's notification (check mode lists them line by line). */
+var HEALTH_WHY = { no_date: 'no date it could read', backwards: 'ends before it starts', repeat: 'the same line again', stage: 'a sleep stage it does not know',
+  code: 'a code it does not know', number: 'no number', range: 'a number out of range', old: 'older than two weeks', future: 'in the future', many: 'more than 10 days in one send' };
+function healthDays_(raw, tz, notes) {
+  var acc = {}, used = 0, skipped = 0, seen = {}, n = 0;
   var dayOf = function (d) { return Utilities.formatDate(d, tz, 'yyyy-MM-dd'); }, hm = function (d) { return Utilities.formatDate(d, tz, 'HH:mm'); };
+  var note = function (row) { if (notes) notes.push(row); };
+  var out_ = function (why, code) { skipped++; note({ n: n, code: code, why: why }); };
   String(raw || '').split(/\r?\n/).forEach(function (line) {
     if (!line.trim()) return;
+    n++;
     var f = line.split(/\s*[|\t]\s*/), code = String(f[0] || '').trim().toLowerCase(), start = healthWhen_(f[2]), end = healthWhen_(f[3] || f[2]);
-    if (isNaN(start) || isNaN(end) || end < start || seen[line]) { skipped++; return; }
+    var bare = /^\d{4}-\d{2}-\d{2}$/.test(String(f[2] || '').trim());   // a date with no time (read as that day where you are)
+    if (isNaN(start) || isNaN(end)) return out_('no_date', code);
+    if (end < start) return out_('backwards', code);
+    if (seen[line]) return out_('repeat', code);
     seen[line] = 1;
     if (code === 'sleep') {
-      var st = healthStage_(f[1]); if (!st) { skipped++; return; }
+      var st = healthStage_(f[1]); if (!st) return out_('stage', code);
       var d = dayOf(end), a = acc[d] = acc[d] || {}, s = a._sleep = a._sleep || { deep: 0, rem: 0, core: 0, awake: 0, b: null, w: null, segs: [] };
       if (st !== 'inbed') { s[st] += (end - start) / 60000; s.segs.push([st.charAt(0), start, end]); if (!s.b || start < s.b) s.b = start; if (!s.w || end > s.w) s.w = end; }
-      used++; return;
+      used++; note({ n: n, code: code, read: st + ' ' + Math.round((end - start) / 60000) + ' min', day: d, bare: bare }); return;
     }
     var v = healthNum_(f[1]);
     if (code === 'standmin') { code = 'stand'; v = v / 60; }   // Stand Minutes, as some iPads list it
-    if (!HEALTH_RANGE[code] || !isFinite(v)) { skipped++; return; }
+    if (!HEALTH_RANGE[code]) return out_('code', code);
+    if (!isFinite(v)) return out_('number', code);
     if (code === 'temp' && v > 60) v = (v - 32) * 5 / 9;   // °F from an iPad set to Fahrenheit
     if (code === 'weight' && /kg/i.test(f[1])) v = v * 2.20462;
     if (code === 'stand' && /min/i.test(f[1])) v = v / 60;
-    if (v < HEALTH_RANGE[code][0] || v > HEALTH_RANGE[code][1]) { skipped++; return; }
+    if (v < HEALTH_RANGE[code][0] || v > HEALTH_RANGE[code][1]) return out_('range', code);
     var dd = dayOf(code === 'temp' ? end : start), b = acc[dd] = acc[dd] || {};
+    note({ n: n, code: code, read: String(Math.round(v * 10) / 10), day: dd, bare: bare });
     if (HEALTH_AVG.indexOf(code) > -1) { b['_' + code] = b['_' + code] || []; b['_' + code].push(v); }
     else if (HEALTH_SUM.indexOf(code) > -1) b[code] = (b[code] || 0) + v;
     else b[code] = v;
@@ -2415,7 +2426,22 @@ function healthPut_(body) {
   /* 1.44.1: "in the last 3 days" counts back from now, so the day it starts in arrives only partly (from 8 AM, say). That day,
      and anything older, only fills what its page doesn't have yet: a complete day is never overwritten by part of itself. */
   var edge = Utilities.formatDate(new Date(Date.now() - 3 * 864e5), tz, 'yyyy-MM-dd');
-  var got = healthDays_(raw, tz), days = Object.keys(got.days).filter(function (d) { return d >= oldest && d <= today; }).sort().slice(-10);
+  var notes = [], got = healthDays_(raw, tz, notes), days = Object.keys(got.days).filter(function (d) { return d >= oldest && d <= today; }).sort().slice(-10);
+  notes.forEach(function (r) { if (r.day && days.indexOf(r.day) === -1) { r.why = r.day < oldest ? 'old' : r.day > today ? 'future' : 'many'; } });
+  var bare = notes.filter(function (r) { return r.bare && !r.why; }).length, left = notes.filter(function (r) { return r.why; });
+  var leftText = function () {   // "2 left out: 1 a code it does not know (pulse), 1 no number"
+    var by = {}; left.forEach(function (r) { var k = r.why + (r.why === 'code' ? ' (' + String(r.code).slice(0, 20) + ')' : ''); by[k] = (by[k] || 0) + 1; });
+    return Object.keys(by).map(function (k) { var w = k.split(' ')[0]; return by[k] + ' ' + HEALTH_WHY[w] + k.slice(w.length); }).join(', ');
+  };
+  var bareText = bare ? ' ' + bare + (bare === 1 ? ' date has' : ' dates have') + ' no time: turn on Include ISO 8601 Time in the shortcut.' : '';
+  if (body.check === true || /^(yes|true|1)$/i.test(String(body.check || ''))) {   // 1.45: read it, say how, save nothing
+    var per = {}; notes.forEach(function (r) { if (!r.why) per[r.code] = (per[r.code] || 0) + 1; });
+    var kinds = Object.keys(per).map(function (c) { return c + ' ' + per[c]; }).join(', ');
+    return { ok: true, check: true, version: VERSION, days: days, used: got.used - left.filter(function (r) { return r.day; }).length, skipped: left.length,
+      message: 'Check only, nothing saved. ' + (kinds ? 'Read ' + kinds + (days.length ? ' (' + days[0] + (days.length > 1 ? ' to ' + days[days.length - 1] : '') + ').' : '.') : 'Nothing could be read.') +
+        (left.length ? ' ' + left.length + ' left out: ' + leftText() + '.' : '') + bareText + ' Take the check field out to send for real.',
+      lines: notes.slice(0, 80).map(function (r) { return r.n + ': ' + r.code + (r.why ? ', left out: ' + HEALTH_WHY[r.why] : ' ' + r.read + ' → ' + r.day + (r.bare ? ' (no time)' : '')); }) };
+  }
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -2433,7 +2459,7 @@ function healthPut_(body) {
     });
     PropertiesService.getScriptProperties().setProperty('HEALTH_LAST', new Date().toISOString());
     sickBump_();
-    return { ok: true, version: VERSION, days: days, used: got.used, skipped: got.skipped, message: days.length ? 'Sent ' + days.length + (days.length === 1 ? ' day' : ' days') + ' to SICKBAY.' + (got.skipped ? ' (' + got.skipped + (got.skipped === 1 ? ' line' : ' lines') + ' left out.)' : '')
+    return { ok: true, version: VERSION, days: days, used: got.used, skipped: got.skipped, message: days.length ? 'Sent ' + days.length + (days.length === 1 ? ' day' : ' days') + ' to SICKBAY.' + (left.length ? ' (' + left.length + (left.length === 1 ? ' line' : ' lines') + ' left out: ' + leftText() + '.)' : '') + bareText
       : got.used ? 'Nothing new to send: those days are older than two weeks.' : 'Nothing could be read from the ' + got.skipped + (got.skipped === 1 ? ' line' : ' lines') + ' sent. Check each Text reads code|Value|Start Date|End Date, with both dates in ISO 8601 format and the time included.' };
   } finally {
     lock.releaseLock();

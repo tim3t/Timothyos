@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.77.0";
+  var VERSION = "2.78.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1058,6 +1058,7 @@
         : '<button type="button" class="btn capture" data-act="setup">LINK CALENDARS</button>') +
       "</div></section>";
 
+    html += diagSection();
     html += backupSection();
     html += storeSection();
     html += prof.section();
@@ -1376,8 +1377,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.44.1";
-  var BRIDGE_FEATURES = [["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.45.0";
+  var BRIDGE_FEATURES = [["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -1492,6 +1493,50 @@
     list.forEach(function (d) { schemaLines(d).forEach(function (l) { out.push(d.name + ": " + l); }); });
     return max && out.length > max ? out.slice(0, max).concat(["and " + (out.length - max) + " more"]) : out;
   }
+  /* 2.78: DIAGNOSTICS. One plain-text report to paste into a conversation with Claude, in place of screenshots:
+     versions, the connection, Condition, what is waiting to be sent, storage, the links that are set, and the error
+     log. Never in it: keys, tokens, PINs, the bridge's or the relay's address, task, event, meal or page titles, health
+     values, Log text. Condition items go by their headline only (their second line can name a task or an event).
+     Everything passes errScrub once more on the way out. */
+  function diagReport() {
+    var now = new Date(), c = state.conn, st = state.sync, day = lsGet(LS_NETDAY), u = lsUsage(), P = lsGet(LS_PROFILE) || {};
+    var standalone = (window.matchMedia && matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+    var tz = ""; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { /* older Safari */ }
+    var cond = []; try { cond = conditions(now, ymd(now), eventsFor(bridgeRange())); } catch (e) { cond = []; }
+    var shell = (caches && caches.keys ? caches.keys() : Promise.resolve([])).then(function (k) { return k.filter(function (x) { return /^tos-shell-/.test(x); }).map(function (x) { return x.slice(10); }); }, function () { return []; });
+    return shell.then(function (sw) {
+      var L = ["TimothyOS DIAGNOSTICS · " + now.toISOString().replace("T", " ").slice(0, 19) + " UTC · " + ymd(now) + " " + hm(now) + " here" + (tz ? " (" + tz + ")" : ""),
+        "APP " + VERSION + " · offline copy " + (sw.length ? sw.join(", ") : "none") + " · " + (standalone ? "home-screen app" : "in the browser") + " · " + (navigator.onLine ? "online" : "OFFLINE") + " · open now: " + String(state.screen || "").toUpperCase(),
+        "DEVICE " + navigator.userAgent + " · screen " + innerWidth + "×" + innerHeight,
+        "BRIDGE " + (!c ? "not linked" : "deployed " + (state.bridgeVersion || "unknown") + " · this app needs " + BRIDGE_WANT + (bridgeBehind() ? " (OUT OF DATE)" : " (up to date)")),
+        "FEATURES " + (state.caps && state.caps.length ? state.caps.join(", ") : "none reported"),
+        "SYNC " + (st.status || "unknown") + " · last " + (st.at ? stamp(st.at) : "never") + (st.code ? " · code " + st.code : "") + (st.error ? " · " + st.error : ""),
+        "BRIDGE TODAY " + (day && day.d === ymd(now) ? day.n + " requests, " + day.f + " failed, slowest " + (day.max / 1000).toFixed(1) + " s" : "no requests yet"),
+        "CONDITION " + (cond.length ? cond.length + ": " + cond.map(function (i) { return "[" + (i.lvl === "bad" ? "RED" : "YELLOW") + "] " + String(i.txt).replace(/<[^>]*>/g, ""); }).join(" · ") : "green"),
+        "WAITING TO SEND " + (bkPendingList().join(", ") || "nothing"),
+        "STORAGE " + storeMb(u.total) + " of about 5 MB · kept here " + storeMb(u.own) + " · saved copies " + storeMb(u.copies) + (lsFull().length ? " · NOT SAVED: " + lsFull().map(lsName).join(", ") : "") +
+          (Object.keys(store.skipped).length ? " · no room to keep: " + Object.keys(store.skipped).map(lsName).join(", ") : "") + (store.dropped ? " · room made " + store.dropped + "×" : ""),
+        "PROFILE SYNC " + (P.on ? "on" + (P.paused ? ", PAUSED" : "") + " · this iPad: " + (P.name || "unnamed") + " · last " + (P.last ? stamp(P.last) : "never") : "off"),
+        "LINKS NAS relay " + (nasConf() ? "set" : "not set") + " · Home Assistant " + (haConf() ? "set" : "not set") + " · pinned " + ((lsGet(LS_PINS) || []).join(", ") || "none"),
+        "", "ERRORS " + (errlog.length ? errlog.length + " kept, newest first" + (errlog.length > 40 ? " (the 40 newest)" : "") : "none logged")];
+      return L.concat(errReport().split("\n").slice(4, 44)).map(errScrubLine).join("\n");
+    });
+  }
+  function errScrubLine(x) { return String(x).replace(/([?&#](?:k|key|pin|token|code|auth)=)[^&\s"']+/gi, "$1•••").replace(/(Bearer\s+)\S+/gi, "$1•••").replace(/[A-Za-z0-9_\-]{32,}/g, "•••").replace(/https?:\/\/[^\s"'<>]+/g, "(an address)"); }
+  function diagSection() {
+    return '<section id="sec-diag">' + phead("DIAGNOSTICS", "FOR CLAUDE") +
+      '<small class="muted">One report to paste into a conversation with Claude when something isn\'t right: versions, the connection, Condition, what is waiting to be sent, storage, and the error log. No keys, no addresses, no titles of tasks, events or meals, no health values.</small>' +
+      '<div class="btnrow" style="margin-top:10px"><button type="button" class="btn" data-act="diagcopy">COPY DIAGNOSTICS</button>' +
+      (navigator.share ? '<button type="button" class="btn ghost" data-act="diagshare">SHARE</button>' : "") + "</div></section>";
+  }
+  function diagCopy(share) {
+    diagReport().then(function (text) {
+      if (share && navigator.share) { navigator.share({ title: "TimothyOS diagnostics", text: text }).catch(function () { /* closed: nothing to do */ }); return; }
+      var ok = function () { toast("Diagnostics copied. Paste them into your message to Claude."); }, no = function () { toast("Couldn't copy. Try SHARE instead."); };
+      try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, no); else no(); } catch (e) { no(); }
+    });
+  }
+
   /* 2.77: what this browser's storage holds, and making room in it. */
   function storeMb(n) { var mb = n * 2 / 1048576; return (mb < 0.1 ? mb.toFixed(2) : mb.toFixed(1)) + " MB"; }
   function storeSection() {
@@ -6629,6 +6674,7 @@
     S("Recent requests", "RECENT REQUESTS", "network errors timeout");
     S("Error log", "ERROR LOG", "errors failures problems crash diagnostic report");
     S("This iPad's storage", "THIS IPAD'S STORAGE", "space full room memory saved copies clear cache");
+    S("Copy diagnostics", "DIAGNOSTICS", "report problem debug support claude help broken", function () { diagCopy(false); });
     if (nasConf()) S("NAS relay", "NAS RELAY", "storage nas token tailscale holodeck");
     S("Home Assistant", "HOME ASSISTANT", "token devices");
     return out;
@@ -15577,6 +15623,8 @@
     else if (b.dataset.act === "fixtasks") fixTasks();
     else if (b.dataset.act === "fixstore") fixStore();
     else if (b.dataset.act === "storeclear") storeClear(false);
+    else if (b.dataset.act === "diagcopy") diagCopy(false);
+    else if (b.dataset.act === "diagshare") diagCopy(true);
     else if (b.dataset.act === "fixsync") fixSync();
     else if (b.dataset.act === "fixbridge") fixBridge();
     else if (b.dataset.act === "fixschema") fixSchema();

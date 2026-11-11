@@ -872,6 +872,8 @@ Show Notification  Dictionary Value
 7. **Show Notification** with **Dictionary Value**. *Quieter:* put it inside an **If** (*Dictionary Value · does not begin with · Sent*) so only problems show a banner.
 8. **Play.** Allow it to read Health (**Always Allow**, every category it lists) and to connect to script.google.com; each new measure asks once more. A good run says **Sent 3 days to SICKBAY.**
 
+**Checking what the bridge reads** (bridge 1.45): in **Get Contents of URL**, add one more Text field, `check` = `yes`, and run the shortcut. Nothing is saved; the notification says what was read, which days it belongs to, which lines were left out and why, and whether any date came without its time. To see it line by line, set **Show Notification** to **Contents of URL** for that run. Take the `check` field out afterwards. Every normal send also says why any line was left out.
+
 **Seeing what it sends:** drag **Quick Look** directly under **Combine Text** and run it. Each line should read like `steps|4210|2026-11-03T07:12:40-06:00|2026-11-03T21:48:05-06:00`: the code, the number (or the sleep stage), and two dates **with times**. Delete the Quick Look when you're done.
 
 | What you see | What to do |
@@ -993,6 +995,7 @@ Each item has a switch: off, it stays on that iPad only. **PAUSE ON THIS IPAD** 
 | Leave out booking blocks | Tap the event → **IGNORE THIS TITLE** |
 | Back up this iPad's settings, or restore them | **SYSTEMS → BACKUP AND RESTORE** |
 | See how full this iPad's storage is, or make room | **SYSTEMS → THIS IPAD'S STORAGE** |
+| Send Claude a report of what's wrong, in place of screenshots | **SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS**, then paste it into the conversation |
 | Force a sync | **SYSTEMS → REFRESH NOW** |
 | Check connection health | **SYSTEMS**, or tap the status block |
 
@@ -1039,6 +1042,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 
 | Symptom | Fix |
 |---|---|
+| Something isn't right and you want Claude to look | **SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS**, then paste it into the conversation. It holds versions, the connection, Condition, what is waiting to be sent, storage and the error log; never keys, addresses, titles or health values |
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
 | Condition says **This iPad's storage is full** | The browser allows Bridge about 5 MB, and something no longer fits even after Bridge dropped its saved copies. Nothing is lost while Bridge stays open, and changes still go to Notion and Google. Tap the item, then **MAKE ROOM AND SAVE**; **SYSTEMS → THIS IPAD'S STORAGE** shows what takes the most room |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |

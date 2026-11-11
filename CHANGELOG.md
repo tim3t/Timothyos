@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.78.0 · 2026-11-11 (needs bridge 1.45)
+- **COPY DIAGNOSTICS** (SYSTEMS → DIAGNOSTICS, near the top; COMPUTER finds it too): one plain-text report to paste into a conversation with Claude in place of screenshots. It holds the app and bridge versions, the features the bridge offers, the last sync, today's requests, Condition (headlines only), what is waiting to be sent, storage, profile sync, which links are set, and the error log. It never holds keys, tokens, addresses, titles of tasks, events or meals, or health values. **SHARE** sends it another way.
+- **The Health shortcut can check before it sends** (bridge 1.45): add a `check` field set to `yes` and the bridge reads the lines, says what it found, which days they belong to and which lines it left out and why, and saves nothing (README → SICKBAY). Every normal send now says why a line was left out, and warns when a date came without its time.
+- Behind the scenes: the test system now keeps its own copy of the video tool it needs, so an outage at Ubuntu (as on 11 November) can't hold up a release.
+
 ## 2.77.0 · 2026-11-11
 - **A full iPad is never silent.** The browser gives Bridge about 5 MB, shared by your settings, changes on their way to Notion and Google, and saved copies of your data. Until now, when something didn't fit it was dropped without a word. Now:
   - **Bridge makes room by itself:** it drops saved copies (calendars, meals, health days and the like), largest first. The next sync brings them back; nothing is lost.
