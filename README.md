@@ -1159,10 +1159,12 @@ tests/run.sh             all tests: the Google bridge against simulated Google, 
                          then the real app in a headless browser against simulated bridges and a simulated NAS
                          (about 8 minutes, in lanes)
 CHANGELOG.md             what changed in each version
-CLAUDE.md                working notes for Claude: architecture, rules, testing, release checklist, roadmap
+CLAUDE.md                working notes for Claude, the short version: architecture, rules, testing, release checklist
+docs/notes/              the same notes in depth, a file per station or subsystem (CLAUDE.md has the index)
+docs/BACKLOG.md          parked work: what waits on Timothy, what is agreed and not started, the roadmap
 docs/DESIGN.md           decisions log and the original design
 ```
 
 ## Roadmap
 
-The next steps and the ideas parked for later are kept in **CLAUDE.md → Roadmap**.
+The next steps and the ideas parked for later are kept in **docs/BACKLOG.md**.

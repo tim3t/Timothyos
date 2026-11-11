@@ -1,0 +1,64 @@
+# Backlog
+
+Where parked work lives, so it survives a long conversation. Claude adds an item in the same change that postpones, offers or promises it, and removes it (noting the version) when it is done; Timothy can edit it too. No secrets and no private data here: this repository is public.
+
+Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
+
+## Waiting on Timothy
+
+| Item | Where | Notes |
+|---|---|---|
+| Deploy bridge 1.44.1 | Apps Script: paste `Code.gs`, run setup, new deployment version | Health days land on the right date; a partial day never overwrites a whole one. SYSTEMS shows the deployed version |
+| Rotate `HEALTH_KEY` | Apps Script: delete the property, run setup, paste the new key into the Bridge Health shortcut | Routine rotation, agreed 2026-11-11 |
+| SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
+| A stray day page from the first shortcut runs | Notion: 🩺 Sickbay | One day page dated a day early (before the 1.44.1 date fix): delete it |
+| HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
+| Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |
+| First weekly export: report how it went | Google Drive, Sunday about 03:00 | Bridge 1.41 |
+
+## Agreed, not started (from the 2026-11-11 review)
+
+In Timothy's order; each one is confirmed with him before it starts.
+
+1. **Steadier tests.** Pin the clock in the browser tests that run on real time (37 of 79 on 2026-11-11), replace fixed waits with waits for a condition (744 `waitForTimeout` calls, about 43% of test time), and fix the HOLODECK commercial-breaks guide test (`app_e2e62`), which fails at certain times of day: it was rerun on 2026-11-10, not fixed. Since D72 a flaky test delays a release.
+2. **Two security tidy-ups.** Tell Claude, in every prompt that carries calendar, recipe-page or Notion text, to treat that text as data and never as instructions. Convert a recipe's remote photo to a stored thumbnail at import, so MEALS stops loading images from recipe sites.
+3. **Faster diagnosis.** A bridge mode that answers with how it read each line of a `healthput` (nothing saved), and **COPY DIAGNOSTICS** in SYSTEMS (versions, last errors, queue sizes, storage) so a problem can be sent as text, not screenshots.
+
+Also raised in the review, not yet agreed: a lint or type check; one shared simulated bridge in place of the 18 hand-written ones (the app is never tested against the real `Code.gs`); tests named for what they cover; a "trial first" rule for anything on a platform we don't control (Shortcuts, Health, Home Assistant, YouTube); narrowing the page's connection rules; separate read and write keys; a lock inside the app for an iPad left unlocked.
+
+## Put off, to return to
+
+- **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
+- **Bridge Health shortcut: the remaining measures.** Built so far: steps, resting heart rate, heart rate variability, sleep. Still to add if the trial passes: active energy, exercise minutes, stand minutes (YESTERDAY · ACTIVITY), breathing rate, cardio fitness, wrist temperature, weight (README: SICKBAY has the table).
+- **Weekly export:** include the synced settings (no keys). Offered, not started.
+- **fix-videos:** show progress while it scans. Offered, not started.
+- **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
+
+## Decided against
+
+- **Requiring the CI check before anything lands on `main`** (a pull request per release): too clunky for one person working from an iPad (Timothy, 2026-11-11). The deploy gate (D72) already keeps an untested version off the iPads, and `main` is protected against force-pushes and deletion.
+
+## Roadmap (standby modules)
+
+Moved here from `CLAUDE.md` on 2026-11-11, unchanged.
+
+Done since the first roadmap: Home Assistant (ENGINEERING, 2.24), backup and restore (2.33), the rename to Bridge (2.34), COMPUTER (2.35), the Morning Briefing (2.36), ASTROMETRICS and the Ship's Year (2.40), Notes in Capture as the INBOX (2.41), SCIENCE (2.42), RESSIKAN (2.44), HOLODECK (2.45; channels 2.46, the arch with AUDIO 2.47, NETWORK 2.48, sleep timer 2.49, commercial breaks 2.52), `tools/ia_fetch.py`, the review clean-up (2.50: assertions, privacy, docs). Set aside by Timothy (2026-10-21): a Scriptable home-screen widget; don't raise it again unless he does.
+
+**Hardening (resumed 2026-10-23), in Timothy's order:** (1) ~~docs accuracy pass~~ done 2026-10-22 (README rebuilt as Setup, Stations, Reference); (2) ~~bridge version check~~ done 2026-10-23 (2.38, below); (3) ~~Notion schema check~~ done 2026-10-23 (2.39). ~~**WAITING fix**~~ done 2026-11-04 (2.58: `go("systems")` calls `loadLedger(false)`, `loadApiary(false)`, `loadTarot(false)`; `index.html` description refreshed). ~~Keys out of URLs and a CSP~~ done 2026-11-04 (2.58, bridge 1.38: section **Requests and the page's rules** under Code conventions). Still proposed (Timothy, 2026-11-04: next after MEALS mockups as he chooses): an optional PIN that encrypts the stored keys, a key per iPad with ROTATE KEY in SYSTEMS, a weekly export of every database to Drive or the NAS, ~~an error log in SYSTEMS~~ done 2026-11-05 (2.62, with the LEVEL safety net; Apps Script quota use is shown as BRIDGE TODAY from the app's side, a true UrlFetch count would need the bridge), ~~splitting `app.js`~~ done 2026-11-09 (2.73.1, D69: option A, the source split into `js/src/` parts and built into the one file; option B, separate browser modules, set aside). The backup reminder is an UPKEEP item Timothy made himself (2026-11-04), so no app feature; a **backup reminder** when the last backup (`tos.bkat.v1`) is over 30 days old, as a Bridge Condition item or as an UPKEEP item (Timothy's thought; decide with him).
+
+Pinned for later, in no order:
+- **Ask and breaks** (Timothy asked to be reminded about this one): the app should send its BREAKS list with ASK so `get_events` keeps an ignored "Out of office" lunch as a break, as the screens do (found in the 1.27 tool audit).
+- **ENGINEERING:** doors; AUTO thermostat with two setpoints; scenes triggered by motion or presence (2.64 keeps to time, sunrise, sunset and a tap).
+- ~~**Arboretum**~~: done (2.71, D67), built empty for Timothy to fill. Ideas if he asks: garden jobs in the Morning Briefing or a Bridge panel, frost nights from the weather, a photo per bed.
+- **HOLODECK:** channels (2.46) and the arch with STORAGE as AUDIO (2.47) shipped after his mockup approvals. Nothing held.
+- **RESSIKAN Phase 2, held (raise as he refines):** POCKET GRID (knobs and punch-in effects), TILT (gyroscope filter), VOICE GRAINS (mic, stays on the iPad), SKY SONATA (SCIENCE's aircraft, Kp and passes as sound), Claude's "compose from a mood" (about 1¢), and sound that carries on outside the station (a pill, as STORAGE has). **Held as a future option, only if he asks where RESSIKAN can go:** paid AI music generators (Google Lyria, ElevenLabs Music, Stable Audio); Suno and Udio have no official API; MusicGen needs a GPU the NAS lacks. Safari has no Web MIDI.
+- **The SCIENCE group** (D50): a LISTENING POST when Timothy's digital shortwave antenna is up (band conditions already in SPACE WEATHER); other sensor stations he might add (a weather station, a BirdNET-Pi for the birds in his own yard, an ADS-B receiver of his own, a lightning detector).
+- **Station discovery, shelved after COMPUTER (D43):** STATION BOARD (a Bridge panel of unpinned stations with a live line each, plus a count on ALL STATIONS) and ON DECK (one slot under the pins that shows the unpinned station with a reason to open now).
+- **Ship's Computer on schedules:** the Morning Briefing is done (2.36, first open after 06:00 rather than a timed trigger, Timothy's choice). Still ideas: a Sunday draft review, a hive nudge after 10 days when the weather is GO.
+- **A spoken ship's computer:** OpenAI's live (full-duplex) voice model, about $0.05 a minute, for talking with Bridge rather than reading the briefing (Timothy asked about it 2026-10-23; not planned).
+- **From the 2026-10-21 brainstorm (proposals, none approved yet):** QUARTERMASTER (one stock list for bee, farm and household supplies; running low moves an item to the Replicator Queue); ASTROMETRICS (done, 2.40); voice capture through Shortcuts; splitting `app.js` into per-station modules (done as source parts with a small build, 2.73.1). My suggested order then: hardening, ARBORETUM, schedules.
+- **Habits:** keep each day's water goal in Notion (needs a schema change: ask first).
+- **Log italics** (Unicode italic): paused by Timothy.
+- Moving hosting to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change) after a hosting review.
+
+~~Standing reminder: rotate the NAS relay token~~: done by Timothy 2026-11-05 (both iPads updated). He also rotated the bridge access key the same week. No standing reminders left.
