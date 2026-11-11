@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.78.0";
+  var VERSION = "2.79.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1377,8 +1377,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.45.0";
-  var BRIDGE_FEATURES = [["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.46.0";
+  var BRIDGE_FEATURES = [["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -13396,6 +13396,7 @@
   function canMealPlan() { return state.caps.indexOf("mealplan") > -1; }
   function canMealImport() { return state.caps.indexOf("mealimport") > -1; }
   function canRecipes() { return state.caps.indexOf("recipes") > -1; }
+  function canMealImg() { return state.caps.indexOf("mealimg") > -1; }
   function mlMeals(all) { return ((ml.data && ml.data.meals) || []).filter(function (m) { return all || !m.retired; }); }
   function mlMeal(id) { return ((ml.data && ml.data.meals) || []).filter(function (m) { return m.id === id; })[0] || null; }
   function mlDinner(day) { return ((ml.data && ml.data.dinners) || []).filter(function (d) { return d.date === day; })[0] || null; }
@@ -13419,6 +13420,7 @@
       ml.data = { fetched: Date.now(), meals: j.meals || [], dinners: j.dinners || [], url: j.url || "", dinnersUrl: j.dinnersUrl || "" };
       ml.q.ops.forEach(mlApply);   /* what hasn't reached Notion yet still shows */
       ml.err = null; lsSet(LS_MEALS, ml.data);
+      mlBackfill();
     }).catch(function (err) { ml.err = { at: Date.now(), msg: mlErrText(err) }; })
       .then(function () { ml.inflight = false; mlRedraw(); cmdFresh(); flushMeals(); });
   }
@@ -13484,8 +13486,8 @@
     var w = String(name || "").split(/\s+/).filter(function (x) { return /^[A-Za-z0-9]/.test(x) && !/^(and|with|the|of|a|an|n|on|in)$/i.test(x); });
     return w.slice(0, 2).map(function (x) { return x.charAt(0).toUpperCase(); }).join("") || "·";
   }
-  function mlPic(m, cls) {   /* its own photo first, then the recipe's, then its initials on the kind's colour */
-    var src = m.thumb || m.photo, c = "ml-pic" + (cls ? " " + cls : "");
+  function mlPic(m, cls) {   /* its small copy (Thumb), or its initials on the kind's colour. 2.79: never an image from a recipe site */
+    var src = m.thumb, c = "ml-pic" + (cls ? " " + cls : "");
     return src ? '<img class="' + c + '" src="' + esc(src) + '" alt="" loading="lazy">' : '<i class="' + c + '" data-ini="' + esc(mlIni(m.name)) + '" aria-hidden="true"></i>';
   }
   function mlRow(x) {
@@ -13521,11 +13523,12 @@
   document.addEventListener("input", function (e) { if (e.target && e.target.id === "mlFind") { ml.find = e.target.value.slice(0, 60); var el = $("mlRows"); if (el) el.innerHTML = mlRowsHtml(); } });
 
   /* ---- a meal's own photo (2.76): the camera or the library, cropped square and made small, kept as text in Notion (Thumb) ---- */
-  function mlThumb(file) {
+  function mlThumb(file) {   /* a File (the camera or the library), or a data: URL (2.79: a recipe's photo, fetched by the bridge) */
     return new Promise(function (res, rej) {
-      var url = URL.createObjectURL(file), img = new Image();
+      var own = typeof file !== "string", url = own ? URL.createObjectURL(file) : file, img = new Image();
+      if (!own && !/^data:image\/(jpeg|png|webp|gif);base64,/.test(url)) { rej(new Error("photo")); return; }
       img.onload = function () {
-        URL.revokeObjectURL(url);
+        if (own) URL.revokeObjectURL(url);
         var w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h), c = document.createElement("canvas"), d = "", qs = [0.72, 0.56, 0.42, 0.3];
         if (!s) { rej(new Error("photo")); return; }
         c.width = c.height = ML_TH;
@@ -13533,11 +13536,44 @@
         for (var i = 0; i < qs.length; i++) { d = c.toDataURL("image/jpeg", qs[i]); if (d.length <= 15000) break; }
         if (/^data:image\/jpeg;base64,/.test(d) && d.length <= 15000) res(d); else rej(new Error("photo"));
       };
-      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("photo")); };
+      img.onerror = function () { if (own) URL.revokeObjectURL(url); rej(new Error("photo")); };
       img.src = url;
     });
   }
+  /* 2.79: a recipe's photo becomes a small copy kept with the meal (Thumb). The bridge fetches the picture; the iPad makes
+     it small and never loads images from recipe sites itself. Used for an imported recipe, a pasted image link, and
+     (once, in the background) each older meal that has only a link. */
+  function mlThumbFromLink(url) {
+    return apiPost({ action: "mealimg", url: url }, 60000).then(function (j) { return mlThumb(j.data); });
+  }
+  function mlBackfill() {
+    if (ml.bf || !canMealImg() || !state.conn) return;
+    var tried = mlView.nothumb || {}, now = Date.now();
+    var todo = mlMeals(true).filter(function (m) { return m.photo && !m.thumb && !(tried[m.id] && now - tried[m.id] < 14 * 864e5); });
+    if (!todo.length) return;
+    ml.bf = true;
+    (function next(i) {
+      var m = todo[i]; if (!m) { ml.bf = false; return; }
+      mlThumbFromLink(m.photo).then(function (d) { return apiPost({ action: "mealthumb", id: m.id, thumb: d }, 60000).then(function () { return d; }); }).then(function (d) {
+        var have = mlMeal(m.id); if (have && have.photo === m.photo) { have.thumb = d; lsSet(LS_MEALS, ml.data); mlRedraw(); }
+        next(i + 1);
+      }, function (err) {
+        var c = err && err.code;
+        if (err && (err.message === "photo" || /^photo_|^bad_request$|^not_found$/.test(c || ""))) { (mlView.nothumb = mlView.nothumb || {})[m.id] = Date.now(); mlSaveView(); next(i + 1); }   /* that picture can't be had: try again in two weeks */
+        else ml.bf = false;   /* offline, or the bridge is busy: the next load carries on */
+      });
+    })(0);
+  }
   document.addEventListener("change", function (e) {
+    if (e.target && e.target.id === "mlPhotoUrl" && ml.form) {   /* 2.79: a pasted image link becomes a small copy, too */
+      mlFormRead(); var f = ml.form, u = f.photo;
+      if (!u || u === f.photo0 || !canMealImg()) return;
+      if (!/^https:\/\/\S+$/.test(u) || u.length > 1000) { f.err = "The image link should start with https://"; render(true); return; }
+      f.busy = true; f.err = ""; render(true);
+      mlThumbFromLink(u).then(function (d) { if (ml.form === f) f.thumb = d; }, function () { if (ml.form === f) { f.photo = ""; f.err = "Couldn't use that image link. Choose a photo instead, or try another link."; } })
+        .then(function () { f.busy = false; if (ml.form === f && state.screen === "meals") render(true); });
+      return;
+    }
     if (!e.target || e.target.id !== "mlThumbFile" || !ml.form) return;
     var file = e.target.files && e.target.files[0]; if (!file) return;
     mlFormRead(); ml.form.busy = true; ml.form.err = ""; render(true);
@@ -13670,7 +13706,7 @@
       '<span class="ov-sub">KIND</span><div class="btnrow">' + ML_KINDS.map(function (k) { return '<button type="button" class="chip sm" data-mlkind="' + k + '" aria-pressed="' + (f.kind === k) + '" style="--c: ' + ML_KC[k] + '">' + k.toUpperCase() + "</button>"; }).join("") + "</div>" +
       '<span class="ov-sub">PHOTO</span><div class="ml-photo" style="--k: ' + ML_KC[f.kind] + '">' + mlPic(f, "lg") + '<span class="ml-photoc"><span class="btnrow"><label class="chip sm ml-file' + (f.busy ? " busy" : "") + '">' + (f.busy ? "MAKING IT SMALL…" : f.thumb ? "A DIFFERENT PHOTO" : "TAKE OR CHOOSE A PHOTO") +
         '<input id="mlThumbFile" type="file" accept="image/*"' + (f.busy ? " disabled" : "") + "></label>" + (f.thumb || f.photo ? '<button type="button" class="chip sm" data-ml="thumbrm">REMOVE</button>' : "") + "</span>" +
-        (f.thumb ? '<small class="muted">Your photo, kept small with the meal in Notion.</small>' : '<input id="mlPhotoUrl" type="url" maxlength="1000" autocomplete="off" placeholder="or paste an image link (https://)" aria-label="Image link" value="' + esc(f.photo || "") + '">') + "</span></div>" +
+        (f.thumb ? '<small class="muted">Kept small with the meal in Notion.</small>' : '<input id="mlPhotoUrl" type="url" maxlength="1000" autocomplete="off" placeholder="or paste an image link (https://)" aria-label="Image link" value="' + esc(f.photo || "") + '">') + "</span></div>" +
       '<span class="ov-sub">WHAT IT NEEDS FROM THE STORE</span><div class="ml-ings">' + f.ing.map(function (x, i) {
         return '<div class="ml-ing"><input class="ml-ingn" data-i="' + i + '" maxlength="100" autocomplete="off" placeholder="Ingredient" aria-label="Ingredient ' + (i + 1) + '" value="' + esc(x.n) + '"><select class="ml-inga" data-i="' + i + '" aria-label="Aisle for ingredient ' + (i + 1) + '">' +
           ML_AISLES.map(function (a) { return "<option" + (x.a === a ? " selected" : "") + ">" + a + "</option>"; }).join("") + '</select><button type="button" class="chip sm" data-mlhave="' + i + '" aria-pressed="' + !!x.have + '" title="Always in the pantry: left off the list">HAVE</button><button type="button" class="ml-x" data-mlingrm="' + i + '" aria-label="Remove ingredient ' + (i + 1) + '">×</button></div>';
@@ -13875,12 +13911,16 @@
       ml.form = { id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: r.name, kind: ML_KINDS.indexOf(r.kind) > -1 ? r.kind : "Other", ing: r.ing.length ? r.ing : [{ n: "", a: "Produce", have: false }],
         recipe: r.source || "", photo: r.photo || "", photo0: r.photo || "", thumb: "", notes: r.notes || "", retired: false, isNew: true, err: "", via: j.via, cost: j.cost,
         full: { lines: r.lines, steps: r.steps, servings: r.servings || "", time: r.time || "", source: r.source || "" } };
+      if (r.photoData) {   /* 2.79: the recipe's photo, as the bridge fetched it, made small here */
+        var f = ml.form; f.busy = true;
+        mlThumb(r.photoData).then(function (d) { f.thumb = d; }, function () { /* initials, then */ }).then(function () { f.busy = false; if (ml.form === f && state.screen === "meals") render(true); });
+      }
     }, function (err) { I.busy = false; I.err = err && err.message === "photo" ? "Couldn't open that photo. Try another." : mlImpErr(err); })
       .then(function () { if (state.screen === "meals") render(true); });
   }
   function mlImported(f) {   /* in the editor: what the import found, to check before SAVE */
     var F = f.full, host = F.source ? F.source.replace(/^https?:\/\/(www\.)?/i, "").split("/")[0] : "";
-    return '<div class="ml-imported">' + (f.photo ? '<img src="' + esc(f.photo) + '" alt="">' : "") + "<span><b>" + (f.via === "photo" ? "FROM YOUR PHOTO" : host ? "FROM " + esc(host.toUpperCase()) : "FROM YOUR TEXT") + "</b><small>" +
+    return '<div class="ml-imported">' + (f.thumb ? '<img src="' + esc(f.thumb) + '" alt="">' : "") + "<span><b>" + (f.via === "photo" ? "FROM YOUR PHOTO" : host ? "FROM " + esc(host.toUpperCase()) : "FROM YOUR TEXT") + "</b><small>" +
       F.lines.length + (F.lines.length === 1 ? " ingredient" : " ingredients") + " as written · " + F.steps.length + (F.steps.length === 1 ? " step" : " steps") + (F.servings ? " · serves " + esc(F.servings) : "") + (F.time ? " · " + esc(F.time) : "") +
       ". Check the name, kind and shopping list below; the recipe goes into the meal's Notion page.</small></span>" +
       '<details class="ml-full"><summary>THE RECIPE</summary><ul>' + F.lines.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul><ol>" + F.steps.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol></details></div>";
@@ -14263,7 +14303,7 @@
   function mlCookHtml() {
     var C = ml.cook, m = mlMeal(C.id), D = C.data, big = !!mlView.big;
     var lines = D && D.lines.length ? D.lines : m.ing.map(function (x) { return x.n; }), steps = D ? D.steps : [];
-    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.photo || m.thumb ? '<img src="' + esc(m.photo || m.thumb) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
+    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.thumb ? '<img src="' + esc(m.thumb) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
       (D && D.other.length ? "<small>" + esc(D.other.filter(function (x) { return !/^From /.test(x); }).join(" · ")) + "</small>" : "") + '</span><span class="btnrow"><button type="button" class="chip sm" data-ml="cookbig" aria-pressed="' + big + '">' + (big ? "A−" : "A+") + "</button>" +
       ((D && D.recipe) || m.recipe ? '<a class="chip sm" href="' + esc((D && D.recipe) || m.recipe) + '" target="_blank" rel="noopener">THE RECIPE PAGE</a>' : "") + '<button type="button" class="chip" data-ml="cookx">DONE</button></span></div>';
     if (C.err && !D) html += '<div class="err">' + esc(C.err) + "</div>";

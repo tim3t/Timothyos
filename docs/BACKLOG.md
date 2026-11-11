@@ -8,19 +8,16 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.45.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Includes 1.44.1 (health days on the right date; a partial day never overwrites a whole one) and 1.45 (the shortcut's check mode, reasons for left-out lines). SYSTEMS shows the deployed version |
+| Deploy bridge 1.46.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Recipe photos kept small (mealimg, mealthumb) and the data rule in every prompt. After it, open MEALS once on either iPad: older meals with a photo link get their small copies in the background |
 | Rotate `HEALTH_KEY` | Apps Script: delete the property, run setup, paste the new key into the Bridge Health shortcut | Routine rotation, agreed 2026-11-11 |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
-| A stray day page from the first shortcut runs | Notion: 🩺 Sickbay | One day page dated a day early (before the 1.44.1 date fix): delete it |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |
 | First weekly export: report how it went | Google Drive, Sunday about 03:00 | Bridge 1.41 |
 
 ## Agreed, not started (from the 2026-11-11 review)
 
-In Timothy's order; each one is confirmed with him before it starts.
-
-1. **Two security tidy-ups.** Tell Claude, in every prompt that carries calendar, recipe-page or Notion text, to treat that text as data and never as instructions. Convert a recipe's remote photo to a stored thumbnail at import, so MEALS stops loading images from recipe sites.
+Nothing agreed is waiting: items 1 to 7 are done (item 7, the security tidy-ups, in 2.79 and bridge 1.46). What's left of item 5 is below.
 
 **Steadier tests, what's left (item 5, done in part 2026-11-11, D76):** the frozen-clock tests (most of the heavy ones: e13, e16 to e25, e28 to e31, e37) still use fixed waits, about 450 s of the suite's 1,460 test-seconds; the next step is to start their page clocks at the chosen time and let them run (as e62 now does) so `settled()` can work there, test by test. Also: check the real-clock tests at several times of day (late evening, just after midnight) for time-of-day failures.
 

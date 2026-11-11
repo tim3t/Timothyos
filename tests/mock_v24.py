@@ -111,6 +111,12 @@ LOGOTHER = {"2026-10-01"}
 PROF = {"cap": 0, "items": {}, "rev": 0, "puts": [], "fail": ""}   # 2.54: profile sync (bridge 1.36), off unless profmode cap=1
 UPK = {"cap": 0, "items": [], "saves": [], "removes": [], "fail": ""}   # 2.54: Upkeep in Notion
 # 2.59 (bridge 1.39): MEALS. ?action=mealmode&cap=1&seed=1 turns it on with invented meals and dinners around today.
+def _png(w, h):
+    import zlib, struct, base64
+    raw = b"".join(b"\x00" + b"".join((b"\xc8\x84\x44" if x < w // 2 else b"\xff\xff\xff") for x in range(w)) for y in range(h))
+    ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b"")).decode()
+PIC = _png(80, 60)   # a recipe's picture as the bridge returns it (1.46)
 MEAL = {"cap": 0, "meals": [], "dinners": [], "posts": [], "plans": 0, "full": {}}   # 2.60: full = recipes saved as page bodies
 def meal_day(off):
     import datetime as _dt
@@ -487,8 +493,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -878,7 +884,7 @@ class H(BaseHTTPRequestHandler):
                 else:
                     u["page"] = "pg-" + u["id"]; UPK["items"][:] = [x for x in UPK["items"] if x["id"] != u["id"]] + [u]
                     body = {"ok": True, "version": VER["v"], "item": u}
-            elif act in ("mealsave", "mealremove", "dinnerset", "mealplan", "mealimport") and MEAL["cap"]:
+            elif act in ("mealsave", "mealremove", "dinnerset", "mealplan", "mealimport", "mealimg", "mealthumb") and MEAL["cap"]:
                 MEAL["posts"].append([act, b.get("meal") or b.get("id") or b.get("dinner") or b.get("nights") or b.get("url") or (b.get("text") or "")[:40] or (b.get("mime") or "")])
                 if act == "mealimport":   # scripted: a link reads the page's recipe data; text and photo go "to Claude"
                     url = b.get("url") or ""
@@ -888,8 +894,17 @@ class H(BaseHTTPRequestHandler):
                         body = {"ok": True, "version": VER["v"], "via": via, "cost": 0.005, "recipe": {"name": "Sample skillet chicken", "kind": "Chicken",
                             "ing": [{"n": "Chicken thighs", "a": "Meat + Fish", "have": False}, {"n": "Rice", "a": "Pantry", "have": True}, {"n": "Onion", "a": "Produce", "have": False}],
                             "lines": ["2 lb chicken thighs", "1 cup rice", "1 onion, diced"], "steps": ["Dice the onion.", "Brown the chicken.", "Add the rice and simmer."],
-                            "servings": "4 servings", "time": "45 min", "notes": "", "source": url, "photo": "data:image/gif;base64,R0lGODlhAQABAAAAACw=" if url else ""}}
+                            "servings": "4 servings", "time": "45 min", "notes": "", "source": url, "photo": "https://img.example/skillet.jpg" if url else ""}}
+                        if url and "nopic" not in url: body["recipe"]["photoData"] = PIC   # 1.46: the picture, fetched by the bridge
                     else: body = {"ok": False, "error": "bad_request"}
+                elif act == "mealimg":   # 1.46: a picture fetched by the bridge; "gone" can't be had
+                    u = b.get("url") or ""
+                    body = {"ok": False, "error": "bad_request"} if not u.startswith("https://") else {"ok": False, "error": "photo_unreachable"} if "gone" in u else {"ok": True, "version": VER["v"], "data": PIC}
+                elif act == "mealthumb":   # 1.46: only the picture changes
+                    m = next((x for x in MEAL["meals"] if x["id"] == b.get("id")), None)
+                    if not m: body = {"ok": False, "error": "not_found"}
+                    elif not str(b.get("thumb", "")).startswith("data:image/jpeg;base64,"): body = {"ok": False, "error": "bad_request"}
+                    else: m["thumb"] = b["thumb"]; body = {"ok": True, "version": VER["v"], "meal": m}
                 elif act == "mealsave":
                     m = dict(b.get("meal") or {})
                     if not m.get("id") or not str(m.get("name", "")).strip(): body = {"ok": False, "error": "bad_request"}

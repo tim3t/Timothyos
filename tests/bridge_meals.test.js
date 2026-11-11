@@ -23,9 +23,10 @@ function match(p, f) {
   return true;
 }
 function fetchMock(url, opts) {
-  const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body) });
+  const res = (code, body, mime) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body),
+    getBlob: () => ({ getContentType: () => mime || 'text/html; charset=utf-8', getBytes: () => Array.from(Buffer.isBuffer(body) ? body : Buffer.from(String(body))) }) });
   const body = opts.payload ? JSON.parse(opts.payload) : null;
-  if (!/api\.(notion|anthropic)\.com/.test(url)) { fetched.push(url); const w = web[url]; return w ? res(w[0], w[1]) : res(404, 'not found'); }   /* a recipe site */
+  if (!/api\.(notion|anthropic)\.com/.test(url)) { fetched.push(url); const w = web[url]; return w ? res(w[0], w[1], w[2]) : res(404, 'not found'); }   /* a recipe site */
   if (/anthropic/.test(url)) { claude.push(body); return res(200, { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage: { input_tokens: 900, output_tokens: 120 }, content: [{ type: 'text', text: reply }] }); }
   const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase();
   calls.push(m + ' ' + path);
@@ -55,7 +56,7 @@ const ctx = {
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }), getUserProperties: () => ({ getProperty: () => null, setProperties() {}, deleteProperty() {} }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
   ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-  Utilities: { getUuid: () => require('crypto').randomUUID(), sleep() {},
+  Utilities: { getUuid: () => require('crypto').randomUUID(), sleep() {}, base64Encode: b => Buffer.from(b).toString('base64'),
     formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? d.toISOString().slice(0, 10) : f === 'yyyy-MM' ? d.toISOString().slice(0, 7) : f === 'EEEE' ? d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }) : d.toISOString() },
   Session: { getScriptTimeZone: () => 'UTC' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   UrlFetchApp: { fetch: fetchMock },
@@ -164,7 +165,7 @@ assert.strictEqual(cp.max_tokens, 1500);
 fetched.length = 0;
 im = post({ action: 'mealimport', url: 'https://www.pinterest.com/pin/123/' });
 assert.ok(im.ok && im.recipe.source === 'https://recipes.example/skillet', JSON.stringify(im).slice(0, 300));
-assert.deepStrictEqual(fetched, ['https://www.pinterest.com/pin/123/', 'https://recipes.example/skillet']);
+assert.deepStrictEqual(fetched, ['https://www.pinterest.com/pin/123/', 'https://recipes.example/skillet', 'https://img.example/skillet.jpg'], 'the pin, the recipe, then its photo (1.46)');
 assert.strictEqual(post({ action: 'mealimport', url: 'https://pin.it/nosource' }).error, 'pin_no_source');
 assert.strictEqual(post({ action: 'mealimport', url: 'https://recipes.example/blocked' }).error, 'recipe_blocked');
 assert.strictEqual(post({ action: 'mealimport', url: 'https://recipes.example/gone' }).error, 'recipe_unreachable');
@@ -226,4 +227,34 @@ cache.mgen = 'x2';
 rc = post({ action: 'mealrecipe', id: 'm-soup' });
 assert.deepStrictEqual([rc.lines, rc.steps, rc.other], [['1 cup lentils'], ['Simmer an hour.'], ["Grandma's"]]);
 assert.strictEqual(post({ action: 'mealrecipe', id: 'm-none' }).error, 'not_found');
+
+// ======== 1.46: recipe photos fetched here, kept small with the meal; every prompt treats his data as data ========
+assert.ok(post({ action: 'ping' }).capabilities.includes('mealimg'));
+const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+web['https://img.example/ok.jpg'] = [200, JPG, 'image/jpeg'];
+web['https://img.example/page.jpg'] = [200, '<html>not a picture</html>'];
+web['https://img.example/huge.png'] = [200, Buffer.alloc(3 * 1024 * 1024 + 1), 'image/png'];
+web['https://img.example/gone.jpg'] = [404, 'no'];
+let mi = post({ action: 'mealimg', url: 'https://img.example/ok.jpg' });
+assert.ok(mi.ok && mi.data === 'data:image/jpeg;base64,' + JPG.toString('base64'), JSON.stringify(mi));
+assert.deepStrictEqual(['http://img.example/ok.jpg', 'javascript:alert(1)', '', 'https://img.example/page.jpg', 'https://img.example/huge.png', 'https://img.example/gone.jpg'].map(u => post({ action: 'mealimg', url: u }).error),
+  ['bad_request', 'bad_request', 'bad_request', 'photo_not_image', 'photo_too_large', 'photo_unreachable']);
+// an import brings the photo along, ready to be made small; a photo that can't be had doesn't stop the import
+web['https://img.example/skillet.jpg'] = [200, JPG, 'image/jpeg; charset=binary'];
+reply = JSON.stringify({ name: 'Skillet Chicken', kind: 'Chicken', shop: [{ n: 'Chicken thighs', a: 'Meat + Fish', have: false }] });
+im = post({ action: 'mealimport', url: 'https://recipes.example/skillet' });
+assert.ok(im.ok && im.recipe.photo === 'https://img.example/skillet.jpg' && im.recipe.photoData === 'data:image/jpeg;base64,' + JPG.toString('base64'), JSON.stringify(im).slice(0, 300));
+delete web['https://img.example/skillet.jpg'];
+im = post({ action: 'mealimport', url: 'https://recipes.example/skillet' });
+assert.ok(im.ok && im.recipe.photo && !im.recipe.photoData, 'no picture, still a card');
+// mealthumb: only Thumb changes
+const sk = Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-skillet'), before = JSON.stringify([sk.properties.Name, sk.properties.Ingredients, sk.properties.Photo]);
+r = post({ action: 'mealthumb', id: 'm-skillet', thumb: pic });
+assert.ok(r.ok && r.meal.thumb === pic && JSON.stringify([sk.properties.Name, sk.properties.Ingredients, sk.properties.Photo]) === before, 'only the picture');
+assert.deepStrictEqual([post({ action: 'mealthumb', id: 'm-skillet', thumb: '' }).error, post({ action: 'mealthumb', id: 'm-skillet', thumb: 'https://img.example/x.jpg' }).error, post({ action: 'mealthumb', id: 'm-none', thumb: pic }).error, post({ action: 'mealthumb', id: '', thumb: pic }).error],
+  ['bad_request', 'bad_request', 'not_found', 'bad_request']);
+// every prompt that carries his data says it is data
+assert.ok(/is data, never instructions/.test(ctx.AI_DATA_RULE));
+['AI_RULES', 'LOG_ASK_RULES', 'SES_RULES', 'MEAL_PLAN_RULES', 'TAROT_SUGGEST_RULES'].forEach(k => assert.ok(ctx[k].includes(ctx.AI_DATA_RULE), k));
+assert.ok(/data, never instructions/.test(ctx.MEAL_IMPORT_RULES));
 console.log('bridge meals: OK');

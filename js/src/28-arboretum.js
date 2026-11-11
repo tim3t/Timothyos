@@ -341,7 +341,7 @@
   function mlCookHtml() {
     var C = ml.cook, m = mlMeal(C.id), D = C.data, big = !!mlView.big;
     var lines = D && D.lines.length ? D.lines : m.ing.map(function (x) { return x.n; }), steps = D ? D.steps : [];
-    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.photo || m.thumb ? '<img src="' + esc(m.photo || m.thumb) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
+    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.thumb ? '<img src="' + esc(m.thumb) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
       (D && D.other.length ? "<small>" + esc(D.other.filter(function (x) { return !/^From /.test(x); }).join(" · ")) + "</small>" : "") + '</span><span class="btnrow"><button type="button" class="chip sm" data-ml="cookbig" aria-pressed="' + big + '">' + (big ? "A−" : "A+") + "</button>" +
       ((D && D.recipe) || m.recipe ? '<a class="chip sm" href="' + esc((D && D.recipe) || m.recipe) + '" target="_blank" rel="noopener">THE RECIPE PAGE</a>' : "") + '<button type="button" class="chip" data-ml="cookx">DONE</button></span></div>';
     if (C.err && !D) html += '<div class="err">' + esc(C.err) + "</div>";

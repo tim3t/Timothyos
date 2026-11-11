@@ -3250,7 +3250,7 @@ i.ml-pic.lg::before { font-size: 28px; }
 .ml-step.done { opacity: .5; }
 .ml-stepnav { position: sticky; bottom: 8px; margin-top: 6px; }
 @media (max-width: 900px) { .ml-cookbody { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 640px) { .ml-cookhead b { font-size: 24px; } .ml-cookhead > img { width: 100%; height: 140px; } }
+@media (max-width: 640px) { .ml-cookhead b { font-size: 24px; } .ml-cookhead > img { width: 96px; height: 96px; } }
 
 /* ---------- ARBORETUM (2.71, D67): the garden from above ---------- */
 .arb { grid-column: 1 / -1; display: grid; gap: 14px; align-content: start; min-width: 0; }

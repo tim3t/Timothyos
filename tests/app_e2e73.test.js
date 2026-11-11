@@ -1,8 +1,8 @@
 // RECIPES AND COOK (2.60, bridge 1.40; simulated bridge :8105, invented recipe). + FROM A RECIPE: a link (read from
 // the page's recipe data), the pasted text, or a photo (made smaller, as JPEG) → the meal editor filled in to review:
 // name, kind, the shopping list with staples marked HAVE, and what the import found (ingredients as written, steps,
-// servings, time, where from). SAVE sends the recipe with the meal so it becomes the Notion page's body; the card shows
-// the dish's photo. A site that refuses says what to do instead. ASK sends a recipe link here rather than to the chat;
+// servings, time, where from). SAVE sends the recipe with the meal so it becomes the Notion page's body; the dish's photo
+// (fetched by the bridge, 2.79) is made a small square here and kept with the meal; the site's own image is never loaded. A site that refuses says what to do instead. ASK sends a recipe link here rather than to the chat;
 // COMPUTER has "Add a recipe". COOK (from TONIGHT, a chosen night or the editor): ingredients to tick, the step you're on
 // (NEXT STEP, or tap one), A+ for larger type, the screen kept on; a meal with no recipe yet says how to add one.
 const { chromium } = require('playwright');
@@ -40,6 +40,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   await p.fill('#mlImpUrl', 'https://recipes.example/skillet'); await p.click('[data-ml="impgo"]');
   await p.waitForSelector('.ml-imported');
   assert.strictEqual((await lastPost('mealimport'))[1], 'https://recipes.example/skillet');
+  await p.waitForSelector('.ml-imported img[src^="data:image/jpeg;base64,"]');   // the dish's photo, made small here (2.79)
   assert.strictEqual(await p.inputValue('#mlName'), 'Sample skillet chicken');
   assert.strictEqual(await p.getAttribute('[data-mlkind="Chicken"]', 'aria-pressed'), 'true');
   assert.deepStrictEqual(await p.$$eval('.ml-ingn', e => e.map(x => x.value)), ['Chicken thighs', 'Rice', 'Onion']);
@@ -54,8 +55,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   const saved = (await until(() => lastPost('mealsave')))[1];
   assert.strictEqual(saved.name, 'Sample skillet chicken and rice');
   assert.deepStrictEqual(saved.full, { lines: ['2 lb chicken thighs', '1 cup rice', '1 onion, diced'], steps: ['Dice the onion.', 'Brown the chicken.', 'Add the rice and simmer.'], servings: '4 servings', time: '45 min', source: 'https://recipes.example/skillet' });
-  assert.ok(saved.photo.startsWith('data:image/gif'), 'the dish photo goes with it');
-  assert.ok(await p.$(`.ml-row[data-mlcard="${saved.id}"] img.ml-pic`), 'the row shows the photo');
+  assert.strictEqual(saved.photo, 'https://img.example/skillet.jpg', 'where the photo came from');
+  assert.ok(/^data:image\/jpeg;base64,/.test(saved.thumb) && saved.thumb.length <= 15000, 'the small copy goes with it');
+  assert.ok(/^data:image\/jpeg/.test(await p.getAttribute(`.ml-row[data-mlcard="${saved.id}"] img.ml-pic`, 'src')), 'the row shows the small copy');
   const local = await p.evaluate(id => JSON.parse(localStorage.getItem('tos.meals.v1')).meals.find(m => m.id === id), saved.id);
   assert.ok(local && !local.full, 'the recipe text is sent, not kept in the meals list');
 
