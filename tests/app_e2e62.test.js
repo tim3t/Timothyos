@@ -101,7 +101,7 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   // 2026-11-11: up to 40 s (measuring lengths is slow on a busy machine), and a guide that never finishes fails here, by
   // name, instead of being compared half built (which is how this test used to fail when the machine was busy).
   const settled = async (n, ms = 40000) => { const t = Date.now(); let a = null; for (;;) { const c = await cells(p, n), k = JSON.stringify(c);
-    if (c.length >= 5 && c.every(x => x.what) && k === a) return c; if (Date.now() - t > ms) throw new Error('the guide never finished filling in: ' + k); a = k; await p.waitForTimeout(1000); } };
+    if (c.length >= 5 && c.every(x => x.what || x.live) && k === a) return c;   /* 2026-11-12: a block on now during its break names nothing (2.57: no credit in a break) */ if (Date.now() - t > ms) throw new Error('the guide never finished filling in: ' + k); a = k; await p.waitForTimeout(1000); } };
   g = await settled(2);
   assert.ok(g.length >= 5 && g.every(x => [12, 13, 15, 16].includes(mins(x.range))), 'every episode with its break: ' + JSON.stringify(g));
   const later = g.map(x => x.range + ' ' + x.what);

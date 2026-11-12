@@ -99,8 +99,8 @@ YNAB = {"month": "2026-10-01", "months": MONTHS,
            c("p", "Phone", "Bills", [0, 0, 145, 145, 145, 145, 145, 145, 145, 145, 145, 145], 145)],
   "fundName": "Discretionary", "fund": {"name": "Discretionary", "balance": 340.0}}
 def qrows():
-    w = sorted([q for q in QUEUE if not q["bought"]], key=lambda q: (q["priority"] if q["priority"] is not None else 1e9, q["created"]))
-    b = sorted([q for q in QUEUE if q["bought"]], key=lambda q: q["bought"], reverse=True)[:10]
+    w = sorted([q for q in QUEUE if not q["bought"] and not q.get("trash")], key=lambda q: (q["priority"] if q["priority"] is not None else 1e9, q["created"]))
+    b = sorted([q for q in QUEUE if q["bought"] and not q.get("trash")], key=lambda q: q["bought"], reverse=True)[:10]
     return {"items": w, "bought": b}
 RLISTS = []; ASKS = []; SPEND = {"month": "2026-10", "usd": 0.42, "calls": 20, "budget": 8}
 WEEKDONE = {"2026-10-05": [
@@ -215,6 +215,10 @@ class H(BaseHTTPRequestHandler):
                 else:
                     for i, qid in enumerate(ids): waiting[qid]["priority"] = (i + 1) * 10
                     body = {"ok": True, "queue": qrows()}
+            elif act == "queueremove":   # bridge 1.47: to the trash, or back with undo
+                qq = next((q for q in QUEUE if q["id"] == b.get("id")), None); QPOSTS.append(1)
+                if not qq or (not b.get("undo") and (qq["bought"] or qq.get("trash"))): body = {"ok": False, "error": "not_writable"}
+                else: qq["trash"] = not b.get("undo"); body = {"ok": True, "queue": qrows()}
             elif act == "queuebought":
                 qq = next((q for q in QUEUE if q["id"] == b.get("id")), None); QPOSTS.append(1)
                 if not qq: body = {"ok": False, "error": "not_writable"}

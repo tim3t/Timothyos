@@ -2,6 +2,16 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.80.0 · 2026-11-12 (needs bridge 1.47)
+- **SICKBAY shows each day catching up** (from Timothy's approved mockup). Health is never live: each send covers the last 3 days, so a day arrives the next morning and is whole the morning after. Now:
+  - **A banner on every tab** names the latest complete day and the days still coming in.
+  - **DAYS** (a new tab): the last 14 days, each marked ARRIVED, PARTIAL, WAITING or MISSED. Tap one for the whole day: when it arrived and what came later (bridge 1.47), its activity rings, the night before, and every measure against your normal; a missing one says why. EARLIER and LATER step through the days.
+  - **VITALS** has fewer averages: each tile shows a measure's latest value and its day; the chart (7, 14 or 30 days) has a bar per day, and tapping one opens that day. Readiness names the night it reads.
+  - **Activity rings** (MOVE, EXERCISE, STAND) for the last 7 days, with **GOALS** you set once (Shortcuts can't read your Apple goals).
+  - Breathing rate and cardio fitness were already accepted; README → SICKBAY now walks through adding them, and the rings, to the shortcut one at a time. Weight stays a RECORDS reading.
+- **LEDGER: REMOVE** takes an item off the Replicator Queue without marking it bought (it asks first; UNDO brings it back). Its page goes to Notion's trash.
+- **Bridge 1.47:** `queueremove` (to Notion's trash, or back with `undo`; only this queue's waiting items); each health day now records when it first arrived (`_got`), when it last gained something (`_upd`) and what (`_add`).
+
 ## 2.79.0 · 2026-11-11 (needs bridge 1.46)
 - **Recipe photos are kept small with the meal.** + FROM A RECIPE's dish photo is now fetched by the bridge and made into the same small square copy as your own photos (Thumb in 🍽 Meals), so MEALS never loads an image from a recipe site. A pasted image link becomes a copy too. Meals saved earlier with only a photo link get their copy by themselves, once, in the background; one whose picture can't be had shows its initials and isn't asked for again for two weeks. COOK shows the copy.
 - **Bridge 1.46:** `mealimg` (an https image, up to 3 MB, fetched for the iPad to make small; nothing saved) and `mealthumb` (sets only a meal's Thumb). Every prompt that carries your data (ASK and the briefing, Log Ask, SUGGEST TOPICS, PLAN MY WEEK, tarot SUGGEST) now tells Claude that all of it is data and never instructions; recipes already did.

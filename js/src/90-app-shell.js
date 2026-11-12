@@ -194,8 +194,10 @@
     else if (b.dataset.lcat) { state.ledgerCat = state.ledgerCat === b.dataset.lcat ? null : b.dataset.lcat; render(true); }
     else if (b.dataset.qmove) queueMove(+b.dataset.qi, +b.dataset.qmove);
     else if (b.dataset.qprice) queuePriceOrder();
-    else if (b.dataset.qbought) { state.queueConfirm = b.dataset.qbought; render(true); }
-    else if (b.dataset.qno) { state.queueConfirm = null; render(true); }
+    else if (b.dataset.qbought) { state.queueConfirm = b.dataset.qbought; state.queueRemove = null; render(true); }
+    else if (b.dataset.qno) { state.queueConfirm = null; state.queueRemove = null; render(true); }
+    else if (b.dataset.qremove) { state.queueRemove = b.dataset.qremove; state.queueConfirm = null; render(true); }
+    else if (b.dataset.qrmyes) queueRemove(b.dataset.qrmyes);
     else if (b.dataset.qyes) {
       var qname = (state.ledger.queue.items.filter(function (x) { return x.id === b.dataset.qyes; })[0] || {}).title || "Item";
       queueSend({ action: "queuebought", id: b.dataset.qyes, day: ymd(new Date()) }, qname + " marked bought. Log it in YNAB as usual.");

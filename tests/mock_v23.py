@@ -58,12 +58,17 @@ PRIS = ["🔴 High", "🟡 Medium", "🟢 Low"]
 TCIDS = {}
 def KDt(title, start, end=None, area=None, typ=None, yearly=False, notes=""):
     return {"id": uuid.uuid4().hex, "url": "https://www.notion.so/" + uuid.uuid4().hex, "title": title, "start": start, "end": end, "area": area, "type": typ, "yearly": yearly, "notes": notes}
+# 2026-11-12: the two dates still ahead are set from today (they were fixed: "Mite treatment" on 15 November tied with
+# HOLIDAYS' test holiday, 3 days out, once the real date reached the 12th). Both stay well after it.
+_KD0 = dt.date.today()
+_KDAHEAD = lambda n: (_KD0 + dt.timedelta(days=n)).isoformat()
+_KDBDAY = (_KD0 + dt.timedelta(days=25)).strftime("%m-%d").replace("02-29", "03-01")
 KDATES = [
   KDt("First frost risk", "2026-10-12", None, "🌿 Hollow Oak Farm", "⏰ Deadline", False, "Cover the dahlias the night before"),
-  KDt("Mom's birthday", "1958-10-20", None, "👨‍👩‍👧‍👦 Kin", "🎂 Birthday", True),
+  KDt("Mom's birthday", "1958-" + _KDBDAY, None, "👨‍👩‍👧‍👦 Kin", "🎂 Birthday", True),
   KDt("Garlic planting window", "2026-10-01", "2026-10-25", "🌿 Hollow Oak Farm", "🌦️ Window"),
   KDt("Q4 roadmap due", "2026-10-30", None, "🎯 Work Desk", "⏰ Deadline"),
-  KDt("Mite treatment", "2026-11-15", None, "🐝 Bee Yard", "🔔 Reminder"),
+  KDt("Mite treatment", _KDAHEAD(20), None, "🐝 Bee Yard", "🔔 Reminder"),
   KDt("Old past thing", "2026-09-01", None, "🏡 House Upkeep", "📍 Event"),
 ]
 KTYPES = ["⏰ Deadline", "🌦️ Window", "🎂 Birthday", "💍 Anniversary", "📍 Event", "🔔 Reminder"]

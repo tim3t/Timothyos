@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.46.0';
+var VERSION = '1.47.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -265,6 +265,7 @@ function doPost(e) {
     if (body.action === 'speak') return json_(speak_(body));
     if (/^log/.test(String(body.action || ''))) return json_(logAction_(body));
     if (body.action === 'queuebought') return json_(queueBought_(String(body.id || ''), body.day === null ? null : String(body.day || '')));
+    if (body.action === 'queueremove') return json_(queueRemove_(String(body.id || ''), body.undo === true));
     return json_(read_(body) || { ok: false, error: 'unknown_action' });   // the reads (1.38)
   } catch (err) {
     if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
@@ -1264,6 +1265,28 @@ function queueBought_(id, day) {
     var q = queueRows_();
     if (!q.items.concat(q.bought).some(function (r) { return r.id === id; })) return { ok: false, error: 'not_writable' };
     notion_('patch', '/pages/' + id, { properties: { Bought: { date: day ? { start: day } : null } } });
+    return { ok: true, version: VERSION, queue: queueRows_() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** 1.47: take a waiting item off the queue without buying it: its page moves to Notion's trash (restorable there).
+ *  undo: true brings it back from the trash, but only a page of this queue. Safe to repeat. */
+function queueRemove_(id, undo) {
+  if (!/^[A-Za-z0-9-]{20,40}$/.test(id)) return { ok: false, error: 'bad_request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    if (undo) {
+      var cur = notion_('get', '/pages/' + id), ds = queueSource_();
+      if (!cur.parent || String(cur.parent.data_source_id || '').replace(/-/g, '') !== String(ds).replace(/-/g, '')) return { ok: false, error: 'not_writable' };
+      if (cur.in_trash) notion_('patch', '/pages/' + id, { in_trash: false });
+    } else {
+      var q = queueRows_();
+      if (!q.items.some(function (r) { return r.id === id; })) return { ok: false, error: 'not_writable' };
+      notion_('patch', '/pages/' + id, { in_trash: true });
+    }
     return { ok: true, version: VERSION, queue: queueRows_() };
   } finally {
     lock.releaseLock();
@@ -2456,7 +2479,11 @@ function healthPut_(body) {
     days.forEach(function (d) {
       var key = 'day-' + d, have = sickFind_(key), was = have ? sickData_(have.properties || {}) : {}, part = d <= edge;
       if (part && have && Object.keys(got.days[d]).every(function (k) { return was[k] != null; })) return;   // nothing it lacks: left as it is
-      var merged = part ? Object.assign({}, got.days[d], was) : Object.assign(was, got.days[d]);
+      var before = Object.assign({}, was), merged = part ? Object.assign({}, got.days[d], was) : Object.assign(was, got.days[d]);
+      /* 1.47: when the day first arrived, when it last gained something, and what (SICKBAY's DAYS shows it catching up) */
+      var stamp = new Date().toISOString(), added = HEALTH_AVG.concat(HEALTH_SUM, HEALTH_LAST, ['sleep']).filter(function (k) { return merged[k] != null && before[k] == null; });
+      if (!have) merged._got = stamp;
+      else if (added.length) { merged._upd = stamp; merged._add = added; }
       var dt = new Date(d + 'T12:00:00Z'), name = Utilities.formatDate(dt, 'UTC', 'EEE d MMM yyyy');
       var props = { Name: { title: rt_(name) }, Kind: { select: { name: 'Day' } }, Date: { date: { start: d } }, 'App ID': { rich_text: rt_(key) },
         'Resting HR': { number: merged.rhr != null ? merged.rhr : null }, HRV: { number: merged.hrv != null ? merged.hrv : null },

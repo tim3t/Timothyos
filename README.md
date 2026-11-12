@@ -145,7 +145,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 | 🎯 Master Task List | PLAN DAY, Priorities, Balance, Review, Ask | Read; add tasks; set Focus Date and Status |
 | 🗓️ Key Dates | DATES, Key Dates panel, markers, Capture | Read; add |
 | 🧭 Weekly Reviews | REVIEW | Read; add and update a week's page |
-| 🛸 Replicator Queue | LEDGER | Read; add; reorder; mark bought |
+| 🛸 Replicator Queue | LEDGER | Read; add; reorder; mark bought; remove (moves the page to Notion's trash, bridge 1.47) |
 | 📓 Captain's Log | LOG | Read and write entries, behind your authorization code |
 | 🔁 Habits | HABITS, Bridge strip, Review | Read; write a day's page |
 | 📚 Library | LIBRARY | Read; add; change; move to Notion's trash |
@@ -612,7 +612,7 @@ Your finances from YNAB at a glance. YNAB stays where you budget: the Google bri
 
 - **Accounts:** checking (working balance), age of money with its 12-month trend, savings, and loans with % paid off (from the loan's starting balance in YNAB).
 - **Average spend:** per category for the last **3M / 6M / 12M** full months (months before your plan existed are skipped), with a white tick for this month so far. Tap a category for all three averages; **+** shows the smaller ones. Card payments, hidden and internal categories are left out.
-- **Replicator Queue:** things to buy once **Discretionary** can cover them. Each item's bar and **FUNDS READY** / **$… TO GO** compare the whole Discretionary balance with that item alone, so every item the balance covers shows ready and you choose which to buy (buying one lowers the balance for the rest after YNAB records it). **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. You can also edit items, links and costs in Notion.
+- **Replicator Queue:** things to buy once **Discretionary** can cover them. Each item's bar and **FUNDS READY** / **$… TO GO** compare the whole Discretionary balance with that item alone, so every item the balance covers shows ready and you choose which to buy (buying one lowers the balance for the rest after YNAB records it). **ADD** with a rough cost and note: it lands where its price puts it (just above the first item that costs more; no price, the bottom). Reorder with ▲ ▼ and your order is kept; **PRICE ORDER** (shown when the queue is out of price order) sorts it lowest to highest. **BOUGHT** (with a yes/no check) moves an item to *Bought recently*, where **UNDO** puts it back. **REMOVE** (bridge 1.47, also with a yes/no check) takes off something you no longer want without counting it as bought: its page goes to Notion's trash, and **UNDO** in the message that follows brings it back. You can also edit items, links and costs in Notion.
 - **Freshness:** opening LEDGER asks YNAB itself when the iPad's copy is over a minute old; **pull down** or **REFRESH** for the latest (**AS OF** shows when). Otherwise the bridge asks YNAB at most every 10 minutes and keeps past months for 6 hours, far below YNAB's limit of 200 requests an hour.
 
 ### LIBRARY
@@ -816,7 +816,7 @@ Free public feeds about the sky and your surroundings, worked out from your **Lo
 
 ### SICKBAY
 
-Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (readiness, yesterday's activity, resting heart rate, heart rate variability, sleep, steps, breathing rate and cardio fitness, each against **your normal**: the middle of your own last 30 days), **SLEEP** (last night's stages in four lanes, the week, the night's details) and **RECORDS** (medicines with a daily tick and a refill count, readings by hand, how-you-felt notes, appointments from your calendars, and a 90-day summary for the doctor). Readiness is a simple guide, never a diagnosis.
+Health from your Apple Watch, kept in **🩺 Sickbay** in Notion: **VITALS** (readiness, the last 7 days' activity rings, and resting heart rate, heart rate variability, sleep, steps, breathing rate and cardio fitness, each at its latest value against **your normal**: the middle of your own last 30 days), **SLEEP** (last night's stages in four lanes, the week, the night's details), **DAYS** (2.80: the last 14 days, each one opened whole, with when it arrived) and **RECORDS** (medicines with a daily tick and a refill count, readings by hand, how-you-felt notes, appointments from your calendars, and a 90-day summary for the doctor). Readiness is a simple guide, never a diagnosis.
 
 **How the data gets here.** Apple Health has no web address Bridge could ask: it keeps your data on your devices, and iCloud carries it between them encrypted. So a shortcut on the iPad reads Health and sends it to your Google bridge with its own key, and the bridge writes one page per day.
 
@@ -857,15 +857,16 @@ Show Notification  Dictionary Value
    | `rhr` | Resting Heart Rate | None | **Readiness** |
    | `hrv` | Heart Rate Variability | None | **Readiness** |
    | `sleep` | Sleep Analysis (its Value is the stage) | None | **SLEEP**, readiness |
-   | `active` | Active Energy | **Day** | Yesterday's MOVE |
-   | `exercise` | Exercise Minutes | **Day** | Yesterday's EXERCISE |
-   | `standmin` | Stand Minutes | **Day** | Yesterday's STAND |
-   | `resp` | Respiratory Rate | None | Breathing rate tile |
-   | `vo2` | Cardio Fitness (VO2 Max) | None | Cardio fitness tile |
-   | `temp` | Sleeping Wrist Temperature | None | SLEEP details |
-   | `weight` | Weight (if a scale writes to Health) | None | RECORDS |
+   | `active` | Active Energy | **Day** | The MOVE ring |
+   | `exercise` | Exercise Minutes | **Day** | The EXERCISE ring |
+   | `standmin` | Stand Minutes (or `stand` with Stand Hours, if your list has it) | **Day** | The STAND ring |
+   | `resp` | Respiratory Rate | None | Breathing rate |
+   | `vo2` | Cardio Fitness (VO2 Max) | None | Cardio fitness |
+   | `temp` | Sleeping Wrist Temperature | None | SLEEP details, the day's wrist temperature |
 
-   Steps, resting heart rate, heart rate variability and sleep give you most of SICKBAY; the rest can come later or not at all. The iPad may capitalise a code (`Rhr`): that's fine.
+   Steps, resting heart rate, heart rate variability and sleep give you most of SICKBAY; the rest can come later or not at all. The iPad may capitalise a code (`Rhr`): that's fine. Weight is a RECORDS reading you add by hand, so it isn't part of the shortcut.
+
+   **Adding the rings, breathing rate and cardio fitness later (2.80):** one measure at a time, so a mistake shows in one place. For each: drag in the four parts (Find, Repeat, Text, Add to Variable) under the last block, using the row above for its type, code and Group By; turn on **check** (below) and run it; the notification should list the new code with a count (`active 3`, say); take **check** out and run it once for real. Active Energy, Exercise Minutes and Stand Minutes are **Group By: Day** like Steps (the bridge adds the day up); Respiratory Rate and Cardio Fitness are **Group By: None** like Resting Heart Rate. Cardio fitness arrives every few days, after an outdoor walk or run with the watch, so most days show **NOT MEASURED**: that's normal. Until a measure is in the shortcut, its tile says **NOT SENT YET** and DAYS says it isn't part of the shortcut.
 4. **Combine Text**: **Combine Lines with New Lines** (if the slot shows something else, tap it → **Clear Variable** → pick **Lines**).
 5. **Get Contents of URL**: tap the address slot (if a variable is sitting in it, tap it → **Clear Variable** first) and paste your bridge's address: script.google.com → **Deploy → Manage deployments → Web app URL**, the one ending in `/exec`. Tap the small arrow on the action: **Method POST**, **Request Body JSON**, then **Add new field → Text** three times: `key` = your **HEALTH_KEY**; `action` = `healthput`; `lines` = the **Combined Text** bubble.
 6. **Get Dictionary Value**: **Get Value for** `message` **in Contents of URL** (type the word `message`; it's not a variable).
@@ -897,8 +898,10 @@ Show Notification  Dictionary Value
 **A new watch** fills in over days: steps and activity within hours; resting heart rate after a full day; heart rate variability, sleep stages and breathing rate after the first night with **sleep tracking** on (iPhone: Health → Browse → Sleep → set a schedule and **Track Sleep with Apple Watch**); wrist temperature after about 5 nights; cardio fitness after a few outdoor walks. SICKBAY's readiness and "your normal" need 7 days.
 
 **Using it:**
-- **VITALS:** tap a measure for its chart (**7D / 30D / 90D**) with your normal as a band; **▲ ABOVE NORMAL** or **BELOW** means outside your usual range, not that something is wrong. Readiness starts once 7 days are in.
-- **SLEEP:** tap a night in the week to see its stages; a note appears when your bedtime varied by more than 45 minutes.
+- **The banner** (every tab): health arrives a day or two late by design (each send covers the last 3 days, and a day's steps and rings are only whole the morning after), so it names the latest complete day and the days still coming in.
+- **VITALS:** readiness names the night it reads. **ACTIVITY** shows the last 7 days as rings (MOVE, EXERCISE, STAND, outside in; dashed where nothing has come yet); tap one to open its day. **GOALS** sets your own targets (Shortcuts can't read your Apple goals; 500 kcal, 30 min and 12 h until you change them), kept with your view and on your other iPad. Each tile shows a measure's latest value and the day it's from. Tap a tile for its chart (**7D / 14D / 30D**) with your normal as a band, and tap a bar to see that day, then **OPEN THE DAY**; hatched bars are days nothing came for. **▲ ABOVE NORMAL** or **BELOW** means outside your usual range, not that something is wrong. Readiness starts once 7 days are in.
+- **DAYS:** the last 14 days, each marked **ARRIVED**, **PARTIAL** (some of it still to come, or today, still under way), **WAITING** (nothing yet, as expected) or **MISSED** (the days around it came, this one didn't: run the shortcut by hand with its range reaching back, up to 14 days). Tap one, or use **EARLIER** and **LATER**: when it arrived and what came later (bridge 1.47; older days say they arrived before this was kept), its rings, the night before, and every measure against your normal, each missing one saying why.
+- **SLEEP:** tap a night in the week to see its stages; a note appears when your bedtime varied by more than 45 minutes. **OPEN THE DAY** shows that night's whole day.
 - **RECORDS:** **+ MEDICINE** (name, when, how many left); tick it each day you take it (the count goes down; **▲ REFILL** at 7 or fewer). Tap a medicine's name to change or remove it. **+ READING** (blood pressure, weight, glucose or anything else), **+ NOTE** with a tag. Appointments are events whose titles contain one of the words listed (change them and **SAVE WORDS**). **FOR THE DOCTOR · 90-DAY SUMMARY** shares or copies a plain summary.
 - **The Bridge:** a **RECOVERY** line in the weather panel; Condition says **Take it easy** when your resting heart rate is 5 or more above your normal two mornings running, and **No health data** after two days without a sync (check the iPhone is on, charging and on Wi-Fi).
 - **Claude:** off until **SYSTEMS → SICKBAY → SHARE WITH ASK**. Then ASK and the Morning Briefing see the last two weeks of sleep, resting heart rate, heart rate variability and steps against your normal, readiness, and your medicines' names. Off, nothing about your health goes with any question.

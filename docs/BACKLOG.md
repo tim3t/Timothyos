@@ -8,7 +8,7 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.46.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Recipe photos kept small (mealimg, mealthumb) and the data rule in every prompt. After it, open MEALS once on either iPad: older meals with a photo link get their small copies in the background |
+| Deploy bridge 1.47.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Includes 1.46 (recipe photos kept small, the data rule in every prompt) and 1.47 (SICKBAY arrival stamps, LEDGER REMOVE). After it, open MEALS once so older meals get their small photos. Days sent before 1.47 say they arrived before arrival times were kept |
 | Rotate `HEALTH_KEY` | Apps Script: delete the property, run setup, paste the new key into the Bridge Health shortcut | Routine rotation, agreed 2026-11-11 |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
@@ -19,17 +19,19 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 Nothing agreed is waiting: items 1 to 7 are done (item 7, the security tidy-ups, in 2.79 and bridge 1.46). What's left of item 5 is below.
 
-**Steadier tests, what's left (item 5, done in part 2026-11-11, D76):** the frozen-clock tests (most of the heavy ones: e13, e16 to e25, e28 to e31, e37) still use fixed waits, about 450 s of the suite's 1,460 test-seconds; the next step is to start their page clocks at the chosen time and let them run (as e62 now does) so `settled()` can work there, test by test. Also: check the real-clock tests at several times of day (late evening, just after midnight) for time-of-day failures.
+**Steadier tests, what's left (item 5, done in part 2026-11-11, D76):** the frozen-clock tests (most of the heavy ones: e13, e16 to e25, e28 to e31, e37) still use fixed waits, about 450 s of the suite's 1,460 test-seconds; the next step is to start their page clocks at the chosen time and let them run (as e62 now does) so `settled()` can work there, test by test. Also: check the real-clock tests at several times of day (late evening, just after midnight) for time-of-day failures. Two such failures were found and fixed on 12 Nov: HOLIDAYS (e35) broke when the real date neared a fixed key date in mock_v23 (now set from today), and the HOLODECK guide test (e62) expected a name on the block playing a break. The other simulated bridges (mock_v13 to v22, v24) still hold fixed dates in November and December 2026; set them from today when a test next trips on one.
 
 Also raised in the review, not yet agreed: a lint or type check; one shared simulated bridge in place of the 18 hand-written ones (the app is never tested against the real `Code.gs`); tests named for what they cover; a "trial first" rule for anything on a platform we don't control (Shortcuts, Health, Home Assistant, YouTube); narrowing the page's connection rules; separate read and write keys; a lock inside the app for an iPad left unlocked.
 
 ## Put off, to return to
 
 - **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
-- **Bridge Health shortcut: the remaining measures.** Built so far: steps, resting heart rate, heart rate variability, sleep. Still to add if the trial passes: active energy, exercise minutes, stand minutes (YESTERDAY · ACTIVITY), breathing rate, cardio fitness, wrist temperature, weight (README: SICKBAY has the table).
+- **Bridge Health shortcut: the remaining measures.** Built so far: steps, resting heart rate, heart rate variability, sleep. Still to add, one at a time with check mode (README → SICKBAY, 2.80): Active Energy, Exercise Minutes, Stand Minutes (the rings), Respiratory Rate, Cardio Fitness; Sleeping Wrist Temperature optional. Weight is not wanted (a RECORDS reading).
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
+
+- **Lint check (review item, option A; Timothy chose it 2026-11-12, then paused it for station work).** Built and parked on branch `lint-option-a`: ESLint 10.13.0 pinned as a test tool, `eslint.config.js` (bug rules only), `tools/lint.js` (checks js/app.js as built and names the js/src part), `docs/lint-first-pass.txt`. First pass: 195 findings, no undefined names, no live bug. Worth fixing: e28 measures a starting count it never checks; e42 has a step that does nothing; dead code (`scnOpenNow`, `BAL_AREAS`, 7 unused locals); APIARY redeclares 3 variables; LOG has an invisible non-breaking space in a pattern. Switch off as noise: no-useless-assignment (27), no-unmodified-loop-condition (2), no-regex-spaces (2). **Waiting on Timothy:** the 146 no-shadow findings (locals named `go` and `render` hide the app's own; SCIENCE's `pl` hides AUDIO's): rename all (recommended) or rule off. Then wire it into run.sh and CI and record it in DESIGN.
 
 ## Decided against
 

@@ -4,7 +4,7 @@ Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen 
 
 **This file is the short version** (kept under 30 KB; a test fails if it grows past that). It holds what applies to every change: the architecture, the rules, code conventions, the release checklist and testing. Everything about one station or subsystem lives in its own file under `docs/notes/`: **before changing a station, read its notes file** (the index below), and `docs/notes/quirks.md` before "fixing" anything that looks odd. When a change teaches something worth keeping, write it in that station's notes file, not here.
 
-`docs/DESIGN.md` holds the decisions (D1 to D77; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` every release. Both are long: search them (`grep "D57" docs/DESIGN.md`, `grep -n "^## 2.59" CHANGELOG.md`) instead of reading them whole. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+`docs/DESIGN.md` holds the decisions (D1 to D78; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` every release. Both are long: search them (`grep "D57" docs/DESIGN.md`, `grep -n "^## 2.59" CHANGELOG.md`) instead of reading them whole. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 **`docs/BACKLOG.md` is where parked work lives**: what is waiting on Timothy, what is agreed and not started, what was put off, and the roadmap. Whenever something is postponed, offered or promised in conversation, add it there in the same change; take it out when it is done. A conversation is summarized when it grows long, and anything kept only in chat is lost then.
 
@@ -62,7 +62,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.79.0**, **bridge 1.46.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.80.0**, **bridge 1.47.0** (release checklist step 2 keeps this line current).
 
 ## Rules
 

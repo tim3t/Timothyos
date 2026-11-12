@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.79.0";
+  var VERSION = "2.80.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -241,7 +241,7 @@
     weekErr: null,
     weekInflight: {},
     reviewSaving: false,
-    ledger: lsGet(LS_LEDGER), ledgerErr: null, ledgerInflight: false, ledgerCat: null, queueBusy: false, queueConfirm: null,
+    ledger: lsGet(LS_LEDGER), ledgerErr: null, ledgerInflight: false, ledgerCat: null, queueBusy: false, queueConfirm: null, queueRemove: null,
     rvLog: true,                           /* REVIEW shows the log (landing) rather than one week */
     rlog: lsGet(LS_RLOG),                  /* { fetched, reviews } */
     rlogErr: null, rlogInflight: false, patternsBusy: false,
@@ -1135,7 +1135,7 @@
     ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],
     ["MEALS", [["meals", "Grocery ticks and items added by hand, PLAN or LOG", ["tos.mealgot.v1", "tos.mealview.v1"]]]],
     ["ARBORETUM", [["arb", "The garden: its name, beds, plantings, jobs and ticks", ["tos.arb.v1"]]]],
-    ["SICKBAY", [["sickview", "SICKBAY tabs, measure and range, appointment words", ["tos.sickview.v1"]]]],
+    ["SICKBAY", [["sickview", "SICKBAY tabs, measure and range, activity goals, appointment words", ["tos.sickview.v1"]]]],
     ["SCIENCE AND ASTROMETRICS", [["scilm", "Landmarks and overlays", ["tos.scilm.v1", "tos.scilmoff.v1", "tos.scilineoff.v1"]], ["ship", "Ship's Year", ["tos.shipyear.v1"]]]],
     ["EVERYTHING ELSE", [["standby", "Standby minutes", ["tos.standby.v1"]], ["place", "Location for weather", ["tos.place.v1"]], ["misc", "Water goal, Capture length, Briefing, headlines and voice, RESSIKAN, Library shelf", ["tos.habitcfg.v1", "tos.capprefs.v1", "tos.briefoff.v1", "tos.newsoff.v1", "tos.voiceoff.v1", "tos.ressikan.v1", "tos.shelf.v1"]]]]
   ];
@@ -1377,8 +1377,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.46.0";
-  var BRIDGE_FEATURES = [["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.47.0";
+  var BRIDGE_FEATURES = [["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -4608,9 +4608,12 @@
           '<span class="right"><span class="cost tnum">' + (cost ? usd(cost) : "") + "</span>" + status + '</span><span class="acts">' +
           (state.queueConfirm === w.id
             ? '<span class="ov-sub">BOUGHT?</span><button type="button" class="btn" data-qyes="' + esc(w.id) + '"' + (busy ? " disabled" : "") + '>YES</button><button type="button" class="btn ghost" data-qno="1">NO</button>'
+            : state.queueRemove === w.id   /* 2.80 (bridge 1.47): off the queue without buying it */
+            ? '<span class="ov-sub">REMOVE FROM THE QUEUE?</span><button type="button" class="btn" style="--c: var(--bad)" data-qrmyes="' + esc(w.id) + '"' + (busy ? " disabled" : "") + '>YES</button><button type="button" class="btn ghost" data-qno="1">NO</button>'
             : '<button type="button" class="lg-icon" data-qmove="-1" data-qi="' + i + '" aria-label="Move ' + esc(w.title) + ' up"' + (i === 0 || busy ? " disabled" : "") + '><span class="tri u"></span></button>' +
               '<button type="button" class="lg-icon" data-qmove="1" data-qi="' + i + '" aria-label="Move ' + esc(w.title) + ' down"' + (i === L.queue.items.length - 1 || busy ? " disabled" : "") + '><span class="tri d"></span></button>' +
-              '<button type="button" class="btn ghost" data-qbought="' + esc(w.id) + '"' + (busy ? " disabled" : "") + ">BOUGHT</button>") + "</span></div>";
+              '<button type="button" class="btn ghost" data-qbought="' + esc(w.id) + '"' + (busy ? " disabled" : "") + ">BOUGHT</button>" +
+              (canQueueRemove() ? '<button type="button" class="btn ghost" data-qremove="' + esc(w.id) + '" aria-label="Remove ' + esc(w.title) + ' from the queue"' + (busy ? " disabled" : "") + ">REMOVE</button>" : "")) + "</span></div>";
       });
       html += '</div><form class="lg-add" id="qForm" autocomplete="off">' +
         '<label class="wide"><span class="ov-sub">ADD TO THE QUEUE</span><input id="qName" maxlength="120" placeholder="e.g. New glasses"></label>' +
@@ -4629,6 +4632,13 @@
     loadLedger(false);   /* a redraw asks the bridge (its copy is fine); opening the screen goes to YNAB (go()) */
   }
 
+  function canQueueRemove() { return !!state.bridgeVersion && verCmp(state.bridgeVersion, "1.47.0") >= 0; }
+  function queueRemove(id) {   /* 2.80: to Notion's trash, with UNDO for 10 seconds (it comes back from the trash) */
+    var name = (state.ledger.queue.items.filter(function (x) { return x.id === id; })[0] || {}).title || "Item";
+    queueSend({ action: "queueremove", id: id }).then(function (j) {
+      if (j && j.ok) toastUndo("Removed " + name + " from the queue", function () { queueSend({ action: "queueremove", id: id, undo: true }, name + " is back in the queue."); });
+    });
+  }
   function queueSend(body, okMsg) {
     state.queueBusy = true;
     render(true);
@@ -4639,7 +4649,7 @@
     }).catch(function (err) {
       toast("Not saved: " + describeTasks(err));
       loadLedger(true);
-    }).then(function (j) { state.queueBusy = false; state.queueConfirm = null; render(true); return j; });
+    }).then(function (j) { state.queueBusy = false; state.queueConfirm = null; state.queueRemove = null; render(true); return j; });
   }
   function queueMove(i, dir) {
     var q = state.ledger && state.ledger.queue;
@@ -15168,10 +15178,16 @@
   var SK_STAGES = [["a", "AWAKE", "--sk-awake"], ["r", "REM", "--sk-rem"], ["c", "CORE", "--sk-core"], ["d", "DEEP", "--sk-deep"]];
   var SK_READS = [["Blood pressure", "mmHg", "120/80"], ["Weight", "lb", "185.0"], ["Glucose", "mg/dL", "95"], ["Other", "", "Value"]];
   var SK_TAGS = ["GOOD", "NOTE", "PAIN", "SICK", "TIRED"];
-  var sk = { data: lsGet(LS_SICK), q: lsGet(LS_SICKQ) || { ops: [] }, at: 0, busy: false, sending: false, err: "", form: null, arm: null, armAt: 0, night: null };
+  var sk = { data: lsGet(LS_SICK), q: lsGet(LS_SICKQ) || { ops: [] }, at: 0, busy: false, sending: false, err: "", form: null, arm: null, armAt: 0, night: null, day: null, bar: null, goals: false };   /* 2.80: day (DAYS), bar (a tapped chart bar), goals (the GOALS editor open) */
   if (!Array.isArray(sk.q.ops)) sk.q = { ops: [] };
   function canSickbay() { return state.caps.indexOf("sickbay") > -1; }
-  function skView() { return Object.assign({ tab: "vitals", metric: "hrv", range: 30, words: SK_WORDS.slice() }, lsGet(LS_SICKVIEW) || {}); }
+  var SK_GOALS = { move: 500, exercise: 30, stand: 12 };   /* 2.80: Shortcuts can't read his Apple Activity goals, so he sets them here (synced with the view) */
+  function skView() {
+    var v = Object.assign({ tab: "vitals", metric: "hrv", range: 30, words: SK_WORDS.slice() }, lsGet(LS_SICKVIEW) || {});
+    if ([7, 14, 30].indexOf(v.range) === -1) v.range = v.range > 30 ? 30 : 14;   /* 2.80: 7, 14 or 30 days (it was 7, 30 or 90) */
+    v.goals = Object.assign({}, SK_GOALS, v.goals || {});
+    return v;
+  }
   function skSet(p) { lsSet(LS_SICKVIEW, Object.assign(skView(), p)); }
   function skDays() { return (sk.data && Array.isArray(sk.data.days) ? sk.data.days : []).filter(function (d) { return d && /^\d{4}-\d{2}-\d{2}$/.test(d.date); }); }
   function skDay(date) { return skDays().filter(function (d) { return d.date === date; })[0] || null; }
@@ -15197,7 +15213,40 @@
     if (hi - lo < Math.abs(mid) * 0.04) { lo = mid * 0.98; hi = mid * 1.02; }
     return { n: xs.length, lo: lo, hi: hi, mid: mid };
   }
-  function skLatest(k) { var s = skSeries(k, 3); for (var i = s.length - 1; i >= 0; i--) if (s[i].v !== null) return s[i]; return null; }
+  function skLatest(k, n) { var s = skSeries(k, n || 3); for (var i = s.length - 1; i >= 0; i--) if (s[i].v !== null) return s[i]; return null; }   /* readiness looks 3 days back; the tiles (2.80) a month */
+  /* ---- 2.80 (bridge 1.47, D78): days arrive a day or two late, by design; DAYS shows each one catching up ---- */
+  var SK_WHAT = { sleep: "sleep", rhr: "resting heart rate", hrv: "heart rate variability", resp: "breathing rate", temp: "wrist temperature", steps: "steps", active: "move", exercise: "exercise", stand: "stand", vo2: "cardio fitness" };
+  var SK_DAILY = ["sleep", "rhr", "hrv", "resp", "steps", "active", "exercise", "stand"];   /* what a whole day has; cardio fitness and wrist temperature come when they come */
+  function skAge(date) { return Math.round((sod(new Date()) - parseYmd(date)) / 864e5); }
+  function skHas(d) { return !!d && SK_DAILY.concat(["vo2", "temp"]).some(function (k) { return skVal(d, k) !== null; }); }
+  function skExpected() {   /* the measures the shortcut sends: on at least half of the last 14 days that arrived */
+    var got = skSeries("rhr", 14).map(function (p) { return skDay(p.date); }).filter(skHas);
+    return SK_DAILY.filter(function (k) { return got.filter(function (d) { return skVal(d, k) !== null; }).length * 2 >= got.length && got.length > 0; });
+  }
+  function skStatus(date, exp) {   /* arrived · partial (some of the day still to come) · waiting (nothing yet, as expected) · missing (later days came, this one didn't) */
+    var d = skDay(date), age = skAge(date);
+    if (!skHas(d)) {
+      if (age <= 1) return { s: "waiting", lack: [] };
+      var later = skDays().some(function (x) { return x.date > date && skHas(x); });
+      return { s: later ? "missing" : "waiting", lack: [] };
+    }
+    var lack = (exp || skExpected()).filter(function (k) { return skVal(d, k) === null; });
+    return { s: age === 0 || lack.length ? "partial" : "arrived", lack: lack };
+  }
+  var SK_DOWL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function skShort(date) { var d = parseYmd(date); return SK_DOWL[d.getDay()].slice(0, 3) + " " + d.getDate() + " " + MON[d.getMonth()].charAt(0) + MON[d.getMonth()].slice(1).toLowerCase(); }   /* Wed 11 Nov */
+  function skWhen(iso) { var t = new Date(iso); return isNaN(t) ? "" : skShort(ymd(t)) + " " + p2(t.getHours()) + ":" + p2(t.getMinutes()); }
+  function skList(keys) { var w = keys.map(function (k) { return SK_WHAT[k] || k; }); return w.length > 1 ? w.slice(0, -1).join(", ") + " and " + w[w.length - 1] : w.join(""); }
+  function skRing(d, size, stroke, g) {   /* MOVE, EXERCISE, STAND as three rings, outside in; dashed where nothing came */
+    var rs = [[d && skVal(d, "active"), g.move, "--chrome-d"], [d && skVal(d, "exercise"), g.exercise, "--hero"], [d && skVal(d, "stand"), g.stand, "--work"]], c = size / 2;
+    return '<svg viewBox="0 0 ' + size + " " + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + rs.map(function (q, i) {
+      var r = c - stroke / 2 - i * (stroke + 3), circ = 2 * Math.PI * r, f = q[0] === null || q[0] === undefined ? null : Math.min(q[0] / q[1], 1);
+      return '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="#24262f" stroke-width="' + stroke + '"' + (f === null ? ' stroke-dasharray="3 4"' : "") + "/>" +
+        (f ? '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="var(' + q[2] + ')" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + (circ * f).toFixed(1) + " " + circ.toFixed(1) + '" transform="rotate(-90 ' + c + " " + c + ')"/>' : "");
+    }).join("") + "</svg>";
+  }
+  function skRel(date) { var a = skAge(date); return a === 0 ? "TODAY" : a === 1 ? "YESTERDAY" : a + " DAYS AGO"; }
+  function skTileWhen(date) { var a = skAge(date); return a === 0 ? "TODAY" : a === 1 ? "YESTERDAY" : DOW[parseYmd(date).getDay()] + " " + parseYmd(date).getDate(); }
   function skFmt(m, v) { if (v === null || v === undefined) return "–"; return m.k === "steps" ? Math.round(v).toLocaleString() : m.k === "sleep" ? skHM(v * 60) : v.toFixed(m.dp); }
   function skHM(min) { min = Math.round(min); return Math.floor(min / 60) + " h " + p2(min % 60); }
   function skWhere(m, v, nm) { if (v === null || nm.lo === null) return ""; return v > nm.hi ? "above" : v < nm.lo ? "below" : "in"; }
@@ -15248,6 +15297,13 @@
     try { window.location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(SK_SHORTCUT); } catch (e) { /* not on an iPad */ }
   }
   document.addEventListener("visibilitychange", function () { if (!document.hidden && state.screen === "sickbay") loadSickbay(true); });
+  document.addEventListener("change", function (e) {   /* 2.80: the activity goals */
+    var id = e.target && e.target.id, k = { skGoalMove: ["move", 5000], skGoalEx: ["exercise", 600], skGoalStand: ["stand", 24] }[id];
+    if (!k) return;
+    var n = Math.round(+e.target.value), g = skView().goals;
+    if (!(n >= 1)) { render(true); return; }
+    g[k[0]] = Math.min(k[1], n); skSet({ goals: g }); render(true);
+  });
 
   /* ---- the screens ---- */
   function skHead() {
@@ -15258,12 +15314,13 @@
     loadSickbay(false);
     var v = skView(), html = '<div class="sk">';
     if (!canSickbay()) { $("content").innerHTML = html + phead("SICKBAY", "SETUP", "personal") + stubBox(state.conn ? "Needs the Google bridge updated to 1.43, and 🩺 Sickbay connected to the TimothyOS integration in Notion. Steps are in the README under <b>SICKBAY</b>." : "Link the calendars first.") + "</div>"; return; }
-    html += '<div class="sk-top"><div class="btnrow" role="tablist" aria-label="SICKBAY">' + [["vitals", "VITALS"], ["sleep", "SLEEP"], ["records", "RECORDS"]].map(function (t) {
+    html += '<div class="sk-top"><div class="btnrow" role="tablist" aria-label="SICKBAY">' + [["vitals", "VITALS"], ["sleep", "SLEEP"], ["days", "DAYS"], ["records", "RECORDS"]].map(function (t) {
       return '<button type="button" class="chip" role="tab" style="--c: var(--chrome-d)" data-sktab="' + t[0] + '" aria-selected="' + (v.tab === t[0]) + '" aria-pressed="' + (v.tab === t[0]) + '">' + t[1] + "</button>"; }).join("") + "</div>" +
       '<button type="button" class="chip" style="--c: var(--personal)" data-skact="sync">SYNC FROM HEALTH</button></div>';
     if (sk.err) html += '<div class="err">' + esc(sk.err) + "</div>";
     if (sk.q.ops.length) html += '<div class="stale">' + sk.q.ops.length + (sk.q.ops.length === 1 ? " change" : " changes") + " waiting to reach Notion.</div>";
-    html += v.tab === "sleep" ? skSleepHtml(v) : v.tab === "records" ? skRecordsHtml(v) : skVitalsHtml(v);
+    html += skArriveHtml();
+    html += v.tab === "sleep" ? skSleepHtml(v) : v.tab === "records" ? skRecordsHtml(v) : v.tab === "days" ? skDaysHtml(v) : skVitalsHtml(v);
     $("content").innerHTML = html + "</div>";
   }
   function skEmpty() {
@@ -15280,30 +15337,105 @@
         var out = band && band.lo !== null && x !== null && (x > band.hi || x < band.lo);
         return '<i class="' + (x === null ? "sk-none" : i === vals.length - 1 && last ? "sk-now" : out ? "sk-out" : "") + '" style="height:' + (x === null ? "3" : Math.max(3, H(x))) + '%"></i>'; }).join("") + "</span>";
   }
+  function skArriveHtml() {   /* 2.80 (S1): on every tab, how far behind Health is */
+    if (!skDays().length) return "";
+    var exp = skExpected(), recent = [], full = null;
+    for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
+    return '<div class="sk-arrive"><span class="sk-adot" aria-hidden="true"></span><span><b>HEALTH ARRIVES A DAY OR TWO LATE</b><small>' + (full ? "Latest complete day: " + skShort(full) + ". " : "No complete day in the last two weeks yet. ") +
+      (recent.length ? "Still coming in: " + recent.join(", ") + "." : "Everything is in.") + "</small></span>" +
+      (skView().tab !== "days" ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktab="days">SEE THE DAYS</button>' : "") + "</div>";
+  }
   function skVitalsHtml(v) {
     if (!skDays().length) return skEmpty();
-    var r = skReady(), y = skDay(ymd(addDays(new Date(), -1))) || {}, html = '<div class="sk-row">';
-    html += '<section class="sk-ready" aria-label="Readiness"><span class="sk-lbl">READINESS · THIS MORNING</span>' + (!r ? '<b class="sk-big">–</b><small>Waiting for last night.</small>' : r.learning !== undefined
+    var r = skReady(), ls = skLatest("sleep"), html = '<div class="sk-row sk-row1">';
+    html += '<section class="sk-ready" aria-label="Readiness"><span class="sk-lbl">READINESS · ' + (!ls || ls.date === ymd(new Date()) ? "THIS MORNING" : "FROM " + skShort(ls.date).toUpperCase() + ", THE LATEST NIGHT IN") + "</span>" + (!r ? '<b class="sk-big">–</b><small>Waiting for last night.</small>' : r.learning !== undefined
       ? '<b class="sk-big">…</b><small>Learning your normal: ' + r.learning + " of 7 days so far. Readiness starts once a week is in.</small>"
       : '<div class="sk-rs"><b class="sk-big">' + r.score + '</b><span class="sk-word ' + r.lvl + '">' + r.word + '</span></div><small>' + esc(r.why.join(", ").replace(/^./, function (c) { return c.toUpperCase(); })) + ". A guide, not a diagnosis.</small>") + "</section>";
-    html += '<section class="sk-today" aria-label="Yesterday"><span class="sk-lbl">YESTERDAY · ACTIVITY</span>' + [["MOVE", y.active, 500, "kcal"], ["EXERCISE", y.exercise, 30, "min"], ["STAND", y.stand, 12, "hours"]].map(function (t) {
-      var n = typeof t[1] === "number" ? t[1] : null;
-      return '<div class="sk-act"><span>' + t[0] + '</span><span class="sk-track" role="img" aria-label="' + t[0] + " " + (n === null ? "not sent" : n + " of " + t[2] + " " + t[3]) + '"><i style="width:' + (n === null ? 0 : Math.min(100, Math.round(n / t[2] * 100))) + '%"></i></span><b>' + (n === null ? "–" : n.toLocaleString() + " of " + t[2] + " " + t[3]) + "</b></div>";
-    }).join("") + "</section></div>";
+    var g = v.goals, exp = skExpected();
+    html += '<section class="sk-today" aria-label="Activity, the last 7 days"><div class="sk-dh"><span class="sk-lbl">ACTIVITY · THE LAST 7 DAYS · TAP A DAY</span><button type="button" class="chip sm" style="--c: var(--chrome-d)" data-skact="goals" aria-pressed="' + sk.goals + '">GOALS</button></div><div class="sk-week7">';
+    for (var i = 6; i >= 0; i--) {
+      var dt = ymd(addDays(new Date(), -i)), dd = skDay(dt), st = skStatus(dt, exp);
+      html += '<button type="button" class="sk-dayring" data-skday="' + dt + '" aria-label="' + SK_DOWL[parseYmd(dt).getDay()] + ": " + (dd && skVal(dd, "active") !== null ? "move " + skVal(dd, "active") + " of " + g.move + ", exercise " + (skVal(dd, "exercise") === null ? "not in" : skVal(dd, "exercise")) + " of " + g.exercise + ", stand " + (skVal(dd, "stand") === null ? "not in" : skVal(dd, "stand")) + " of " + g.stand : "not in yet") + '">' +
+        skRing(st.s === "missing" ? null : dd, 64, 7, g) + "<small>" + (i === 0 ? "TODAY" : DOW[parseYmd(dt).getDay()]) + "</small></button>";
+    }
+    html += '</div><div class="sk-legend"><span><i style="background:var(--chrome-d)"></i>MOVE ' + g.move + ' KCAL</span><span><i style="background:var(--hero)"></i>EXERCISE ' + g.exercise + ' MIN</span><span><i style="background:var(--work)"></i>STAND ' + g.stand + " H</span><span>DASHED: NOT IN YET</span></div>";
+    if (sk.goals) html += '<div class="sk-goals"><label><span class="sk-lbl">MOVE (KCAL)</span><input id="skGoalMove" type="number" inputmode="numeric" min="1" max="5000" value="' + g.move + '"></label>' +
+      '<label><span class="sk-lbl">EXERCISE (MIN)</span><input id="skGoalEx" type="number" inputmode="numeric" min="1" max="600" value="' + g.exercise + '"></label>' +
+      '<label><span class="sk-lbl">STAND (H)</span><input id="skGoalStand" type="number" inputmode="numeric" min="1" max="24" value="' + g.stand + '"></label>' +
+      '<small class="muted">Shortcuts can\'t read your Apple goals, so set them here once. They follow you to the other iPad.</small></div>';
+    html += "</section></div>";
     var m = SK_M.filter(function (x) { return x.k === v.metric; })[0] || SK_M[1];
     html += '<div class="sk-row"><div class="sk-tiles">' + SK_M.map(function (x) {
-      var l = skLatest(x.k), nm = skNormal(x.k), w = skWhere(x, l && l.v, nm), s = skSeries(x.k, 14).map(function (p) { return p.v; });
-      return '<button type="button" class="sk-tile" data-skm="' + x.k + '" aria-pressed="' + (x.k === m.k) + '"><span class="sk-th"><span>' + x.name + "</span>" +
+      var l = skLatest(x.k, 30), nm = skNormal(x.k), w = skWhere(x, l && l.v, nm);
+      return '<button type="button" class="sk-tile' + (l ? "" : " sk-unsent") + '" data-skm="' + x.k + '" aria-pressed="' + (x.k === m.k) + '"><span class="sk-th"><span>' + x.name + "</span>" +
         (w ? '<span class="sk-flag ' + (skGood(x, w) ? "ok" : "warn") + '">' + (w === "in" ? "✓ NORMAL" : "▲ " + w.toUpperCase() + " NORMAL") + "</span>" : nm.lo === null && l ? '<span class="sk-flag">LEARNING</span>' : "") + "</span>" +
-        '<span class="sk-tv"><b>' + skFmt(x, l && l.v) + "</b><small>" + (x.k === "sleep" ? "" : x.unit) + "</small>" + '<span class="sk-spark">' + skBars(s, null, null, null, true) + "</span></span></button>";
+        '<span class="sk-tv"><b>' + (l ? skFmt(x, l.v) : "NOT SENT YET") + "</b><small>" + (l && x.k !== "sleep" ? x.unit : "") + '</small></span><span class="sk-when">' + (l ? skTileWhen(l.date) : "ADD IT TO THE SHORTCUT") + "</span></button>";
     }).join("") + "</div>";
-    var nm = skNormal(m.k), s = skSeries(m.k, v.range), l = skLatest(m.k), got = s.filter(function (p) { return p.v !== null; }), avg = got.length ? got.reduce(function (a, p) { return a + p.v; }, 0) / got.length : null;
-    html += '<section class="sk-detail" aria-label="' + m.name + '"><div class="sk-dh"><span class="sk-lbl c">' + m.name + '</span><span class="btnrow">' + [7, 30, 90].map(function (n) {
+    var nm = skNormal(m.k), s = skSeries(m.k, v.range), l = skLatest(m.k, 30), got = s.filter(function (p) { return p.v !== null; });
+    var nums = got.map(function (p) { return p.v; }).concat(nm.lo !== null ? [nm.lo, nm.hi] : []), lastGot = got.length ? got[got.length - 1].date : null;
+    var mn = nums.length ? Math.min.apply(null, nums) : 0, mx = nums.length ? Math.max.apply(null, nums) : 1, pad = (mx - mn) * 0.15 || Math.abs(mx) * 0.05 || 1; mn -= pad; mx += pad * 0.4;
+    var H = function (x) { return ((x - mn) / (mx - mn) * 100).toFixed(1); }, sel = s.filter(function (p) { return p.date === sk.bar; })[0];
+    html += '<section class="sk-detail" aria-label="' + m.name + '"><div class="sk-dh"><span class="sk-lbl c">' + m.name + '</span><span class="btnrow">' + [7, 14, 30].map(function (n) {
       return '<button type="button" class="chip sm" style="--c: var(--personal)" data-skrange="' + n + '" aria-pressed="' + (v.range === n) + '">' + n + "D</button>"; }).join("") + "</span></div>" +
-      '<div class="sk-dv"><b>' + skFmt(m, l && l.v) + "</b><small>" + (m.k === "sleep" ? "" : m.unit + " · ") + (l ? (l.date === ymd(new Date()) ? "today" : shortDay(l.date)) : "nothing yet") + "</small></div>" +
-      '<p class="sk-p">Your normal: <b>' + (nm.lo === null ? "after 7 days (" + nm.n + " so far)" : skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + (m.k === "sleep" ? "" : " " + m.unit)) + "</b>" + (avg !== null ? " · " + v.range + "-day average " + skFmt(m, avg) : "") + "</p>" +
-      '<div class="sk-chart r' + v.range + '" role="img" aria-label="' + esc(m.name + ", last " + v.range + " days" + (got.length ? ", from " + skFmt(m, Math.min.apply(null, got.map(function (p) { return p.v; }))) + " to " + skFmt(m, Math.max.apply(null, got.map(function (p) { return p.v; }))) : ", nothing yet")) + '">' + skBars(s.map(function (p) { return p.v; }), null, null, nm, true) + "</div>" +
-      '<div class="sk-axis"><span>' + v.range + ' DAYS AGO</span><span>TODAY</span></div><p class="sk-p">' + esc(m.note) + "</p></section></div>";
+      '<div class="sk-dv"><b>' + skFmt(m, l && l.v) + "</b><small>" + (m.k === "sleep" ? "" : m.unit + " · ") + (l ? "on " + skShort(l.date) : "nothing yet") + "</small></div>" +
+      '<p class="sk-p">Your normal: <b>' + (nm.lo === null ? "after 7 days (" + nm.n + " so far)" : skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + (m.k === "sleep" ? "" : " " + m.unit)) + "</b>" + (nm.lo === null ? "" : " (the middle of your last 30 days)") + "</p>" +
+      '<div class="sk-chart r' + v.range + '">' + (nm.lo !== null && nums.length ? '<span class="sk-band" aria-hidden="true" style="bottom:' + H(nm.lo) + "%;height:" + (H(nm.hi) - H(nm.lo)).toFixed(1) + '%"><i>YOUR NORMAL</i></span>' : "") +
+      '<span class="sk-bars sk-tap">' + s.map(function (p) {
+        var out = nm.lo !== null && p.v !== null && (p.v > nm.hi || p.v < nm.lo), cls = p.v === null ? "sk-none" : p.date === sk.bar ? "sk-sel" : p.date === lastGot ? "sk-now" : out ? "sk-out" : "";
+        return '<button type="button" class="' + cls + '" data-skbar="' + p.date + '" aria-label="' + esc(SK_DOWL[parseYmd(p.date).getDay()] + " " + parseYmd(p.date).getDate() + ": " + (p.v === null ? "nothing yet" : skFmt(m, p.v) + (m.k === "sleep" ? "" : " " + m.unit))) + '"><i style="height:' + (p.v === null ? 100 : Math.max(3, H(p.v))) + '%"></i></button>';
+      }).join("") + "</span></div>" +
+      '<div class="sk-axis"><span>' + v.range + ' DAYS AGO</span><span>TODAY</span></div>' +
+      '<div class="sk-bartip">' + (sel ? "<b>" + esc(SK_DOWL[parseYmd(sel.date).getDay()] + " " + parseYmd(sel.date).getDate() + " " + MONL[parseYmd(sel.date).getMonth()].charAt(0) + MONL[parseYmd(sel.date).getMonth()].slice(1).toLowerCase()) + ":</b> " +
+        (sel.v === null ? "nothing arrived yet" : esc(skFmt(m, sel.v) + (m.k === "sleep" ? "" : " " + m.unit))) + ' <button type="button" class="chip sm" style="--c: var(--personal)" data-skday="' + sel.date + '">OPEN THE DAY</button>'
+        : '<small class="muted">Tap a bar for that day. Hatched bars: nothing arrived yet.</small>') + "</div>" +
+      '<p class="sk-p">' + esc(m.note) + "</p></section></div>";
+    return html;
+  }
+  /* ---- DAYS (2.80, S1 to S3): the last 14 days, each one opened whole ---- */
+  function skDaysHtml(v) {
+    if (!skDays().length) return skEmpty();
+    var exp = skExpected(), today = ymd(new Date()), oldest = skDays()[0].date;
+    if (!sk.day) { for (var i = 0; i < 14 && !sk.day; i++) { var c = ymd(addDays(new Date(), -i)); if (skStatus(c, exp).s === "arrived") sk.day = c; } sk.day = sk.day || today; }
+    var x = sk.day, d = skDay(x), st = skStatus(x, exp), html = '<section class="sk-panel" aria-label="The last 14 days"><div class="sk-dh"><span class="sk-lbl c">THE LAST 14 DAYS · TAP ONE</span>' +
+      '<span class="sk-key"><span><i class="sk-s-arrived"></i>ARRIVED</span><span><i class="sk-s-partial"></i>PARTIAL</span><span><i class="sk-s-waiting"></i>WAITING</span><span><i class="sk-s-missing"></i>MISSED</span></span></div><div class="sk-strip">';
+    for (var k = 13; k >= 0; k--) {
+      var dt = ymd(addDays(new Date(), -k)), q = skStatus(dt, exp), pd = parseYmd(dt);
+      html += '<button type="button" class="sk-dchip" data-skday="' + dt + '" aria-pressed="' + (dt === x) + '" aria-label="' + SK_DOWL[pd.getDay()] + " " + pd.getDate() + ", " + (q.s === "missing" ? "missed" : q.s) + '"><small>' + DOW[pd.getDay()] + "</small><b>" + pd.getDate() + '</b><i class="sk-s-' + q.s + '"></i></button>';
+    }
+    html += "</div></section>";
+    var pd2 = parseYmd(x), pill = { arrived: "✓ ARRIVED", partial: "◐ PARTIAL", waiting: "… WAITING", missing: "✕ MISSED" }[st.s];
+    html += '<section class="sk-ready sk-day" aria-label="The day"><div class="sk-dayhead"><div><span class="sk-lbl">' + skRel(x) + '</span><h3>' + SK_DOWL[pd2.getDay()].toUpperCase() + " " + pd2.getDate() + " " + MONL[pd2.getMonth()] + "</h3></div>" +
+      '<div class="btnrow"><span class="sk-pill sk-p-' + st.s + '">' + pill + '</span><button type="button" class="chip sm" data-skstep="-1"' + (x <= oldest ? " disabled" : "") + '>◂ EARLIER</button><button type="button" class="chip sm" data-skstep="1"' + (x >= today ? " disabled" : "") + ">LATER ▸</button></div></div>";
+    if (st.s === "waiting") return html + '<div class="sk-emptyday"><b>NOTHING HAS ARRIVED FOR ' + SK_DOWL[pd2.getDay()].toUpperCase() + ' YET</b><span>That\'s expected: the shortcut sends the last 3 days each morning, so a night\'s sleep comes with the next morning\'s send, and the whole day (steps, rings) the morning after. Expect it by ' + skShort(ymd(addDays(pd2, 2))) + ".</span></div></section>";
+    if (st.s === "missing") return html + '<div class="sk-emptyday sk-missed"><b>NOTHING ARRIVED FOR THIS DAY</b><span>The sends before and after it came in, so this day was skipped (the iPhone may have been off or locked through the morning). The daily send covers only the last 3 days. To fill it in, run the ' + SK_SHORTCUT + " shortcut by hand with its Health range reaching back to this date; SICKBAY takes days up to 14 days back.</span></div></section>";
+    var gotLine = d._got ? "<span><b>Arrived " + esc(skWhen(d._got)) + "</b>, " + (function () { var n = Math.round((parseYmd(ymd(new Date(d._got))) - pd2) / 864e5); return n <= 0 ? "the same day" : n === 1 ? "1 day later" : n + " days later"; })() + ".</span>" : "<span>Arrived before arrival times were kept (bridge 1.47).</span>";
+    var updLine = d._upd ? "<span><b>Updated " + esc(skWhen(d._upd)) + "</b>: added " + esc(skList(Array.isArray(d._add) ? d._add : [])) + ".</span>" : "";
+    var lackLine = st.s === "partial" ? '<span class="sk-lack">' + (x === today ? "Today is still under way: its steps and rings grow with each send." : "Still to come: " + esc(skList(st.lack)) + ", with the next morning's send.") + "</span>" : "";
+    html += '<div class="sk-stamp">' + gotLine + updLine + lackLine + "</div>";
+    var g = v.goals;
+    html += '<div class="sk-daygrid"><div class="sk-col"><section class="sk-panel sk-inner" aria-label="Activity"><span class="sk-lbl">ACTIVITY</span><div class="sk-ringbox">' + skRing(d, 150, 16, g) + '<div class="sk-rv">' +
+      [["MOVE", "active", g.move, "kcal", "--chrome-d"], ["EXERCISE", "exercise", g.exercise, "min", "--hero"], ["STAND", "stand", g.stand, "h", "--work"]].map(function (q) {
+        var n = skVal(d, q[1]);
+        return '<div><span style="color:var(' + q[4] + ')">' + q[0] + "</span><span>" + (n === null ? '<span class="muted">NOT IN YET</span>' : "<b>" + Math.round(n).toLocaleString() + "</b> of " + q[2] + " " + q[3] + (n >= q[2] ? ' <span class="sk-met">✓</span>' : "")) + "</span></div>";
+      }).join("") + "</div></div></section>";
+    if (d.sleep && d.sleep.asleep) {
+      var S = d.sleep, len = S.len || (S.asleep + (S.awake || 0)) || 1, segs = (S.segs || []).slice().sort(function (a, b) { return a[1] - b[1]; });
+      html += '<section class="sk-panel sk-inner" aria-label="Sleep"><div class="sk-dh"><span class="sk-lbl">THE NIGHT BEFORE · SLEEP</span><span class="sk-lbl">' + esc(S.bed || "") + (S.wake ? " TO " + esc(S.wake) : "") + "</span></div>" +
+        '<div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep" + (S.awake ? " · " + skHM(S.awake) + " awake" : "") + "</small></div>" +
+        '<div class="sk-sleepbar" role="img" aria-label="Sleep stages through the night">' + (segs.length ? segs.map(function (g2) { var stg = SK_STAGES.filter(function (z) { return z[0] === g2[0]; })[0]; return '<i style="left:' + (g2[1] / len * 100).toFixed(2) + "%;width:" + Math.max(0.3, g2[2] / len * 100).toFixed(2) + "%;background:var(" + (stg ? stg[2] : "--line") + ')"></i>'; }).join("")
+          : [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].reduce(function (acc, q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; acc.h += '<i style="left:' + (acc.at / len * 100).toFixed(2) + "%;width:" + ((q[1] || 0) / len * 100).toFixed(2) + "%;background:var(" + stg[2] + ')"></i>'; acc.at += q[1] || 0; return acc; }, { h: "", at: 0 }).h) + "</div>" +
+        '<div class="sk-legend">' + [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].map(function (q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; return '<span><i style="background:var(' + stg[2] + ')"></i>' + stg[1] + " " + skHM(q[1] || 0) + "</span>"; }).join("") + "</div>" +
+        '<button type="button" class="chip sm" style="--c: var(--personal)" data-sknight="' + x + '" data-sktab="sleep">OPEN IN SLEEP</button></section>';
+    }
+    html += "</div>";
+    var nt = skNormal("temp"), lv = skLatest("vo2", 60);
+    html += '<section class="sk-panel sk-inner" aria-label="Every measure"><span class="sk-lbl">EVERY MEASURE FOR THIS DAY</span><div class="sk-mfs">' + [["Resting heart rate", "rhr"], ["Heart rate variability", "hrv"], ["Breathing rate", "resp"], ["Wrist temperature", "temp"], ["Steps", "steps"], ["Cardio fitness", "vo2"]].map(function (q) {
+      var m = SK_M.filter(function (z) { return z.k === q[1]; })[0], n = skVal(d, q[1]), nm = m ? skNormal(m.k) : null, w = m && n !== null ? skWhere(m, n, nm) : "", shown = "";
+      if (n !== null) shown = q[1] === "temp" ? (nt.mid === null ? n.toFixed(1) + "<small>°</small>" : (n - nt.mid >= 0 ? "+" : "") + (n - nt.mid).toFixed(1) + "<small>° from your normal</small>") : esc(skFmt(m, n)) + "<small>" + esc(m.unit) + "</small>";
+      var why = q[1] === "vo2" ? "The watch estimates it every few days, from outdoor walks. Latest: " + (lv ? lv.v.toFixed(1) + " on " + skShort(lv.date) : "none yet") + "." : st.s === "partial" && st.lack.indexOf(q[1]) > -1 ? "Comes with the next morning's send." : exp.indexOf(q[1]) === -1 && q[1] !== "temp" ? "Not part of the shortcut yet (README → SICKBAY)." : "Not sent for this day.";
+      return '<div class="sk-mf"><span>' + q[0] + "</span>" + (n === null ? '<span class="sk-ns">' + (q[1] === "vo2" ? "NOT MEASURED" : "NOT IN") + '</span><span class="sk-why">' + esc(why) + "</span>"
+        : '<span class="sk-mv">' + shown + "</span>" + (w ? '<span class="sk-vs ' + (skGood(m, w) ? "ok" : "warn") + '">' + (w === "in" ? "Within" : w === "above" ? "Above" : "Below") + " your normal (" + skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + ")</span>" : "")) + "</div>";
+    }).join("") + "</div></section></div></section>";
     return html;
   }
   function skNights() { return skDays().filter(function (d) { return d.sleep && d.sleep.asleep; }); }
@@ -15330,7 +15462,7 @@
       ["Breathing", typeof cur.resp === "number" ? cur.resp.toFixed(1) + " a minute" : "–"], ["Wrist temperature", typeof cur.temp === "number" && nt.mid !== null ? (cur.temp - nt.mid >= 0 ? "+" : "") + (cur.temp - nt.mid).toFixed(1) + "° from your normal" : typeof cur.temp === "number" ? "learning your normal" : "–"]];
     var beds = week.map(function (d) { var p = String(d.sleep.bed || "").split(":"); var m2 = +p[0] * 60 + +p[1]; return m2 < 720 ? m2 + 1440 : m2; }).filter(function (x) { return isFinite(x); });
     var spread = beds.length > 2 ? Math.max.apply(null, beds) - Math.min.apply(null, beds) : 0;
-    html += '<aside class="sk-panel sk-side" aria-label="The night"><span class="sk-lbl c">NIGHT ENDING ' + esc(shortDay(cur.date)) + '</span><div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep</small></div>" +
+    html += '<aside class="sk-panel sk-side" aria-label="The night"><div class="sk-dh"><span class="sk-lbl c">NIGHT ENDING ' + esc(shortDay(cur.date)) + '</span><button type="button" class="chip sm" style="--c: var(--personal)" data-skday="' + cur.date + '">OPEN THE DAY</button></div><div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep</small></div>" +
       facts.map(function (f) { return '<div class="sk-fact"><span>' + f[0] + "</span><span>" + esc(f[1]) + "</span></div>"; }).join("") +
       (spread > 45 ? '<div class="sk-tip"><b>▲ THIS WEEK</b><span>Bedtime varied by ' + skHM(spread) + " across these nights. A steadier bedtime usually brings more deep sleep.</span></div>" : "") + "</aside></div>";
     return html;
@@ -15428,10 +15560,15 @@
     var d = b.dataset;
     if (d.skgo !== undefined) { skSet({ tab: d.skgo || "vitals" }); sk.form = null; go("sickbay"); return true; }
     if (state.screen !== "sickbay") return false;
+    if (d.sknight && d.sktab) sk.night = d.sknight;
     if (d.sktab) { skSet({ tab: d.sktab }); sk.form = null; render(false); $("content").scrollTop = 0; return true; }
+    if (d.skday) { sk.day = d.skday; skSet({ tab: "days" }); render(false); var dc = document.querySelector(".sk-day"); if (dc && b.closest && !b.closest(".sk-strip")) dc.scrollIntoView({ block: "start" }); return true; }
+    if (d.skstep) { var nd = ymd(addDays(parseYmd(sk.day || ymd(new Date())), +d.skstep)); if (nd <= ymd(new Date())) { sk.day = nd; render(true); } return true; }
+    if (d.skbar) { sk.bar = sk.bar === d.skbar ? null : d.skbar; render(true); return true; }
+    if (d.skact === "goals") { sk.goals = !sk.goals; render(true); return true; }
     if (d.skact === "sync") { skSync(); return true; }
-    if (d.skm) { skSet({ metric: d.skm }); render(true); return true; }
-    if (d.skrange) { skSet({ range: +d.skrange }); render(true); return true; }
+    if (d.skm) { skSet({ metric: d.skm }); sk.bar = null; render(true); return true; }
+    if (d.skrange) { skSet({ range: +d.skrange }); sk.bar = null; render(true); return true; }
     if (d.sknight) { sk.night = d.sknight; render(true); return true; }
     if (d.skform !== undefined) { sk.form = d.skform ? { k: d.skform, what: "Blood pressure", tag: "NOTE" } : null; sk.arm = null; render(true); var first = document.querySelector(".sk-form input"); if (first) first.focus(); return true; }
     if (d.skedit) { var m = skItems("medicine").filter(function (x) { return x.id === d.skedit; })[0]; if (m) sk.form = { k: "med", id: m.id, name: m.name, when: (m.data || {}).when || "", left: (m.data || {}).left }; render(true); return true; }
@@ -15694,8 +15831,10 @@
     else if (b.dataset.lcat) { state.ledgerCat = state.ledgerCat === b.dataset.lcat ? null : b.dataset.lcat; render(true); }
     else if (b.dataset.qmove) queueMove(+b.dataset.qi, +b.dataset.qmove);
     else if (b.dataset.qprice) queuePriceOrder();
-    else if (b.dataset.qbought) { state.queueConfirm = b.dataset.qbought; render(true); }
-    else if (b.dataset.qno) { state.queueConfirm = null; render(true); }
+    else if (b.dataset.qbought) { state.queueConfirm = b.dataset.qbought; state.queueRemove = null; render(true); }
+    else if (b.dataset.qno) { state.queueConfirm = null; state.queueRemove = null; render(true); }
+    else if (b.dataset.qremove) { state.queueRemove = b.dataset.qremove; state.queueConfirm = null; render(true); }
+    else if (b.dataset.qrmyes) queueRemove(b.dataset.qrmyes);
     else if (b.dataset.qyes) {
       var qname = (state.ledger.queue.items.filter(function (x) { return x.id === b.dataset.qyes; })[0] || {}).title || "Item";
       queueSend({ action: "queuebought", id: b.dataset.qyes, day: ymd(new Date()) }, qname + " marked bought. Log it in YNAB as usual.");

@@ -147,7 +147,7 @@ LANES=(
 #   app_e2e17      Ask: snapshot, THINK HARDER, confirm-to-change cards, budget, hand-off, summary
 #   app_e2e18      Review log: landing page, trends, list by month, patterns, four questions
 #   app_e2e19      farm calendar: standby until linked, then live everywhere, captures, review hours
-#   app_e2e20      Ledger: YNAB figures, average spend, Replicator Queue, finances kept out of Ask
+#   app_e2e20      Ledger: YNAB figures, average spend, Replicator Queue (REMOVE and UNDO, 2.80), finances kept out of Ask
 #   app_e2e21      Motion + standby: press, rise-in, sheets, + details, Reduce Motion, idle, night, wake (alone, last)
 #   app_e2e22      Captain's Log: PIN, calendar, write/autosave, edit, locks, import, kept out of Ask
 #   app_e2e23      Time Loom: swipe direction, taps, fetching ahead, layout
@@ -183,7 +183,7 @@ LANES=(
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
-#   app_e2e84      SICKBAY (2.74, bridge 1.43; mock_sickbay :8106): readiness, six measures and their normal, a chart by range, Condition (Take it easy; no health data), SLEEP lanes and the week, a medicine ticked and removed, a reading, a note, the dentist from the calendar, SYSTEMS (health key, SHARE WITH ASK), 400 px wide
+#   app_e2e84      SICKBAY (2.74, bridge 1.43; 2.80, bridge 1.47; mock_sickbay :8106): readiness, rings and GOALS, latest-value tiles, chart bars that open days, DAYS (arrived, partial, waiting, missed, stamps, no weight), Condition, SLEEP, RECORDS, SYSTEMS, narrow
 #   app_e2e85      MEAL LIBRARY AND PHOTOS (2.76, bridge 1.44; mock :8105): 24 rows then SHOW ALL, search by name or ingredient, kind, order, kept; a hand-entered meal's photo (square, 160 px JPEG) sent as thumb, REMOVE, a bad link refused; planning from a search clears it; LOG's picker; phone width
 #   app_e2e86      A FULL STORE (2.77; mock :8105): SYSTEMS' storage section; the store filled to the brim: a setting makes room by dropping saved copies; with nothing to drop it is held in memory, the Condition turns red, the fix card names it, a dinner still reaches the bridge; MAKE ROOM AND SAVE once there is room, there after a reload; CLEAR SAVED COPIES; COMPUTER; phone width
 #   app_e2e87      DIAGNOSTICS (2.78; mock :8105): the section after CONNECTION; COPY DIAGNOSTICS's report has versions, bridge, features, sync, Condition, waiting, storage, links, errors; never a key, a token, an address or a title; COMPUTER copies it; phone width

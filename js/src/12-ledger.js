@@ -190,9 +190,12 @@
           '<span class="right"><span class="cost tnum">' + (cost ? usd(cost) : "") + "</span>" + status + '</span><span class="acts">' +
           (state.queueConfirm === w.id
             ? '<span class="ov-sub">BOUGHT?</span><button type="button" class="btn" data-qyes="' + esc(w.id) + '"' + (busy ? " disabled" : "") + '>YES</button><button type="button" class="btn ghost" data-qno="1">NO</button>'
+            : state.queueRemove === w.id   /* 2.80 (bridge 1.47): off the queue without buying it */
+            ? '<span class="ov-sub">REMOVE FROM THE QUEUE?</span><button type="button" class="btn" style="--c: var(--bad)" data-qrmyes="' + esc(w.id) + '"' + (busy ? " disabled" : "") + '>YES</button><button type="button" class="btn ghost" data-qno="1">NO</button>'
             : '<button type="button" class="lg-icon" data-qmove="-1" data-qi="' + i + '" aria-label="Move ' + esc(w.title) + ' up"' + (i === 0 || busy ? " disabled" : "") + '><span class="tri u"></span></button>' +
               '<button type="button" class="lg-icon" data-qmove="1" data-qi="' + i + '" aria-label="Move ' + esc(w.title) + ' down"' + (i === L.queue.items.length - 1 || busy ? " disabled" : "") + '><span class="tri d"></span></button>' +
-              '<button type="button" class="btn ghost" data-qbought="' + esc(w.id) + '"' + (busy ? " disabled" : "") + ">BOUGHT</button>") + "</span></div>";
+              '<button type="button" class="btn ghost" data-qbought="' + esc(w.id) + '"' + (busy ? " disabled" : "") + ">BOUGHT</button>" +
+              (canQueueRemove() ? '<button type="button" class="btn ghost" data-qremove="' + esc(w.id) + '" aria-label="Remove ' + esc(w.title) + ' from the queue"' + (busy ? " disabled" : "") + ">REMOVE</button>" : "")) + "</span></div>";
       });
       html += '</div><form class="lg-add" id="qForm" autocomplete="off">' +
         '<label class="wide"><span class="ov-sub">ADD TO THE QUEUE</span><input id="qName" maxlength="120" placeholder="e.g. New glasses"></label>' +
@@ -211,6 +214,13 @@
     loadLedger(false);   /* a redraw asks the bridge (its copy is fine); opening the screen goes to YNAB (go()) */
   }
 
+  function canQueueRemove() { return !!state.bridgeVersion && verCmp(state.bridgeVersion, "1.47.0") >= 0; }
+  function queueRemove(id) {   /* 2.80: to Notion's trash, with UNDO for 10 seconds (it comes back from the trash) */
+    var name = (state.ledger.queue.items.filter(function (x) { return x.id === id; })[0] || {}).title || "Item";
+    queueSend({ action: "queueremove", id: id }).then(function (j) {
+      if (j && j.ok) toastUndo("Removed " + name + " from the queue", function () { queueSend({ action: "queueremove", id: id, undo: true }, name + " is back in the queue."); });
+    });
+  }
   function queueSend(body, okMsg) {
     state.queueBusy = true;
     render(true);
@@ -221,7 +231,7 @@
     }).catch(function (err) {
       toast("Not saved: " + describeTasks(err));
       loadLedger(true);
-    }).then(function (j) { state.queueBusy = false; state.queueConfirm = null; render(true); return j; });
+    }).then(function (j) { state.queueBusy = false; state.queueConfirm = null; state.queueRemove = null; render(true); return j; });
   }
   function queueMove(i, dir) {
     var q = state.ledger && state.ledger.queue;

@@ -1,6 +1,7 @@
 // Ledger (bridge 1.9): checking, age of money, savings and loans from YNAB (read-only),
 // average spend for 3, 6 and 12 months with this month so far, and the Replicator Queue
-// (each item measured against the whole Discretionary balance on its own, 2.51.2; reorder, add, bought, undo).
+// (each item measured against the whole Discretionary balance on its own, 2.51.2; reorder, add, bought, undo;
+// 2.80, bridge 1.47: REMOVE asks first, takes an item off without buying it, and UNDO brings it back).
 // Finances stay out of Ask unless turned on in Systems.
 const { chromium } = require('playwright');
 const assert = require('assert');
@@ -94,6 +95,19 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   assert.ok((await txt(p, '.lg-bought')).includes('New glasses · $280 · WED 07 OCT'));
   await p.click('.lg-brow:has-text("New glasses") [data-qundo]'); await p.waitForTimeout(800);
   assert.ok((await items()).some(t => t.includes('New glasses')), 'undo puts it back');
+  // REMOVE: asks first; NO sends nothing; YES takes it off (not bought); UNDO brings it back
+  await p.click('[data-qremove="q1"]');
+  assert.ok((await txt(p, '[data-qid="q1"]')).includes('REMOVE FROM THE QUEUE? YES NO'));
+  s = await stats(); const qp = s.qposts;
+  await p.click('[data-qno]');
+  assert.ok(await p.$('[data-qremove="q1"]'), 'NO puts the buttons back');
+  await p.click('[data-qremove="q1"]'); await p.click('[data-qrmyes="q1"]'); await p.waitForTimeout(800);
+  s = await stats(); assert.strictEqual(s.qposts, qp + 1, 'NO sent nothing; YES sent once');
+  assert.ok(!(await items()).some(t => t.includes('New glasses')), 'off the queue');
+  assert.ok(!(await p.$('.lg-bought')) || !(await txt(p, '.lg-bought')).includes('New glasses'), 'and not counted as bought');
+  assert.ok((await txt(p, '#toast')).includes('Removed New glasses from the queue') && await p.$('#toast [data-toastundo]'), await txt(p, '#toast'));
+  await p.click('#toast [data-toastundo]'); await p.waitForTimeout(800);
+  assert.ok((await items()).some(t => t.includes('New glasses')), 'UNDO brings it back');
   await p.screenshot({ path: D + 'ledger-ipad.png', fullPage: true });
 
   // finances stay out of Ask until turned on

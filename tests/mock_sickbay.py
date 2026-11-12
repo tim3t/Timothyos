@@ -1,4 +1,4 @@
-# Simulated bridge 1.43 for SICKBAY (app 2.74): health days for the last 40 days (invented values, relative to today,
+# Simulated bridge 1.43 for SICKBAY (app 2.74; arrival stamps, a partial and a missed day for 2.80): health days for the last 40 days (invented values, relative to today,
 # America/Chicago), resting heart rate up the last two mornings (Condition: Take it easy), sleep stages per night,
 # medicines/readings/notes saved and removed, a dentist visit in 5 days on the Personal calendar, and HEALTH_KEY's
 # healthput. GET ?action=skmode&stale=1 makes the last send three days old; ?action=skstats returns what was saved.
@@ -20,8 +20,16 @@ def days():
         if i <= 1: rhr = 66 + (1 - i)   # the last two mornings: well above the normal
         sl = 400 + (k * 9) % 60
         segs = [["c", 0, 80], ["d", 80, 55], ["r", 135, 40], ["a", 175, 8], ["c", 183, sl - 183 + 8 - 40], ["r", sl - 32 + 8, 40]]
-        out.append({"date": d.isoformat(), "rhr": rhr, "hrv": 44 + (k * 3) % 10, "resp": 14.4, "steps": 6000 + k * 500, "active": 380 + k * 20, "exercise": 18 + k, "stand": 10, "vo2": 38.2, "temp": 36.1 + (0.1 if i == 0 else 0),
-                    "sleep": {"asleep": sl, "deep": 55, "rem": 80, "core": sl - 135, "awake": 8, "bed": "23:%02d" % (5 + k * 7 % 50), "wake": "06:30", "len": sl + 8, "segs": segs}})
+        if i == 8: continue   # 2.80: a day the shortcut missed (the days around it came)
+        day = {"date": d.isoformat(), "rhr": rhr, "hrv": 44 + (k * 3) % 10, "resp": 14.4, "steps": 6000 + k * 500, "active": 380 + k * 20, "exercise": 18 + k, "stand": 10, "temp": 36.1 + (0.1 if i == 0 else 0),
+               "sleep": {"asleep": sl, "deep": 55, "rem": 80, "core": sl - 135, "awake": 8, "bed": "23:%02d" % (5 + k * 7 % 50), "wake": "06:30", "len": sl + 8, "segs": segs}}
+        if i % 4 == 2: day["vo2"] = 38.2   # cardio fitness every few days
+        if i == 1: [day.pop(x) for x in ("steps", "active", "exercise", "stand")]   # yesterday: the night came, the day's movement comes tomorrow
+        if 1 <= i <= 13:   # bridge 1.47's arrival stamps; older days arrived before they were kept
+            day["_got"] = (dt.datetime(d.year, d.month, d.day, 13, 10, tzinfo=dt.timezone.utc) + dt.timedelta(days=1)).isoformat().replace("+00:00", "Z")
+            if i >= 2: day["_upd"] = (dt.datetime(d.year, d.month, d.day, 13, 12, tzinfo=dt.timezone.utc) + dt.timedelta(days=2)).isoformat().replace("+00:00", "Z"); day["_add"] = ["steps", "active", "exercise", "stand"]
+        if i == 0: day["_got"] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        out.append(day)
     return out
 def events(f, t):
     d = dt.datetime.now(TZ).date() + dt.timedelta(days=5); s = dt.datetime(d.year, d.month, d.day, 9, 0, tzinfo=TZ); e = s + dt.timedelta(hours=1)

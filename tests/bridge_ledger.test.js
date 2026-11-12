@@ -47,13 +47,15 @@ function fetch(url, opts) {
   }
   const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase();
   if (m === 'get' && path === '/databases/' + QDB) return res(200, { data_sources: [{ id: QDS }] });
-  if (m === 'post' && path === '/data_sources/' + QDS + '/query') return res(200, { results: qpages, has_more: false });
+  if (m === 'post' && path === '/data_sources/' + QDS + '/query') return res(200, { results: qpages.filter(p => !p.in_trash), has_more: false });
   if (m === 'post' && path === '/pages') {
     const b = JSON.parse(opts.payload), pr = b.properties;
     const pg = qpage('n'.repeat(31) + qpages.length, pr.Name.title[0].text.content, pr.Cost ? pr.Cost.number : null, pr.Priority.number, null, '2026-10-07T12:00:00Z');
     qpages.push(pg); return res(200, pg);
   }
   const pm = path.match(/^\/pages\/(\w+)$/);
+  if (m === 'get' && pm) { const pg = qpages.find(p => p.id === pm[1]); return pg ? res(200, Object.assign({ parent: { type: 'data_source_id', data_source_id: QDS } }, pg)) : res(200, { id: pm[1], parent: { type: 'data_source_id', data_source_id: 'ds-elsewhere' }, in_trash: true }); }
+  if (m === 'patch' && pm && 'in_trash' in JSON.parse(opts.payload)) { const pg = qpages.find(p => p.id === pm[1]); pg.in_trash = JSON.parse(opts.payload).in_trash; notionPatches.push(pm[1] + ' trash ' + pg.in_trash); return res(200, pg); }
   if (m === 'patch' && pm) {
     const pg = qpages.find(p => p.id === pm[1]), pr = JSON.parse(opts.payload).properties; notionPatches.push(pm[1] + ' ' + Object.keys(pr).join(','));
     if (pr.Priority) pg.properties.Priority = pr.Priority; if (pr.Bought) pg.properties.Bought = pr.Bought; return res(200, pg);
@@ -134,6 +136,18 @@ r = post({ action: 'queuebought', id: ids[0], day: null });
 assert.ok(r.queue.items.some(i => i.title === 'New glasses'), 'undo puts it back');
 assert.strictEqual(post({ action: 'queuebought', id: 'f'.repeat(32), day: '2026-10-07' }).error, 'not_writable');
 assert.strictEqual(post({ action: 'queuebought', id: ids[0], day: 'soon' }).error, 'bad_request');
+// 1.47: off the queue without buying it: to Notion's trash, and back with undo; only this queue's waiting items
+r = post({ action: 'queueremove', id: ids[1] });
+assert.ok(r.ok && !r.queue.items.some(i => i.id === ids[1]) && !r.queue.bought.some(i => i.id === ids[1]), 'gone, and not bought');
+assert.ok(notionPatches.includes(ids[1] + ' trash true'), 'moved to the trash');
+r = post({ action: 'queueremove', id: ids[1], undo: true });
+assert.ok(r.ok && r.queue.items.some(i => i.id === ids[1]), 'undo brings it back');
+r = post({ action: 'queueremove', id: ids[1], undo: true });
+assert.ok(r.ok, 'undo twice is harmless');
+assert.deepStrictEqual([post({ action: 'queueremove', id: 'f'.repeat(32) }).error, post({ action: 'queueremove', id: 'f'.repeat(32), undo: true }).error, post({ action: 'queueremove', id: '../x' }).error],
+  ['not_writable', 'not_writable', 'bad_request'], 'only waiting items of this queue; a page elsewhere is never restored');
+const boughtId = r.queue.bought[0].id;
+assert.strictEqual(post({ action: 'queueremove', id: boughtId }).error, 'not_writable', 'a bought item stays in the record');
 
 // --- YNAB errors stay separate from the queue
 ynabStatus = 401; L = get({ action: 'ledger' });

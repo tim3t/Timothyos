@@ -1,5 +1,5 @@
 
-  var VERSION = "2.79.0";
+  var VERSION = "2.80.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -235,7 +235,7 @@
     weekErr: null,
     weekInflight: {},
     reviewSaving: false,
-    ledger: lsGet(LS_LEDGER), ledgerErr: null, ledgerInflight: false, ledgerCat: null, queueBusy: false, queueConfirm: null,
+    ledger: lsGet(LS_LEDGER), ledgerErr: null, ledgerInflight: false, ledgerCat: null, queueBusy: false, queueConfirm: null, queueRemove: null,
     rvLog: true,                           /* REVIEW shows the log (landing) rather than one week */
     rlog: lsGet(LS_RLOG),                  /* { fetched, reviews } */
     rlogErr: null, rlogInflight: false, patternsBusy: false,

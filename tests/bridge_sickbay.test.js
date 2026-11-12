@@ -186,14 +186,21 @@ assert.strictEqual(data(D(2)).steps, 4321);
 // ---- 1.44.1: the oldest day of a send (3 days back, so only partly covered) fills gaps, never overwrites a complete day
 r = health(HK, 'steps|9000|' + at(3, '00:00') + '|' + at(3, '23:59'));
 assert.strictEqual(data(D(3)).steps, 9000, 'a new page is written in full');
+const got3 = data(D(3))._got;
+assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(got3) && !data(D(3))._upd, '1.47: when it first arrived');
 r = health(HK, ['steps|1200|' + at(3, '16:00') + '|' + at(3, '23:59'), 'rhr|60|' + at(3, '16:30') + '|' + at(3, '16:30'), 'steps|3100|' + at(0, '00:00') + '|' + at(0, '15:00')].join('\n'));
 assert.ok(r.ok, JSON.stringify(r));
 assert.deepStrictEqual([data(D(3)).steps, data(D(3)).rhr], [9000, 60], 'the complete count stays; the missing resting heart rate fills in');
+assert.ok(data(D(3))._got === got3 && /T/.test(data(D(3))._upd) && JSON.stringify(data(D(3))._add) === '["rhr"]', '1.47: when it caught up, and with what: ' + JSON.stringify(data(D(3))));
 assert.strictEqual(data(t).steps, 3100, 'today is replaced as it grows');
 r = health(HK, 'steps|1500|' + at(3, '18:00') + '|' + at(3, '23:59'));
 assert.ok(r.ok && data(D(3)).steps === 9000, 'nothing new for that day: left alone');
+assert.deepStrictEqual(data(D(3))._add, ['rhr'], 'nothing new: the last update stands');
+const upd2 = data(D(2))._upd;
 r = health(HK, 'steps|2600|' + at(2, '00:00') + '|' + at(2, '23:59'));
 assert.strictEqual(data(D(2)).steps, 2600, 'two days back is whole, and replaced');
+assert.strictEqual(data(D(2))._upd, upd2, 'a value replaced is not something added: the update stamp stays');
+assert.ok(get({ action: 'health' }).days.some(d => d.date === D(3) && d._got === got3 && d._add[0] === 'rhr'), 'the app gets the stamps');
 
 // ---- the schema check knows the database; setup reports it
 assert.ok(vm.runInContext('schemaSpec_()', ctx).some(s => s.key === 'sickbay'));
