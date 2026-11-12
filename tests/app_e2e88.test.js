@@ -53,8 +53,9 @@ const JPEG = /^data:image\/jpeg;base64,/;
   assert.ok(JPEG.test(await p.getAttribute('.ml-photo img.ml-pic.lg', 'src')));
   assert.ok((await txt(p, '.ml-photo')).includes('Kept small with the meal in Notion'));
   await p.click('[data-ml="save"]');
-  const saved = (await until(async () => (await posts('mealsave')).filter(x => x[1].id === 'm-pic2').pop()))[1];
-  assert.ok(saved.photo === 'https://img.example/stirfry.jpg' && JPEG.test(saved.thumb), 'saved with its copy');
+  // wait for the app's own save (the setup's save of this meal is already there: waiting for "a save" read that one on CI)
+  const saved = (await until(async () => (await posts('mealsave')).filter(x => x[1].id === 'm-pic2' && x[1].photo === 'https://img.example/stirfry.jpg').pop()))[1];
+  assert.ok(JPEG.test(saved.thumb), 'saved with its copy');
 
   // ---- COOK shows the copy
   await p.click('[data-ml="edit"]');
