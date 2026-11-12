@@ -11,7 +11,7 @@ TZ = ZoneInfo("America/Chicago"); KEY = "k" * 64; HKEY = "h" * 64
 BV = re.search(r"var VERSION = '([\d.]+)'", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
 CAPS = ["read", "create", "holidays", "sickbay", "healthkey"]
 CALS = [{"area": "work", "ok": True, "name": "Work"}, {"area": "personal", "ok": True, "name": "Personal"}]
-ITEMS = []; SAVES = []; MODE = {"stale": 0}
+ITEMS = []; SAVES = []; MODE = {"stale": 0, "young": 0}   # young (2.80.1): the shortcut started 4 days ago
 def days():
     out = []; today = dt.datetime.now(TZ).date()
     for i in range(40, -1, -1):
@@ -20,7 +20,7 @@ def days():
         if i <= 1: rhr = 66 + (1 - i)   # the last two mornings: well above the normal
         sl = 400 + (k * 9) % 60
         segs = [["c", 0, 80], ["d", 80, 55], ["r", 135, 40], ["a", 175, 8], ["c", 183, sl - 183 + 8 - 40], ["r", sl - 32 + 8, 40]]
-        if i == 8: continue   # 2.80: a day the shortcut missed (the days around it came)
+        if i == 8 or (MODE["young"] and i > 4): continue   # 2.80: a day the shortcut missed (the days around it came)
         day = {"date": d.isoformat(), "rhr": rhr, "hrv": 44 + (k * 3) % 10, "resp": 14.4, "steps": 6000 + k * 500, "active": 380 + k * 20, "exercise": 18 + k, "stand": 10, "temp": 36.1 + (0.1 if i == 0 else 0),
                "sleep": {"asleep": sl, "deep": 55, "rem": 80, "core": sl - 135, "awake": 8, "bed": "23:%02d" % (5 + k * 7 % 50), "wake": "06:30", "len": sl + 8, "segs": segs}}
         if i % 4 == 2: day["vo2"] = 38.2   # cardio fitness every few days
@@ -52,9 +52,9 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
-        if q.get("action") == "skmode": MODE["stale"] = int(q.get("stale", "0")); return self.reply({"ok": True})
+        if q.get("action") == "skmode": MODE["stale"] = int(q.get("stale", "0")); MODE["young"] = int(q.get("young", "0")); return self.reply({"ok": True})
         if q.get("action") == "skstats": return self.reply({"ok": True, "saves": SAVES, "items": ITEMS})
-        if q.get("action") == "skreset": ITEMS.clear(); SAVES.clear(); MODE["stale"] = 0; return self.reply({"ok": True})
+        if q.get("action") == "skreset": ITEMS.clear(); SAVES.clear(); MODE["stale"] = 0; MODE["young"] = 0; return self.reply({"ok": True})
         return self.reply({"ok": False, "error": "use_post"})
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))

@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.47.0';
+var VERSION = '1.47.1';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -2401,7 +2401,17 @@ function healthDays_(raw, tz, notes) {
       used++; note({ n: n, code: code, read: st + ' ' + Math.round((end - start) / 60000) + ' min', day: d, bare: bare }); return;
     }
     var v = healthNum_(f[1]);
-    if (code === 'standmin') { code = 'stand'; v = v / 60; }   // Stand Minutes, as some iPads list it
+    /* 1.47.1: Apple's STAND ring counts the hours you stood at least a minute in. Stand Minutes grouped by Hour comes as
+       one line per hour: each hour with any standing counts 1. (Grouped by Day it can only be minutes ÷ 60, which reads
+       far lower than the ring: kept for a shortcut not yet changed.) */
+    if (code === 'standmin' && isFinite(v) && end - start <= 61 * 60000) {
+      if (v < 0 || v > 60) return out_('range', 'standmin');
+      var hd = dayOf(start), hb = acc[hd] = acc[hd] || {};
+      var hh = hm(start).slice(0, 2);
+      if (v > 0) (hb._standhrs = hb._standhrs || {})[hh] = 1;
+      used++; note({ n: n, code: 'standmin', read: v > 0 ? 'stood in ' + hh + ':00' : 'no standing', day: hd, bare: bare }); return;
+    }
+    if (code === 'standmin') { code = 'stand'; v = v / 60; }   // Stand Minutes for a whole day: minutes ÷ 60
     if (!HEALTH_RANGE[code]) return out_('code', code);
     if (!isFinite(v)) return out_('number', code);
     if (code === 'temp' && v > 60) v = (v - 32) * 5 / 9;   // °F from an iPad set to Fahrenheit
@@ -2421,6 +2431,7 @@ function healthDays_(raw, tz, notes) {
     HEALTH_AVG.forEach(function (c) { var l = a['_' + c]; if (l && l.length) o[c] = r1(l.reduce(function (x, y) { return x + y; }, 0) / l.length); });
     HEALTH_SUM.forEach(function (c) { if (a[c] != null) o[c] = Math.round(a[c]); });
     HEALTH_LAST.forEach(function (c) { if (a[c] != null) o[c] = r1(a[c]); });
+    if (a._standhrs) o.stand = Object.keys(a._standhrs).length;   // 1.47.1: hours stood in, as the ring counts them
     if (a._sleep && a._sleep.b) {
       var s = a._sleep;
       o.sleep = { asleep: Math.round(s.deep + s.rem + s.core), deep: Math.round(s.deep), rem: Math.round(s.rem), core: Math.round(s.core), awake: Math.round(s.awake), bed: hm(s.b), wake: hm(s.w),

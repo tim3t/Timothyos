@@ -3536,6 +3536,9 @@ i.ml-pic.lg::before { font-size: 28px; }
 .sk-dchip b { font-family: var(--display); font-size: 20px; font-weight: 600; line-height: 1; }
 .sk-dchip i, .sk-key i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .sk-dchip[aria-pressed="true"] { border-color: var(--personal); background: #1d2a2b; }
+.sk-s-before { background: var(--line); }
+.sk-dchip.sk-dbefore { opacity: .45; }
+.sk-p-before { background: var(--line); color: var(--dim); }
 .sk-s-arrived { background: var(--ok); } .sk-s-partial { background: var(--warn); } .sk-s-waiting { background: transparent; border: 1.5px dashed var(--dim); } .sk-s-missing { background: var(--bad); }
 .sk-key { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--display); font-size: 12px; letter-spacing: .12em; color: #c9c2b6; }
 .sk-key span { display: flex; align-items: center; gap: 6px; }

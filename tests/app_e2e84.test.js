@@ -168,6 +168,22 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await until(async () => /No health data for 3 days/.test(await txt('#content')), 15000).catch(async e => { console.log('BRIDGE TEXT:', (await txt('#content')).slice(0, 600)); console.log('SCREEN', await p.evaluate(() => document.querySelector('#title').textContent), 'ERRS', JSON.stringify(errs), 'CACHE', await p.evaluate(() => (localStorage.getItem('tos.sickbay.v1') || 'none').slice(0, 120)), 'Q', await p.evaluate(() => localStorage.getItem('tos.sickbayq.v1'))); throw e; });
   await fetch(CTL + 'skmode&stale=0');
 
+  // ---- 2.80.1: days before the shortcut's first send are BEFORE SICKBAY, not missed, and the banner leaves them out
+  await fetch(CTL + 'skmode&young=1');
+  await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
+  await p.reload(); await settled(p, 1200);
+  await p.click('[data-screen="sickbay"].nav'); await p.click('[data-sktab="days"]'); await p.waitForSelector('.sk-strip');
+  const marks2 = await p.$$eval('.sk-dchip i', l => l.map(x => x.className.replace('sk-s-', '')));
+  assert.deepStrictEqual(marks2.slice(0, 9), Array(9).fill('before'), 'the 9 days before the first send: ' + marks2.join(' '));
+  assert.ok(marks2.slice(9).every(m => m !== 'before' && m !== 'missing'), marks2.join(' '));
+  assert.ok(/BEFORE SICKBAY/.test(await txt('.sk-key')));
+  assert.ok(!/missed/.test(await txt('.sk-arrive')) && /Still coming in: .*\(partial\)/.test(await txt('.sk-arrive')), await txt('.sk-arrive'));
+  await p.click('.sk-dchip >> nth=2');
+  assert.ok(/BEFORE SICKBAY/.test(await txt('.sk-day')) && /first sent on/.test(await txt('.sk-day')) && /nothing is waiting/.test(await txt('.sk-day')), await txt('.sk-day'));
+  await p.screenshot({ path: 'out/e84-before.png' });
+  await fetch(CTL + 'skmode&young=0');
+  await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
+
   // ---- phone width: nothing wider than the screen, on every tab
   await p.setViewportSize({ width: 400, height: 860 });
   await p.click('[data-screen="sickbay"].nav').catch(async () => { await p.click('#allBtn'); await p.click('#launch [data-screen="sickbay"]'); });

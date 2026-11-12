@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.80.1 · 2026-11-12 (needs bridge 1.47.1)
+- **SICKBAY: days before your first send are BEFORE SICKBAY**, dimmed in DAYS and left out of the banner. They were marked missed, which listed days that could never arrive.
+- **The STAND ring now counts what Apple counts** (bridge 1.47.1): hours in which you stood at least a minute. Set the shortcut's Stand Minutes block to **Group By: Hour**; each hour with any standing counts 1. Before, a day's standing minutes were divided by 60, which read far lower than the ring. Days already sent keep the old figure until a send covers them again.
+
 ## 2.80.0 · 2026-11-12 (needs bridge 1.47)
 - **SICKBAY shows each day catching up** (from Timothy's approved mockup). Health is never live: each send covers the last 3 days, so a day arrives the next morning and is whole the morning after. Now:
   - **A banner on every tab** names the latest complete day and the days still coming in.

@@ -65,9 +65,12 @@
     var got = skSeries("rhr", 14).map(function (p) { return skDay(p.date); }).filter(skHas);
     return SK_DAILY.filter(function (k) { return got.filter(function (d) { return skVal(d, k) !== null; }).length * 2 >= got.length && got.length > 0; });
   }
-  function skStatus(date, exp) {   /* arrived · partial (some of the day still to come) · waiting (nothing yet, as expected) · missing (later days came, this one didn't) */
+  function skFirst() { var f = skDays().filter(skHas)[0]; return f ? f.date : null; }   /* the first day the shortcut ever sent */
+  function skStatus(date, exp) {   /* arrived · partial (some of the day still to come) · waiting (nothing yet, as expected) · missing (later days came, this one didn't) · before (2.80.1: before the shortcut's first send) */
     var d = skDay(date), age = skAge(date);
     if (!skHas(d)) {
+      var first = skFirst();
+      if (first && date < first) return { s: "before", lack: [] };
       if (age <= 1) return { s: "waiting", lack: [] };
       var later = skDays().some(function (x) { return x.date > date && skHas(x); });
       return { s: later ? "missing" : "waiting", lack: [] };
@@ -182,7 +185,7 @@
   function skArriveHtml() {   /* 2.80 (S1): on every tab, how far behind Health is */
     if (!skDays().length) return "";
     var exp = skExpected(), recent = [], full = null;
-    for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
+    for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else if (st.s !== "before") recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
     return '<div class="sk-arrive"><span class="sk-adot" aria-hidden="true"></span><span><b>HEALTH ARRIVES A DAY OR TWO LATE</b><small>' + (full ? "Latest complete day: " + skShort(full) + ". " : "No complete day in the last two weeks yet. ") +
       (recent.length ? "Still coming in: " + recent.join(", ") + "." : "Everything is in.") + "</small></span>" +
       (skView().tab !== "days" ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktab="days">SEE THE DAYS</button>' : "") + "</div>";
@@ -239,15 +242,17 @@
     var exp = skExpected(), today = ymd(new Date()), oldest = skDays()[0].date;
     if (!sk.day) { for (var i = 0; i < 14 && !sk.day; i++) { var c = ymd(addDays(new Date(), -i)); if (skStatus(c, exp).s === "arrived") sk.day = c; } sk.day = sk.day || today; }
     var x = sk.day, d = skDay(x), st = skStatus(x, exp), html = '<section class="sk-panel" aria-label="The last 14 days"><div class="sk-dh"><span class="sk-lbl c">THE LAST 14 DAYS · TAP ONE</span>' +
-      '<span class="sk-key"><span><i class="sk-s-arrived"></i>ARRIVED</span><span><i class="sk-s-partial"></i>PARTIAL</span><span><i class="sk-s-waiting"></i>WAITING</span><span><i class="sk-s-missing"></i>MISSED</span></span></div><div class="sk-strip">';
+      '<span class="sk-key"><span><i class="sk-s-arrived"></i>ARRIVED</span><span><i class="sk-s-partial"></i>PARTIAL</span><span><i class="sk-s-waiting"></i>WAITING</span><span><i class="sk-s-missing"></i>MISSED</span>' +
+      (skFirst() && skFirst() > ymd(addDays(new Date(), -13)) ? '<span><i class="sk-s-before"></i>BEFORE SICKBAY</span>' : "") + '</span></div><div class="sk-strip">';
     for (var k = 13; k >= 0; k--) {
       var dt = ymd(addDays(new Date(), -k)), q = skStatus(dt, exp), pd = parseYmd(dt);
-      html += '<button type="button" class="sk-dchip" data-skday="' + dt + '" aria-pressed="' + (dt === x) + '" aria-label="' + SK_DOWL[pd.getDay()] + " " + pd.getDate() + ", " + (q.s === "missing" ? "missed" : q.s) + '"><small>' + DOW[pd.getDay()] + "</small><b>" + pd.getDate() + '</b><i class="sk-s-' + q.s + '"></i></button>';
+      html += '<button type="button" class="sk-dchip' + (q.s === "before" ? " sk-dbefore" : "") + '" data-skday="' + dt + '" aria-pressed="' + (dt === x) + '" aria-label="' + SK_DOWL[pd.getDay()] + " " + pd.getDate() + ", " + (q.s === "missing" ? "missed" : q.s === "before" ? "before SICKBAY" : q.s) + '"><small>' + DOW[pd.getDay()] + "</small><b>" + pd.getDate() + '</b><i class="sk-s-' + q.s + '"></i></button>';
     }
     html += "</div></section>";
-    var pd2 = parseYmd(x), pill = { arrived: "✓ ARRIVED", partial: "◐ PARTIAL", waiting: "… WAITING", missing: "✕ MISSED" }[st.s];
+    var pd2 = parseYmd(x), pill = { arrived: "✓ ARRIVED", partial: "◐ PARTIAL", waiting: "… WAITING", missing: "✕ MISSED", before: "BEFORE SICKBAY" }[st.s];
     html += '<section class="sk-ready sk-day" aria-label="The day"><div class="sk-dayhead"><div><span class="sk-lbl">' + skRel(x) + '</span><h3>' + SK_DOWL[pd2.getDay()].toUpperCase() + " " + pd2.getDate() + " " + MONL[pd2.getMonth()] + "</h3></div>" +
       '<div class="btnrow"><span class="sk-pill sk-p-' + st.s + '">' + pill + '</span><button type="button" class="chip sm" data-skstep="-1"' + (x <= oldest ? " disabled" : "") + '>◂ EARLIER</button><button type="button" class="chip sm" data-skstep="1"' + (x >= today ? " disabled" : "") + ">LATER ▸</button></div></div>";
+    if (st.s === "before") return html + '<div class="sk-emptyday"><b>BEFORE SICKBAY</b><span>The ' + SK_SHORTCUT + " shortcut first sent on " + skShort(skFirst()) + ". Health has nothing for SICKBAY before then, and nothing is waiting for this day.</span></div></section>";
     if (st.s === "waiting") return html + '<div class="sk-emptyday"><b>NOTHING HAS ARRIVED FOR ' + SK_DOWL[pd2.getDay()].toUpperCase() + ' YET</b><span>That\'s expected: the shortcut sends the last 3 days each morning, so a night\'s sleep comes with the next morning\'s send, and the whole day (steps, rings) the morning after. Expect it by ' + skShort(ymd(addDays(pd2, 2))) + ".</span></div></section>";
     if (st.s === "missing") return html + '<div class="sk-emptyday sk-missed"><b>NOTHING ARRIVED FOR THIS DAY</b><span>The sends before and after it came in, so this day was skipped (the iPhone may have been off or locked through the morning). The daily send covers only the last 3 days. To fill it in, run the ' + SK_SHORTCUT + " shortcut by hand with its Health range reaching back to this date; SICKBAY takes days up to 14 days back.</span></div></section>";
     var gotLine = d._got ? "<span><b>Arrived " + esc(skWhen(d._got)) + "</b>, " + (function () { var n = Math.round((parseYmd(ymd(new Date(d._got))) - pd2) / 864e5); return n <= 0 ? "the same day" : n === 1 ? "1 day later" : n + " days later"; })() + ".</span>" : "<span>Arrived before arrival times were kept (bridge 1.47).</span>";

@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.80.0";
+  var VERSION = "2.80.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1377,8 +1377,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.47.0";
-  var BRIDGE_FEATURES = [["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.47.1";
+  var BRIDGE_FEATURES = [["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -15223,9 +15223,12 @@
     var got = skSeries("rhr", 14).map(function (p) { return skDay(p.date); }).filter(skHas);
     return SK_DAILY.filter(function (k) { return got.filter(function (d) { return skVal(d, k) !== null; }).length * 2 >= got.length && got.length > 0; });
   }
-  function skStatus(date, exp) {   /* arrived · partial (some of the day still to come) · waiting (nothing yet, as expected) · missing (later days came, this one didn't) */
+  function skFirst() { var f = skDays().filter(skHas)[0]; return f ? f.date : null; }   /* the first day the shortcut ever sent */
+  function skStatus(date, exp) {   /* arrived · partial (some of the day still to come) · waiting (nothing yet, as expected) · missing (later days came, this one didn't) · before (2.80.1: before the shortcut's first send) */
     var d = skDay(date), age = skAge(date);
     if (!skHas(d)) {
+      var first = skFirst();
+      if (first && date < first) return { s: "before", lack: [] };
       if (age <= 1) return { s: "waiting", lack: [] };
       var later = skDays().some(function (x) { return x.date > date && skHas(x); });
       return { s: later ? "missing" : "waiting", lack: [] };
@@ -15340,7 +15343,7 @@
   function skArriveHtml() {   /* 2.80 (S1): on every tab, how far behind Health is */
     if (!skDays().length) return "";
     var exp = skExpected(), recent = [], full = null;
-    for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
+    for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else if (st.s !== "before") recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
     return '<div class="sk-arrive"><span class="sk-adot" aria-hidden="true"></span><span><b>HEALTH ARRIVES A DAY OR TWO LATE</b><small>' + (full ? "Latest complete day: " + skShort(full) + ". " : "No complete day in the last two weeks yet. ") +
       (recent.length ? "Still coming in: " + recent.join(", ") + "." : "Everything is in.") + "</small></span>" +
       (skView().tab !== "days" ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktab="days">SEE THE DAYS</button>' : "") + "</div>";
@@ -15397,15 +15400,17 @@
     var exp = skExpected(), today = ymd(new Date()), oldest = skDays()[0].date;
     if (!sk.day) { for (var i = 0; i < 14 && !sk.day; i++) { var c = ymd(addDays(new Date(), -i)); if (skStatus(c, exp).s === "arrived") sk.day = c; } sk.day = sk.day || today; }
     var x = sk.day, d = skDay(x), st = skStatus(x, exp), html = '<section class="sk-panel" aria-label="The last 14 days"><div class="sk-dh"><span class="sk-lbl c">THE LAST 14 DAYS · TAP ONE</span>' +
-      '<span class="sk-key"><span><i class="sk-s-arrived"></i>ARRIVED</span><span><i class="sk-s-partial"></i>PARTIAL</span><span><i class="sk-s-waiting"></i>WAITING</span><span><i class="sk-s-missing"></i>MISSED</span></span></div><div class="sk-strip">';
+      '<span class="sk-key"><span><i class="sk-s-arrived"></i>ARRIVED</span><span><i class="sk-s-partial"></i>PARTIAL</span><span><i class="sk-s-waiting"></i>WAITING</span><span><i class="sk-s-missing"></i>MISSED</span>' +
+      (skFirst() && skFirst() > ymd(addDays(new Date(), -13)) ? '<span><i class="sk-s-before"></i>BEFORE SICKBAY</span>' : "") + '</span></div><div class="sk-strip">';
     for (var k = 13; k >= 0; k--) {
       var dt = ymd(addDays(new Date(), -k)), q = skStatus(dt, exp), pd = parseYmd(dt);
-      html += '<button type="button" class="sk-dchip" data-skday="' + dt + '" aria-pressed="' + (dt === x) + '" aria-label="' + SK_DOWL[pd.getDay()] + " " + pd.getDate() + ", " + (q.s === "missing" ? "missed" : q.s) + '"><small>' + DOW[pd.getDay()] + "</small><b>" + pd.getDate() + '</b><i class="sk-s-' + q.s + '"></i></button>';
+      html += '<button type="button" class="sk-dchip' + (q.s === "before" ? " sk-dbefore" : "") + '" data-skday="' + dt + '" aria-pressed="' + (dt === x) + '" aria-label="' + SK_DOWL[pd.getDay()] + " " + pd.getDate() + ", " + (q.s === "missing" ? "missed" : q.s === "before" ? "before SICKBAY" : q.s) + '"><small>' + DOW[pd.getDay()] + "</small><b>" + pd.getDate() + '</b><i class="sk-s-' + q.s + '"></i></button>';
     }
     html += "</div></section>";
-    var pd2 = parseYmd(x), pill = { arrived: "✓ ARRIVED", partial: "◐ PARTIAL", waiting: "… WAITING", missing: "✕ MISSED" }[st.s];
+    var pd2 = parseYmd(x), pill = { arrived: "✓ ARRIVED", partial: "◐ PARTIAL", waiting: "… WAITING", missing: "✕ MISSED", before: "BEFORE SICKBAY" }[st.s];
     html += '<section class="sk-ready sk-day" aria-label="The day"><div class="sk-dayhead"><div><span class="sk-lbl">' + skRel(x) + '</span><h3>' + SK_DOWL[pd2.getDay()].toUpperCase() + " " + pd2.getDate() + " " + MONL[pd2.getMonth()] + "</h3></div>" +
       '<div class="btnrow"><span class="sk-pill sk-p-' + st.s + '">' + pill + '</span><button type="button" class="chip sm" data-skstep="-1"' + (x <= oldest ? " disabled" : "") + '>◂ EARLIER</button><button type="button" class="chip sm" data-skstep="1"' + (x >= today ? " disabled" : "") + ">LATER ▸</button></div></div>";
+    if (st.s === "before") return html + '<div class="sk-emptyday"><b>BEFORE SICKBAY</b><span>The ' + SK_SHORTCUT + " shortcut first sent on " + skShort(skFirst()) + ". Health has nothing for SICKBAY before then, and nothing is waiting for this day.</span></div></section>";
     if (st.s === "waiting") return html + '<div class="sk-emptyday"><b>NOTHING HAS ARRIVED FOR ' + SK_DOWL[pd2.getDay()].toUpperCase() + ' YET</b><span>That\'s expected: the shortcut sends the last 3 days each morning, so a night\'s sleep comes with the next morning\'s send, and the whole day (steps, rings) the morning after. Expect it by ' + skShort(ymd(addDays(pd2, 2))) + ".</span></div></section>";
     if (st.s === "missing") return html + '<div class="sk-emptyday sk-missed"><b>NOTHING ARRIVED FOR THIS DAY</b><span>The sends before and after it came in, so this day was skipped (the iPhone may have been off or locked through the morning). The daily send covers only the last 3 days. To fill it in, run the ' + SK_SHORTCUT + " shortcut by hand with its Health range reaching back to this date; SICKBAY takes days up to 14 days back.</span></div></section>";
     var gotLine = d._got ? "<span><b>Arrived " + esc(skWhen(d._got)) + "</b>, " + (function () { var n = Math.round((parseYmd(ymd(new Date(d._got))) - pd2) / 864e5); return n <= 0 ? "the same day" : n === 1 ? "1 day later" : n + " days later"; })() + ".</span>" : "<span>Arrived before arrival times were kept (bridge 1.47).</span>";

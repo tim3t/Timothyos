@@ -8,7 +8,7 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.47.0 | Apps Script: paste `Code.gs`, run setup, new deployment version | Includes 1.46 (recipe photos kept small, the data rule in every prompt) and 1.47 (SICKBAY arrival stamps, LEDGER REMOVE). After it, open MEALS once so older meals get their small photos. Days sent before 1.47 say they arrived before arrival times were kept |
+| Deploy bridge 1.47.1 | Apps Script: paste `Code.gs`, run setup, new deployment version | Includes 1.46 (recipe photos kept small, the data rule in every prompt), 1.47 (SICKBAY arrival stamps, LEDGER REMOVE) and 1.47.1 (the STAND ring from hourly Stand Minutes; the shortcut's block is already set to Group By: Hour). Then rotate HEALTH_KEY (seen in a screenshot) and open MEALS once. Days sent before 1.47 say they arrived before arrival times were kept |
 | Rotate `HEALTH_KEY` | Apps Script: delete the property, run setup, paste the new key into the Bridge Health shortcut | Routine rotation, agreed 2026-11-11 |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
@@ -26,7 +26,7 @@ Also raised in the review, not yet agreed: a lint or type check; one shared simu
 ## Put off, to return to
 
 - **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
-- **Bridge Health shortcut: the remaining measures.** Built so far: steps, resting heart rate, heart rate variability, sleep. Still to add, one at a time with check mode (README → SICKBAY, 2.80): Active Energy, Exercise Minutes, Stand Minutes (the rings), Respiratory Rate, Cardio Fitness; Sleeping Wrist Temperature optional. Weight is not wanted (a RECORDS reading).
+- **Bridge Health shortcut: the remaining measures.** Built so far: steps, resting heart rate, heart rate variability, sleep. Added 2026-11-12: Active Energy, Exercise Minutes, Stand Minutes (grouped by Hour), Respiratory Rate, Cardio Fitness. Optional: Sleeping Wrist Temperature. Weight is not wanted (a RECORDS reading).
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.

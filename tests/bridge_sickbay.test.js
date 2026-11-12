@@ -201,6 +201,15 @@ r = health(HK, 'steps|2600|' + at(2, '00:00') + '|' + at(2, '23:59'));
 assert.strictEqual(data(D(2)).steps, 2600, 'two days back is whole, and replaced');
 assert.strictEqual(data(D(2))._upd, upd2, 'a value replaced is not something added: the update stamp stays');
 assert.ok(get({ action: 'health' }).days.some(d => d.date === D(3) && d._got === got3 && d._add[0] === 'rhr'), 'the app gets the stamps');
+// ---- 1.47.1: Stand Minutes grouped by Hour: each hour with any standing counts 1, as Apple's STAND ring does
+const hr = (n, h, v) => 'standmin|' + v + '|' + at(n, String(h).padStart(2, '0') + ':00') + '|' + at(n, String(h).padStart(2, '0') + ':59');
+r = health(HK, [hr(1, 8, 3), hr(1, 9, 1), hr(1, 10, 0), hr(1, 13, 12), hr(1, 13, 12), hr(1, 18, 2)].join('\n'));
+assert.ok(r.ok, JSON.stringify(r));
+assert.strictEqual(data(y).stand, 4, 'four hours with standing (08, 09, 13, 18); an hour of 0 and a repeat line count nothing');
+r = chk(HK, [hr(1, 7, 5), hr(1, 7, 90)].join('\n'), 'yes');
+assert.ok(r.lines.some(l => /standmin stood in 07:00/.test(l)) && r.lines.some(l => /standmin, left out: a number out of range/.test(l)), r.lines.join(' / '));
+r = health(HK, 'standmin|540|' + at(2, '00:00') + '|' + at(2, '23:59'));
+assert.strictEqual(data(D(2)).stand, 9, 'a whole day of Stand Minutes is still read as minutes ÷ 60');
 
 // ---- the schema check knows the database; setup reports it
 assert.ok(vm.runInContext('schemaSpec_()', ctx).some(s => s.key === 'sickbay'));
