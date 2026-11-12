@@ -21,8 +21,8 @@
     var HUE = ["#56c7b8", "#c99bc4", "#f6c66b", "#9db0ff", "#e8a27a", "#7bd88f", "#dcc6a0"];
     if (!SCALES[S.scale]) S.scale = "pent";
     function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-    function snap(semi) { var sc = SCALES[S.scale].s; if (!sc) return semi; var o = Math.floor(semi / 12), r = semi - o * 12, best = 0, bd = 99; sc.concat([12]).forEach(function (d) { if (Math.abs(d - r) < bd) { bd = Math.abs(d - r); best = d; } }); return o * 12 + best; }
-    function note(deg, oct) { var sc = SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10], n = sc.length, o = Math.floor(deg / n); return 48 + S.key + (oct || 0) * 12 + o * 12 + sc[((deg % n) + n) % n]; }
+    function snap(semi) { var scv = SCALES[S.scale].s; if (!scv) return semi; var o = Math.floor(semi / 12), r = semi - o * 12, best = 0, bd = 99; scv.concat([12]).forEach(function (d) { if (Math.abs(d - r) < bd) { bd = Math.abs(d - r); best = d; } }); return o * 12 + best; }
+    function noteText(deg, oct) { var scv = SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10], n = scv.length, o = Math.floor(deg / n); return 48 + S.key + (oct || 0) * 12 + o * 12 + scv[((deg % n) + n) % n]; }
     function mname(m) { return KEYS[((Math.round(m) % 12) + 12) % 12] + Math.floor(Math.round(m) / 12 - 1); }
 
     /* ---- the room: everything plays through one chain ---- */
@@ -90,7 +90,7 @@
     function lost() {   /* iPadOS took the sound away mid-play */
       X.on = false; X.beat = false; X.lost = true; thV = {}; held = []; dr.touches = {};
       if (X.rec) X.rec.mr.stop();
-      if (state.screen === "ressikan") render();
+      if (state.screen === "ressikan") draw();
     }
 
     /* ---- FIELD: the theremin ---- */
@@ -135,7 +135,7 @@
       v.trail.push([x, y]); if (v.trail.length > 40) v.trail.shift();
     }
     function thKill(v) { v.g.gain.setTargetAtTime(0, A.currentTime, .15); setTimeout(function () { ["o1", "o2", "o3", "sub", "rm", "trem", "lfo"].forEach(function (k) { try { v[k].stop(); } catch (e) { /* stopped */ } }); }, 1200); }
-    function thUp(id) { var v = thV[id]; if (!v) return; delete thV[id]; if (X.hold) { v.held = true; held.push(v); if (held.length > 4) thKill(held.shift()); render(); } else { thKill(v); paint(); } }
+    function thUp(id) { var v = thV[id]; if (!v) return; delete thV[id]; if (X.hold) { v.held = true; held.push(v); if (held.length > 4) thKill(held.shift()); draw(); } else { thKill(v); paint(); } }
     function thRelease(all) { held.forEach(thKill); held = []; if (all) Object.keys(thV).forEach(function (k) { thKill(thV[k]); delete thV[k]; }); }
     function thAll() { return Object.keys(thV).map(function (k) { return thV[k]; }).concat(held); }
 
@@ -174,7 +174,7 @@
         var b = A.createOscillator(), bg = A.createGain(); b.type = "triangle"; b.frequency.value = 180; bg.gain.setValueAtTime(.18, t); bg.gain.exponentialRampToValueAtTime(.001, t + .08); b.connect(bg); bg.connect(beatBus); b.start(t); b.stop(t + .1); }
       else if (id === "hat") { var hn = A.createBufferSource(); hn.buffer = noise(); var hf = A.createBiquadFilter(); hf.type = "highpass"; hf.frequency.value = 7000; hn.connect(hf); hf.connect(out); out.gain.setValueAtTime(g % 4 === 2 ? .16 : .09, t); out.gain.exponentialRampToValueAtTime(.001, t + .05); hn.start(t); hn.stop(t + .08); }
       else { var root = PROG[Math.floor(g / 16) % 4], len = (SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10]).length;
-        [0, 2, 4, 6].forEach(function (k, i) { if (len < 6 && i === 3) return; var m = note(root + k, 0), c = A.createOscillator(), mo = A.createOscillator(), mg = A.createGain(), eg = A.createGain();
+        [0, 2, 4, 6].forEach(function (k, i) { if (len < 6 && i === 3) return; var m = noteText(root + k, 0), c = A.createOscillator(), mo = A.createOscillator(), mg = A.createGain(), eg = A.createGain();
           c.frequency.value = hz(m); mo.frequency.value = hz(m) * 2; mg.gain.setValueAtTime(hz(m) * .9, t); mg.gain.exponentialRampToValueAtTime(hz(m) * .05, t + .8); mo.connect(mg); mg.connect(c.frequency);   /* a soft electric piano */
           eg.gain.setValueAtTime(.0001, t); eg.gain.exponentialRampToValueAtTime(.075, t + .01 + i * .012); eg.gain.exponentialRampToValueAtTime(.001, t + 1.8); c.connect(eg); eg.connect(out); c.start(t); mo.start(t); c.stop(t + 2); mo.stop(t + 2); }); }
     }
@@ -192,10 +192,10 @@
     }
     function driftTick() {
       clearTimeout(dr.timer); dr.timer = setTimeout(driftTick, 900 + (1 - S.dr.density) * 5200);
-      if (X.sleep && Date.now() > X.sleepAt) { X.sleep = 0; setPower(false); if (state.screen === "ressikan") render(); return; }
+      if (X.sleep && Date.now() > X.sleepAt) { X.sleep = 0; setPower(false); if (state.screen === "ressikan") draw(); return; }
       if (!X.on || S.card !== "drift" || S.dmode === "play") return;
-      var t = A.currentTime, deg = Math.floor(Math.random() * 7), m = note(deg, Math.round(S.dr.depth * 2) - 1), dur = 6 + Math.random() * 8;
-      tone(m, t, dur, { pan: Math.random() * 1.2 - .6 }); if (Math.random() < .18) tone(note(deg + 7, 1), t, 4, { chime: true, vol: .08, atk: .01 });
+      var t = A.currentTime, deg = Math.floor(Math.random() * 7), m = noteText(deg, Math.round(S.dr.depth * 2) - 1), dur = 6 + Math.random() * 8;
+      tone(m, t, dur, { pan: Math.random() * 1.2 - .6 }); if (Math.random() < .18) tone(noteText(deg + 7, 1), t, 4, { chime: true, vol: .08, atk: .01 });
       dr.blobs.push({ x: Math.random(), y: .15 + Math.random() * .6, r: .1 + Math.random() * .2, hue: deg, born: performance.now(), life: dur * 1000 }); if (dr.blobs.length > 16) dr.blobs.shift();
     }
     function driftDown(id, x, y) {
@@ -224,9 +224,9 @@
     var canv = [];
     function fit(cv) { var r = cv.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) { cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); } return d; }
     function drawField(cv) {
-      var d = fit(cv), x = cv.getContext("2d"), W = cv.width, H = cv.height, now = performance.now() / 1000, span = 12 + Math.round(S.th.range * 36), sc = SCALES[S.scale].s, vs = thAll(), still = calm();
+      var d = fit(cv), x = cv.getContext("2d"), W = cv.width, H = cv.height, now = performance.now() / 1000, span = 12 + Math.round(S.th.range * 36), scv = SCALES[S.scale].s, vs = thAll(), still = calm();
       x.fillStyle = "rgba(4,4,8,.28)"; x.fillRect(0, 0, W, H); x.lineWidth = d; x.font = (11 * d) + "px Antonio, sans-serif";
-      for (var s = 0; s <= span; s++) { var r = s % 12; if (sc && sc.indexOf(r) < 0) continue; var y = H - (s / span) * H; x.strokeStyle = r === 0 ? "rgba(246,198,107,.22)" : "rgba(154,134,181,.10)"; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); if (r === 0) { x.fillStyle = "rgba(246,198,107,.5)"; x.fillText(KEYS[S.key] + (2 + Math.floor(s / 12)), 8 * d, y - 4 * d); } }
+      for (var s = 0; s <= span; s++) { var r = s % 12; if (scv && scv.indexOf(r) < 0) continue; var y = H - (s / span) * H; x.strokeStyle = r === 0 ? "rgba(246,198,107,.22)" : "rgba(154,134,181,.10)"; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); if (r === 0) { x.fillStyle = "rgba(246,198,107,.5)"; x.fillText(KEYS[S.key] + (2 + Math.floor(s / 12)), 8 * d, y - 4 * d); } }
       var pulse = !still && bt.flash.kick && performance.now() - bt.flash.kick < 140 ? .12 : 0;   /* the field breathes with the kick */
       for (var k = 0; k < 7; k++) { x.beginPath(); var yy = (k + .5) / 7 * H; for (var px = 0; px <= W; px += 12 * d) { var off = still ? 0 : Math.sin(px / W * 6 + now * .7 + k) * (4 + pulse * 60) * d; vs.forEach(function (v) { var dx = px - v.x * W, dy = yy - v.y * H, dd = Math.sqrt(dx * dx + dy * dy) + 40 * d; off += (v.y * H - yy) * 60 * d / dd * .6; }); if (px === 0) x.moveTo(px, yy + off); else x.lineTo(px, yy + off); } x.strokeStyle = "rgba(86,199,184," + (vs.length ? .22 : .08 + pulse) + ")"; x.stroke(); }
       vs.forEach(function (v, i) {
@@ -332,7 +332,7 @@
         '<p class="muted">Height is pitch (locked to the scale), across is brightness and left to right in your headphones. A beat that\'s on keeps playing here.</p>');
     }
     function head() { return { e: "REFLECT · RESSIKAN · " + (S.card === "field" ? "FIELD" : "DRIFT") + (X.beat ? " · BEAT " + Math.round(bpm()) + " BPM" : ""), t: "RESSIKAN" }; }
-    function render() {
+    function draw() {
       $("content").innerHTML = '<div class="rs">' + soundStrip() + cardsHtml() + (S.card === "field" ? fieldHtml() : driftHtml()) + "</div>";
       canv = [].map.call(document.querySelectorAll("#content canvas[data-rscv]"), function (el) { return { el: el, k: el.dataset.rscv }; });
       document.querySelectorAll("#content [data-rssurf]").forEach(bindSurface);
@@ -386,9 +386,9 @@
         var mime = mr.mimeType || type || "audio/webm", blob = new Blob(chunks, { type: mime }), n = new Date();
         X.takes.unshift({ n: "TAKE " + (X.takes.length + 1), url: URL.createObjectURL(blob), blob: blob, file: "Ressikan " + ymd(n) + " " + p2(n.getHours()) + p2(n.getMinutes()) + p2(n.getSeconds()) + (/mp4/.test(mime) ? ".m4a" : ".webm") });
         if (X.takes.length > 6) URL.revokeObjectURL(X.takes.pop().url);
-        X.rec = null; if (state.screen === "ressikan") render();
+        X.rec = null; if (state.screen === "ressikan") draw();
       };
-      mr.start(250); X.rec = { mr: mr, at: Date.now() }; render();
+      mr.start(250); X.rec = { mr: mr, at: Date.now() }; draw();
     }
     function saveTake(tk) {   /* the share sheet's Save to Files, or a download where sharing files isn't offered */
       var f = typeof File === "function" ? new File([tk.blob], tk.file, { type: tk.blob.type }) : null;
@@ -398,28 +398,28 @@
     function click(b) {
       if (state.screen !== "ressikan") return false;
       var d = b.dataset;
-      if (d.rsact === "power") { setPower(!X.on); render(); }
-      else if (d.rsact === "beat") { setBeat(!X.beat); render(); }
-      else if (d.rsact === "vinyl") { S.vinyl = !S.vinyl; applyFx(); keep(); render(); }
-      else if (d.rsact === "place") { S.place = S.place === "beside" ? "inside" : "beside"; keep(); render(); }
-      else if (d.rsact === "hold") { X.hold = !X.hold; if (!X.hold && A) thRelease(false); render(); }
-      else if (d.rsact === "release") { if (A) thRelease(false); render(); }
+      if (d.rsact === "power") { setPower(!X.on); draw(); }
+      else if (d.rsact === "beat") { setBeat(!X.beat); draw(); }
+      else if (d.rsact === "vinyl") { S.vinyl = !S.vinyl; applyFx(); keep(); draw(); }
+      else if (d.rsact === "place") { S.place = S.place === "beside" ? "inside" : "beside"; keep(); draw(); }
+      else if (d.rsact === "hold") { X.hold = !X.hold; if (!X.hold && A) thRelease(false); draw(); }
+      else if (d.rsact === "release") { if (A) thRelease(false); draw(); }
       else if (d.rsact === "rec") toggleRec();
       else if (d.rssave) { var tk = X.takes[+d.rssave]; if (tk) saveTake(tk); }
-      else if (d.rscard) { S.card = d.rscard; keep(); applyBed(); render(); }
-      else if (d.rsscale) { S.scale = d.rsscale; keep(); render(); }
-      else if (d.rskey) { S.key = (S.key + Number(d.rskey) + 12) % 12; keep(); render(); }
-      else if (d.rspat) { loadPat(d.rspat); render(); }
-      else if (d.rslane) { LANES.forEach(function (l) { if (l.id !== d.rslane) return; var L = [16, 12, 10, 8], nl = L[(L.indexOf(l.len) + 1) % L.length]; steps[l.id] = steps[l.id].map(function (s) { return Math.round(s / l.len * nl) % nl; }).filter(function (s, i, a) { return a.indexOf(s) === i; }); l.len = nl; }); S.pat = "custom"; keep(); render(); }
-      else if (d.rsacross) { S.across = d.rsacross; if (A) thAll().forEach(thApply); keep(); render(); }
-      else if (d.rsdmode) { S.dmode = d.rsdmode; keep(); applyBed(); render(); }
-      else if (d.rsbed) { S.bedKind = d.rsbed; keep(); applyBed(); render(); }
-      else if (d.rssleep !== undefined) { X.sleep = Number(d.rssleep); X.sleepAt = Date.now() + X.sleep * 60000; render(); }
+      else if (d.rscard) { S.card = d.rscard; keep(); applyBed(); draw(); }
+      else if (d.rsscale) { S.scale = d.rsscale; keep(); draw(); }
+      else if (d.rskey) { S.key = (S.key + Number(d.rskey) + 12) % 12; keep(); draw(); }
+      else if (d.rspat) { loadPat(d.rspat); draw(); }
+      else if (d.rslane) { LANES.forEach(function (l) { if (l.id !== d.rslane) return; var L = [16, 12, 10, 8], nl = L[(L.indexOf(l.len) + 1) % L.length]; steps[l.id] = steps[l.id].map(function (s) { return Math.round(s / l.len * nl) % nl; }).filter(function (s, i, a) { return a.indexOf(s) === i; }); l.len = nl; }); S.pat = "custom"; keep(); draw(); }
+      else if (d.rsacross) { S.across = d.rsacross; if (A) thAll().forEach(thApply); keep(); draw(); }
+      else if (d.rsdmode) { S.dmode = d.rsdmode; keep(); applyBed(); draw(); }
+      else if (d.rsbed) { S.bedKind = d.rsbed; keep(); applyBed(); draw(); }
+      else if (d.rssleep !== undefined) { X.sleep = Number(d.rssleep); X.sleepAt = Date.now() + X.sleep * 60000; draw(); }
       else return false;
       return true;
     }
     function leave() { if (X.rec) X.rec.mr.stop(); if (X.on) setPower(false); X.sleep = 0; }   /* leaving the station: quiet */
-    return { render: render, head: head, click: click, leave: leave, card: function (k) { S.card = k; keep(); } };
+    return { render: draw, head: head, click: click, leave: leave, card: function (k) { S.card = k; keep(); } };
   })();
   function renderRessikan() { rs.render(); }
 

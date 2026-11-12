@@ -273,7 +273,7 @@
       (dn ? '<button type="button" class="chip sm" data-mlset="none">CLEAR</button>' : "") + (dn && dn.kind === "meal" && mlMeal(dn.meal) && canRecipes() ? '<button type="button" class="chip sm" data-mlcook="' + esc(dn.meal) + '" style="--c: var(--chrome-d)">COOK</button>' : "") + '<button type="button" class="chip sm" data-ml="unsel">DONE</button></span></div>';
   }
   function mlPlanHtml() {
-    var t = mlToday(), mon = mlMonday(ml.wk), html = '<div class="ml-plan"><div class="ml-main">';
+    var mon = mlMonday(ml.wk), html = '<div class="ml-plan"><div class="ml-main">';
     var wl = ml.wk === 0 ? "THIS WEEK" : ml.wk === 1 ? "NEXT WEEK" : ml.wk === -1 ? "LAST WEEK" : "IN " + ml.wk + " WEEKS";
     html += '<section class="ml-panel ml-week" aria-label="' + wl + '"><div class="ml-ph"><h3>' + wl + '</h3><span class="ml-sub">' + p2(mon.getDate()) + " " + MON[mon.getMonth()] + " TO " + p2(addDays(mon, 6).getDate()) + " " + MON[addDays(mon, 6).getMonth()] + "</span>" +
       '<span class="ml-wkn"><button type="button" class="chip sm" data-ml="wkprev" aria-label="The week before"' + (ml.wk <= -1 ? " disabled" : "") + '>◀</button><button type="button" class="chip sm" data-ml="wknext" aria-label="The week after"' + (ml.wk >= 2 ? " disabled" : "") + ">▶</button></span></div>";
@@ -286,9 +286,9 @@
         (ml.planErr ? '<div class="errtxt">' + esc(ml.planErr) + "</div>" : "");
       if (ml.plan) {
         var n = ml.plan.filter(function (p) { return p.take; }).length;
-        html += '<div class="ml-props"><b class="ml-sub">CLAUDE PROPOSES</b>' + ml.plan.map(function (p, i) {
+        html += '<div class="ml-props"><b class="ml-sub">CLAUDE PROPOSES</b>' + ml.plan.map(function (p, ix) {
           var m = mlMeal(p.meal), d = parseYmd(p.date);
-          return '<button type="button" class="ml-prop" data-mltake="' + i + '" aria-pressed="' + p.take + '"><i aria-hidden="true">' + (p.take ? "✓" : "") + "</i><span><small>" + DOW[d.getDay()] + " " + d.getDate() + "</small><b>" + esc(m ? m.name : p.meal) + "</b><small>" + esc(p.why) + "</small></span></button>";
+          return '<button type="button" class="ml-prop" data-mltake="' + ix + '" aria-pressed="' + p.take + '"><i aria-hidden="true">' + (p.take ? "✓" : "") + "</i><span><small>" + DOW[d.getDay()] + " " + d.getDate() + "</small><b>" + esc(m ? m.name : p.meal) + "</b><small>" + esc(p.why) + "</small></span></button>";
         }).join("") + '<span class="btnrow"><button type="button" class="chip" data-ml="planok"' + (n ? "" : " disabled") + ' style="--c: var(--ok)">PLAN THESE (' + n + ')</button><button type="button" class="chip" data-ml="planno">NOT NOW</button></span></div>';
       }
       html += "</div>";
@@ -367,7 +367,7 @@
     render(true);
   }
   function mlLogHtml() {
-    var t = mlToday(), start = mlMonday(-4), html = '<section class="ml-panel ml-log" aria-label="Five weeks of dinners"><div class="ml-ph"><h3>FIVE WEEKS</h3><span class="ml-sub">SOLID: EATEN · OUTLINED: PLANNED · TAP A NIGHT</span></div><div class="ml-cal">';
+    var start = mlMonday(-4), html = '<section class="ml-panel ml-log" aria-label="Five weeks of dinners"><div class="ml-ph"><h3>FIVE WEEKS</h3><span class="ml-sub">SOLID: EATEN · OUTLINED: PLANNED · TAP A NIGHT</span></div><div class="ml-cal">';
     ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].forEach(function (d) { html += '<span class="ml-dow">' + d + "</span>"; });
     for (var i = 0; i < 35; i++) html += mlDayBtn(ymd(addDays(start, i)), true);
     html += "</div>";
@@ -463,7 +463,7 @@
     else if (a === "plan") mlPlanAsk();
     else if (a === "planno") { ml.plan = null; ml.planErr = ""; render(true); }
     else if (a === "planok" && ml.plan) {
-      var n = 0; ml.plan.forEach(function (p) { if (p.take && !mlDinner(p.date) && mlMeal(p.meal)) { mlQueue({ op: "dinner", dinner: { date: p.date, status: "planned", kind: "meal", meal: p.meal } }); n++; } });
+      var n = 0; ml.plan.forEach(function (pt) { if (pt.take && !mlDinner(pt.date) && mlMeal(pt.meal)) { mlQueue({ op: "dinner", dinner: { date: pt.date, status: "planned", kind: "meal", meal: pt.meal } }); n++; } });
       ml.plan = null; toast(n + (n === 1 ? " night planned" : " nights planned")); render(true);
     }
     else if (a === "add") { ml.add = !ml.add; render(true); var an = $("mlAddN"); if (an) an.focus(); }
@@ -475,7 +475,7 @@
     else if (a === "imp") { ml.imp = { mode: "link", url: "", text: "", file: null, busy: false, err: "" }; ml.form = null; ml.sel = null; ml.editing = false; render(true); var iu = $("mlImpUrl"); if (iu) iu.focus(); }
     else if (a === "impno") { ml.imp = null; render(true); }
     else if (a === "paste" && ml.imp) {
-      if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (t) { var u = (String(t || "").match(/https?:\/\/\S+/) || [""])[0]; if (u) { ml.imp.url = u; render(true); } else toast("No link on the clipboard. Copy the recipe's link first."); }, function () { toast("Couldn't read the clipboard. Paste the link into the box."); });
+      if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (tt) { var u = (String(tt || "").match(/https?:\/\/\S+/) || [""])[0]; if (u) { ml.imp.url = u; render(true); } else toast("No link on the clipboard. Copy the recipe's link first."); }, function () { toast("Couldn't read the clipboard. Paste the link into the box."); });
       else toast("Paste the link into the box.");
     }
     else if (a === "impgo" && ml.imp) mlImpGo();

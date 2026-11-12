@@ -16,7 +16,7 @@
     if (!askState.context || Date.now() - askState.contextAt > SNAPSHOT_MS) { askState.context = briefing(); askState.contextAt = Date.now(); }
     saveAsk();
   }
-  function money(usd) { return usd < 1 ? (Math.round(usd * 1000) / 10) + "¢" : "$" + usd.toFixed(2); }
+  function money(usdAmt) { return usdAmt < 1 ? (Math.round(usdAmt * 1000) / 10) + "¢" : "$" + usdAmt.toFixed(2); }
   function spendLine(s) { return s ? "$" + s.usd.toFixed(2) + " THIS MONTH · " + (s.usd >= s.budget && s.cont ? "CONTINUED PAST $" + s.budget.toFixed(2) : "REMINDER AT $" + s.budget.toFixed(2)) : ""; }
   function modelName(m) { return /haiku/.test(m || "") ? "HAIKU" : /sonnet/.test(m || "") ? "SONNET" : /opus/.test(m || "") ? "OPUS" : String(m || "").toUpperCase(); }
   function describeAi(err) {
@@ -214,7 +214,7 @@
   /* CONFIRM: make the change exactly as the app's own buttons would. */
   function runProposal(mi, pi) {
     var p = askState.msgs[mi].proposals[pi], i = p.input, today = ymd(new Date());
-    var finish = function (ok, note) { p.state = ok ? "done" : "failed"; p.note = note || ""; saveAsk(); renderAsk(); render(true); };
+    var finish = function (ok, noteText) { p.state = ok ? "done" : "failed"; p.note = noteText || ""; saveAsk(); renderAsk(); render(true); };
     var fail = function (err) { finish(false, "Not done: " + describeTasks(err)); };
     p.state = "working"; renderAsk();
     if (p.kind === "add_task") {
@@ -295,8 +295,8 @@
   function aiSection() {
     var s = state.aiSpend, html = "<section>" + phead("ASK CLAUDE", canAsk() ? "ON" : "OFF");
     if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
-    var cap = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / cap * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / cap * 100)) : 80;
-    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
+    var capText = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / capText * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / capText * 100)) : 80;
+    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + capText.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
       "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs the Google bridge updated (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
         '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine() + newsSetLine()) + "</dd>" +

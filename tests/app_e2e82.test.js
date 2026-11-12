@@ -66,9 +66,9 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   // ---- 2.69: what a failure marks. With LEVEL off (no backup to hand over to), a network error on a show that had
   // started (MediaError 2, the NAS still answering) marks it only to try again later; a decode error (3) marks it for good
   await p.click('[data-hd="level"]'); await until(playing, 15000);
-  const failNow = code => p.evaluate(code => { const v = document.getElementById('hdVideo'), src = decodeURIComponent(v.getAttribute('src').split('?')[0]).replace(/^https?:\/\/[^/]+/, '');
-    Object.defineProperty(v, 'error', { configurable: true, get: () => ({ code, message: '' }) }); v.dispatchEvent(new Event('error')); return src; }, code);
-  const why = path => p.evaluate(path => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'); return l[path] && l[path].s < 0 ? l[path].why : null; }, path);
+  const failNow = code => p.evaluate(codeV => { const v = document.getElementById('hdVideo'), src = decodeURIComponent(v.getAttribute('src').split('?')[0]).replace(/^https?:\/\/[^/]+/, '');
+    Object.defineProperty(v, 'error', { configurable: true, get: () => ({ code: codeV, message: '' }) }); v.dispatchEvent(new Event('error')); return src; }, code);
+  const why = path => p.evaluate(pathV => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'); return l[pathV] && l[pathV].s < 0 ? l[pathV].why : null; }, path);
   const f2 = await failNow(2);
   await until(async () => (await why(f2)) !== null, 8000);
   assert.strictEqual(await why(f2), 'net', 'a network error is tried again, never marked for good');

@@ -163,11 +163,11 @@ pages.push(mk('k'.repeat(32), 'Done Sunday night, local time', '✅ Done', null,
 pages.push(mk('l'.repeat(32), 'Done next Monday', '✅ Done', null, '🏥 Health', null, null, DS, '2026-10-12T06:00:00.000Z'));
 const W = { action: 'week', key, week: '2026-10-05', from: '2026-10-05T00:00:00-05:00', to: '2026-10-12T00:00:00-05:00' };
 const wk = get(W);
-console.log('week: done', wk.done.map(t => t.title), '| picked', wk.picked.map(t => t.title + '/' + t.status), '| review', wk.review);
+console.log('week: done', wk.done.map(tt => tt.title), '| picked', wk.picked.map(tt => tt.title + '/' + tt.status), '| review', wk.review);
 assert.ok(wk.ok);
-assert.ok(wk.done.some(t => t.title === 'Done Sunday night, local time'), 'Sunday 22:30 local counts in the week');
-assert.ok(!wk.done.some(t => t.title === 'Done next Monday'));
-assert.deepStrictEqual(wk.picked.map(t => t.title).sort(), ['Picked and finished', 'Picked, slipped', 'Renew registration', 'Sugar syrup, Hive 2']);
+assert.ok(wk.done.some(tt => tt.title === 'Done Sunday night, local time'), 'Sunday 22:30 local counts in the week');
+assert.ok(!wk.done.some(tt => tt.title === 'Done next Monday'));
+assert.deepStrictEqual(wk.picked.map(tt => tt.title).sort(), ['Picked and finished', 'Picked, slipped', 'Renew registration', 'Sugar syrup, Hive 2']);
 assert.strictEqual(wk.review, null);
 assert.strictEqual(get(Object.assign({}, W, { from: 'yesterday' })).error, 'bad_request');
 const R = { week: '2026-10-05', title: 'Week 41 · 05 to 11 Oct', wentWell: 'Shipped the deck', drained: 'Too many evening calls', nextFocus: 'Hive winter prep', bearing: '', intents: 'MON One line\nTUE Another', byArea: 'Work Desk 2 · Health 1', hoursWork: 31.25, hoursPersonal: 6, hoursFarm: null, hoursHobbies: null, tasksDone: 3, picked: 2, pickedDone: 1 };

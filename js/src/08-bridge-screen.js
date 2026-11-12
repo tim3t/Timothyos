@@ -4,7 +4,6 @@
      already loads, plus weather (Open-Meteo) and the bridge's "done" counts. */
   var HEAVY_HOURS = 7, KD_WARN_DAYS = 3, PICK_BY_HOUR = 10, STALE_SYNC_MS = 6 * 3600 * 1000;
   var HIGH = "🔴 High";
-  var BAL_AREAS = ["work", "personal", "farm", "hobby"];
   var HIVE = { minF: 60, maxWind: 12, maxRain: 30, from: 10, to: 17 };
   var WX_FRESH_MS = 30 * 60 * 1000, DONE_FRESH_MS = 10 * 60 * 1000;
 
@@ -184,10 +183,10 @@
     if (!j) return null;
     var hours = wxHours(j), today = ymd(now), start = now.getHours() + (now.getMinutes() ? 1 : 0), label = "TODAY", day = today;
     if (Math.max(start, HIVE.from) >= HIVE.to) { day = ymd(addDays(now, 1)); start = 0; label = "TOMORROW"; }
-    var slot = hours.filter(function (x) { return x.day === day && x.hr >= Math.max(start, HIVE.from) && x.hr < HIVE.to; });
-    if (!slot.length) return null;
+    var slotAt = hours.filter(function (x) { return x.day === day && x.hr >= Math.max(start, HIVE.from) && x.hr < HIVE.to; });
+    if (!slotAt.length) return null;
     var why = { cool: 0, wind: 0, rain: 0 }, best = null, run = null, hiT = -99;
-    slot.forEach(function (x) {
+    slotAt.forEach(function (x) {
       hiT = Math.max(hiT, x.temp);
       var wet = x.code >= 51 || (x.rain != null && x.rain > HIVE.maxRain);
       var ok = x.temp >= HIVE.minF && x.wind <= HIVE.maxWind && !wet;
@@ -415,15 +414,15 @@
     if (nowH >= FOCUS_START && nowH <= FOCUS_END) html += '<span class="ov-nowln" style="left:' + pct(nowH) + '%"><i class="tnum">' + hm(now) + "</i></span>";
     html += '</div><div class="ov-ticks">' + [7, 9, 11, 13, 15, 17, 19, 21].map(function (h) { return '<span class="tnum" style="left:' + pct(h) + '%">' + p2(h) + "</span>"; }).join("") + "</div>";
     /* pins: what's due and today's key date at the left, dinner at 18:00 */
-    var pins = "", due = rbDueList(today);
-    if (due.length) pins += '<button type="button" class="rb-pin pin-due" data-act="plan" data-day="' + today + '"><b>' + (due.some(function (t) { return t.due < today; }) ? "OVERDUE" : "DUE TODAY") + "</b><span>" + esc(due[0].title) + (due.length > 1 ? " +" + (due.length - 1) : "") + "</span></button>";
+    var pinList = "", due = rbDueList(today);
+    if (due.length) pinList += '<button type="button" class="rb-pin pin-due" data-act="plan" data-day="' + today + '"><b>' + (due.some(function (t) { return t.due < today; }) ? "OVERDUE" : "DUE TODAY") + "</b><span>" + esc(due[0].title) + (due.length > 1 ? " +" + (due.length - 1) : "") + "</span></button>";
     if (canDates() && state.dates) {
       var kd = occurrences(today, today).filter(function (o) { return o.s <= today && o.e >= today; })[0];
-      if (kd) pins += '<button type="button" class="rb-pin pin-kd" data-kd="' + esc(kd.id) + '"><b>TODAY</b><span>' + esc(kd.d.title) + "</span></button>";
+      if (kd) pinList += '<button type="button" class="rb-pin pin-kd" data-kd="' + esc(kd.id) + '"><b>TODAY</b><span>' + esc(kd.d.title) + "</span></button>";
     }
     var dn = state.conn && canMeals() && ml.data ? mlDinner(mlToday()) : null;
     var dpin = dn ? '<button type="button" class="rb-pin pin-dinner" data-mlnow="open" style="left:' + pct(18) + '%"><b>' + (dn.status === "eaten" ? "DINNER ✓" : "18:00 DINNER") + "</b><span>" + esc(mlDName(dn)) + "</span></button>" : "";
-    if (pins || dpin) html += '<div class="rb-pins"><div class="rb-pinl">' + pins + "</div>" + dpin + "</div>";
+    if (pinList || dpin) html += '<div class="rb-pins"><div class="rb-pinl">' + pinList + "</div>" + dpin + "</div>";
     return html;
   }
   /* --- ORDERS OF THE DAY: the picks, what's due outside them, the intent --- */

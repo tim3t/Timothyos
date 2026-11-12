@@ -504,8 +504,8 @@
   function fitViewport() {
     var v = window.visualViewport, r = document.documentElement.style;
     if (!v || document.hidden) return;
-    var f = document.activeElement, typing = f && (f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test(f.type || ""))) || (f && f.isContentEditable);
-    if (!typing || v.height < 120) { r.removeProperty("--vv-top"); r.removeProperty("--vv-h"); return; }
+    var f = document.activeElement, isTyping = f && (f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test(f.type || ""))) || (f && f.isContentEditable);
+    if (!isTyping || v.height < 120) { r.removeProperty("--vv-top"); r.removeProperty("--vv-h"); return; }
     r.setProperty("--vv-top", Math.max(0, v.offsetTop) + "px");
     r.setProperty("--vv-h", v.height + "px");
   }

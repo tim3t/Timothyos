@@ -288,8 +288,9 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await fetch(R + '/__fail?n=0'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: false });
   if (await p.$('#hdLive')) await p.click('[data-hd="tune"]');   /* off */
   await p.click('[data-hd="rescan"]');   /* LOOK AGAIN: the set-aside ones are measured afresh */
-  await p.waitForFunction(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.s < 0), null, { timeout: 30000 });
-  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 30000 });
+  // re-measuring is slow when the whole suite runs at once (61 s against 38 s alone, 12 Nov): up to 60 s, the same check
+  await p.waitForFunction(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.s < 0), null, { timeout: 60000 });
+  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 60000 });
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
@@ -304,7 +305,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok((await txt(p, '#allBtn')).includes('HOLODECK'), 'AUDIO counts as HOLODECK');
   const n0 = await p.$eval('#nasNeedle', e => e.style.left);
   await p.click('.nas-share >> text=PODCASTS');
-  await p.waitForFunction(n0 => { const n = document.getElementById('nasNeedle'); return !n || n.style.left !== n0; }, n0, { timeout: 3000 });
+  await p.waitForFunction(n0b => { const n = document.getElementById('nasNeedle'); return !n || n.style.left !== n0b; }, n0, { timeout: 3000 });
   await p.waitForSelector('.nas-row');
   assert.strictEqual(await txt(p, '#title'), 'PODCASTS', 'the needle swings, then the folder opens');
   await p.click('.nas-row >> text=Show A'); await p.waitForSelector('[data-nasplay]'); await p.click('[data-nasplay]');
@@ -314,7 +315,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await visual(p); await p.click('.hd-tune');
   await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && !v.paused && v.currentTime > 0; }, null, { timeout: 10000 });
   assert.ok(await p.evaluate(() => document.getElementById('nasAudio').paused), 'the TV paused the audio');
-  await p.waitForFunction(() => { const b = document.querySelector('#nasMini [data-nas="toggle"]'); return b && b.getAttribute('aria-label') === 'Play'; }, null, { timeout: 3000 });
+  await p.waitForFunction(() => { const b2 = document.querySelector('#nasMini [data-nas="toggle"]'); return b2 && b2.getAttribute('aria-label') === 'Play'; }, null, { timeout: 3000 });
   await p.click('#nasMini [data-nas="toggle"]');   /* audio again: the TV goes off */
   await p.waitForFunction(() => !(document.getElementById('hdVideo').getAttribute('src') || '').length, null, { timeout: 3000 });
   assert.ok((await txt(p, '.hd')).includes('The TV went off while audio plays.'));

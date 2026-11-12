@@ -2,18 +2,18 @@
   /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
      max-height in CSS (Ask) stops there and scrolls inside. Scroll positions around it are kept. */
-  function growBox(ta, typing) {
+  function growBox(ta, isTyping) {
     if (!ta || ta.tagName !== "TEXTAREA" || ta.classList.contains("cl-text") || ta.classList.contains("cl-mirror") || !ta.offsetParent) return;
     /* a pass after a redraw only sizes new boxes and ones that overflow; shrinking waits for typing
        (and never touches scroll needlessly: setting it would stop a smooth scroll under way) */
-    if (!typing && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
+    if (!isTyping && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
     var keep = [], el = ta.parentElement;
     for (; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight) keep.push([el, el.scrollTop]);
-    var edge = ta.offsetHeight - ta.clientHeight, cap = parseFloat(getComputedStyle(ta).maxHeight) || Infinity;
+    var edge = ta.offsetHeight - ta.clientHeight, capText = parseFloat(getComputedStyle(ta).maxHeight) || Infinity;
     ta.style.height = "auto";
     var want = ta.scrollHeight + edge;
-    ta.style.height = Math.min(want, cap) + "px";
-    ta.style.overflowY = want > cap ? "auto" : "hidden";
+    ta.style.height = Math.min(want, capText) + "px";
+    ta.style.overflowY = want > capText ? "auto" : "hidden";
     keep.forEach(function (k) { if (k[0].scrollTop !== k[1]) k[0].scrollTop = k[1]; });
   }
   var growPending = 0;
@@ -39,12 +39,12 @@
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
-    var active = document.activeElement, typing = active && active.id && $("content").contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)
-      ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
+    var isActive = document.activeElement, isTyping = isActive && isActive.id && $("content").contains(isActive) && /^(INPUT|TEXTAREA)$/.test(isActive.tagName)
+      ? { id: isActive.id, value: isActive.value, a: isActive.selectionStart, b: isActive.selectionEnd } : null;
     /* Text typed into any field since the last draw survives a redraw (a sync landing while you
        fill in a form), not just the field in use. A field you haven't touched shows fresh data. */
     /* Writing in the log: a background redraw would cost the keyboard its place. Leave the page alone. */
-    if (keepScroll && state.screen === "log" && active && /^clText-/.test(active.id)) { setAreas(); renderHeader(); renderStatus(); return; }
+    if (keepScroll && state.screen === "log" && isActive && /^clText-/.test(isActive.id)) { setAreas(); renderHeader(); renderStatus(); return; }
     if (keepScroll && state.screen === "storage" && pl.scrub) { setAreas(); renderHeader(); renderStatus(); return; }   /* a finger is on the scrubber: a background redraw would take it away */
     /* 2.54.1: writing in any field, a redraw nobody asked for (the clock, a sync landing) waits until you leave it. It
        used to swap the field for a fresh copy and put the focus back, and on the iPad an emoji picked from the keyboard
@@ -63,11 +63,11 @@
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
-    if (typing && $(typing.id)) {
-      var el = $(typing.id);
-      el.value = typing.value;
+    if (isTyping && $(isTyping.id)) {
+      var el = $(isTyping.id);
+      el.value = isTyping.value;
       el.focus();
-      try { el.setSelectionRange(typing.a, typing.b); } catch (x) { /* not a text field */ }
+      try { el.setSelectionRange(isTyping.a, isTyping.b); } catch (x) { /* not a text field */ }
     }
     var w2 = $("tlwrap");
     if (w2) w2.scrollTop = keep !== null ? keep : state.scrollTarget || 0;
@@ -235,7 +235,7 @@
       else if (la === "aipreview") logAiPreview();
       else if (la === "aisend") logAiSend(false);
       else if (la === "aifollow") logAiSend(true);
-      else if (la === "ainew") { var ka = lg.ai; lg.ai.msgs = []; lg.ai.preview = null; lg.ai.q = ""; lg.ai.preset = null; lg.ai.err = null; render(true); }
+      else if (la === "ainew") { lg.ai.msgs = []; lg.ai.preview = null; lg.ai.q = ""; lg.ai.preset = null; lg.ai.err = null; render(true); }
       else if (la === "aideep") { lg.ai.deep = !lg.ai.deep; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }
       else if (la === "aiinsights") logAiInsights();
       else if (la === "aiopenback") { lg.ai.open = null; render(true); }

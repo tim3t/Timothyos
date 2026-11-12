@@ -39,7 +39,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.ok(peak <= 2, 'at most 2 bridge requests at once');
 
   // 2. request cut off while the iPad sleeps: re-run on wake, not reported as a failure
-  const hide = h => p.evaluate(h => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); }, h);
+  const hide = h => p.evaluate(hh => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => hh }); document.dispatchEvent(new Event('visibilitychange')); }, h);
   mode = 'dropAll'; dropped = 0;
   await hide(true);
   await p.evaluate(() => document.querySelector('#status').click());

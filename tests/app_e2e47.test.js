@@ -24,8 +24,8 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   await lane(ctx);
   await ctx.addInitScript(() => {   // the iPad's voice, simulated: utterances are kept so the test can start and end them
     window.__said = []; window.__cancels = 0;
-    function U(t) { this.text = t; }
-    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: U, configurable: true, writable: true });
+    function url(t) { this.text = t; }
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: url, configurable: true, writable: true });
     const voices = [{ name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Moira', lang: 'en-IE', voiceURI: 'com.apple.voice.compact.en-IE.Moira' }, { name: 'Moira (Enhanced)', lang: 'en-IE', voiceURI: 'com.apple.voice.enhanced.en-IE.Moira' }];
     Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() { window.__cancels++; }, getVoices() { return voices; }, addEventListener() {} }, configurable: true });
   });
@@ -111,7 +111,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   assert.ok(await p.evaluate(() => window.__cancels) >= 2, 'STOP READING cancels the voice');
 
   // ---- 10:30: folds itself unless opened after; opened, it stays open
-  await p.evaluate(() => { const b = JSON.parse(localStorage.getItem('tos.brief.v1')); b.fold = null; localStorage.setItem('tos.brief.v1', JSON.stringify(b)); });
+  await p.evaluate(() => { const b2 = JSON.parse(localStorage.getItem('tos.brief.v1')); b2.fold = null; localStorage.setItem('tos.brief.v1', JSON.stringify(b2)); });
   await p.clock.setFixedTime(at('23T10:45'));
   await p.reload(); await p.waitForSelector('.br-fold', { timeout: 10000 });
   await p.click('.br-fold'); await p.waitForSelector('#brPaper'); await bridge(p);
@@ -172,7 +172,7 @@ const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250)
   // an iPad without Moira: every English voice to audition, novelty voices last
   await p.evaluate(() => { const vs = [{ name: 'Zarvox', lang: 'en-US', voiceURI: 'com.apple.speech.synthesis.voice.Zarvox' }, { name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Daniel', lang: 'en-GB', voiceURI: 'com.apple.voice.compact.en-GB.Daniel' }, { name: 'Thomas', lang: 'fr-FR', voiceURI: 'com.apple.voice.compact.fr-FR.Thomas' }]; speechSynthesis.getVoices = () => vs; });
   await p.click('#status'); await p.waitForSelector('[data-vtest]');
-  assert.strictEqual((await p.$$eval('[data-vtest]', bs => bs.map(b => b.firstChild.textContent.trim()))).join(','), 'Daniel,Samantha,Zarvox', 'English only, novelty last');
+  assert.strictEqual((await p.$$eval('[data-vtest]', bs => bs.map(b2 => b2.firstChild.textContent.trim()))).join(','), 'Daniel,Samantha,Zarvox', 'English only, novelty last');
   assert.ok((await txt(p, '#content')).includes("Moira isn't among the 4 voices"));
   await p.click('[data-vtest="com.apple.voice.compact.en-GB.Daniel"]');
   assert.strictEqual(await p.evaluate(() => window.__said[window.__said.length - 1].voice.name), 'Daniel', 'a tap plays that voice');

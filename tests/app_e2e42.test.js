@@ -53,7 +53,6 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
   assert.deepStrictEqual(await p.$$eval('.nas-list [data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), order);
 
   // ---- a folder where some files have no number: says so
-  await p.evaluate(c => { const t = JSON.parse(localStorage.getItem('tos.nastags.v1')); }, C);
   await p.click('.nas-crumbs >> text=NAS'); await p.click('.nas-share >> text=MUSIC'); await p.click('[data-nasdir="/Music/Lengths"]');
   await p.waitForSelector('[data-nassort="track"]'); await p.click('[data-nassort="track"]');
   await p.waitForFunction(() => /0 OF 3 MP3S HAVE A TRACK NUMBER/.test((document.querySelector('.nas-trk') || {}).textContent || ''), null, { timeout: 15000 });

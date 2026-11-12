@@ -6,7 +6,6 @@ const fs = require('fs'); const vm = require('vm'); const assert = require('asse
 const props = { NOTION_TOKEN: 'ntn_test' }; const cache = {};
 const QDB = '6f9b8c3888f74ec18a503bd197f37c8c', QDS = 'ds-q';
 let ynabCalls = [], ynabStatus = 200, planStart = null, onlyBudgets = false, fundCatName = 'Discretionary';
-const M = (y, m) => y + '-' + String(m).padStart(2, '0') + '-01';
 // sample plan: today 2026-10-07; months Oct 2025 .. Sep 2026 + Oct 2026 so far
 const cat = (id, name, group, activity, extra = {}) => Object.assign({ id, name, category_group_name: group, activity, balance: 0, hidden: false, deleted: false, internal: false }, extra);
 function monthDetail(month) {

@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.80.2 · 2026-11-12
+- Behind the scenes, nothing to see on the iPad: a **lint check** now reads every line of the app, the bridge and the tests on every run, and a release fails on what it finds (names that don't exist, names never used, one name hiding another, keys written twice, code that can't run). Its first pass found no live bug; it led to 154 renames where a name hid another (a local `render` hiding the app's own, say), and removed some dead code and two test steps that checked nothing.
+- **Tests that won't break as the calendar moves:** the simulated bridges set dates still ahead from today, and the whole suite was run as of 30, 60, 200 and 330 days from now. That found five tests that would have failed in December, January or next autumn (a goal-history date, honey counted across New Year, a daylight-saving offset), all fixed. The bridge's code changed only in names: no need to deploy it again.
+
 ## 2.80.1 · 2026-11-12 (needs bridge 1.47.1)
 - **SICKBAY: days before your first send are BEFORE SICKBAY**, dimmed in DAYS and left out of the banner. They were marked missed, which listed days that could never arrive.
 - **The STAND ring now counts what Apple counts** (bridge 1.47.1): hours in which you stood at least a minute. Set the shortcut's Stand Minutes block to **Group By: Hour**; each hour with any standing counts 1. Before, a day's standing minutes were divided by 60, which read far lower than the ring. Days already sent keep the old figure until a send covers them again.

@@ -103,7 +103,7 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
   await p.screenshot({ path: D + 'e2e22_open.png' });
   // jump to a month: tap the month name, pick a year and a month
   await p.click('[data-lact="pick"]'); await p.waitForTimeout(200);
-  assert.deepStrictEqual(await p.$$eval('[data-lyear]', b => b.map(x => x.textContent)), ['2025', '2026'], 'years with writing through now');
+  assert.deepStrictEqual(await p.$$eval('[data-lyear]', b2 => b2.map(x => x.textContent)), ['2025', '2026'], 'years with writing through now');
   assert.ok(await p.isDisabled('.cl-mo >> text="NOV"'), 'months ahead closed');
   assert.ok((await p.getAttribute('[data-ljump="2026-10"]', 'class')).includes('has'));
   await p.screenshot({ path: D + 'e2e22_pick.png' });

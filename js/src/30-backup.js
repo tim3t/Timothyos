@@ -125,12 +125,12 @@
     return html;
   }
   function backupSection() {
-    var pend = bkPending(), drafts = bkDrafts(), at = lsGet(LS_BKAT);
+    var pend = bkPending(), draftList = bkDrafts(), at = lsGet(LS_BKAT);
     var html = '<section id="sec-backup">' + phead("BACKUP AND RESTORE", at ? "LAST BACKUP " + esc(stamp(Date.parse(at))) : "NO BACKUP YET") +
       '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>';
     if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google (" + esc(bkPendingList().join(", ")) + "). Back up once they've gone.</div>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-act="bksend">SEND NOW</button></div>';
-    if (drafts.length) html += '<small class="muted">Not in a backup: ' + esc(drafts.join(", ")) + ". Save or finish it first if it matters.</small>";
+    if (draftList.length) html += '<small class="muted">Not in a backup: ' + esc(draftList.join(", ")) + ". Save or finish it first if it matters.</small>";
     if (bk.out) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn capture" data-act="bksave">SAVE TO FILES</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
     else html += '<label class="ov-sub" for="bkPass">PASSPHRASE (8 OR MORE CHARACTERS)</label><input type="password" id="bkPass" autocomplete="new-password" value="' + esc(bk.p1) + '">' +
       '<label class="ov-sub" for="bkPass2">THE SAME AGAIN</label><input type="password" id="bkPass2" autocomplete="new-password" value="' + esc(bk.p2) + '">' +

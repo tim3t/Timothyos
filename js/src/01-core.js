@@ -1,5 +1,5 @@
 
-  var VERSION = "2.80.1";
+  var VERSION = "2.80.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";

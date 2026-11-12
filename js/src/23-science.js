@@ -60,23 +60,23 @@
 
   /* ---- loading: each feed on its own clock ---- */
   function sciLoad(all) {
-    var pl = sciPlace(); if (!pl || !state.conn || !canScience()) return;
-    var t = sc.tab, M = 60000, q = "&latitude=" + pl.lat + "&longitude=" + pl.lon, here = state.screen === "science";   /* away from the station: a light, slow read */
+    var loc = sciPlace(); if (!loc || !state.conn || !canScience()) return;
+    var t = sc.tab, M = 60000, q = "&latitude=" + loc.lat + "&longitude=" + loc.lon, here = state.screen === "science";   /* away from the station: a light, slow read */
     /* orbits and band conditions change slowly (12 h), but eBird's notable birds are worth an hourly look while SCIENCE is
        open (the bridge keeps them an hour), and NATURE without birds asks again every 5 minutes, so a key just added to
        Script Properties shows up the next time NATURE is opened rather than up to 12 hours later (2.50.1) */
     var fd = sciV("feeds") || {}, fMin = !here ? 12 * 60 : fd.ebird ? 60 : t === "nature" ? 5 : 12 * 60;
-    sciRun("feeds", fMin * M, function () { return api({ action: "sciencefeeds", lat: pl.lat, lon: pl.lon }); });
+    sciRun("feeds", fMin * M, function () { return api({ action: "sciencefeeds", lat: loc.lat, lon: loc.lon }); });
     sciRun("kpf", (here ? 30 : 180) * M, function () { return sciGet("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"); });
     sciRun("quakes", (here ? 15 : 60) * M, function () {
       var since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-      return Promise.all([sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=40&minmagnitude=2&maxradiuskm=500&latitude=" + pl.lat + "&longitude=" + pl.lon + "&starttime=" + since),
+      return Promise.all([sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=40&minmagnitude=2&maxradiuskm=500&latitude=" + loc.lat + "&longitude=" + loc.lon + "&starttime=" + since),
         sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=10&minmagnitude=6&starttime=" + new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10))])
         .then(function (r) {
           var seen = {}, out = [];
           r[0].features.concat(r[1].features).forEach(function (f) {
             if (seen[f.id]) return; seen[f.id] = 1;
-            var c = f.geometry.coordinates, d = sciKm(pl, { lat: c[1], lon: c[0] });
+            var c = f.geometry.coordinates, d = sciKm(loc, { lat: c[1], lon: c[0] });
             out.push({ id: f.id, mag: Math.round(f.properties.mag * 10) / 10, place: f.properties.place || "", at: f.properties.time, km: d.km, dir: d.dir, depth: Math.round(c[2]), url: f.properties.url });
           });
           return out.sort(function (a, b) { return b.at - a.at; });
@@ -91,7 +91,7 @@
       sciRun("flux", 60 * M, function () { return sciGet("https://services.swpc.noaa.gov/json/f107_cm_flux.json"); });
     }
     if (all || t === "earth") {
-      sciRun("alerts", 15 * M, function () { return sciGet("https://api.weather.gov/alerts/active?point=" + pl.lat + "," + pl.lon).then(function (j) { return (j.features || []).map(function (f) { var p = f.properties; return { id: p.id, event: p.event, headline: p.headline, sev: p.severity, ends: p.ends || p.expires, sent: p.sent }; }); }); });
+      sciRun("alerts", 15 * M, function () { return sciGet("https://api.weather.gov/alerts/active?point=" + loc.lat + "," + loc.lon).then(function (j) { return (j.features || []).map(function (f) { var p = f.properties; return { id: p.id, event: p.event, headline: p.headline, sev: p.severity, ends: p.ends || p.expires, sent: p.sent }; }); }); });
       sciRun("air", 30 * M, function () { return sciGet("https://air-quality-api.open-meteo.com/v1/air-quality?current=us_aqi,pm2_5,ozone,uv_index&timezone=auto" + q).then(function (j) { return j.current || null; }); });
     }
     if (all || t === "night") sciRun("neo", 6 * 60 * M, function () {
@@ -104,7 +104,7 @@
       });
     });
     if (all || t === "nature") sciRun("inat", 60 * M, function () {
-      return sciGet("https://api.inaturalist.org/v1/observations?quality_grade=research&radius=25&per_page=30&order_by=observed_on&lat=" + pl.lat + "&lng=" + pl.lon + "&d1=" + ymd(addDays(new Date(), -7))).then(function (j) {
+      return sciGet("https://api.inaturalist.org/v1/observations?quality_grade=research&radius=25&per_page=30&order_by=observed_on&lat=" + loc.lat + "&lng=" + loc.lon + "&d1=" + ymd(addDays(new Date(), -7))).then(function (j) {
         var seen = {}, out = [];
         (j.results || []).forEach(function (o) { var tx = o.taxon; if (!tx || seen[tx.id]) return; seen[tx.id] = 1; out.push({ name: tx.preferred_common_name || tx.name, sci: tx.name, group: tx.iconic_taxon_name || "", day: o.observed_on, place: o.place_guess || "" }); });
         return out;
@@ -113,9 +113,9 @@
   }
   /* SKY: aircraft every 10 s while the station is open on SKY TRAFFIC; the ISS's place every minute. */
   function sciSky() {
-    var pl = sciPlace(); if (!pl || !canScience() || sc.skyBusy) return;
+    var loc = sciPlace(); if (!loc || !canScience() || sc.skyBusy) return;
     sc.skyBusy = true;
-    api({ action: "sky", lat: pl.lat, lon: pl.lon }).then(function (j) { sc.sky = { at: Date.now(), list: j.aircraft || [], source: j.source || "" }; sc.skyErr = ""; sciDetect("sky"); sciRoutes(); })
+    api({ action: "sky", lat: loc.lat, lon: loc.lon }).then(function (j) { sc.sky = { at: Date.now(), list: j.aircraft || [], source: j.source || "" }; sc.skyErr = ""; sciDetect("sky"); sciRoutes(); })
       .catch(function (err) { sc.skyErr = describe(err); })
       .then(function () { sc.skyBusy = false; if (state.screen === "science" && sc.tab === "sky") sciPaintSky(); });
     if (!sc.iss || Date.now() - sc.iss.at > 60000) sciGet("https://api.wheretheiss.at/v1/satellites/25544").then(function (j) { sc.iss = { at: Date.now(), lat: j.latitude, lon: j.longitude, alt: j.altitude, vel: j.velocity, vis: j.visibility }; }).catch(function () { /* the passes still show */ });
@@ -148,10 +148,10 @@
   function lmAll() { return (slm.d && slm.d.list) || []; }
   function lmHome() { return (slm.d && slm.d.home) || "home"; }
   /* East and north of here, in km: flat is close enough inside 50 km. */
-  function sciXY(pl, p) { return { x: (p.lon - pl.lon) * 111.32 * Math.cos(pl.lat * Math.PI / 180), y: (p.lat - pl.lat) * 110.57 }; }
+  function sciXY(loc, p) { return { x: (p.lon - loc.lon) * 111.32 * Math.cos(loc.lat * Math.PI / 180), y: (p.lat - loc.lat) * 110.57 }; }
   function lmShown() {
-    var pl = sciPlace(); if (!pl) return [];
-    return lmAll().filter(function (x) { return !x.hidden; }).map(function (x) { var w = sciKm(pl, x); return Object.assign({ km: w.km, dir: w.dir, xy: sciXY(pl, x) }, x); }).filter(function (x) { return x.km <= SCI_KM; });
+    var loc = sciPlace(); if (!loc) return [];
+    return lmAll().filter(function (x) { return !x.hidden; }).map(function (x) { var w = sciKm(loc, x); return Object.assign({ km: w.km, dir: w.dir, xy: sciXY(loc, x) }, x); }).filter(function (x) { return x.km <= SCI_KM; });
   }
   /* Where an aircraft is, in his own terms: "4 km NE of Riverton" (the nearest landmark within 8 km). */
   function sciNear(a) {
@@ -171,15 +171,15 @@
   }
   /* Ask OpenStreetMap once (the first time the scope shows with landmarks on), or again on SUGGEST AGAIN. */
   function lmSuggest(force) {
-    var pl = sciPlace(); if (!pl || slm.busy || !lmOn()) return;
+    var loc = sciPlace(); if (!loc || slm.busy || !lmOn()) return;
     if (!force && ((slm.d && slm.d.asked) || Date.now() - slm.errAt < 10 * 60000)) return;
     slm.busy = true; slm.err = "";
-    var around = "(around:50000," + pl.lat + "," + pl.lon + ")";
+    var around = "(around:50000," + loc.lat + "," + loc.lon + ")";
     var q = '[out:json][timeout:25];(node["place"~"^(city|town|village)$"]' + around + ';nwr["aeroway"="aerodrome"]' + around + ';way["aeroway"="runway"]' + around + ";);out center tags;";
     var one = function (i) { return sciPostForm(SCI_OVERPASS[i], "data=" + encodeURIComponent(q)).catch(function (e) { if (i + 1 < SCI_OVERPASS.length) return one(i + 1); throw e; }); };
     one(0).then(function (j) {
       var old = {}; lmAll().forEach(function (x) { old[x.id] = x; });
-      var picks = lmPick(j.elements || [], pl).map(function (x) { var o = old[x.id]; return o ? Object.assign(x, { name: o.name, hidden: !!o.hidden }) : x; });
+      var picks = lmPick(j.elements || [], loc).map(function (x) { var o = old[x.id]; return o ? Object.assign(x, { name: o.name, hidden: !!o.hidden }) : x; });
       slm.d = { home: slm.d && slm.d.home || "", asked: true, at: Date.now(), list: lmAll().filter(function (x) { return !x.auto; }).concat(picks) };
       lmSave();
       if (!picks.length) slm.err = "OpenStreetMap had no towns or airports within 50 km. Add your own in SYSTEMS → SCIENCE.";
@@ -188,7 +188,7 @@
   }
   /* A few, spread out: the main airport (and one airfield), then the biggest town in each direction, one in each ring
      band first (inside 10 km, 10 to 25, 25 to 50), none within 6 km of another, at most 8 in all. */
-  function lmPick(els, pl) {
+  function lmPick(els, loc) {
     var rank = { city: 3, town: 2, village: 1 }, towns = [], ports = [], rwys = [], out = [];
     els.forEach(function (e) {
       var t = e.tags || {}, lat = e.lat != null ? e.lat : e.center && e.center.lat, lon = e.lon != null ? e.lon : e.center && e.center.lon;
@@ -196,12 +196,12 @@
       var p = { lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4 };
       if (t.aeroway === "runway") { var h = parseInt(String(t.ref || "").split("/")[0], 10); if (h >= 1 && h <= 36) rwys.push(Object.assign({ rwy: (h % 18) * 10 || 180 }, p)); return; }
       if (!t.name) return;
-      var w = sciKm(pl, p); if (w.km > SCI_KM || w.km < 2) return;   /* inside 2 km is the centre itself */
+      var w = sciKm(loc, p); if (w.km > SCI_KM || w.km < 2) return;   /* inside 2 km is the centre itself */
       var base = { id: e.type.charAt(0) + e.id, name: t.name, lat: p.lat, lon: p.lon, auto: true, km: w.km, dir: w.dir };
       if (t.aeroway === "aerodrome") { if (!/^(private|no)$/.test(t.access || "")) ports.push(Object.assign(base, { kind: "airport", score: (t.iata ? 3 : t.icao ? 2 : 1) * 1000 - w.km })); }
       else if (rank[t.place]) towns.push(Object.assign(base, { kind: "town", score: rank[t.place] * 1e7 + (parseInt(String(t.population || "").replace(/\D/g, ""), 10) || 0) }));
     });
-    var far = function (x) { return out.every(function (y) { var a = sciXY(pl, x), b = sciXY(pl, y); return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) >= SCI_LM_GAP; }); };
+    var far = function (x) { return out.every(function (y) { var a = sciXY(loc, x), b = sciXY(loc, y); return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) >= SCI_LM_GAP; }); };
     var take = function (x) { if (out.length < SCI_LM_MAX && out.indexOf(x) < 0 && far(x)) { out.push(x); return true; } return false; };
     var by = function (a, b) { return b.score - a.score; };
     ports.sort(by);
@@ -214,7 +214,7 @@
     winners.forEach(take);
     towns.forEach(take);
     out.forEach(function (x) {
-      if (x.kind === "airport") { var r = rwys.map(function (y) { var a = sciXY(pl, x), c = sciXY(pl, y); return { r: y.rwy, d: Math.sqrt((a.x - c.x) * (a.x - c.x) + (a.y - c.y) * (a.y - c.y)) }; }).sort(function (a, b) { return a.d - b.d; })[0]; if (r && r.d <= 4) x.rwy = r.r; }
+      if (x.kind === "airport") { var r = rwys.map(function (y) { var a = sciXY(loc, x), c = sciXY(loc, y); return { r: y.rwy, d: Math.sqrt((a.x - c.x) * (a.x - c.x) + (a.y - c.y) * (a.y - c.y)) }; }).sort(function (a, b) { return a.d - b.d; })[0]; if (r && r.d <= 4) x.rwy = r.r; }
       delete x.km; delete x.dir; delete x.score;
     });
     return out;
@@ -245,9 +245,9 @@
   }
   /* SYSTEMS → SCIENCE: the list, kept on this iPad. */
   function lmEditor() {
-    var pl = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
+    var loc = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
     var rows = lmAll().map(function (x) {
-      var w = pl ? sciKm(pl, x) : null;
+      var w = loc ? sciKm(loc, x) : null;
       return '<div class="lm-row' + (x.hidden ? " off" : "") + '"><span class="lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
         '<small class="muted">' + kinds[x.kind] + (w ? " · " + w.km + " km " + sciCompass(w.dir) : "") + '</small><button type="button" class="chip sm" data-scilmhide="' + esc(x.id) + '" aria-pressed="' + !x.hidden + '">' + (x.hidden ? "HIDDEN" : "SHOWN") + "</button>" +
         (x.auto ? "<span></span>" : '<button type="button" class="chip sm" data-scilmdel="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">✕</button>') + "</div>";
@@ -262,20 +262,20 @@
       '<small class="muted">Kept only on this iPad (and in your backups). SUGGEST AGAIN asks OpenStreetMap afresh and keeps the ones you added, renamed or hid.</small></div>';
   }
   function lmAdd(name, kind, lat, lon) {
-    var pl = sciPlace(); if (!pl) return;
-    var w = sciKm(pl, { lat: lat, lon: lon });
+    var loc = sciPlace(); if (!loc) return;
+    var w = sciKm(loc, { lat: lat, lon: lon });
     if (w.km > SCI_KM) { slm.findMsg = name + " is " + w.km + " km away, outside the scope's 50 km."; render(true); return; }
     slm.d = slm.d || { home: "", asked: false, list: [] };
     slm.d.list.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, kind: kind, lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4, auto: false });
     lmSave(); slm.found = null; slm.findMsg = name + " added, " + w.km + " km " + sciCompass(w.dir) + "."; render(true);
   }
   function lmFind() {
-    var el = $("lmFind"), v = el ? el.value.trim() : "", pl = sciPlace(); if (!v || !pl) return;
+    var el = $("lmFind"), v = el ? el.value.trim() : "", loc = sciPlace(); if (!v || !loc) return;
     var m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (m) { if (Math.abs(+m[1]) > 90 || Math.abs(+m[2]) > 180) { slm.findMsg = "Those aren't a latitude and longitude."; render(true); return; } lmAdd("My place", "own", +m[1], +m[2]); return; }
     slm.findMsg = "Looking…"; slm.found = null; render(true);
     sciGet("https://geocoding-api.open-meteo.com/v1/search?count=20&format=json&name=" + encodeURIComponent(v)).then(function (j) {
-      slm.found = (j.results || []).map(function (r) { var w = sciKm(pl, { lat: r.latitude, lon: r.longitude }); return { name: r.name, sub: r.admin2 || r.admin1 || "", lat: r.latitude, lon: r.longitude, km: w.km, dir: w.dir, kind: /^AIRP|^AIRF/.test(r.feature_code || "") ? "airport" : /^PPL/.test(r.feature_code || "") ? "town" : "own" }; })
+      slm.found = (j.results || []).map(function (r) { var w = sciKm(loc, { lat: r.latitude, lon: r.longitude }); return { name: r.name, sub: r.admin2 || r.admin1 || "", lat: r.latitude, lon: r.longitude, km: w.km, dir: w.dir, kind: /^AIRP|^AIRF/.test(r.feature_code || "") ? "airport" : /^PPL/.test(r.feature_code || "") ? "town" : "own" }; })
         .filter(function (r) { return r.km <= SCI_KM; }).sort(function (a, b) { return a.km - b.km; }).slice(0, 6);
       slm.findMsg = slm.found.length ? "" : "Nothing called that within 50 km. Coordinates work too (latitude, longitude), or ADD WHERE I AM when you're there.";
     }).catch(function (e) { slm.findMsg = "The place search didn't answer (" + describe(e) + ")."; })
@@ -310,21 +310,21 @@
 
   /* ---- orbits: visible passes, worked out here ---- */
   function sciPasses() {
-    var pl = sciPlace(), f = sciV("feeds"), day = ymd(new Date());
-    if (!pl || !f || !f.tle || (sc.d.passes && sc.d.passes.day === day && sc.d.passes.tle === f.tle.iss.l1 && sc.d.passes.at > Date.now() - 6 * 3600000)) return;
+    var loc = sciPlace(), f = sciV("feeds"), day = ymd(new Date());
+    if (!loc || !f || !f.tle || (sc.d.passes && sc.d.passes.day === day && sc.d.passes.tle === f.tle.iss.l1 && sc.d.passes.at > Date.now() - 6 * 3600000)) return;
     if (sc.busy.passes) return;
     sc.busy.passes = true;
     sciLibs().then(function () {
       var list = [];
-      Object.keys(SCI_SAT).forEach(function (k) { if (f.tle[k]) list = list.concat(sciPassesFor(k, f.tle[k], pl)); });
+      Object.keys(SCI_SAT).forEach(function (k) { if (f.tle[k]) list = list.concat(sciPassesFor(k, f.tle[k], loc)); });
       list.sort(function (a, b) { return a.rise - b.rise; });
       sc.d.passes = { day: day, at: Date.now(), tle: f.tle.iss.l1, v: list }; sciSave(); sciDetect("passes");
     }).catch(function (e) { sc.err.passes = { at: Date.now(), msg: String(e.message || e) }; })
       .then(function () { delete sc.busy.passes; if (state.screen === "science" || state.screen === "bridge") render(true); });
   }
-  function sciPassesFor(k, tle, pl) {
-    var S = window.satellite, A = window.Astronomy, rec = S.twoline2satrec(tle.l1, tle.l2), obs = { latitude: pl.lat * Math.PI / 180, longitude: pl.lon * Math.PI / 180, height: 0.2 };
-    var aobs = new A.Observer(pl.lat, pl.lon, 200), out = [], cur = null, t0 = Date.now() - 10 * 60000, t1 = Date.now() + 5 * 864e5;
+  function sciPassesFor(k, tle, loc) {
+    var S = window.satellite, A = window.Astronomy, rec = S.twoline2satrec(tle.l1, tle.l2), obs = { latitude: loc.lat * Math.PI / 180, longitude: loc.lon * Math.PI / 180, height: 0.2 };
+    var aobs = new A.Observer(loc.lat, loc.lon, 200), out = [], cur = null, t0 = Date.now() - 10 * 60000, t1 = Date.now() + 5 * 864e5;
     var look = function (ms) {
       var d = new Date(ms), pv = S.propagate(rec, d); if (!pv || !pv.position) return null;
       var la = S.ecfToLookAngles(obs, S.eciToEcf(pv.position, S.gstime(d)));
@@ -357,12 +357,12 @@
 
   /* ---- the night sky, worked out here ---- */
   function sciNight() {
-    var pl = sciPlace(), day = ymd(new Date());
-    if (!pl || sc.busy.night || (sc.d.night && sc.d.night.day === day && sc.d.night.lat === pl.lat)) return;
+    var loc = sciPlace(), day = ymd(new Date());
+    if (!loc || sc.busy.night || (sc.d.night && sc.d.night.day === day && sc.d.night.lat === loc.lat)) return;
     sc.busy.night = true;
     sciLibs().then(function () {
-      var A = window.Astronomy, o = new A.Observer(pl.lat, pl.lon, 200), now = new Date(), d0 = sod(now), t = function (x) { return x ? x.date.getTime() : null; };
-      var n = { day: day, lat: pl.lat };
+      var A = window.Astronomy, o = new A.Observer(loc.lat, loc.lon, 200), now = new Date(), d0 = sod(now), t = function (x) { return x ? x.date.getTime() : null; };
+      var n = { day: day, lat: loc.lat };
       n.sunset = t(A.SearchRiseSet(A.Body.Sun, o, -1, d0, 1)); n.sunrise = t(A.SearchRiseSet(A.Body.Sun, o, +1, addDays(d0, 1), 1));
       n.dark = t(A.SearchAltitude(A.Body.Sun, o, -1, d0, 1, -18)); n.dawn = t(A.SearchAltitude(A.Body.Sun, o, +1, addDays(d0, 1), 1, -18));
       n.phase = A.MoonPhase(now); n.lit = Math.round(A.Illumination(A.Body.Moon, now).phase_fraction * 100);
@@ -403,7 +403,7 @@
   /* ---- events of interest: detected, logged here for 30 days, and in Notion ---- */
   function sciEmer(a) { return a.emergency || ({ 7500: "hijack", 7600: "radio failure", 7700: "emergency" })[a.sq] || ""; }
   function sciDetect(k) {
-    var pl = sciPlace(), now = new Date(), day = ymd(now), add = sciEvent;
+    var loc2 = sciPlace(), now = new Date(), day = ymd(now), add = sciEvent;
     if (k === "sky" && sc.sky) sc.sky.list.forEach(function (a) {
       var emer = sciEmer(a), low = a.alt != null && a.alt < 2000 && a.km <= 10;
       if (!a.mil && !emer && !low) return;
@@ -419,7 +419,7 @@
     if (k === "kp") (sciV("kp") || []).slice(-16).forEach(function (r) {
       var kp = parseFloat(r.Kp != null ? r.Kp : r[1]), tt = r.time_tag || r[0]; if (!(kp >= 5)) return;
       add({ key: "kp:" + String(tt).replace(/[^0-9T]/g, ""), at: new Date(Date.parse(tt + "Z")).toISOString(), dept: "space", kind: "storm", value: kp, title: "Geomagnetic storm G" + Math.min(5, Math.floor(kp) - 4) + " (Kp " + kp + ")",
-        detail: pl && kp >= sciAuroraKp(pl.lat) ? "Strong enough for aurora at this latitude" : "Aurora further north" });
+        detail: loc2 && kp >= sciAuroraKp(loc2.lat) ? "Strong enough for aurora at this latitude" : "Aurora further north" });
     });
     if (k === "flares") (sciV("flares") || []).forEach(function (f) {
       var c = f.max_class || f.current_class || ""; if (!/^[MX]/.test(c) || !f.begin_time) return;
@@ -461,8 +461,8 @@
     if (sc.flushing || !state.conn || !canSciLog()) return;
     var keys = sc.q.add.slice(0, 25), evs = keys.map(function (k) { return sc.log.filter(function (x) { return x.key === k; })[0]; }).filter(Boolean);
     if (keys.length && !evs.length) { sc.q.add = sc.q.add.slice(keys.length); lsSet(LS_SCIQ, sc.q); return sciFlush(); }
-    var stars = Object.keys(sc.q.star).filter(function (k) { var e = sc.log.filter(function (x) { return x.key === k; })[0]; return e && e.id; });
-    if (!evs.length && !stars.length) return;
+    var starList = Object.keys(sc.q.star).filter(function (k) { var e = sc.log.filter(function (x) { return x.key === k; })[0]; return e && e.id; });
+    if (!evs.length && !starList.length) return;
     sc.flushing = true;
     var job = evs.length ? apiPost({ action: "sciencelogadd", events: evs.map(function (e) { return { key: e.key, at: e.at, dept: e.dept, kind: e.kind, title: e.title.slice(0, 200), detail: (e.detail || "").slice(0, 500), value: e.value == null ? null : e.value, starred: !!e.starred }; }) })
       .then(function (j) {
@@ -470,7 +470,7 @@
         sc.q.add = sc.q.add.filter(function (k) { return keys.indexOf(k) < 0; });
         evs.forEach(function (e) { if (sc.q.star[e.key] === !!e.starred && (j.added || []).some(function (r) { return r.key === e.key; })) delete sc.q.star[e.key]; });   /* sent with its star */
       })
-      : (function () { var k = stars[0], e = sc.log.filter(function (x) { return x.key === k; })[0]; return apiPost({ action: "sciencestar", id: e.id, starred: sc.q.star[k] }).then(function () { delete sc.q.star[k]; }, function (err) { if (err && err.code === "not_writable") delete sc.q.star[k]; else throw err; }); })();
+      : (function () { var k = starList[0], e = sc.log.filter(function (x) { return x.key === k; })[0]; return apiPost({ action: "sciencestar", id: e.id, starred: sc.q.star[k] }).then(function () { delete sc.q.star[k]; }, function (err) { if (err && err.code === "not_writable") delete sc.q.star[k]; else throw err; }); })();
     job.then(function () { sc.qErr = ""; }, function (err) { sc.qErr = describe(err); clearTimeout(sc.qT); sc.qT = setTimeout(sciFlush, 60000); })
       .then(function () { sc.flushing = false; lsSet(LS_SCILOG, sc.log); lsSet(LS_SCIQ, sc.q); if (!sc.qErr && (sc.q.add.length || Object.keys(sc.q.star).some(function (k) { return sc.log.some(function (x) { return x.key === k && x.id; }); }))) sciFlush(); if (state.screen === "science" || state.screen === "systems") render(true); });
   }
@@ -509,11 +509,11 @@
   function sciErr(k) { var e = sc.err[k]; return e ? '<div class="sci-src warntxt">Couldn\'t read it: ' + esc(e.msg) + ". Tries again in a few minutes.</div>" : ""; }
   function sciWait(k) { return sc.busy[k] || !sc.d[k] ? '<div class="empty">' + (sc.err[k] ? esc(sc.err[k].msg) : "Reading…") + "</div>" : ""; }
   function sciSweep() {
-    var pl = sciPlace(), n = sc.sky ? sc.sky.list.length : null, ton = sciTonight(), next = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.sat === "iss" && p.set > Date.now(); })[0];
+    var loc = sciPlace(), n = sc.sky ? sc.sky.list.length : null, ton = sciTonight(), next = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.sat === "iss" && p.set > Date.now(); })[0];
     var kp = sciKpNow(), air = sciV("air"), al = sciV("alerts") || [], q = (sciV("quakes") || []).filter(function (x) { return x.km <= 500; })[0], night = sc.d.night, inat = sciV("inat"), birds = ((sciV("feeds") || {}).birds || []), tn = sciKpTonight();
     var T = [
       ["sky", n == null ? "–" : n + " aircraft", ton ? ton.name + " " + hm(new Date(ton.rise)) + " · " + ton.max + "° high" : next ? "ISS next " + DOW[new Date(next.rise).getDay()] + " " + hm(new Date(next.rise)) : "Passes once the orbits load"],
-      ["space", kp ? "Kp " + kp.kp : "–", kp ? (kp.kp >= 5 ? "Storm" : kp.kp >= 4 ? "Unsettled" : "Quiet") + " · aurora " + (pl && tn != null && tn >= sciAuroraKp(pl.lat) ? "possible tonight" : "unlikely here") : "Reading NOAA"],
+      ["space", kp ? "Kp " + kp.kp : "–", kp ? (kp.kp >= 5 ? "Storm" : kp.kp >= 4 ? "Unsettled" : "Quiet") + " · aurora " + (loc && tn != null && tn >= sciAuroraKp(loc.lat) ? "possible tonight" : "unlikely here") : "Reading NOAA"],
       ["earth", air && air.us_aqi != null ? "AQI " + Math.round(air.us_aqi) : al.length ? al.length + (al.length === 1 ? " alert" : " alerts") : "–", (al.length ? al[0].event : "No alerts") + (q ? " · M" + q.mag + " " + q.km + " km" : "")],
       ["night", night ? night.lit + "% moon" : "–", night ? sciPhaseName(night.phase) + " · " + (night.dark ? "dark at " + hm(new Date(night.dark)) : "sunset " + hm(new Date(night.sunset))) : "Working it out"],
       ["nature", inat ? inat.length + " species" : "–", (birds.length ? birds.length + " notable birds · " : "") + "seen within 25 km this week"]
@@ -608,7 +608,7 @@
 
   /* SPACE WEATHER */
   function sciSpaceHtml() {
-    var kp = sciV("kp") || [], kf = sciV("kpf") || [], pl = sciPlace(), now = sciKpNow(), tn = sciKpTonight(), need = pl ? sciAuroraKp(pl.lat) : 9, b = (sciV("feeds") || {}).bands;
+    var kp = sciV("kp") || [], kf = sciV("kpf") || [], loc = sciPlace(), now = sciKpNow(), tn = sciKpTonight(), need = loc ? sciAuroraKp(loc.lat) : 9, b = (sciV("feeds") || {}).bands;
     var obs = kp.slice(-8).map(function (r) { return parseFloat(r.Kp != null ? r.Kp : r[1]); }).filter(function (v) { return !isNaN(v); }), fc = kf.filter(function (r) { return (r.observed || r[2]) !== "observed" && Date.parse((r.time_tag || r[0]) + "Z") > Date.now(); }).slice(0, 16).map(function (r) { return parseFloat(r.kp != null ? r.kp : r[1]); }).filter(function (v) { return !isNaN(v); });
     var bars = obs.concat(fc).map(function (v, i) { return '<i class="' + (v >= 5 ? "g2" : v >= 4 ? "g1" : "") + (i === obs.length - 1 ? " kp-now" : "") + '" style="height:' + Math.max(4, v / 9 * 100) + '%" title="Kp ' + v + '"></i>'; }).join("");
     var flares = (sciV("flares") || []).filter(function (f) { return f.max_class; }).slice(-3).reverse(), flux = (sciV("flux") || []).slice().sort(function (x, y) { return x.time_tag < y.time_tag ? 1 : -1; })[0];   /* NOAA lists it newest first */
@@ -699,9 +699,9 @@
     sciLoad(false);
   }
   function sciHeadline() {
-    var pl = sciPlace(); if (!pl) return null;
+    var loc = sciPlace(); if (!loc) return null;
     var p = sciTonight(); if (p) return { d: "sky", t: p.name + " visible tonight " + hm(new Date(p.rise)), s: p.max + "° high, " + sciCompass(p.riseAz) + " to " + sciCompass(p.setAz) };
-    var tn = sciKpTonight(); if (tn != null && tn >= sciAuroraKp(pl.lat)) return { d: "space", t: "Aurora possible tonight", s: "Kp " + tn + " forecast; look north after dark" };
+    var tn = sciKpTonight(); if (tn != null && tn >= sciAuroraKp(loc.lat)) return { d: "space", t: "Aurora possible tonight", s: "Kp " + tn + " forecast; look north after dark" };
     var q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 4 && Date.now() - x.at < 864e5; })[0];
     if (q) return { d: "earth", t: "M " + q.mag + " earthquake " + q.km + " km " + sciCompass(q.dir), s: hm(new Date(q.at)) + " · " + q.place };
     var m = sciMeteor(new Date()); if (sameDay(m.d, new Date())) return { d: "night", t: m.name + " meteor shower peaks tonight", s: "Best after midnight, away from lights" };
@@ -710,9 +710,9 @@
 
   function sciBrief() {
     if (!canScience() || !sciPlace()) return "";
-    var out = [], p = sciTonight(), pl = sciPlace(), tn = sciKpTonight(), q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 3.5 && Date.now() - x.at < 864e5; })[0], m = sciMeteor(new Date());
+    var out = [], p = sciTonight(), loc = sciPlace(), tn = sciKpTonight(), q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 3.5 && Date.now() - x.at < 864e5; })[0], m = sciMeteor(new Date());
     if (p) out.push(p.name + " visible tonight " + hm(new Date(p.rise)) + " to " + hm(new Date(p.set)) + ", " + p.max + " degrees high, from the " + sciCompass(p.riseAz) + " to the " + sciCompass(p.setAz));
-    if (tn != null && tn >= sciAuroraKp(pl.lat)) out.push("aurora possible tonight (Kp " + tn + " forecast)");
+    if (tn != null && tn >= sciAuroraKp(loc.lat)) out.push("aurora possible tonight (Kp " + tn + " forecast)");
     if (q) out.push("M" + q.mag + " earthquake " + q.km + " km " + sciCompass(q.dir) + " at " + hm(new Date(q.at)));
     if (sameDay(m.d, new Date())) out.push(m.name + " meteor shower peaks tonight");
     return out.length ? "SKY: " + out.join("; ") + "." : "";

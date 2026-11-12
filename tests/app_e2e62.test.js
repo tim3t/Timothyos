@@ -9,7 +9,7 @@ const assert = require('assert');
 const K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 /* 2.57: a channel's row in the guide: each block's times, what it holds, and whether it's on now */
-const cells = (p, n) => p.$$eval('.hd-grow', (rs, n) => [...rs[n - 1].querySelectorAll('.hd-gc:not(.wait)')].map(c => ({ live: c.classList.contains('live'), range: c.title.split('\n')[0], what: c.title.split('\n').slice(1).join(' | ') })), n);
+const cells = (p, n) => p.$$eval('.hd-grow', (rs, cnt) => [...rs[cnt - 1].querySelectorAll('.hd-gc:not(.wait)')].map(c => ({ live: c.classList.contains('live'), range: c.title.split('\n')[0], what: c.title.split('\n').slice(1).join(' | ') })), n);
 const mins = r => { const [a, b] = r.split('–').map(t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; }); return (b - a + 1440) % 1440; };
 const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 2 && c.every(x => mins(x.range) === 10); };
 
@@ -61,13 +61,13 @@ const plain = async (p, n) => { const c = await cells(p, n); return c.length >= 
   assert.ok(!(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(k => k.startsWith('/Video/Commercials/')))));
   assert.ok(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tos.holoadlen.v1'))).every(k => k.length < 16 && !k.includes('/'))));
   const short = (await (await fetch(R + '/Video/Commercials/', { headers: { Authorization: 'Bearer relay-test-token' } })).json()).filter(f => !f.is_dir && !/Long Infomercial/.test(f.name));
-  await p.evaluate(short => {
+  await p.evaluate(isShort => {
     const l = JSON.parse(localStorage.getItem('tos.hololen.v1'));
     Object.keys(l).forEach(k => { if (/^\/Video\/Test (Channel|Network)\//.test(k)) l[k].s = 600; });
     localStorage.setItem('tos.hololen.v1', JSON.stringify(l));
     const a = JSON.parse(localStorage.getItem('tos.holoadlen.v1'));   // the 185 s one stays too long; the short ones become 2:50 (keys as the app makes them)
     const fnv = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }, key = q => fnv(q).toString(36) + fnv(q.split('').reverse().join('')).toString(36);
-    short.forEach(f => { a[key('/Video/Commercials/' + f.name)] = { s: 170, z: f.size }; });
+    isShort.forEach(f => { a[key('/Video/Commercials/' + f.name)] = { s: 170, z: f.size }; });
     localStorage.setItem('tos.holoadlen.v1', JSON.stringify(a));
     const c = JSON.parse(localStorage.getItem('tos.holo.v1')); c.chans[0].premiere = Date.now() - 610e3; c.chans[1].breaks = true; localStorage.setItem('tos.holo.v1', JSON.stringify(c));
   }, short);

@@ -433,9 +433,9 @@
     mine.saving = true; logStatus();
     apiPost({ action: "logsave", pin: pin, date: d, text: text }).then(function (j) {
       if (logDrafts[d] && logDrafts[d].text === text) { delete logDrafts[d]; logDraftsSave(); }
-      var norm = logNorm(text);
-      mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: norm, saved: j.saved || new Date().toISOString() });
-      if (mine.dates) { if (norm) mine.dates[d] = true; else delete mine.dates[d]; }
+      var normed = logNorm(text);
+      mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: normed, saved: j.saved || new Date().toISOString() });
+      if (mine.dates) { if (normed) mine.dates[d] = true; else delete mine.dates[d]; }
       mine.saveErr = null;
       if (lg === mine && mine.day === d) logSavedFx(mine.manual);
       mine.manual = false;
@@ -501,7 +501,7 @@
   var DAYSL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   var MONTHSL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   function parseDiary(raw) {
-    var text = String(raw || "").replace(/\r\n?/g, "\n").replace(/ /g, " ");
+    var text = String(raw || "").replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ");   /* non-breaking spaces become plain ones */
     var re = new RegExp("^[ \\t]*(" + DAYSL.join("|") + "),[ \\t]+(" + MONTHSL.join("|") + ")[ \\t]+(\\d{1,2}),[ \\t]+(\\d{4})[ \\t]*$", "gm");
     var heads = [], m, out = [], notes = [], by = {};
     while ((m = re.exec(text))) heads.push({ at: m.index, end: m.index + m[0].length, wd: m[1], mo: MONTHSL.indexOf(m[2]), d: +m[3], y: +m[4] });
@@ -792,128 +792,128 @@
     }
     function opened(k, dflt) { var o = st().open; return k in o ? o[k] : dflt; }
     function listHtml() {
-      var S = st(), d = draft(), html = "";
-      html += '<div class="btnrow sx-starts">' + Object.keys(TYPES).map(function (k) { return '<button type="button" class="btn sm" style="background: var(--' + TYPES[k].c + ')" data-sx="new" data-t="' + k + '">+ ' + TYPES[k].short + " SESSION</button>"; }).join("") + "</div>";
-      if (d) html += '<div class="sx-resume"><span class="pill">NOT SAVED</span><span><b>' + TYPES[d.type].short + " · " + dLong(d.day) + "</b>" + (d.id ? " · changes" : "") + " · stopped at " + STEPS[d.step || 0] + "</span>" +
+      var S = st(), d = draft(), out = "";
+      out += '<div class="btnrow sx-starts">' + Object.keys(TYPES).map(function (k) { return '<button type="button" class="btn sm" style="background: var(--' + TYPES[k].c + ')" data-sx="new" data-t="' + k + '">+ ' + TYPES[k].short + " SESSION</button>"; }).join("") + "</div>";
+      if (d) out += '<div class="sx-resume"><span class="pill">NOT SAVED</span><span><b>' + TYPES[d.type].short + " · " + dLong(d.day) + "</b>" + (d.id ? " · changes" : "") + " · stopped at " + STEPS[d.step || 0] + "</span>" +
         '<span class="sx-gap"></span><button type="button" class="btn sm" data-sx="resume">RESUME</button><button type="button" class="btn sm ghost" data-sx="drop">' + (S.drop === true ? "DISCARD IT" : "DISCARD") + "</button></div>";
-      if (S.err && !S.list) return html + '<div class="errtxt">' + esc(S.err) + '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="reload">TRY AGAIN</button></div>';
-      if (!S.list) return html + '<div class="empty">Opening session notes…</div>';
-      if (!S.list.length) return html + '<div class="empty">No sessions yet. Start one above after your next session; it saves to 🛋️ Session Notes in Notion.</div>' + foot();
+      if (S.err && !S.list) return out + '<div class="errtxt">' + esc(S.err) + '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="reload">TRY AGAIN</button></div>';
+      if (!S.list) return out + '<div class="empty">Opening session notes…</div>';
+      if (!S.list.length) return out + '<div class="empty">No sessions yet. Start one above after your next session; it saves to 🛋️ Session Notes in Notion.</div>' + foot();
       Object.keys(TYPES).forEach(function (type) {
         var t = TYPES[type], list = mine(type);
         if (!list.length) return;
         var open = opened(type, true), last = list[0];
-        html += '<section class="sx-type" style="--c: var(--' + t.c + ')"><div class="sx-thead"><button type="button" class="sx-tog" aria-expanded="' + open + '" data-sx="tog" data-k="' + type + '"><span class="sx-caret">▼</span><span><b>' + t.name + "</b><small>" +
+        out += '<section class="sx-type" style="--c: var(--' + t.c + ')"><div class="sx-thead"><button type="button" class="sx-tog" aria-expanded="' + open + '" data-sx="tog" data-k="' + type + '"><span class="sx-caret">▼</span><span><b>' + t.name + "</b><small>" +
           list.length + (list.length === 1 ? " SESSION" : " SESSIONS") + " · LAST " + dLong(last.day).slice(4) + (last.next && last.next >= ymd(new Date()) ? " · NEXT " + dLong(last.next).slice(4) : "") + "</small></span></button>" +
           (canSesAsk() ? '<button type="button" class="btn sm ask" data-sx="suggest" data-t="' + type + '">SUGGEST TOPICS</button>' : "") + "</div>";
         if (open) {
           var years = []; list.forEach(function (s) { var y = s.day.slice(0, 4); if (years.indexOf(y) < 0) years.push(y); });
           years.forEach(function (y, yi) {
             var ky = type + y, oy = opened(ky, yi === 0), iny = list.filter(function (s) { return s.day.slice(0, 4) === y; });
-            html += '<div class="sx-year"><div class="sx-yhead"><button type="button" class="sx-tog" aria-expanded="' + oy + '" data-sx="tog" data-k="' + ky + '"><span class="sx-caret">▼</span><b>' + y + '</b></button><span class="sx-rule"></span><span class="sx-cnt">' + iny.length + (iny.length === 1 ? " SESSION" : " SESSIONS") + "</span></div>";
+            out += '<div class="sx-year"><div class="sx-yhead"><button type="button" class="sx-tog" aria-expanded="' + oy + '" data-sx="tog" data-k="' + ky + '"><span class="sx-caret">▼</span><b>' + y + '</b></button><span class="sx-rule"></span><span class="sx-cnt">' + iny.length + (iny.length === 1 ? " SESSION" : " SESSIONS") + "</span></div>";
             if (oy) {
               var first = true;
               [3, 2, 1, 0].forEach(function (q) {
                 var inq = iny.filter(function (s) { return Math.floor((+s.day.slice(5, 7) - 1) / 3) === q; });
                 if (!inq.length) return;
                 var kq = ky + "Q" + (q + 1), oq = opened(kq, yi === 0 && first); first = false;
-                html += '<div class="sx-q"><button type="button" class="sx-tog sx-qtog" aria-expanded="' + oq + '" data-sx="tog" data-k="' + kq + '"><span class="sx-caret">▼</span><b>Q' + (q + 1) + " · " + QN[q] + '</b><span class="sx-cnt">· ' + inq.length + "</span></button>" +
+                out += '<div class="sx-q"><button type="button" class="sx-tog sx-qtog" aria-expanded="' + oq + '" data-sx="tog" data-k="' + kq + '"><span class="sx-caret">▼</span><b>Q' + (q + 1) + " · " + QN[q] + '</b><span class="sx-cnt">· ' + inq.length + "</span></button>" +
                   (oq ? '<div class="sx-rows">' + inq.map(rowHtml).join("") + "</div>" : "") + "</div>";
               });
             }
-            html += "</div>";
+            out += "</div>";
           });
         }
-        html += "</section>";
+        out += "</section>";
       });
-      return html + foot();
+      return out + foot();
     }
     function foot() {
       return '<small class="muted sx-foot">Only saved sessions are listed. Arriving → leaving: how you came in and went out, 1 (LOW) to 5 (BRIGHT).' +
         (canSessions() && state.caps.indexOf("sessionsuggest") > -1 && !lsGet(LS_SNAI) ? " SUGGEST TOPICS is off: SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK." : "") + "</small>";
     }
     function oneHtml(s) {
-      var S = st(), t = TYPES[s.type], list = mine(s.type), i = list.indexOf(s), num = list.length - i;
-      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button><span class="sx-gap"></span>' +
+      var S = st(), t = TYPES[s.type], list = mine(s.type), i = list.indexOf(s), numAt = list.length - i;
+      var out = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button><span class="sx-gap"></span>' +
         '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i + 1] ? list[i + 1].id : "") + '"' + (list[i + 1] ? "" : " disabled") + ">◀ EARLIER</button>" +
         '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i - 1] ? list[i - 1].id : "") + '"' + (list[i - 1] ? "" : " disabled") + ">LATER ▶</button></div>";
-      html += '<section class="sx-one" style="--c: var(--' + t.c + ')">' + phead(t.short + " · SESSION " + num, dLong(s.day) + (s.where ? " · " + s.where.toUpperCase() : ""), t.c) + '<div class="sx-grid"><dl class="kv">';
-      if (s.arriving) html += "<dt>ARRIVING</dt><dd>" + s.arriving + " · " + MOODS[s.arriving] + "</dd>";
-      if (s.onMind) html += "<dt>ON MY MIND</dt><dd>" + txt(s.onMind) + "</dd>";
-      if (s.leaving) html += "<dt>LEAVING</dt><dd>" + s.leaving + " · " + MOODS[s.leaving] + "</dd>";
-      if (s.felt) html += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
-      if (s.next) html += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
-      html += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
-      if (s.topics.length) html += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
-      if (s.carried.length) html += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
-      if (s.practice.length) html += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
-      if (s.nextTime) html += '<div class="sx-wide"><div class="sx-lab">BRING UP NEXT TIME</div><div>' + txt(s.nextTime) + "</div></div>";
-      html += '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="edit">EDIT</button>' + (s.url ? '<a class="btn sm ghost" href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
+      out += '<section class="sx-one" style="--c: var(--' + t.c + ')">' + phead(t.short + " · SESSION " + numAt, dLong(s.day) + (s.where ? " · " + s.where.toUpperCase() : ""), t.c) + '<div class="sx-grid"><dl class="kv">';
+      if (s.arriving) out += "<dt>ARRIVING</dt><dd>" + s.arriving + " · " + MOODS[s.arriving] + "</dd>";
+      if (s.onMind) out += "<dt>ON MY MIND</dt><dd>" + txt(s.onMind) + "</dd>";
+      if (s.leaving) out += "<dt>LEAVING</dt><dd>" + s.leaving + " · " + MOODS[s.leaving] + "</dd>";
+      if (s.felt) out += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
+      if (s.next) out += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
+      out += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
+      if (s.topics.length) out += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
+      if (s.carried.length) out += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
+      if (s.practice.length) out += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
+      if (s.nextTime) out += '<div class="sx-wide"><div class="sx-lab">BRING UP NEXT TIME</div><div>' + txt(s.nextTime) + "</div></div>";
+      out += '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="edit">EDIT</button>' + (s.url ? '<a class="btn sm ghost" href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
         '<button type="button" class="btn sm ' + (S.del === s.id ? "warn" : "ghost") + '" data-sx="del"' + (S.saving ? " disabled" : "") + ">" + (S.del === s.id ? "DELETE IT" : "DELETE") + "</button></div>" +
         (S.del === s.id ? '<small class="muted">Moves the page to Notion\'s trash, where it can be restored.</small>' : "") + (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") + "</section>";
-      return html;
+      return out;
     }
     function chips(list, cur, act, label) {
       return '<div class="chips">' + list.map(function (v) { return '<button type="button" class="chip sm" data-sx="' + act + '" data-v="' + esc(v) + '" aria-pressed="' + (String(cur) === String(v)) + '">' + esc(label ? label(v) : String(v).toUpperCase()) + "</button>"; }).join("") + "</div>";
     }
     function formHtml() {
       var S = st(), d = draft(), t = TYPES[d.type], step = d.step || 0, last = mine(d.type).filter(function (s) { return s.id !== d.id; })[0];
-      var html = '<section class="sx-form" style="--c: var(--' + t.c + ')">' + phead((d.id ? "CHANGE " : "NEW ") + t.short + " SESSION", "STEP " + (step + 1) + " OF 5 · KEPT ON THIS IPAD UNTIL SAVED", t.c);
-      html += '<div class="sx-steps">' + STEPS.map(function (n, i) { return '<button type="button" data-sx="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : "") + ">" + (i + 1) + " " + n + "</button>"; }).join("") + "</div>";
+      var out = '<section class="sx-form" style="--c: var(--' + t.c + ')">' + phead((d.id ? "CHANGE " : "NEW ") + t.short + " SESSION", "STEP " + (step + 1) + " OF 5 · KEPT ON THIS IPAD UNTIL SAVED", t.c);
+      out += '<div class="sx-steps">' + STEPS.map(function (n, i) { return '<button type="button" data-sx="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : "") + ">" + (i + 1) + " " + n + "</button>"; }).join("") + "</div>";
       if (step === 0) {
-        if (!d.id) html += '<div class="sx-field"><div class="sx-lab">TYPE</div>' + chips(Object.keys(TYPES), d.type, "dtype", function (k) { return TYPES[k].short; }) + "</div>";
-        html += '<div class="sx-field sx-date"><label class="sx-lab" for="sxDate">DATE</label><input type="date" id="sxDate" value="' + esc(d.day) + '" max="' + ymd(new Date()) + '"></div>' +
+        if (!d.id) out += '<div class="sx-field"><div class="sx-lab">TYPE</div>' + chips(Object.keys(TYPES), d.type, "dtype", function (k) { return TYPES[k].short; }) + "</div>";
+        out += '<div class="sx-field sx-date"><label class="sx-lab" for="sxDate">DATE</label><input type="date" id="sxDate" value="' + esc(d.day) + '" max="' + ymd(new Date()) + '"></div>' +
           '<div class="sx-field"><div class="sx-lab">WHERE</div>' + chips(WHERE, d.where, "dwhere") + "</div>" +
           '<div class="sx-field"><div class="sx-lab">HOW I\'M ARRIVING</div>' + chips([1, 2, 3, 4, 5], d.arriving, "din", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxMind">ON MY MIND GOING IN</label><textarea id="sxMind" rows="2" placeholder="A line or two (optional)">' + esc(d.onMind) + "</textarea></div>" +
           (!d.id && last && last.nextTime ? '<div class="sx-carry"><b>From ' + dLong(last.day).slice(4) + ", to bring up:</b> " + txt(last.nextTime) + "</div>" : "");
       } else if (step === 1) {
         var names = d.topics.map(function (x) { return x.name; }), all = topics(d.type).concat(names.filter(function (n) { return topics(d.type).indexOf(n) < 0; }));
-        html += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
           '<div class="sx-add"><input type="text" id="sxNewTopic" maxlength="40" placeholder="Another topic" autocomplete="off" aria-label="Another topic"><button type="button" class="btn sm" data-sx="addtopic">ADD</button></div></div>';
-        html += d.topics.length ? d.topics.map(function (x, i) { return '<div class="sx-tin"><label class="sx-lab" for="sxNote-' + i + '">' + esc(x.name) + '</label><textarea id="sxNote-' + i + '" rows="2" placeholder="What came up, in a sentence or two">' + esc(x.note) + "</textarea></div>"; }).join("")
+        out += d.topics.length ? d.topics.map(function (x, i) { return '<div class="sx-tin"><label class="sx-lab" for="sxNote-' + i + '">' + esc(x.name) + '</label><textarea id="sxNote-' + i + '" rows="2" placeholder="What came up, in a sentence or two">' + esc(x.note) + "</textarea></div>"; }).join("")
           : '<div class="empty">Each topic you tap gets its own short box.</div>';
       } else if (step === 2) {
-        html += '<div class="sx-field"><label class="sx-lab" for="sxLanded">WHAT LANDED</label><textarea id="sxLanded" rows="3" placeholder="The thing you want to remember from today">' + esc(d.landed) + "</textarea></div>" +
+        out += '<div class="sx-field"><label class="sx-lab" for="sxLanded">WHAT LANDED</label><textarea id="sxLanded" rows="3" placeholder="The thing you want to remember from today">' + esc(d.landed) + "</textarea></div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxPhrase">A PHRASE TO KEEP</label><input type="text" id="sxPhrase" maxlength="300" placeholder="Words worth carrying around (optional)" value="' + esc(d.phrase) + '"></div>';
       } else if (step === 3) {
-        if (d.carried.length) html += '<div class="sx-field"><div class="sx-lab">LAST TIME\'S PRACTICE · HOW DID IT GO?</div>' + d.carried.map(function (c, i) {
+        if (d.carried.length) out += '<div class="sx-field"><div class="sx-lab">LAST TIME\'S PRACTICE · HOW DID IT GO?</div>' + d.carried.map(function (c, i) {
           return '<div class="sx-prac"><span>' + esc(c.text) + '</span><div class="chips">' + DID.map(function (o) { return '<button type="button" class="chip sm" data-sx="dcar" data-i="' + i + '" data-v="' + o[0] + '" aria-pressed="' + (c.did === o[0]) + '">' + o[1] + "</button>"; }).join("") + "</div></div>";
         }).join("") + "</div>";
-        html += '<div class="sx-field"><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + d.practice.map(function (x, i) { return '<div class="sx-prac"><span>' + esc(x) + '</span><button type="button" class="chip sm" data-sx="dpdel" data-i="' + i + '" aria-label="Remove ' + esc(x) + '">✕</button></div>'; }).join("") +
+        out += '<div class="sx-field"><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + d.practice.map(function (x, i) { return '<div class="sx-prac"><span>' + esc(x) + '</span><button type="button" class="chip sm" data-sx="dpdel" data-i="' + i + '" aria-label="Remove ' + esc(x) + '">✕</button></div>'; }).join("") +
           '<div class="sx-add"><input type="text" id="sxPrac" maxlength="300" placeholder="Something to try, notice or do" autocomplete="off" aria-label="Something to practise"><button type="button" class="btn sm" data-sx="dpadd"' + (d.practice.length >= 12 ? " disabled" : "") + ">ADD</button></div></div>";
       } else {
-        html += '<div class="sx-field"><div class="sx-lab">HOW I\'M LEAVING</div>' + chips([1, 2, 3, 4, 5], d.leaving, "dout", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">HOW I\'M LEAVING</div>' + chips([1, 2, 3, 4, 5], d.leaving, "dout", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
           '<div class="sx-field"><div class="sx-lab">IT FELT</div>' + chips(FELT, d.felt, "dfelt") + "</div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxNextT">BRING UP NEXT TIME</label><textarea id="sxNextT" rows="2" placeholder="What to start with next session (optional)">' + esc(d.nextTime) + "</textarea></div>" +
           '<div class="sx-field sx-date"><label class="sx-lab" for="sxNextD">NEXT SESSION</label><input type="date" id="sxNextD" value="' + esc(d.next) + '"></div>';
       }
-      html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="step" data-v="' + Math.max(0, step - 1) + '"' + (step ? "" : " disabled") + ">◀ BACK</button>" +
+      out += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="step" data-v="' + Math.max(0, step - 1) + '"' + (step ? "" : " disabled") + ">◀ BACK</button>" +
         (step < 4 ? '<button type="button" class="btn sm" data-sx="step" data-v="' + (step + 1) + '">NEXT ▶</button>' : "") +
         '<button type="button" class="btn sm' + (step === 4 ? "" : " ghost") + (S.saving ? " busy" : "") + '" data-sx="save"' + (S.saving ? " disabled" : "") + ">" + (S.saving ? '<span class="spin" aria-hidden="true"></span>SAVING' : "SAVE SESSION") + "</button>" +
         '<button type="button" class="btn sm ghost" data-sx="list">CLOSE</button></div>' +
         (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") +
         '<small class="muted">Tap a chip again to clear it. Only the type and date are needed. CLOSE keeps this on the iPad to RESUME later.</small></section>';
-      return html;
+      return out;
     }
     function suggestHtml() {
       var S = st(), g = S.sg, t = TYPES[g.type], list = mine(g.type).slice(0, g.n);
-      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button></div><section class="sx-sg" style="--c: var(--' + t.c + ')">' + phead("SUGGEST TOPICS", t.name, t.c);
+      var out = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button></div><section class="sx-sg" style="--c: var(--' + t.c + ')">' + phead("SUGGEST TOPICS", t.name, t.c);
       if (!g.topics) {
-        html += '<div class="sx-field"><div class="sx-lab">FROM WHICH SESSIONS</div>' + chips([3, 6, 12], g.n, "sgn", function (n) { return "THE LAST " + n; }) + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">FROM WHICH SESSIONS</div>' + chips([3, 6, 12], g.n, "sgn", function (n) { return "THE LAST " + n; }) + "</div>" +
           '<div class="btnrow"><button type="button" class="chip sm" data-sx="sgdeep" aria-pressed="' + g.deep + '">THINK HARDER</button></div>';
-        if (!g.preview) html += '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgpreview"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>CHECKING' : "PREVIEW") + "</button></div>" +
+        if (!g.preview) out += '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgpreview"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>CHECKING' : "PREVIEW") + "</button></div>" +
           '<small class="muted">PREVIEW shows what would go to Claude and the cost. Nothing is sent until SEND.</small>';
         else {
           var p = g.preview;
-          html += '<div class="sx-gauge tnum"><span><b>' + p.count + "</b>SESSIONS</span><span><b>" + p.dates.map(function (x) { return dLong(x).slice(4, -5); }).join(", ") + "</b>DATES</span><span><b>~" + p.tokens.toLocaleString("en-US") + "</b>TOKENS</span><span><b>~" + money(g.deep ? p.usd.deep : p.usd.fast) + "</b>" + (g.deep ? "OPUS" : "SONNET") + "</span></div>" +
+          out += '<div class="sx-gauge tnum"><span><b>' + p.count + "</b>SESSIONS</span><span><b>" + p.dates.map(function (x) { return dLong(x).slice(4, -5); }).join(", ") + "</b>DATES</span><span><b>~" + p.tokens.toLocaleString("en-US") + "</b>TOKENS</span><span><b>~" + money(g.deep ? p.usd.deep : p.usd.fast) + "</b>" + (g.deep ? "OPUS" : "SONNET") + "</span></div>" +
             '<div class="sx-carry">Goes to Claude: the notes of these ' + p.count + " " + t.short.toLowerCase() + " sessions only. Never the journal, never the other type. Claude has no tools and can't change anything." + (g.type === "couples" ? " Couples notes can mention your partner." : "") + "</div>" +
             '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgsend"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>ASKING' : "SEND") + '</button><button type="button" class="btn ghost" data-sx="sgchange"' + (g.busy ? " disabled" : "") + ">CHANGE</button></div>";
         }
       } else {
         var lastS = list[0];
-        html += '<small class="muted">From ' + g.info.count + " sessions · " + modelName(g.model) + " · " + money(g.cost || 0) + " · not kept on this iPad, forgotten when LOG locks</small>";
-        html += g.topics.map(function (x, i) {
+        out += '<small class="muted">From ' + g.info.count + " sessions · " + modelName(g.model) + " · " + money(g.cost || 0) + " · not kept on this iPad, forgotten when LOG locks</small>";
+        out += g.topics.map(function (x, i) {
           if (g.gone[i]) return "";
           var on = !!g.added[i];
           return '<div class="sx-sugg' + (on ? " on" : "") + '"><b>' + (i + 1) + ". " + esc(x.title) + "</b><div>" + esc(x.why) + "</div>" +
@@ -921,11 +921,11 @@
             '<div class="btnrow">' + (on ? '<span class="pill ok">IN BRING UP NEXT TIME</span><button type="button" class="btn sm ghost" data-sx="sgadd" data-i="' + i + '"' + (g.busy ? " disabled" : "") + ">UNDO</button>"
               : '<button type="button" class="btn sm" data-sx="sgadd" data-i="' + i + '"' + (g.busy || !lastS ? " disabled" : "") + '>ADD TO NEXT TIME</button><button type="button" class="btn sm ghost" data-sx="sgdrop" data-i="' + i + '">DISMISS</button>') + "</div></div>";
         }).join("");
-        html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="sgchange">ASK AGAIN</button></div>' +
+        out += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="sgchange">ASK AGAIN</button></div>' +
           '<small class="muted">ADD TO NEXT TIME writes the topic into the ' + (lastS ? dLong(lastS.day).slice(4) : "latest") + " session's BRING UP NEXT TIME in Notion, so it greets you when you start the next one.</small>";
       }
-      if (g.err) html += '<div class="errtxt">' + esc(g.err) + "</div>";
-      return html + "</section>";
+      if (g.err) out += '<div class="errtxt">' + esc(g.err) + "</div>";
+      return out + "</section>";
     }
 
     /* ---- actions ---- */
@@ -1049,19 +1049,19 @@
     }
     /* Systems → CAPTAIN'S LOG: the database, SHARE SESSIONS WITH ASK and the topic lists. */
     function systems() {
-      var html = '<label class="ov-sub" style="margin-top:14px;display:block">SESSION NOTES</label>';
-      if (!canSessions()) return html + '<small class="muted">Needs the Google bridge updated (README: Updating the Google bridge), then 🛋️ Session Notes connected to the TimothyOS integration in Notion.</small>';
-      html += '<small class="muted">LOG → SESSIONS, behind the same code as the journal. Notes live only in 🛋️ Session Notes in Notion; a session not yet saved waits on this iPad (never in a backup) until it is.</small>';
+      var out = '<label class="ov-sub" style="margin-top:14px;display:block">SESSION NOTES</label>';
+      if (!canSessions()) return out + '<small class="muted">Needs the Google bridge updated (README: Updating the Google bridge), then 🛋️ Session Notes connected to the TimothyOS integration in Notion.</small>';
+      out += '<small class="muted">LOG → SESSIONS, behind the same code as the journal. Notes live only in 🛋️ Session Notes in Notion; a session not yet saved waits on this iPad (never in a backup) until it is.</small>';
       if (state.caps.indexOf("sessionsuggest") > -1) {
         var on = !!lsGet(LS_SNAI);
-        html += '<div class="btnrow" style="margin-top:10px"><button type="button" class="chip" data-sx="ai" data-v="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-sx="ai" data-v="1" aria-pressed="' + on + '">SHARE SESSIONS WITH ASK</button></div>' +
+        out += '<div class="btnrow" style="margin-top:10px"><button type="button" class="chip" data-sx="ai" data-v="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-sx="ai" data-v="1" aria-pressed="' + on + '">SHARE SESSIONS WITH ASK</button></div>' +
           '<small class="muted">' + (on ? "SUGGEST TOPICS sends only the sessions you pick, of one type, after showing what it will send and the cost (about 1¢ with Sonnet). Counted in ASK's monthly total as SESSIONS. Nothing is sent until SEND." : "Off: Claude never reads your session notes.") + "</small>";
       }
       Object.keys(TYPES).forEach(function (k) {
-        html += '<div class="ov-sub" style="margin-top:14px">' + TYPES[k].short + ' TOPICS</div><div class="chips sx-tlist">' + topics(k).map(function (n, i) { return '<button type="button" class="chip sm" data-sx="tdel" data-t="' + k + '" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + " ✕</button>"; }).join("") + "</div>" +
+        out += '<div class="ov-sub" style="margin-top:14px">' + TYPES[k].short + ' TOPICS</div><div class="chips sx-tlist">' + topics(k).map(function (n, i) { return '<button type="button" class="chip sm" data-sx="tdel" data-t="' + k + '" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + " ✕</button>"; }).join("") + "</div>" +
           '<div class="sx-add"><input type="text" id="sxT-' + k + '" maxlength="40" placeholder="A topic to add" autocomplete="off" aria-label="Add a ' + TYPES[k].short.toLowerCase() + ' topic"><button type="button" class="btn sm" data-sx="tadd" data-t="' + k + '">ADD</button><button type="button" class="btn sm ghost" data-sx="treset" data-t="' + k + '">RESET</button></div>';
       });
-      return html + '<small class="muted">Topic lists are kept on this iPad (and in your backups). A session keeps the topics it was saved with.</small>';
+      return out + '<small class="muted">Topic lists are kept on this iPad (and in your backups). A session keeps the topics it was saved with.</small>';
     }
     document.addEventListener("input", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx/.test(e.target.id || "") && !/^sx(NewTopic|Prac|T-)/.test(e.target.id)) keep(); });
     document.addEventListener("change", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx(Date|NextD)$/.test(e.target.id || "")) keep(); });

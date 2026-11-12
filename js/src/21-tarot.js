@@ -325,8 +325,8 @@
       var i = b.pos.map(function (p) { return p.x + "," + p.y; }).indexOf(x + "," + y);
       html += '<button type="button" class="tr-cell' + (i > -1 ? " on" + (b.pos[i].c ? " x" : "") : "") + '" data-trcell="' + x + "," + y + '" aria-label="Row ' + (y + 1) + ", column " + (x + 1) + (i > -1 ? ", position " + (i + 1) : ", empty") + '">' + (i > -1 ? i + 1 : "") + "</button>";
     }
-    html += '</div><small class="muted">Positions are numbered in the order you place them. Tap a placed square again to remove it.</small></div><div class="tr-col">' + phead("POSITIONS", b.pos.length ? b.pos.length + (b.pos.length === 1 ? " CARD" : " CARDS") : "NONE YET", "chrome-b") + '<div class="tr-plist">' + (b.pos.length ? b.pos.map(function (p, i) {
-      return '<div class="tr-pl"><b>' + (i + 1) + '</b><input type="text" id="trPL' + i + '" maxlength="40" data-trplabel="' + i + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (i + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + i + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
+    html += '</div><small class="muted">Positions are numbered in the order you place them. Tap a placed square again to remove it.</small></div><div class="tr-col">' + phead("POSITIONS", b.pos.length ? b.pos.length + (b.pos.length === 1 ? " CARD" : " CARDS") : "NONE YET", "chrome-b") + '<div class="tr-plist">' + (b.pos.length ? b.pos.map(function (p, ix) {
+      return '<div class="tr-pl"><b>' + (ix + 1) + '</b><input type="text" id="trPL' + ix + '" maxlength="40" data-trplabel="' + ix + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (ix + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + ix + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
     }).join("") : '<span class="muted">Place a position on the grid to start.</span>') + "</div>";
     if (b.pos.length) html += phead("PREVIEW", "", "chrome-c") + trBoard({ pos: trNorm(b.pos) }, [], { edit: true, cardPx: 90 });
     html += '<div class="tr-tools"><span></span><button type="button" class="btn" data-tract="bsave"' + (b.pos.length && b.nm.trim() ? "" : " disabled") + ">SAVE SPREAD</button></div>";
@@ -466,7 +466,7 @@
   document.addEventListener("input", function (e) {
     var t = e.target, d = t.dataset || {};
     if (t.id === "trQ") { trDraft().q = t.value; trDraftSave(); return; }
-    if (t.id === "trBName" && tr.bld) { tr.bld.nm = t.value; var sb = document.querySelector('[data-tract="bsave"]'); if (sb) sb.disabled = !(tr.bld.pos.length && t.value.trim()); return; }
+    if (t.id === "trBName" && tr.bld) { tr.bld.nm = t.value; var sbox = document.querySelector('[data-tract="bsave"]'); if (sbox) sbox.disabled = !(tr.bld.pos.length && t.value.trim()); return; }
     if (d.trplabel != null && tr.bld) { tr.bld.pos[+d.trplabel].l = t.value; return; }
     if (d.trsum) { var r = trReadings().filter(function (x) { return x.id === trId(d.trsum); })[0]; if (r) trEdit(r, { sum: t.value }); return; }
     if (d.trnote != null) { var rn = trReadings().filter(function (x) { return x.id === trId(d.trid); })[0]; if (rn) { var notes = (rn.notes || []).slice(); while (notes.length < rn.cards.length) notes.push(""); notes[+d.trnote] = t.value; trEdit(rn, { notes: notes }); } return; }
@@ -497,10 +497,10 @@
     return html + "</div></section>";
   }
   function tarotSection() {
-    var on = !!lsGet(LS_AITAROT), n = trReadings().length, waiting = Object.keys(tr.q).length;
+    var on = !!lsGet(LS_AITAROT), n = trReadings().length, isWaiting = Object.keys(tr.q).length;
     var html = "<section>" + phead("TAROT", canTarot() ? (tr.err ? "PROBLEM" : "NOTION") : "SETUP");
     if (!canTarot()) return html + stubBox("Needs the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</section>";
-    html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
+    html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (isWaiting ? " · " + isWaiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>" + trbSystemsRow();
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR READINGS</label><div class="btnrow">' +
       '<button type="button" class="chip" data-aitarot="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aitarot="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
@@ -514,7 +514,7 @@
     if (wk) { var c = wk.cards[0]; seen[c.id] = 1; out.push("This week's card: " + trName(c.id) + (c.rev ? " (reversed)" : "") + (wk.sum ? ". His note: " + wk.sum : "")); }
     trReadings().filter(function (r) { return r.day >= from && !(wk && r.id === wk.id); }).slice(0, 12).forEach(function (r) {
       var pos = r.pos && r.pos.length === r.cards.length ? r.pos : trSpread(r.spread, r.cards.length).pos;
-      out.push(r.day + " · " + (r.sname || "reading") + (r.q ? ' · "' + r.q + '"' : "") + ": " + r.cards.map(function (c, i) { seen[c.id] = 1; var n = (r.notes || [])[i]; return (pos[i] ? pos[i].l.toLowerCase() + " " : "") + trName(c.id) + (c.rev ? " (reversed)" : "") + (n ? " [" + n + "]" : ""); }).join("; ") + (r.sum ? ". His reading: " + r.sum : ""));
+      out.push(r.day + " · " + (r.sname || "reading") + (r.q ? ' · "' + r.q + '"' : "") + ": " + r.cards.map(function (cc, i) { seen[cc.id] = 1; var n = (r.notes || [])[i]; return (pos[i] ? pos[i].l.toLowerCase() + " " : "") + trName(cc.id) + (cc.rev ? " (reversed)" : "") + (n ? " [" + n + "]" : ""); }).join("; ") + (r.sum ? ". His reading: " + r.sum : ""));
     });
     var mean = Object.keys(seen).filter(function (k) { return trMeaning(k); }).map(function (k) { return trName(k) + ": " + trMeaning(k); });
     if (mean.length) out.push("His own meanings: " + mean.join(" | "));
@@ -588,10 +588,10 @@
     var got = trb.cards[card];
     if (!got || got.loading && !got.books) { trbLoad(card); return html + '<div class="tr-bk"><div class="tr-bk-wait">OPENING YOUR BOOKS…</div></div></div>'; }
     if (got.err) return html + '<div class="tr-bk"><div class="err">' + esc(got.err) + '</div><button type="button" class="chip sm" data-trbfresh="' + card + '">TRY AGAIN</button></div></div>';
-    var books = got.books || [];
-    if (!books.length) return html + '<div class="tr-bk"><span class="muted">' + esc(trbErrText({ code: "tarot_books_empty" })) + "</span></div></div>";
-    var b = books.filter(function (x) { return x.book === trb.tab; })[0] || books[0];
-    html += '<div class="tr-bk"><div class="tr-bk-tabs" role="group" aria-label="Book">' + books.map(function (x) { return '<button type="button" class="tr-bk-tab" data-trbtab="' + x.book + '" aria-pressed="' + (x === b) + '">' + esc(x.name.toUpperCase()) + "</button>"; }).join("") + "</div>" +
+    var bookList = got.books || [];
+    if (!bookList.length) return html + '<div class="tr-bk"><span class="muted">' + esc(trbErrText({ code: "tarot_books_empty" })) + "</span></div></div>";
+    var b = bookList.filter(function (x) { return x.book === trb.tab; })[0] || bookList[0];
+    html += '<div class="tr-bk"><div class="tr-bk-tabs" role="group" aria-label="Book">' + bookList.map(function (x) { return '<button type="button" class="tr-bk-tab" data-trbtab="' + x.book + '" aria-pressed="' + (x === b) + '">' + esc(x.name.toUpperCase()) + "</button>"; }).join("") + "</div>" +
       trbPassage(b, rev) + '<small class="tr-bk-src">' + esc(b.title + (b.source ? " · " + b.source : "")) + (b.url ? ' · <a href="' + esc(b.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</small>";
     if (!hist) html += trbSugArea(r, at);
     return html + "</div></div>";

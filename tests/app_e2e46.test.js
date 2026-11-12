@@ -142,7 +142,7 @@ const DAY = 864e5;
   await t.reload(); await t.waitForFunction(() => !document.querySelector('#cmdBtn').disabled, null, { timeout: 10000 });
   const before = await txt(t, '#title');
   await t.evaluate(() => {
-    const el = document.querySelectorAll('.side .nav')[2], r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + 10;
+    const el = document.querySelectorAll('.side .nav')[2], res = el.getBoundingClientRect(), x = res.left + res.width / 2, y = res.top + 10;
     const T = yy => new Touch({ identifier: 1, target: el, clientX: x, clientY: yy });
     el.dispatchEvent(new TouchEvent('touchstart', { touches: [T(y)], changedTouches: [T(y)], bubbles: true }));
     el.dispatchEvent(new TouchEvent('touchmove', { touches: [T(y + 40)], changedTouches: [T(y + 40)], bubbles: true }));

@@ -36,7 +36,9 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   assert.strictEqual(await p.locator('.ap-hivebtn').count(), 2);
   let yard = await txt(p, '.ap-yard');
   assert.ok(yard.includes('JUNIPER') && yard.includes('Queen Ivy') && yard.includes('BRAMBLE') && yard.includes('● Traps left on the lower box'), yard);
-  assert.ok(yard.includes('18 LB') && yard.includes('MITE CHECKS 0 OF 4') && yard.includes('FACING SE') && yard.includes('Sample site note.'), yard);
+  // the 18 lb pulled 20 days ago counts toward this year's honey only while that day is in this year (D79: early January it isn't)
+  const honeyNow = new Date(Date.now() - 20 * 864e5).getFullYear() === new Date().getFullYear() ? '18 LB' : '0 LB';
+  assert.ok(yard.includes(honeyNow) && yard.includes('MITE CHECKS 0 OF 4') && yard.includes('FACING SE') && yard.includes('Sample site note.'), yard);
   assert.strictEqual(await p.locator('[data-aphive="ap-h1"] .ap-stack .box').count(), 3, 'super and two deeps');
   assert.strictEqual(await p.locator('[data-aphive="ap-h1"] .box.deep:not(.unknown) .f.on').count(), 8, 'eight frames drawn in the bottom deep');
   assert.strictEqual(await emoji(p), '', 'no emoji in the yard');

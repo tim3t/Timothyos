@@ -8,7 +8,7 @@ const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
-const hits = (p, id) => p.evaluate(id => { const el = document.getElementById(id), r = el.getBoundingClientRect(), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && (h === el || el.contains(h)); }, id);
+const hits = (p, id) => p.evaluate(idv => { const el = document.getElementById(idv), r = el.getBoundingClientRect(), h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && (h === el || el.contains(h)); }, id);
 
 (async () => {
   const b = await chromium.launch(); const errs = [];

@@ -90,8 +90,10 @@ r0 = health(HK, 'steps|6840|9 Nov 2026 at 3:24 PM|9 Nov 2026 at 3:24 PM');
 assert.ok(r0.ok && !r0.days.length && /ISO 8601/.test(r0.message), 'dates not in ISO 8601: said so: ' + r0.message);
 
 // ---- a morning's lines, as the shortcut sends them (dates relative to now, so the 14-day window holds)
-const D = n => { const d = new Date(Date.now() - n * 864e5); return fmt(d, 'America/New_York', 'yyyy-MM-dd'); };
-const at = (n, hm) => D(n) + 'T' + hm + ':00-05:00';
+const D = cnt => { const d = new Date(Date.now() - cnt * 864e5); return fmt(d, 'America/New_York', 'yyyy-MM-dd'); };
+// New York's own offset on that day (-05:00 in winter, -04:00 in summer; a fixed -05:00 put every time an hour out in summer, D79)
+const nyOff = ymd => new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(ymd + 'T12:00:00Z')).find(x => x.type === 'timeZoneName').value.replace('GMT', '') || '+00:00';
+const at = (cnt, hm) => D(cnt) + 'T' + hm + ':00' + nyOff(D(cnt));
 const y = D(1), t = D(0);
 const L = [
   'rhr|57 count/min|' + at(1, '07:00') + '|' + at(1, '07:00'), 'rhr|59|' + at(1, '19:00') + '|' + at(1, '19:00'),
@@ -202,7 +204,7 @@ assert.strictEqual(data(D(2)).steps, 2600, 'two days back is whole, and replaced
 assert.strictEqual(data(D(2))._upd, upd2, 'a value replaced is not something added: the update stamp stays');
 assert.ok(get({ action: 'health' }).days.some(d => d.date === D(3) && d._got === got3 && d._add[0] === 'rhr'), 'the app gets the stamps');
 // ---- 1.47.1: Stand Minutes grouped by Hour: each hour with any standing counts 1, as Apple's STAND ring does
-const hr = (n, h, v) => 'standmin|' + v + '|' + at(n, String(h).padStart(2, '0') + ':00') + '|' + at(n, String(h).padStart(2, '0') + ':59');
+const hr = (cnt, hh, v) => 'standmin|' + v + '|' + at(cnt, String(hh).padStart(2, '0') + ':00') + '|' + at(cnt, String(hh).padStart(2, '0') + ':59');
 r = health(HK, [hr(1, 8, 3), hr(1, 9, 1), hr(1, 10, 0), hr(1, 13, 12), hr(1, 13, 12), hr(1, 18, 2)].join('\n'));
 assert.ok(r.ok, JSON.stringify(r));
 assert.strictEqual(data(y).stand, 4, 'four hours with standing (08, 09, 13, 18); an hour of 0 and a repeat line count nothing');

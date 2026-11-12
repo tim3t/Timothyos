@@ -8,7 +8,6 @@ const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
-const { execFileSync } = require('child_process');
 const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110'), K = 'k'.repeat(64);
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mmss = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
@@ -67,7 +66,6 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
 
   // ---- HABITS: a new goal counts from today
   await p.click('[data-screen="habits"].nav'); await p.waitForSelector('.hb-srow');
-  const rate = async () => (await txt(p, '.hb-srow:has-text("WATER") .n:nth-of-type(3)'));
   const waterRow = () => txt(p, '.hb-srow:has-text("WATER")');
   const r0 = await waterRow();
   assert.ok(r0.includes('2.5 L+'), r0);
@@ -96,10 +94,12 @@ const audio = async p => { await p.click('[data-screen="holodeck"].nav'); await 
   await p.click('[data-hgoal="2.5"]'); await p.waitForTimeout(200);
   assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.habitcfg.v1'))), { goal: 2.5, hist: [{ from: '', goal: 2.5 }] });
   // a goal changed on an earlier day stays with those days: set history by hand (as if made last week), then check
-  await p.evaluate(() => { localStorage.setItem('tos.habitcfg.v1', JSON.stringify({ goal: 3.5, hist: [{ from: '', goal: 2 }, { from: '2026-09-25', goal: 3.5 }] })); });
+  // (the change is dated 7 days ago, not on a fixed date: the grid shows recent weeks, and real time moves on; D79)
+  const chg = await p.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); });
+  await p.evaluate(c => { localStorage.setItem('tos.habitcfg.v1', JSON.stringify({ goal: 3.5, hist: [{ from: '', goal: 2 }, { from: c, goal: 3.5 }] })); }, chg);
   await p.click('[data-screen="habits"].nav'); await p.waitForTimeout(300);
   const old = await p.$$eval('.hb-g:has(h3:text("WATER")) .hb-cell[data-hday]', n => n.map(x => [x.dataset.hday, x.title]));
-  const before = old.find(c => c[0] < '2026-09-25' && / of /.test(c[1])), after = old.find(c => c[0] >= '2026-09-25' && / of /.test(c[1]));
+  const before = old.find(c => c[0] < chg && / of /.test(c[1])), after = old.find(c => c[0] >= chg && / of /.test(c[1]));
   assert.ok(/ of 2 L$/.test(before[1]) && / of 3\.5 L$/.test(after[1]), before[1] + ' | ' + after[1]);
 
   // ---- phone width

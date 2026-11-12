@@ -69,7 +69,6 @@ const picked = p => p.$$eval('#planSheet .cand[aria-pressed="true"] b', bs => bs
   const later = {}; ['2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10'].forEach(d => { later[d] = Object.assign({}, cached['2026-10-05'], { fetched: Date.parse('2026-10-05T22:00:00-05:00') }); });
   await p.evaluate(c => localStorage.setItem('tos.tasks.v1', JSON.stringify(c)), Object.assign({}, cached, later));
   await p.reload(); await p.waitForTimeout(2500);
-  const n0 = (await call('stats')).batches.length;
   await p.click('#planBtn');
   await p.waitForFunction(() => document.getElementById('planCount').textContent.includes('OF 3 PICKED') && !document.getElementById('planCount').textContent.includes('UPDATING'), null, { timeout: 8000 });
   const reqs = () => p.evaluate(() => JSON.parse(localStorage.getItem('tos.netlog.v1') || '[]').filter(n => /tasks/.test(n.a)).length);

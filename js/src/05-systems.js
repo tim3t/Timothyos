@@ -114,16 +114,16 @@
     function synced(k) { return !!KEY[k] && !M.off[KEY[k]]; }
     function can() { return !!state.conn && state.caps.indexOf("profile") > -1; }
     function live() { return M.on && !M.paused && can(); }
-    function hash(str) { var h = 5381, i = str.length; while (i) h = (h * 33) ^ str.charCodeAt(--i); return (h >>> 0).toString(36) + "." + str.length; }
+    function hashStr(str) { var h = 5381, i = str.length; while (i) h = (h * 33) ^ str.charCodeAt(--i); return (h >>> 0).toString(36) + "." + str.length; }
     function stored(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
     lsHook = function (k) {   /* a change on this iPad: when, and by which iPad; sent a little later. The same value written again is no change. */
       if (X.applying || !KEY[k]) return;
-      var h = hash(stored(k));
+      var h = hashStr(stored(k));
       if (M.h[k] === h) return;
       M.h[k] = h; M.at[k] = Date.now(); M.by[k] = me(); save();
-      if (live() && synced(k)) soon(k === PLAYS && pl.el && !pl.el.paused ? 30000 : 4000);   /* while playing, every 30 seconds; paused, at once */
+      if (live() && synced(k)) isSoon(k === PLAYS && pl.el && !pl.el.paused ? 30000 : 4000);   /* while playing, every 30 seconds; paused, at once */
     };
-    function soon(ms) { var due = Date.now() + ms; if (X.t && X.due <= due) return; clearTimeout(X.t); X.due = due; X.t = setTimeout(sync, ms); }
+    function isSoon(ms) { var due = Date.now() + ms; if (X.t && X.due <= due) return; clearTimeout(X.t); X.due = due; X.t = setTimeout(sync, ms); }
     function raw(k) { var v = lsGet(k); return v === undefined ? null : v; }
     function sync(asked) {   /* asked: SYNC NOW or joining, so a change that came in shows at once */
       clearTimeout(X.t); X.t = 0;
@@ -141,7 +141,7 @@
       Object.keys(plays).forEach(function (p) { if ((plays[p].at || 0) > since) o[p] = plays[p]; });
       return o;
     }
-    function put(k, v, at, by) { X.applying = true; if (v === null || v === undefined) lsDel(k); else lsSet(k, v); X.applying = false; M.h[k] = hash(stored(k)); M.at[k] = at; M.by[k] = by || ""; M.sent[k] = at; }
+    function put(k, v, at, by) { X.applying = true; if (v === null || v === undefined) lsDel(k); else lsSet(k, v); X.applying = false; M.h[k] = hashStr(stored(k)); M.at[k] = at; M.by[k] = by || ""; M.sent[k] = at; }
     function mergePlays(r) {   /* each episode keeps its newer place; the one playing now keeps going */
       var inc = (r && r.v) || {}, n = 0;
       Object.keys(inc).forEach(function (p) {

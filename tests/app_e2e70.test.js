@@ -62,8 +62,8 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   // ---- 2.70: endless. The rows again below the last channel, out of VoiceOver's and Tab's way; the roll passes the last
   // channel straight into channel 1 with no pause or jump back; scrolling by hand loops too; a tap on the repeat tunes in
   await p.click('[data-hd="gauto"]'); await p.click('[data-hd="gauto"]');   // off and on: the hold is released
-  const loop = () => p.evaluate(() => { const b = document.getElementById('hdTgBody'), cp = document.getElementById('hdGLoop'), r0 = b.querySelector('.hd-tgin > .hd-grow');
-    return cp && !cp.hidden ? { lh: cp.offsetTop - r0.offsetTop, top: b.scrollTop, rows: cp.querySelectorAll('.hd-grow').length, hidden: cp.getAttribute('aria-hidden'), tabs: [...cp.querySelectorAll('button')].every(x => x.tabIndex === -1) } : null; });
+  const loop = () => p.evaluate(() => { const b2 = document.getElementById('hdTgBody'), cp = document.getElementById('hdGLoop'), r0 = b2.querySelector('.hd-tgin > .hd-grow');
+    return cp && !cp.hidden ? { lh: cp.offsetTop - r0.offsetTop, top: b2.scrollTop, rows: cp.querySelectorAll('.hd-grow').length, hidden: cp.getAttribute('aria-hidden'), tabs: [...cp.querySelectorAll('button')].every(x => x.tabIndex === -1) } : null; });
   const L0 = await until(loop);
   assert.deepStrictEqual([L0.rows, L0.hidden, L0.tabs], [7, 'true', true], 'the repeat: every channel again, hidden from VoiceOver and Tab');
   await p.$eval('#hdTgBody', (e, h) => { e.scrollTop = h - 25; }, L0.lh);   // just before channel 1 comes round again

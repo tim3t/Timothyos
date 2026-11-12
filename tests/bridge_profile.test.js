@@ -128,8 +128,8 @@ assert.strictEqual(post({ action: 'upkeepremove', id: '' }).error, 'bad_request'
   assert.ok(parts.every(x => !/[\uD800-\uDBFF]$/.test(x) && !/^[\uDC00-\uDFFF]/.test(x)), 'no half emoji at either end');
   assert.strictEqual(ctx.rt_('x'.repeat(4000)).length, 2, 'plain text: still 2,000 a piece');
   const long = ('Notes 🐝 ').repeat(700), lr = ctx.logRich_(long);
-  assert.strictEqual(lr.map(r => r.text.content).join(''), long);
-  assert.ok(lr.every(r => r.text.content.length <= 2000));
+  assert.strictEqual(lr.map(res => res.text.content).join(''), long);
+  assert.ok(lr.every(res => res.text.content.length <= 2000));
   const up = post({ action: 'upkeepsave', item: { id: 'emo1', name: 'Hive 🐝 frames ☀️', every: 1, unit: 'weeks', hist: [] } });
   assert.strictEqual(up.item.name, 'Hive 🐝 frames ☀️', 'emoji kept through Notion and back');
 }

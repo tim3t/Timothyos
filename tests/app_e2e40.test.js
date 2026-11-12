@@ -8,7 +8,7 @@ const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each sim
 const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
 const fs = require('fs');
-const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
+const K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const ctl = q => fetch(B + '&action=' + q).then(r => r.json());
 const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };

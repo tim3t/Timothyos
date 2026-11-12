@@ -1550,19 +1550,19 @@ function logImport_(entries) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var ds = logSource_(), sorted = entries.map(function (e) { return e.date; }).sort(), have = {};
+    var ds = logSource_(), sorted = entries.map(function (err) { return err.date; }).sort(), have = {};
     queryAll_(ds, { and: [{ property: 'Date', date: { on_or_after: sorted[0] } }, { property: 'Date', date: { on_or_before: sorted[sorted.length - 1] } }] }, 2)
       .forEach(function (pg) { var d = day_((pg.properties || {}).Date); if (d) have[d] = true; });
     var created = [], skipped = [];
-    entries.forEach(function (e) {
-      var paras = logParas_(e.text);
-      if (have[e.date] || !paras.length) { skipped.push(e.date); return; }
+    entries.forEach(function (err) {
+      var paras = logParas_(err.text);
+      if (have[err.date] || !paras.length) { skipped.push(err.date); return; }
       var pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds },
-        properties: logSearchProps_({ Name: { title: rt_(longDay_(e.date)) }, Date: { date: { start: e.date } }, Source: { select: { name: 'Diary import' } } }, paras),
+        properties: logSearchProps_({ Name: { title: rt_(longDay_(err.date)) }, Date: { date: { start: err.date } }, Source: { select: { name: 'Diary import' } } }, paras),
         children: paras.slice(0, 100).map(logBlock_) });
       if (paras.length > 100) logAppend_(pg.id, paras.slice(100));
-      have[e.date] = true;
-      created.push(e.date);
+      have[err.date] = true;
+      created.push(err.date);
     });
     if (created.length) logDatesAdd_(created);
     return { ok: true, version: VERSION, created: created, skipped: skipped };

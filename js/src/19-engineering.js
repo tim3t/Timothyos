@@ -303,8 +303,8 @@
         html += '<section class="ec-sec ec-sens">' + phead("SENSORS", "", "chrome-c");
         if (view === "list") html += '<div class="hr-rows">' + sens.map(haRowHtml).join("") + "</div>";
         else {
-          var sb = sens.filter(function (d) { return styleOf(d) !== "mini"; }), ss = sens.filter(function (d) { return styleOf(d) === "mini"; });
-          if (sb.length) html += '<div class="hc-grid">' + sb.map(haCardHtml).join("") + "</div>";
+          var sbox = sens.filter(function (d) { return styleOf(d) !== "mini"; }), ss = sens.filter(function (d) { return styleOf(d) === "mini"; });
+          if (sbox.length) html += '<div class="hc-grid">' + sbox.map(haCardHtml).join("") + "</div>";
           if (ss.length) html += '<div class="hm-row">' + ss.map(haMiniHtml).join("") + "</div>";
         }
         html += "</section>";
@@ -327,10 +327,10 @@
       (modes.length && !dead ? '<div class="chips">' + modes.map(function (m) { return '<button type="button" class="chip sm" data-hahvac="' + m + '" data-dev="' + esc(d.id) + '" aria-pressed="' + (s.state === m) + '">' + HA_HVAC[m] + "</button>"; }).join("") + "</div>" : "") + "</div>" +
       (one && !dead ? '<div class="cl-step"><button type="button" data-haclim="' + step + '" data-dev="' + esc(d.id) + '" aria-label="Warmer">+</button><button type="button" data-haclim="' + -step + '" data-dev="' + esc(d.id) + '" aria-label="Cooler">−</button></div>' : "") + haMore(d) + "</div>";
   }
-  function haClimStep(id, delta) {
+  function haClimStep(id, dlt) {
     var s = eng.states[id]; if (!s || s.missing) return;
     var a = s.attributes, lo = a.min_temp != null ? a.min_temp : -50, hi = a.max_temp != null ? a.max_temp : 150;
-    a.temperature = Math.max(lo, Math.min(hi, Math.round((a.temperature + delta) * 10) / 10));
+    a.temperature = Math.max(lo, Math.min(hi, Math.round((a.temperature + dlt) * 10) / 10));
     var q = hq["clim:" + id] || (hq["clim:" + id] = {});
     hq[id] = hq[id] || { data: {}, last: 0, t: 0, rr: 0 }; hq[id].last = Date.now();   /* hold off re-reads while you tap */
     clearTimeout(q.t);
@@ -405,9 +405,9 @@
     if (!list.length) return '<div class="empty">Nothing tracked yet. Tap <b>+ ITEM</b> to add something that needs doing every so often, like an oil change every 5,000 miles or a furnace filter every 3 months.</div>';
     list.sort(function (a, b) { return a.s.sort - b.s.sort; });
     list.forEach(function (x) { x.cat = upCatOf(x.u); x.c = upColor(v, x.cat); });
-    var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, soon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
+    var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, isSoon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
     var chip = function (attr, val, label, on) { return '<button type="button" class="chip sm" ' + attr + '="' + val + '" aria-pressed="' + on + '">' + label + "</button>"; };
-    var html = '<div class="up-head"><div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (soon ? " warn" : "") + '">' + soon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - soon) + " ON SCHEDULE</span></div>" +
+    var html = '<div class="up-head"><div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (isSoon ? " warn" : "") + '">' + isSoon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - isSoon) + " ON SCHEDULE</span></div>" +
       (v.view === "horizon" ? '<div class="up-opts"><span class="ov-sub">LOOK AHEAD</span>' + [[30, "30 DAYS"], [90, "90 DAYS"], [365, "YEAR"]].map(function (r) { return chip("data-uprange", r[0], r[1], v.range === r[0]); }).join("") + "</div>"
         : '<div class="up-opts"><span class="ov-sub">GROUP BY</span>' + chip("data-upby", "cat", "CATEGORY", v.by !== "status") + chip("data-upby", "status", "STATUS", v.by === "status") + "</div>") + "</div>";
     html += v.view === "horizon" ? upHorizonHtml(list, v, today) : upGroupsHtml(list, v);
@@ -682,7 +682,7 @@
   function wireWheel() {
     var w = $("haWheel"), k = $("haKnob"), id = eng.sheetId;
     if (!w) return;
-    var place = function () {
+    var spot = function () {
       var s = eng.states[id], hs = (s && s.attributes && s.attributes.hs_color) || [0, 0], ang = hs[0] * Math.PI / 180, r = hs[1] / 2;
       k.style.left = (50 + Math.sin(ang) * r) + "%"; k.style.top = (50 - Math.cos(ang) * r) + "%"; k.style.background = rgbCss(hsvRgb(hs[0], hs[1]));
       w.setAttribute("aria-valuetext", "hue " + Math.round(hs[0]) + ", strength " + Math.round(hs[1]) + "%");
@@ -691,9 +691,9 @@
     var pick = function (e, final) {
       if (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; at = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; }
       if (!at) return;
-      haLightSet(id, { hs_color: at }, final); place(); haLive(id);
+      haLightSet(id, { hs_color: at }, final); spot(); haLive(id);
     };
-    place();
+    spot();
     w.addEventListener("pointerdown", function (e) { e.preventDefault(); try { w.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } eng.dragging = id; w.classList.remove("off"); pick(e, false); });
     w.addEventListener("pointermove", function (e) { if (eng.dragging === id) pick(e, false); });
     var end = function () { if (eng.dragging !== id) return; pick(null, true); eng.dragging = null; haRepaint(); };

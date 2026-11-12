@@ -108,12 +108,12 @@
       return "left: " + r(x / W) + "; top: " + r(y / H) + "; width: " + r(w / W) + "; height: " + r(h / H);
     }
     function kc(k) { return "k-" + k.toLowerCase().replace("-", ""); }
-    function pl(n, one, many) { return n + " " + (n === 1 ? one : many); }
+    function loc(n, one, many) { return n + " " + (n === 1 ? one : many); }
     function countLine(D, zid) {
       var l = zItems(D, zid), pots = l.filter(function (i) { return i.type === "POTS"; }).length, nb = l.length - pots, np = l.reduce(function (a, i) { return a + i.plants.length; }, 0);
       if (!l.length) return "Nothing added yet";
       var z = zone(zid), noun = z.kind === "pond" ? ["area", "areas"] : z.kind === "meadow" ? ["patch", "patches"] : ["bed", "beds"];
-      return (nb ? pl(nb, noun[0], noun[1]) + " · " : "") + (pots ? pl(pots, "pot", "pots") + " · " : "") + pl(np, "planting", "plantings");
+      return (nb ? loc(nb, noun[0], noun[1]) + " · " : "") + (pots ? loc(pots, "pot", "pots") + " · " : "") + loc(np, "planting", "plantings");
     }
     function addKind(z) { var ks = ZKINDS[z.kind]; return X.ak && ks.indexOf(X.ak) > -1 ? X.ak : ks[0]; }
     function tips(it) {
@@ -171,13 +171,13 @@
       if (X.view === "glance") return { e: g + " · QUICK GLANCE · " + (X.gs || seasonOf(now)), t: "ARBORETUM" };
       return { e: g + " · " + phase(now) + " " + seasonOf(now), t: "ARBORETUM" };
     }
-    function chips(list, attr, isOn, c) {
-      return list.map(function (x) { return '<button type="button" class="chip sm" style="--c: var(--' + (c || "personal") + ')" data-' + attr + '="' + x[0] + '" aria-pressed="' + isOn(x[0]) + '">' + x[1] + "</button>"; }).join("");
+    function chips(list, attr, onNow, c) {
+      return list.map(function (x) { return '<button type="button" class="chip sm" style="--c: var(--' + (c || "personal") + ')" data-' + attr + '="' + x[0] + '" aria-pressed="' + onNow(x[0]) + '">' + x[1] + "</button>"; }).join("");
     }
     function mapHtml(D) {
       var now = new Date(), cs = seasonOf(now), h = '<div class="arb-cols"><div class="arb-map" role="group" aria-label="Map of ' + esc(gname(D)) + '">';
       var mp = zItems(D, "meadow").reduce(function (a, i) { return a + i.plants.length; }, 0), pp = zItems(D, "pond").reduce(function (a, i) { return a + i.plants.length; }, 0);
-      h += '<button type="button" class="arb-mz arb-meadow" data-arbz="meadow" style="' + P(60, 0, 480, 250) + '" aria-label="The Meadow: ' + esc(countLine(D, "meadow")) + '"><span>THE MEADOW</span><small>' + (mp ? pl(mp, "planting", "plantings") : zItems(D, "meadow").length ? countLine(D, "meadow") : "") + "</small></button>";
+      h += '<button type="button" class="arb-mz arb-meadow" data-arbz="meadow" style="' + P(60, 0, 480, 250) + '" aria-label="The Meadow: ' + esc(countLine(D, "meadow")) + '"><span>THE MEADOW</span><small>' + (mp ? loc(mp, "planting", "plantings") : zItems(D, "meadow").length ? countLine(D, "meadow") : "") + "</small></button>";
       h += '<span class="arb-shed" aria-hidden="true" style="' + P(0, 262, 58, 28) + '">SHED</span>';
       [["z3", 30, 290, 540, 335], ["z2", 105, 330, 390, 255], ["z1", 180, 370, 240, 175]].forEach(function (r) {
         h += '<button type="button" class="arb-mz arb-ring ' + r[0] + '" data-arbz="' + r[0] + '" style="' + P(r[1], r[2], r[3], r[4]) + '" aria-label="' + zone(r[0]).name.replace("ZONE", "Zone") + ": " + esc(countLine(D, r[0])) + '"></button>';
@@ -197,7 +197,7 @@
           (j ? '<span class="arb-jobs">' + j + " TO DO</span>" : "") + "</button>";
       }).join("");
       var open = jobsIn(D, cs).filter(function (r) { return !r.done; });
-      h += '<button type="button" class="arb-seas" data-arbv="glance"><b>' + phase(now) + " " + cs + " · " + pl(open.length, "JOB", "JOBS") + " TO DO</b><span>" +
+      h += '<button type="button" class="arb-seas" data-arbv="glance"><b>' + phase(now) + " " + cs + " · " + loc(open.length, "JOB", "JOBS") + " TO DO</b><span>" +
         (open.length ? esc(open.slice(0, 2).map(function (r) { return r.j.t + ", " + zone(r.it.zone).short; }).join(" · ")) + (open.length > 2 ? " · and more" : "") : D.items.length ? "Nothing left this " + cs.toLowerCase() + ". Every season is in QUICK GLANCE." : "Start with a zone: add its beds, what's planted, and their jobs through the year.") + "</span></button>";
       h += '<label class="arb-lbl arb-gname" for="arbGName">THE GARDEN\'S NAME<input id="arbGName" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Name it" value="' + esc(D.name) + '"></label>';
       return h + "</aside></div>";
@@ -259,9 +259,9 @@
     }
     function glanceHtml(D) {
       var now = new Date(), cur = seasonOf(now), gs = X.gs || cur, h = '<div class="arb-g2"><div class="arb-gside"><div class="arb-mini" role="group" aria-label="Show one zone">';
-      var mz = function (zid, cls, box, lb) {
+      var mz = function (zid, cls, box, lbl) {
         var n = openN(D, gs, zid);
-        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + pl(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lb ? '<span class="lb ' + lb + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lb ? "</span>" : "") + "</button>";
+        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="lb ' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
       };
       h += mz("meadow", "arb-meadow", [30, 0, 240, 125]) + mz("z3", "arb-ring z3", [15, 145, 270, 180], "tr") + mz("z2", "arb-ring z2", [55, 172, 190, 128], "tr") + mz("z1", "arb-ring z1", [92, 200, 116, 80], "tr") + mz("pond", "arb-pond", [60, 180, 46, 30]);
       h += '<div class="arb-home" aria-hidden="true" style="' + P(123, 232, 54, 36, 300, 330) + '"></div></div>';

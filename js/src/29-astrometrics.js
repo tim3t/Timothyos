@@ -353,13 +353,13 @@
     var areas = row.id === "cal" ? AS_AREAS.filter(function (a) { return LIVE.indexOf(a) > -1; }) : null;
     var series = areas ? areas.map(function (a) { return asMonthly(y, r, AS_AREAS.indexOf(a)); }) : [asMonthly(y, r)];
     var tot = series[0].map(function (_, m) { return series.reduce(function (s, x) { return s + x[m]; }, 0); });
-    var W = 560, H = 210, L = 34, B = 22, T = 18, slot = (W - L) / 12, bw = Math.min(30, slot - 8), mx = Math.max.apply(null, tot) || 1;
+    var W = 560, H = 210, L = 34, B = 22, T = 18, slotAt = (W - L) / 12, bw = Math.min(30, slotAt - 8), mx = Math.max.apply(null, tot) || 1;
     var nice = Math.ceil(mx * 1.12 / 4) * 4 || 4, yy = function (v) { return T + (H - T - B) * (1 - v / nice); }, best = tot.indexOf(Math.max.apply(null, tot));
     var lastM = y === new Date().getFullYear() ? new Date().getMonth() : 11;
     var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + row.name + ' by month">';
     [0, .5, 1].forEach(function (f) { var v = yy(nice * f); s += '<line x1="' + L + '" x2="' + W + '" y1="' + v + '" y2="' + v + '" class="gl"/><text class="ax" x="' + (L - 6) + '" y="' + (v + 4) + '" text-anchor="end">' + Math.round(nice * f) + "</text>"; });
     for (var m = 0; m < 12; m++) {
-      var x = L + m * slot + (slot - bw) / 2, base = 0;
+      var x = L + m * slotAt + (slotAt - bw) / 2, base = 0;
       s += '<text class="ax" x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + MON[m].charAt(0) + MON[m].slice(1).toLowerCase() + "</text>";
       if (m > lastM) { s += '<circle cx="' + (x + bw / 2) + '" cy="' + (yy(0) - 3) + '" r="1.5" class="fut"/>'; continue; }
       s += '<rect class="hitm" data-asbar="' + m + '" x="' + (x - 4) + '" y="' + T + '" width="' + (bw + 8) + '" height="' + (H - T - B) + '"/>';
@@ -372,9 +372,9 @@
       if (m === best && tot[m]) s += '<text class="vl" x="' + (x + bw / 2) + '" y="' + (yy(tot[m]) - 5) + '" text-anchor="middle">' + asHrs(tot[m]) + "</text>";
     }
     s += "</svg>";
-    var bm = as.bar != null && as.bar <= lastM ? as.bar : best, lg = areas ? '<div class="as-blegend">' + areas.map(function (a) { return '<span><i style="background: var(--' + a + ')"></i>' + AREAS[a].name + "</span>"; }).join("") + "</div>" : "";
+    var bm = as.bar != null && as.bar <= lastM ? as.bar : best, logg = areas ? '<div class="as-blegend">' + areas.map(function (a) { return '<span><i style="background: var(--' + a + ')"></i>' + AREAS[a].name + "</span>"; }).join("") + "</div>" : "";
     var line = areas ? asHrs(tot[bm]) + " h: " + areas.map(function (a, i) { return AREAS[a].name.toLowerCase() + " " + asHrs(series[i][bm]); }).join(", ") + "." : asMonthText(row, series[0][bm]);
-    return lg + s + '<div class="as-readout sm"><b>' + MONL[bm] + "</b><span>" + esc(line) + "</span></div>";
+    return logg + s + '<div class="as-readout sm"><b>' + MONL[bm] + "</b><span>" + esc(line) + "</span></div>";
   }
   function asMonthText(row, v) {
     var u = { tasks: ["task done", "tasks done"], habits: ["day meditated", "days meditated"], log: ["day written", "days written"], review: ["weekly review", "weekly reviews"], library: ["book finished", "books finished"],
@@ -427,7 +427,7 @@
     } else if (row.id === "science") {
       var sd = yd.science.dept;
       F.push([big(t), t === 1 ? "event logged by SCIENCE" : "events logged by SCIENCE"]);
-      F.push([esc(Object.keys(sd).sort(function (a, b) { return sd[b] - sd[a]; }).map(function (k) { return SCI_DEPTS[k][0].toLowerCase() + " " + sd[k]; }).join(" · ")), "by department"]);
+      F.push([esc(Object.keys(sd).sort(function (av, b) { return sd[b] - sd[av]; }).map(function (k) { return SCI_DEPTS[k][0].toLowerCase() + " " + sd[k]; }).join(" · ")), "by department"]);
       F.push([yd.science.starred.length + " starred", "on the key-date line above"]);
     } else {
       F.push([big(t), "upkeep items marked done"]);

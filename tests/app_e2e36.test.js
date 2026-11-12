@@ -15,9 +15,9 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.clock.setFixedTime(new Date('2026-10-14T12:20:00-05:00'));
   await p.goto('http://localhost:8080/');
-  const boot = (ign, brk) => p.evaluate(([k, ign, brk]) => {
+  const boot = (ign, brk) => p.evaluate(([k, ignored, brkRow]) => {
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + P8104 + '/macros/s/test/exec', key: k }));
-    localStorage.setItem('tos.ignore.v1', JSON.stringify(ign)); if (brk) localStorage.setItem('tos.breaks.v1', JSON.stringify(brk));
+    localStorage.setItem('tos.ignore.v1', JSON.stringify(ignored)); if (brkRow) localStorage.setItem('tos.breaks.v1', JSON.stringify(brkRow));
   }, [K, ign, brk]);
   // (until 2.63 BALANCE on the Bridge also showed the lunch hours left out of Work; BALANCE left the Bridge)
   // ---- the real setup: "Out of office" ignored, Lunch a break (the default list)

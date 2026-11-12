@@ -49,14 +49,14 @@ const whole = p => p.evaluate(() => ({
       await until(() => p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => r.waiting && r.waiting.state === 'installed' ? true : r.installing ? false : r.update().then(() => false))));
       await new Promise(r => setTimeout(r, 1000));
       assert.ok(await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !!r.waiting)), 'still waiting');
-      assert.ok(await p.evaluate(old => caches.keys().then(k => old.every(x => k.includes(x))), old), 'the running version keeps its files');
+      assert.ok(await p.evaluate(oldVal => caches.keys().then(k => oldVal.every(x => k.includes(x))), old), 'the running version keeps its files');
     }   // 9.11.0: found only when tapped
     await Promise.all([p.waitForNavigation({ timeout: 20000 }), p.click('#updateBtn')]);
-    await p.waitForFunction(mm => document.querySelector('.topbar span').textContent === 'TIMOTHYOS ' + mm, mm, { timeout: 10000 });
+    await p.waitForFunction(mmv => document.querySelector('.topbar span').textContent === 'TIMOTHYOS ' + mmv, mm, { timeout: 10000 });
     w = await whole(p);
     assert.ok(w.css && w.drawn && w.ctl && /Antonio/.test(w.font), v + ' came up whole: ' + JSON.stringify(w));
     assert.deepStrictEqual(await p.evaluate(() => caches.keys()), ['tos-shell-' + v], 'only the new version cached');
-    assert.ok(await p.evaluate(v => fetch('sw.js').then(r => r.text()).then(t => t.includes('"' + v + '"')), v));
+    assert.ok(await p.evaluate(val => fetch('sw.js').then(r => r.text()).then(t => t.includes('"' + val + '"')), v));
     assert.ok(await p.evaluate(() => navigator.serviceWorker.getRegistration().then(r => !r.waiting && !r.installing)), 'nothing left waiting');
   }
 

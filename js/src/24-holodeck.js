@@ -30,7 +30,7 @@
     function save() { lsSet(LS_HOLO, cfg); }
     function chById(id) { return cfg.chans.filter(function (c) { return c.id === id; })[0] || null; }
     function cur() { return chById(cfg.ch); }
-    function num(c) { return cfg.chans.indexOf(c) + 1; }
+    function numAt(c) { return cfg.chans.indexOf(c) + 1; }
     function folderName(p) { return baseName(p).replace(/_+/g, " ").trim(); }
     function ext(n) { var m = /\.([a-z0-9]+)$/i.exec(n); return m ? m[1].toLowerCase() : ""; }
     var CANPLAY = {};   /* asked once per type (2.53.1): a video element per file name made thousands at once for a big folder, and froze a new iPad */
@@ -40,7 +40,7 @@
        network error is tried again after 10 minutes; "format" (the iPad can't decode it) stands until the file changes.
        Before 2.51.1 an unreadable file was marked for good, with no reason kept: those are measured again too. */
     var HD_RETRY_MS = 10 * 60000;
-    function adKey(p) { var r = ""; for (var i = p.length - 1; i >= 0; i--) r += p.charAt(i); return hash(p).toString(36) + hash(r).toString(36); }   /* two hashes: a clash would have two commercials measured in turn for ever */
+    function adKey(p) { var r = ""; for (var i = p.length - 1; i >= 0; i--) r += p.charAt(i); return hashStr(p).toString(36) + hashStr(r).toString(36); }   /* two hashes: a clash would have two commercials measured in turn for ever */
     function rec(it) { return it.ad ? adLens[it._k || (it._k = adKey(it.f.path))] : lens[it.f.path]; }
     function keepLen(it, x) {   /* store a length and save that store */
       if (!it.ad) { lens[it.f.path] = x; var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); return; }
@@ -52,16 +52,16 @@
        it's left out quietly. Only what can be fixed (the NAS not answering, a missing folder) still asks for a look. */
     function cantDecode(it) { return unreadable(it) && rec(it).why === "format"; }
     function loudBad(it) { return unreadable(it) && rec(it).why !== "format"; }
-    function lenOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
+    function lengthOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
 
     /* ---- a channel's folder: the running order, what's skipped, the lengths ---- */
     function seasonOf(n) { var m = /\b(?:season|series)\s*(\d+)/i.exec(n) || /\bS(\d{1,2})\b/i.exec(n) || /^\s*(\d{1,2})\s*$/.exec(n); return m ? +m[1] : null; }
     function epOf(n) { n = n.replace(/\[[^\]]*\]/g, ""); var m = /\bepisode\s*(\d+)/i.exec(n) || /\bS\d{1,2}\s*E(\d{1,3})\b/i.exec(n) || /\b\d{1,2}x(\d{1,3})\b/.exec(n) || /\bep\.?\s*(\d+)/i.exec(n); return m ? +m[1] : null; }
     function nat(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); }
     function arrange(root, kids) {   /* seasons by number, episodes by number; then other folders (specials), episodes without a number, loose files beside the seasons */
-      var vid = function (x) { return !x.dir && VIDEO.test(x.name) && !PARTIAL.test(x.name); }, seas = [], others = [], extras = [], items;
+      var video = function (x) { return !x.dir && VIDEO.test(x.name) && !PARTIAL.test(x.name); }, seas = [], others = [], extras = [], items;
       kids.forEach(function (k) {
-        var fs = k.items.filter(vid), n = seasonOf(k.d.name); if (!fs.length) return;
+        var fs = k.items.filter(video), n = seasonOf(k.d.name); if (!fs.length) return;
         if (n == null) { others.push({ name: k.d.name, fs: fs.sort(nat) }); return; }
         seas.push({ n: n, name: k.d.name, eps: fs.filter(function (f) { return epOf(f.name) != null; }).sort(function (a, b) { return epOf(a.name) - epOf(b.name) || nat(a, b); }) });
         fs.filter(function (f) { return epOf(f.name) == null; }).sort(nat).forEach(function (f) { extras.push(f); });
@@ -70,7 +70,7 @@
       items = [];
       seas.sort(function (a, b) { return a.n - b.n || nat(a, b); }).forEach(function (s) { s.eps.forEach(function (f) { items.push({ f: f, s: s.n, e: epOf(f.name) }); }); });
       others.sort(nat).forEach(function (o) { o.fs.forEach(function (f) { items.push({ f: f, sp: series }); }); });
-      extras.concat(root.filter(vid).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
+      extras.concat(root.filter(video).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
       return { play: items.filter(function (it) { return canPlay(it.f.name); }), skip: items.filter(function (it) { return !canPlay(it.f.name); }), series: series, seasons: seas.length, specials: items.filter(function (it) { return it.sp; }).length };
     }
     function sub(d, force) { return nasList(d.path, force).then(function (k) { return { d: d, items: k.items }; }); }
@@ -84,7 +84,7 @@
           return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(function (list) { return lineupOf(list, l.items); });
         });
       }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); s.style = style; })   /* 2.54: a folder that can't be listed waits 30 seconds too, not one redraw (it asked the NAS hundreds of times a second) */
-        .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
+        .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") draw2(); });
     }
     /* ---- NETWORK: a folder of show folders ---- */
     function net(c) { return !!c && c.style === "network"; }
@@ -93,30 +93,30 @@
       return n.split(" ").map(function (w, i) { return i && /^(and|of|the|a|an|in|on|to|for|vs)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
     }
     function lineupOf(list, root) {   /* each show folder: its episodes in its own order (seasons and episodes by number, or by name). Videos loose in the channel's folder are one more "show" with no name (2.48.2): a folder of music videos is a daily shuffle */
-      var shows = [], play = [], skip = [], loose = arrange(root || [], []);
+      var shows = [], play = [], skipIt = [], loose = arrange(root || [], []);
       if (loose.play.length) { loose.play.forEach(function (it) { it.show = ""; }); shows.push({ name: "", items: loose.play }); play = loose.play.slice(); }
-      skip = loose.skip.slice();
+      skipIt = loose.skip.slice();
       list.forEach(function (x) {
         var r = arrange(x.k.items, x.gk), name = showName(x.k.d.name);
         r.play.forEach(function (it) { it.show = name; if (it.e == null) it.ep = epOf(it.f.name); });
         if (r.play.length) shows.push({ name: name, items: r.play });
-        play = play.concat(r.play); skip = skip.concat(r.skip);
+        play = play.concat(r.play); skipIt = skipIt.concat(r.skip);
       });
-      return { play: play, skip: skip, shows: shows, series: false, seasons: 0, specials: 0 };
+      return { play: play, skip: skipIt, shows: shows, series: false, seasons: 0, specials: 0 };
     }
     var PK = {};
     function rng(seed) { var x = seed >>> 0 || 1; return function () { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-    function hash(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    function hashStr(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
     function dayStart(ms) { var d = new Date(ms), s = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6); if (s.getTime() > ms) s.setDate(s.getDate() - 1); return s.getTime(); }   /* the broadcast day starts at 6:00 */
     function picks(c, s, ds) {   /* the day's running order, from the date alone */
       var key = c.dir + "|" + ymd(new Date(ds)) + "|" + s.play.length; if (PK[key]) return PK[key];
-      var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {}, used = {};
-      var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hash(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptr[k] = 0; } return ord[k]; };
+      var r = rng(hashStr(key)), sh = s.shows, out = [], last = -1, ord = {}, ptrState = {}, used = {};
+      var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hashStr(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptrState[k] = 0; } return ord[k]; };
       var take = function (k) {   /* the show's next episode in today's shuffle that hasn't aired today; all aired: round again */
-        var o = order(k), n = o.length, u = used[k] || (used[k] = {}), c = 0;
+        var o = order(k), n = o.length, u = used[k] || (used[k] = {}), cc = 0;
         if (Object.keys(u).length >= n) u = used[k] = {};
-        while (u[o[ptr[k] % n]] && c++ < n) ptr[k]++;
-        var i = o[ptr[k]++ % n]; u[i] = 1; return i;
+        while (u[o[ptrState[k] % n]] && cc++ < n) ptrState[k]++;
+        var i = o[ptrState[k]++ % n]; u[i] = 1; return i;
       };
       out.more = function () {   /* the lineup grows as far as the day needs: the same picks every time, from the date */
         for (var m = out.length + 120; out.length < m && sh.length;) {
@@ -134,14 +134,14 @@
       s.est = s.est && s.est.v === X.lv ? s.est : { v: X.lv };
       if (s.est[show] == null) {
         var med = function (a) { a = a.filter(function (x) { return x > 0; }).sort(function (x, y) { return x - y; }); return a.length ? a[a.length >> 1] : 0; };
-        var ofShow = s.play.filter(function (it) { return it.show === show; }).map(function (it) { return lenOf(it) || 0; });
-        s.est[show] = med(ofShow) || med(s.play.map(function (it) { return lenOf(it) || 0; })) || 1380;
+        var ofShow = s.play.filter(function (it) { return it.show === show; }).map(function (it) { return lengthOf(it) || 0; });
+        s.est[show] = med(ofShow) || med(s.play.map(function (it) { return lengthOf(it) || 0; })) || 1380;
       }
       return s.est[show];
     }
-    function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lenOf(it); }   /* null: measured and unreadable, skipped */
+    function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lengthOf(it); }   /* null: measured and unreadable, skipped */
     function netAt(c, s, ms) {   /* with BREAKS (2.52): the day's commercials are a shuffle of their own, from the date */
-      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hash(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
+      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hashStr(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
       if (E === false) return null;
       for (var i = 0; ; i++) {
         if (i >= list.length) { if (list.length > 30000 || !s.shows.length) return null; list.more(); if (i >= list.length) return null; }
@@ -155,7 +155,7 @@
        channel deals the commercials like a deck, so none repeats until all have aired. Picks are seeded, so the breaks
        are computed from the clock like everything else. Over 3 minutes is skipped; an unmeasured one counts as 30 s. */
     var A = { play: null, dir: "", at: 0, busy: false, err: "", v: -1, ok: [] }, BK = {}, PM = {}, AD_MAX = 180, AD_GUESS = 30;
-    function adLen(it) { if (unknown(it)) return AD_GUESS; var d = lenOf(it); return d && d <= AD_MAX ? d : null; }   /* null: too long, or unreadable */
+    function adLen(it) { if (unknown(it)) return AD_GUESS; var d = lengthOf(it); return d && d <= AD_MAX ? d : null; }   /* null: too long, or unreadable */
     function adPool() { if (!A.play) return []; if (A.v !== X.lv) { A.v = X.lv; A.ok = A.play.filter(function (it) { return adLen(it) != null; }); } return A.ok; }
     function breaks(c) {   /* the commercials this channel's breaks draw from; null: no breaks; false: wait, the folder is being read */
       if (!c || !c.breaks || !cfg.ads) return null;
@@ -169,7 +169,7 @@
       a.busy = true; a.err = "";
       nasList(dir, true).then(function (l) { return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) { return arrange(l.items, kids); }); })
         .then(function (r) { a.play = r.play.map(function (it) { return { f: it.f, ad: true }; }); a.skip = r.skip; a.v = -1; a.medz = null; BK = {}; probe(); }, function (e) { a.err = nasErrText(e); })
-        .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) render(); });
+        .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) draw2(); });
     }
     function mixInt(x) { x = (x ^ x >>> 16) >>> 0; x = Math.imul(x, 0x7feb352d) >>> 0; x = (x ^ x >>> 15) >>> 0; x = Math.imul(x, 0x846ca68b) >>> 0; return (x ^ x >>> 16) >>> 0; }
     function shuffleOf(seed, q, n) { var r = rng(mixInt((seed + Math.imul(q + 1, 0x9e3779b1)) >>> 0)), a = []; for (var i = 0; i < n; i++) a.push(i); for (i = n - 1; i > 0; i--) { var k = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[k]; a[k] = t; } return a; }
@@ -192,14 +192,14 @@
     function roundAt(c, s, E, seed, st, ms) {   /* IN ORDER with breaks: one time through the order from st; its breaks come after the same episodes each time */
       var t = st.t, j = st.j, p = st.p, acc = 0;
       for (var i = 0; i < s.play.length; i++) {
-        var it = s.play[i]; if (unknown(it)) return { wait: true }; var d = lenOf(it); if (d == null) continue;
+        var it = s.play[i]; if (unknown(it)) return { wait: true }; var d = lengthOf(it); if (d == null) continue;
         if (ms < t + d * 1000) return { seg: { c: c, it: it, pos: (ms - t) / 1000, dur: d, startMs: t } }; t += d * 1000;
         if (brkDue(d, acc += d)) { var b = brkAt(E, seed, j++, p, t), a = inBreak(c, b, ms); if (a) return { seg: a }; p = b.p; acc = 0; t += b.d * 1000; }
       }
       return { end: { t: t, j: j, p: p } };
     }
     function orderAt(c, s, ms, E) {   /* each round's length differs with its commercials, so where each began is kept, from the premiere on */
-      var seed = hash(c.dir + "|ads|" + E.length), key = [seed, X.lv, c.premiere, s.at, s.play.length].join("|"), R = BK[c.id];
+      var seed = hashStr(c.dir + "|ads|" + E.length), key = [seed, X.lv, c.premiere, s.at, s.play.length].join("|"), R = BK[c.id];
       if (!R || R.key !== key) R = BK[c.id] = { key: key, r: [{ t: c.premiere, j: 0, p: 0 }] };
       ms = Math.max(ms, c.premiere);
       var k = R.r.length - 1; while (k > 0 && R.r[k].t > ms) k--;
@@ -216,7 +216,7 @@
     function adsInfo() {   /* the Commercials folder's line: kept up to date as they're measured */
       if (A.dir !== cfg.ads || (!A.play && !A.err)) return "Reading the folder…";
       if (!A.play) return esc(A.err);
-      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(loudBad).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lengthOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(loudBad).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
       return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
         " · " + ok + " can air · " + m + " measured, the rest as they come up · breaks on " + on + (on === 1 ? " channel" : " channels");
     }
@@ -252,13 +252,13 @@
       }
       return (net(x) ? "NETWORK" : "IN ORDER") + (x.breaks ? " · BREAKS" : "") + (w ? ' · <span class="hd-att">' + esc(w) + "</span>" : "");
     }
-    function nowHtml() {   /* under the screen: what's on, time left, what's next */
+    function nowPanel() {   /* under the screen: what's on, time left, what's next */
       var ch = cur(), c = ch && (X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()));
-      if (!c) return '<span class="hd-nprow"><span class="hd-npt">' + (ch ? "CH " + num(ch) : "HOLODECK") + "</span><b>" + esc(ch ? ch.name : "Add a channel below") + "</b></span>";
+      if (!c) return '<span class="hd-nprow"><span class="hd-npt">' + (ch ? "CH " + numAt(ch) : "HOLODECK") + "</span><b>" + esc(ch ? ch.name : "Add a channel below") + "</b></span>";
       var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
       var dur = c.brk ? c.brk.dur : c.dur, p = c.brk ? (c.startMs - c.brk.startMs) / 1000 + pos : pos, n = c.brk ? pastBreak(c) : after(c);
       if (n && n.brk) n = pastBreak(n);
-      return '<span class="hd-nprow"><span class="hd-npt">' + (X.on ? "NOW" : "ON CH " + num(ch)) + "</span><b>" + esc(line(label(c.it))) + "</b><small>" + mmss(dur - p) + " left" + (n ? " · next: " + esc(line(label(n.it))) : "") + "</small></span>" +
+      return '<span class="hd-nprow"><span class="hd-npt">' + (X.on ? "NOW" : "ON CH " + numAt(ch)) + "</span><b>" + esc(line(label(c.it))) + "</b><small>" + mmssOf(dur - p) + " left" + (n ? " · next: " + esc(line(label(n.it))) : "") + "</small></span>" +
         '<span class="hd-prog"><i style="width:' + Math.max(0, Math.min(100, p / dur * 100)).toFixed(1) + '%"></i></span>';
     }
     function want(c, wide) {   /* the next length to measure: today's lineup first (NETWORK), or the running order (IN ORDER) */
@@ -294,9 +294,9 @@
     }
 
     /* ---- the broadcast: computed from the clock ---- */
-    function walk(items, off) {   /* what's at `off` seconds into the order; the first time round needs only the lengths up to there */
-      for (var i = 0; i < items.length; i++) { if (unknown(items[i])) return { wait: true }; var d = lenOf(items[i]); if (d == null) continue; if (off < d) return { it: items[i], pos: off, dur: d }; off -= d; }
-      return { left: off };
+    function walk(items, offset) {   /* what's at `off` seconds into the order; the first time round needs only the lengths up to there */
+      for (var i = 0; i < items.length; i++) { if (unknown(items[i])) return { wait: true }; var d = lengthOf(items[i]); if (d == null) continue; if (offset < d) return { it: items[i], pos: offset, dur: d }; offset -= d; }
+      return { left: offset };
     }
     function at(c, ms) {
       var s = c && F[c.dir]; if (!s || !s.play) return null;
@@ -310,7 +310,7 @@
     function endMs(c) { return c.brk ? c.brk.startMs + c.brk.dur * 1000 : c.startMs + c.dur * 1000; }   /* a commercial: the end of its whole break */
     function pastBreak(c) { return at(c.c, endMs(c) + 20); }
     function next(c) { var n = after(c); return n && n.it === c.it ? after(n) : n; }   /* a length that settled mid-episode never replays it */
-    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
+    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lengthOf(it) || 0); }, 0); }
     function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
       if (it.ad) return { a: "COMMERCIAL BREAK", t: "", ad: true };
       var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
@@ -343,7 +343,7 @@
         afterFail(v, c, fmt);
       });
       v.addEventListener("playing", function () { if (X.v === v) { X.fails = 0; X.nasMiss = 0; } });
-      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
+      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tickOnce(); });
       return v;
     }
     function afterFail(v, c, fmt) {   /* the NAS answered (or it's a decode failure): LEVEL steps aside, else the file is passed over */
@@ -371,13 +371,13 @@
       return fetch(url(c.it.f.path), { method: "HEAD", cache: "no-store", signal: ac ? ac.signal : undefined }).then(function (r) { clearTimeout(t); return { ok: true, code: r.status }; },
         function (e) { clearTimeout(t); return { ok: false, why: e && e.name === "AbortError" ? "no answer in 5 s" : "no connection" }; });
     }
-    function nasGate(v, c, go) {
+    function nasGate(v, c, proceed) {
       if (X.nasWait) return;   /* already waiting */
       if (X.nasCheck === c) return; X.nasCheck = c;
       nasProbe(c).then(function (r) {
         X.nasCheck = null;
         if (X.v !== v || !X.on || X.cur !== c) return;
-        if (r.ok) { hdErr("NAS answered", "HTTP " + r.code + " for this file, so the file itself didn't load", c); go(); return; }
+        if (r.ok) { hdErr("NAS answered", "HTTP " + r.code + " for this file, so the file itself didn't load", c); proceed(); return; }
         nasWaitStart(c, r.why);
       });
     }
@@ -386,13 +386,13 @@
       X.nasWait = { since: Date.now(), n: 0, why: why, t: 0 };
       hdErr("waiting for the NAS", "NAS unreachable (" + why + "); nothing marked, LEVEL left on; trying again", c);
       X.note = "WAITING FOR THE NAS · " + why + ". The show picks up as soon as it's back.";
-      paint(); if (state.screen === "holodeck") render(true);
+      paint(); if (state.screen === "holodeck") draw2(true);
       nasRetry();
     }
     function nasRetry() {
       var w = X.nasWait; if (!w || !X.on) { X.nasWait = null; return; }
       var d = NAS_WAITS[Math.min(w.n, NAS_WAITS.length - 1)] * 1000;
-      if (Date.now() - w.since + d > 300000) { X.nasWait = null; hdErr("TV went off", "the NAS stayed unreachable for 5 minutes (" + w.why + ")", X.cur); off(); X.note = "The NAS was out of reach for 5 minutes. Check the iPad's Wi-Fi and Tailscale, then TUNE IN again."; render(); return; }
+      if (Date.now() - w.since + d > 300000) { X.nasWait = null; hdErr("TV went off", "the NAS stayed unreachable for 5 minutes (" + w.why + ")", X.cur); off(); X.note = "The NAS was out of reach for 5 minutes. Check the iPad's Wi-Fi and Tailscale, then TUNE IN again."; draw2(); return; }
       clearTimeout(w.t);
       w.t = setTimeout(function () {
         if (X.nasWait !== w || !X.on) return;
@@ -401,8 +401,8 @@
           if (X.nasWait !== w || !X.on) return;
           if (!r.ok) { w.why = r.why; w.n++; nasRetry(); return; }
           X.nasWait = null; X.fails = 0;
-          errLog("holodeck", "NAS back", "after " + Math.round((Date.now() - w.since) / 1000) + " s; the show picked up at its live point", "CH " + num(c.c));
-          X.note = ""; start(c, true); if (state.screen === "holodeck") render(true);
+          errLog("holodeck", "NAS back", "after " + Math.round((Date.now() - w.since) / 1000) + " s; the show picked up at its live point", "CH " + numAt(c.c));
+          X.note = ""; start(c, true); if (state.screen === "holodeck") draw2(true);
         });
       }, d);
     }
@@ -414,7 +414,7 @@
       return (X.v = v);
     }
     function hdErr(what, why, c) {   /* SYSTEMS → ERROR LOG (2.62): the file, the channel and what LEVEL was doing */
-      errLog("holodeck", what, why, (c && c.it ? baseName(c.it.f.path) + (c.it.ad ? " (commercial)" : "") : "?") + (c && c.c ? " · CH " + num(c.c) : "") + " · LEVEL " + (lvOn() ? "on, engine " + lvS.ac.state : !cfg.level ? "off" : lvS.paused ? "paused" : "not routed"));
+      errLog("holodeck", what, why, (c && c.it ? baseName(c.it.f.path) + (c.it.ad ? " (commercial)" : "") : "?") + (c && c.c ? " · CH " + numAt(c.c) : "") + " · LEVEL " + (lvOn() ? "on, engine " + lvS.ac.state : !cfg.level ? "off" : lvS.paused ? "paused" : "not routed"));
     }
     /* Full screen (2.53.3): Bridge draws it itself. The TV screen covers the whole app (X.big), so CRT, LIVE, the
        channel mark, credits and UP NEXT come too, and a redraw keeps it. Where the browser can also hide its own bars
@@ -423,14 +423,14 @@
        iPad offers it to no web app on the Home Screen, not even in its own player. */
     function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
     function fullOn() {
-      if (!X.on) return; X.big = true; render();
-      var d = document.documentElement, go = d.requestFullscreen || d.webkitRequestFullscreen;
-      if (go) { try { var r = go.call(d); if (r && r.catch) r.catch(function () { /* drawn full screen all the same */ }); } catch (e) { /* drawn full screen all the same */ } }
+      if (!X.on) return; X.big = true; draw2();
+      var d = document.documentElement, proceed = d.requestFullscreen || d.webkitRequestFullscreen;
+      if (proceed) { try { var r = proceed.call(d); if (r && r.catch) r.catch(function () { /* drawn full screen all the same */ }); } catch (e) { /* drawn full screen all the same */ } }
     }
     function fullOff() {
       var was = X.big; X.big = false;
       if (fsEl()) { var x = document.exitFullscreen || document.webkitExitFullscreen; try { var r = x && x.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ } }
-      if (was && state.screen === "holodeck") render();
+      if (was && state.screen === "holodeck") draw2();
     }
     ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!fsEl() && X.big) fullOff(); }); });   /* the browser's own way out */
     /* A video that won't play (2.53.4). Its header can read fine (so it was measured) while the picture can't be decoded,
@@ -440,11 +440,11 @@
     function failed(c, why) {
       clearInterval(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
       var nm = line(label(c.it));
-      if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
+      if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; draw2(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
       X.note = why === "format" ? "" : nm + (why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");   /* 2.72: a decode failure moves on without a word */
       var n = next(c), s = F[c.c.dir];
       if (n) start(n, false);
-      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos play on this iPad." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; render(); }
+      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos play on this iPad." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; draw2(); }
       else resume();
     }
     function start(c, seekLive) {
@@ -465,10 +465,10 @@
       clearTimeout(X.wait); if (!X.on) return;
       var c = at(cur(), Date.now()); if (c) start(c, true); else X.wait = setTimeout(resume, 1500);
     }
-    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
+    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + numAt(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
-      X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); render();
+      X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); draw2();
     }
     function off() { if (X.nasWait) clearTimeout(X.nasWait.t); X.nasWait = null; X.nasCheck = null; lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
@@ -500,7 +500,7 @@
       a.src = url(c.it.f.path); a.muted = false;
       var p = a.play(); if (p && p.catch) p.catch(function () { /* iPadOS said no: the picture catches up on return */ });
       if ("mediaSession" in navigator && window.MediaMetadata) {
-        try { var lb = label(c.it); navigator.mediaSession.metadata = new MediaMetadata({ title: line(lb), artist: (c.c && c.c.name) || "HOLODECK", album: "TimothyOS · HOLODECK" }); navigator.mediaSession.playbackState = "playing"; } catch (e) { /* not offered here */ }
+        try { var lbl = label(c.it); navigator.mediaSession.metadata = new MediaMetadata({ title: line(lbl), artist: (c.c && c.c.name) || "HOLODECK", album: "TimothyOS · HOLODECK" }); navigator.mediaSession.playbackState = "playing"; } catch (e) { /* not offered here */ }
       }
     }
     function toRadio() {
@@ -625,7 +625,7 @@
       b.pause(); b.id = "hdVideo"; X.v = b;
       X.note = "LEVEL stepped aside (" + why + "), so the TV plays on without it. It tries again at the next TUNE IN.";
       X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume();
-      if (state.screen === "holodeck") render();
+      if (state.screen === "holodeck") draw2();
       return true;
     }
     function lvLost() { return !!(X.on && lvS.ac && lvS.v === X.v && lvS.lost && Date.now() - lvS.lost > 2500 && !X.bk); }   /* with a backup ready, LEVEL steps aside instead (2.62) */
@@ -654,9 +654,9 @@
     }
     document.addEventListener("pointerdown", function () { if (X.on && lvS.ac && lvS.ac.state !== "running" && !document.hidden) lvWake(); }, true);   /* any tap may give the sound back */
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
-      if (!chById(id)) return; var moved = id !== cfg.ch; if (moved) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
-      if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
-      render();
+      if (!chById(id)) return; var didMove = id !== cfg.ch; if (didMove) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
+      if (X.on && didMove) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
+      draw2();
     }
     function step(d) { var n = cfg.chans.length; if (n < 2) return; var i = cfg.chans.indexOf(cur()); switchTo(cfg.chans[(i + d + n) % n].id); }
     function burst() {   /* a moment of static as the set warms up or changes channel */
@@ -665,9 +665,9 @@
     }
 
     /* ---- the screen ---- */
-    function head() { var c = cur(); if (!X.prog) return { e: "RESOURCES · HOLODECK · ARCH", t: "HOLODECK" }; return { e: "RESOURCES · HOLODECK · VISUAL" + (c ? " · CH " + num(c) + " · " + c.name.toUpperCase() : "") + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
-    function panel(c, title, meta, inner) { return '<section class="hd-panel" style="--c: var(--' + c + ')">' + phead(title, meta, c) + inner + "</section>"; }
-    function mmss(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ":" + p2(m) : m) + ":" + p2(s % 60); }
+    function head() { var c = cur(); if (!X.prog) return { e: "RESOURCES · HOLODECK · ARCH", t: "HOLODECK" }; return { e: "RESOURCES · HOLODECK · VISUAL" + (c ? " · CH " + numAt(c) + " · " + c.name.toUpperCase() : "") + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
+    function panel(c, title, metaInfo, inner) { return '<section class="hd-panel" style="--c: var(--' + c + ')">' + phead(title, metaInfo, c) + inner + "</section>"; }
+    function mmssOf(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ":" + p2(m) : m) + ":" + p2(s % 60); }
     function hmLong(s) { var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.round(s % 3600 / 60); return s < 60 ? Math.round(s) + " s" : d ? d + " d " + h + " h" : h ? h + " h " + p2(m) + " m" : m + " min"; }
     function kinds(list) { var k = {}; list.forEach(function (it) { var e = ext(it.f.name).toUpperCase(); k[e] = (k[e] || 0) + 1; }); return Object.keys(k).map(function (e) { return k[e] + " " + e; }).join(", "); }
     function count(s, n) { return s.series ? s.seasons + (s.seasons === 1 ? " season" : " seasons") + (s.specials ? " + specials" : "") + " · " + n + (n === 1 ? " episode" : " episodes") : n + (n === 1 ? " video" : " videos"); }
@@ -685,7 +685,7 @@
     }
     function tuneSub() {
       var c = cur(), s = c && F[c.dir];
-      if (at(c, Date.now())) return "CHANNEL " + num(c) + " · " + c.name.toUpperCase();
+      if (at(c, Date.now())) return "CHANNEL " + numAt(c) + " · " + c.name.toUpperCase();
       if (!c) return "ADD A CHANNEL BELOW";
       if (!s || !s.play) return s && s.err ? "CAN'T REACH THE FOLDER" : "READING THE FOLDER…";
       if (!s.play.length) return "NO VIDEOS HERE THE IPAD CAN PLAY";
@@ -702,7 +702,7 @@
       var t = X.typed, n = cfg.chans.length, c = t ? cfg.chans[+t - 1] : cur(), more = t.length === 1 && n >= +t * 10;
       if (X.kmsg) return '<b class="hd-chnum">' + esc(X.kmsg) + "</b><small>" + (n ? "CHANNELS 1 TO " + n : "NO CHANNELS YET") + "</small>";
       if (t) return '<b class="hd-chnum">CH ' + t + (more ? "_" : "") + "</b><small>" + (c ? esc(c.name.toUpperCase()) + " · ENTER OR WAIT" : "…") + "</small>";
-      return '<b class="hd-chnum">CH ' + (c ? num(c) : "–") + "</b><small>" + esc(c ? c.name.toUpperCase() : "NO CHANNELS YET") + "</small>";
+      return '<b class="hd-chnum">CH ' + (c ? numAt(c) : "–") + "</b><small>" + esc(c ? c.name.toUpperCase() : "NO CHANNELS YET") + "</small>";
     }
     function padShow() {   /* the display and the number on the screen, in place: no redraw while typing */
       var e = $("hdLcd"); if (e) e.innerHTML = padHtml();
@@ -728,8 +728,8 @@
         '<button type="button" class="hd-look" data-hdlook="' + to + '" aria-label="Look: ' + cfg.look.toUpperCase() + ". Tap for " + to.toUpperCase() + '"><small>LOOK</small><span>' + cfg.look.toUpperCase() + "</span></button>" +
         '<div class="hd-pad"><div class="hd-lcd" id="hdLcd" aria-live="polite">' + padHtml() + '</div><div class="hd-keys" role="group" aria-label="Channel keypad">' +
         ["1", "2", "3", "4", "5", "6", "7", "8", "9", "last", "0", "ok"].map(function (k) {
-          var off = !n || (k === "last" && !back);
-          return '<button type="button" class="hd-key' + (k === "ok" ? " ok" : k === "last" ? " fn" : "") + '" data-hdkey="' + k + '"' + (k === "last" ? ' aria-label="Last channel"' : k === "ok" ? ' aria-label="Enter"' : "") + (off ? " disabled" : "") + ">" + (k === "last" ? "↺ LAST" : k === "ok" ? "ENTER" : k) + "</button>";
+          var offset = !n || (k === "last" && !back);
+          return '<button type="button" class="hd-key' + (k === "ok" ? " ok" : k === "last" ? " fn" : "") + '" data-hdkey="' + k + '"' + (k === "last" ? ' aria-label="Last channel"' : k === "ok" ? ' aria-label="Enter"' : "") + (offset ? " disabled" : "") + ">" + (k === "last" ? "↺ LAST" : k === "ok" ? "ENTER" : k) + "</button>";
         }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
         '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
@@ -758,9 +758,9 @@
         }
         if (u.brk) { if (q) q.b = endMs(u); else carry = carry || u.brk.startMs; var nb = pastBreak(u); if (!nb || nb.startMs <= u.startMs) { u = null; break; } u = nb; continue; }
         var st = u.startMs; if (st >= W1) break;
-        var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slot = Math.floor((st - W0) / TG_HALF);
-        if (short && q && q.short && q.slot === slot) { q.list.push(u); q.b = en; }
-        else { if (q) out.push(q); q = { a: carry || st, b: en, short: short, slot: slot, list: [u] }; carry = 0; }
+        var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slotAt = Math.floor((st - W0) / TG_HALF);
+        if (short && q && q.short && q.slot === slotAt) { q.list.push(u); q.b = en; }
+        else { if (q) out.push(q); q = { a: carry || st, b: en, short: short, slot: slotAt, list: [u] }; carry = 0; }
         var n = after(u); if (!n || n.startMs <= st) { u = null; break; } u = n;
       }
       if (q) out.push(q);
@@ -778,9 +778,9 @@
         var one = !q.short || q.list.length === 1, l = label(q.list[0].it), live = now >= q.a && now < q.b;
         var shown = live ? q.list.filter(function (u) { return u.startMs + u.dur * 1000 > now; }) : q.list;
         var tip = hm(new Date(q.a)) + "–" + hm(new Date(q.b)) + "\n" + shown.slice(0, 12).map(function (u) { return line(label(u.it)); }).join("\n") + (shown.length > 12 ? "\nand " + (shown.length - 12) + " more" : "");
-        return '<button type="button" class="hd-gc' + (live ? " live" : "") + (q.b <= now ? " past" : "") + '" data-hdg="' + c.id + '" ' + pos + ' title="' + esc(tip) + '"><b>' + (q.a < W0 ? "◂ " : "") + esc(one ? l.a : tgName(q.list)) + "</b><small>" + esc(one ? l.t || (q.short ? "" : mmss((q.list[0].dur))) : q.list.length + (tgEps(q.list) ? " episodes" : " videos")) + (q.b > W1 ? " ▸" : "") + "</small></button>";
+        return '<button type="button" class="hd-gc' + (live ? " live" : "") + (q.b <= now ? " past" : "") + '" data-hdg="' + c.id + '" ' + pos + ' title="' + esc(tip) + '"><b>' + (q.a < W0 ? "◂ " : "") + esc(one ? l.a : tgName(q.list)) + "</b><small>" + esc(one ? l.t || (q.short ? "" : mmssOf((q.list[0].dur))) : q.list.length + (tgEps(q.list) ? " episodes" : " videos")) + (q.b > W1 ? " ▸" : "") + "</small></button>";
       }).join("");
-      return '<div class="hd-grow" aria-current="' + on + '"><button type="button" class="hd-gch" data-hdg="' + c.id + '" aria-label="Channel ' + num(c) + ", " + esc(c.name) + (on ? ", on screen" : ", tune in") + '"><b>' + num(c) + '</b><span><span class="hd-gnm">' + esc(c.name) + "</span><small>" + (net(c) ? "NETWORK" : "IN ORDER") + (c.breaks && cfg.ads ? " · BREAKS" : "") + '</small></span></button><div class="hd-gtl">' + cells + "</div></div>";
+      return '<div class="hd-grow" aria-current="' + on + '"><button type="button" class="hd-gch" data-hdg="' + c.id + '" aria-label="Channel ' + numAt(c) + ", " + esc(c.name) + (on ? ", on screen" : ", tune in") + '"><b>' + numAt(c) + '</b><span><span class="hd-gnm">' + esc(c.name) + "</span><small>" + (net(c) ? "NETWORK" : "IN ORDER") + (c.breaks && cfg.ads ? " · BREAKS" : "") + '</small></span></button><div class="hd-gtl">' + cells + "</div></div>";
     }
     function tgHtml(now) {
       var W0 = tgFrom(now), W1 = W0 + TG_SPAN;
@@ -839,8 +839,8 @@
     function archHtml() {
       var now = Date.now(), lines = [], pn = !!pl.path && !pl.closed, ks, root = nasConf() && nas.lists["/"];
       cfg.chans.forEach(function (x) { if (nasConf()) load(x, false); }); loadAds(false);
-      if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) render(); }, function () { /* the line says so */ });
-      var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + num(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
+      if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) draw2(); }, function () { /* the line says so */ });
+      var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + numAt(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
       if (pn) lines.push("<span><em>" + (pl.el && !pl.el.paused ? "PLAYING" : "PAUSED") + "</em><b>" + esc(dispName(pl.path)) + "</b></span>");
       ks = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30 && k !== pl.path; }).sort(function (a, b) { return plays[b].at - plays[a].at; });
       if (ks.length) lines.push("<span><em>CONTINUE</em><b>" + esc(dispName(ks[0]) + " · " + baseName(parentOf(ks[0]))) + "</b></span>");
@@ -849,7 +849,7 @@
       var playing = pn && pl.el && !pl.el.paused;
       return '<div class="hd-arch' + (X.fade ? " leaving" : "") + '"><div class="hd-grid" aria-hidden="true"><i class="hd-wall"></i><i class="hd-floor"></i><i class="hd-fade"></i></div><div class="hd-px">' +
         '<div class="hd-atop"><span class="cap"></span><span class="rule"></span><h2>ENTER PROGRAM</h2></div><div class="hd-progs">' +
-        '<button type="button" class="hd-pg" data-hdprog="visual" style="--c: var(--chrome-d)"><span class="no">PROGRAM 01</span><span class="nm">VISUAL</span><span class="kind">TELEVISION · ' + (cfg.chans.length ? cfg.chans.length + (cfg.chans.length === 1 ? " CHANNEL" : " CHANNELS") + " ALWAYS ON AIR" : "CHANNELS FROM NAS FOLDERS") + '</span><span class="lu">' + vis + '</span><span class="go">ENTER ▸ ' + (cur() ? "CH " + num(cur()) : "ADD A CHANNEL") + "</span></button>" +
+        '<button type="button" class="hd-pg" data-hdprog="visual" style="--c: var(--chrome-d)"><span class="no">PROGRAM 01</span><span class="nm">VISUAL</span><span class="kind">TELEVISION · ' + (cfg.chans.length ? cfg.chans.length + (cfg.chans.length === 1 ? " CHANNEL" : " CHANNELS") + " ALWAYS ON AIR" : "CHANNELS FROM NAS FOLDERS") + '</span><span class="lu">' + vis + '</span><span class="go">ENTER ▸ ' + (cur() ? "CH " + numAt(cur()) : "ADD A CHANNEL") + "</span></button>" +
         '<button type="button" class="hd-pg" data-hdprog="audio" style="--c: var(--personal)"><span class="no">PROGRAM 02</span><span class="nm">AUDIO</span><span class="kind">RADIO · YOUR NAS FOLDERS</span><span class="lu">' + lines.join("") + '</span><span class="go">ENTER ▸ ' + (playing ? "THE PLAYER" : "THE FOLDERS") + "</span></button></div>" +
         '<div class="hd-voice">SELECT A PROGRAM</div></div></div>';
     }
@@ -858,26 +858,26 @@
       var go2 = function () {
         X.fade = 0;
         if (p === "audio") { var playing = pl.path && !pl.closed && pl.el && !pl.el.paused; nas.view = playing ? "now" : "home"; if (!playing) { nas.dir = "/"; nas.q = ""; } X.prog = null; go("storage"); if (nasConf()) nasLoad("/", true); return; }   /* entering AUDIO reads the shares afresh */
-        X.prog = "visual"; if (state.screen === "holodeck") { render(); $("content").scrollTop = 0; }
+        X.prog = "visual"; if (state.screen === "holodeck") { draw2(); $("content").scrollTop = 0; }
       };
       if (calm() || state.screen !== "holodeck") { go2(); return; }
-      X.fade = 1; render(); setTimeout(go2, 380);
+      X.fade = 1; draw2(); setTimeout(go2, 380);
     }
     /* ---- the sleep timer (2.49), as AUDIO's: minutes, or the end of what's on ---- */
     var SLEEPS = [["off", "OFF"], ["15", "15 MIN"], ["30", "30 MIN"], ["60", "1 HOUR"], ["120", "2 HOURS"], ["end", "END OF THIS SHOW"]];
-    function setSleep(v) {
+    function setSleepAt(v) {
       clearInterval(X.sleepT); X.sleepT = 0;
       X.sleep = v === "off" ? null : v === "end" ? "end" : +v;
       X.sleepAt = typeof X.sleep === "number" ? Date.now() + X.sleep * 60000 : 0;
-      if (typeof X.sleep === "number") X.sleepT = setInterval(sleepCheck, 5000);   /* keeps time in full screen too */
+      if (typeof X.sleep === "number") X.sleepT = setInterval(checkSleep, 5000);   /* keeps time in full screen too */
       if (X.sleep) toast(X.sleep === "end" ? "The TV goes off at the end of this show" : "The TV goes off in " + (X.sleep >= 60 ? X.sleep / 60 + (X.sleep === 60 ? " hour" : " hours") : X.sleep + " minutes"));
     }
-    function sleepCheck() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
+    function checkSleep() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
     function sleepOff(msg) {
       clearInterval(X.sleepT); X.sleepT = 0; X.sleep = null;
       if (!X.on) return;
       off(); sb.slept = true; toast(msg);   /* Standby may take over now (see holoHold) */
-      if (state.screen === "holodeck") render();
+      if (state.screen === "holodeck") draw2();
     }
     function sleepLeft() { return Math.max(1, Math.ceil((X.sleepAt - Date.now()) / 60000)); }
     function sleepWin() {   /* 2.53: the sleep timer in a window of its own, large choices for a dark room */
@@ -889,23 +889,23 @@
           return '<button type="button" class="hd-sl" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<small>· <span id="hdSleepLeft2">' + sleepLeft() + "</span> LEFT</small>" : "") + "</button>";
         }).join("") + '</div><div class="btnrow hd-winend"><button type="button" class="chip sm" data-hd="sleepclose">CLOSE</button></div></div></div>';
     }
-    function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
-    function render() {
+    function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") draw2(); }
+    function draw2() {
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
       /* 2.62.1 (Timothy: CH ▲▼ moved the TV up and down): replacing the page let the browser lay it out half built
          and drop the scroll to the top (in portrait the page itself scrolls, in landscape #content), so where the page
          was is put back once it's whole */
-      var sy = window.scrollY || 0, sc = $("content").scrollTop;
+      var sy = window.scrollY || 0, scv = $("content").scrollTop;
       if (!X.prog) { $("content").innerHTML = archHtml(); clearInterval(X.timer); X.timer = 0; paint(); return; }
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
-      var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
+      var c = cur(), k = numAt(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
       var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + '</span><span class="hd-osd" id="hdOsd" aria-hidden="true" hidden></span>' +
         (X.on ? '<button type="button" class="hd-snd" id="hdSnd" data-hd="sound"' + (lvLost() ? "" : " hidden") + '>TAP FOR SOUND</button><button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
-        '<div class="hd-np" id="hdNow">' + nowHtml() + "</div></div>" +
+        '<div class="hd-np" id="hdNow">' + nowPanel() + "</div></div>" +
         (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + rail() + "</div>";
       var rows = cfg.chans.map(function (x, i) {
         var on = x.id === cfg.ch, arm = X.rm === x.id, open = !!X.open[x.id] || X.ren === x.id || arm;
@@ -928,43 +928,43 @@
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
       X.gh = ""; tgPaint(true); gb = $("hdTgBody"); if (gb && gs) { gb.scrollTop = gs[0]; gb.scrollLeft = gs[1]; }
       tgBind(); tgAuto(); padShow(); paint();
-      keepPlace(sy, sc);
-      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
+      keepPlace(sy, scv);
+      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tickOnce(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
       if (X.on && Date.now() - X.tuneAt < 700) noise();
     }
-    function keepPlace(sy, sc) {
+    function keepPlace(sy, scv) {
       var ce = $("content");
-      if (ce.scrollTop !== sc) ce.scrollTop = sc;
+      if (ce.scrollTop !== scv) ce.scrollTop = scv;
       if ((window.scrollY || 0) !== sy) window.scrollTo({ top: sy, left: 0, behavior: "instant" });
     }
     function pickInfo(dir) {   /* what USE THIS FOLDER would make, from one level of subfolders */
       var l = nas.lists[dir]; if (!l) return null;
-      var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [], wait = false;   /* a top share (/Video) is a shelf of channels, not one */
+      var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [];   /* a top share (/Video) is a shelf of channels, not one */
       var missing = subs.filter(function (d) { var k = nas.lists[d.path]; if (k) kids.push({ d: d, items: k.items }); return !k; });
       if (missing.length && !X.pw[dir]) X.pw[dir] = Promise.all(missing.map(function (d) { return nasList(d.path); }))   /* asked once for the lot, one redraw when all are in (2.47.1: a redraw per folder, each adding more, froze the app on 18 folders) */
-        .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+        .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); });
       return missing.length ? { wait: true, err: X.pw[dir] === "err" } : arrange(l.items, kids);
     }
     function fresh(dir) {   /* the picker reads a folder afresh each time it's opened, so a folder just added to the relay shows (2.48.1: it kept the list from earlier in the session) */
-      nasList(dir, true).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+      nasList(dir, true).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); });
     }
     function picker() {
-      var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
-      if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
+      var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbList = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
+      if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) draw2(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") draw2(); });
       var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = X.pickFor === "ads" ? null : cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
-      if (X.pickFor === "ads" && n) return pickBox(crumbs, l, dirs, X.pickDir === cfg.ads ? '<p class="muted">These are the commercials.</p>' : '<button type="button" class="btn" data-hd="useads">USE FOR COMMERCIALS · ' + n + (n === 1 ? " VIDEO" : " VIDEOS") + '</button><p class="muted">Any over 3 minutes are skipped.</p>');
-      var act = used ? '<p class="muted">This folder is channel ' + num(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
+      if (X.pickFor === "ads" && n) return pickBox(crumbList, l, dirs, X.pickDir === cfg.ads ? '<p class="muted">These are the commercials.</p>' : '<button type="button" class="btn" data-hd="useads">USE FOR COMMERCIALS · ' + n + (n === 1 ? " VIDEO" : " VIDEOS") + '</button><p class="muted">Any over 3 minutes are skipped.</p>');
+      var act = used ? '<p class="muted">This folder is channel ' + numAt(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
         '<p class="muted">' + (pi && pi.err ? "Couldn't read the folders inside. Go up a level and back in to try again." : pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
-      return pickBox(crumbs, l, dirs, act);
+      return pickBox(crumbList, l, dirs, act);
     }
-    function pickBox(crumbs, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
-    function tick() {
+    function pickBox(crumbList, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbList + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
+    function tickOnce() {
       if (state.screen !== "holodeck") return;
       tgPaint(false); lvShow();
-      var np = $("hdNow"); if (np) np.innerHTML = nowHtml();
+      var np = $("hdNow"); if (np) np.innerHTML = nowPanel();
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
-      if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
-      if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
+      if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmssOf(v.currentTime || 0) + " IN";
+      if (c && v && X.cur) { var lbl = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lbl.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lbl.long) + (lbl.t ? "<br>" + esc(lbl.t) : "") : "<b>" + esc(lbl.a) + "</b>" + (lbl.t ? esc(lbl.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
       var u = $("hdUpNext");   /* NETWORK: UP NEXT in an episode's last 15 seconds, like a network bumper */
       if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && !X.cur.it.ad && left < 15 && left > .3 ? after(X.cur) : null;
         if (nx && nx.brk) nx = pastBreak(nx);   /* before a break: what's on after it */
@@ -981,7 +981,7 @@
       cfg.chans.forEach(function (x) { var e = $("hdSum" + x.id), h = chanSum(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
       ["hdSleepLeft", "hdSleepLeft2"].forEach(function (id) { var sl = $(id); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft(); });
     }
-    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tick(); status(); } }
+    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tickOnce(); status(); } }
     function noise() {   /* the static, drawn for half a second */
       var cv = $("hdStatic"); if (!cv) return; cv.classList.add("on"); var t0 = performance.now();
       var draw = function () { if (!cv.isConnected) return; var w = 160, h = 100; cv.width = w; cv.height = h; var x = cv.getContext("2d"), img = x.createImageData(w, h); for (var i = 0; i < img.data.length; i += 4) { var g = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = g; img.data[i + 3] = 255; } x.putImageData(img, 0, 0);
@@ -993,62 +993,62 @@
       if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined && d.hdopen === undefined && d.hdkey === undefined && d.hdg === undefined) return false;
       if (d.hdkey) { padKey(d.hdkey); return true; }
       if (d.hdg) { var gid = +d.hdg; if (gid !== cfg.ch) switchTo(gid); if (!X.on && at(cur(), Date.now())) tune(); return true; }   /* the guide: a channel or a show tunes to that channel (2.57) */
-      if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); render(); return true; }
+      if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); draw2(); return true; }
       if (d.hd === "gback" || d.hd === "gnext") { X.gw = Math.max(0, Math.min(6, X.gw + (d.hd === "gnext" ? 1 : -1))); tgPaint(true); var gk0 = $("hdGBack"), gk1 = $("hdGNext"); if (gk0) gk0.disabled = !X.gw; if (gk1) gk1.disabled = X.gw >= 6; return true; }
       if (d.hd === "gauto") { cfg.gauto = !cfg.gauto; save(); b.setAttribute("aria-pressed", String(cfg.gauto)); X.asHold = 0; X.asWrap = false; tgPaint(true); tgLoop(); tgAuto(); return true; }
-      if (d.hdsleep) { setSleep(d.hdsleep); X.sleepOpen = false; render(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
-      if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } render(); return true; }   /* + / − on a row (2.53) */
-      if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; render(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
-      if (d.hd === "collapse") { X.open = {}; X.ren = 0; X.rm = 0; render(); return true; }
+      if (d.hdsleep) { setSleepAt(d.hdsleep); X.sleepOpen = false; draw2(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
+      if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } draw2(); return true; }   /* + / − on a row (2.53) */
+      if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; draw2(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
+      if (d.hd === "collapse") { X.open = {}; X.ren = 0; X.rm = 0; draw2(); return true; }
       if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
-        var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
-        sc.style = sp[1]; save(); load(sc, true);
-        if (X.on && sc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render(); return true;
+        var sp = d.hdstyle.split("|"), scv = chById(+sp[0]); if (!scv || (scv.style || "order") === sp[1]) return true;
+        scv.style = sp[1]; save(); load(scv, true);
+        if (X.on && scv.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
+        draw2(); return true;
       }
       if (d.hdbrk) {   /* BREAKS on or off: that channel's schedule is dealt afresh from now */
         var bc = chById(+d.hdbrk); if (!bc) return true;
         bc.breaks = !bc.breaks; save(); delete BK[bc.id]; loadAds(false);
         if (X.on && bc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render(); return true;
+        draw2(); return true;
       }
       if (d.hdprog) { if (!X.fade) enter(d.hdprog); return true; }
-      if (d.hdgo) { leave(); arch(); render(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
-      if (d.hd === "tune") { if (X.on) { off(); setSleep("off"); } else tune(); render(); }   /* turning it off by hand clears the sleep timer */
+      if (d.hdgo) { leave(); arch(); draw2(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
+      if (d.hd === "tune") { if (X.on) { off(); setSleepAt("off"); } else tune(); draw2(); }   /* turning it off by hand clears the sleep timer */
       else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
       else if (d.hdch !== undefined) switchTo(+d.hdch);
-      else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
-      else if (d.hd === "level") { cfg.level = !cfg.level; save(); lvSwap(); render(); }   /* 2.61 */
-      else if (d.hd === "sound") { lvSwap(); render(); }   /* iPadOS kept the sound: a new start, inside this tap */
+      else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; draw2(); }
+      else if (d.hd === "level") { cfg.level = !cfg.level; save(); lvSwap(); draw2(); }   /* 2.61 */
+      else if (d.hd === "sound") { lvSwap(); draw2(); }   /* iPadOS kept the sound: a new start, inside this tap */
       else if (d.hd === "full" && X.v) fullOn();
       else if (d.hd === "fullexit") fullOff();
-      else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
-      else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } render(); }
+      else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); draw2(); }
+      else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } draw2(); }
       else if (d.hd === "useads" || d.hd === "adclear") {   /* the one Commercials folder: every channel with BREAKS draws from it */
         cfg.ads = d.hd === "useads" ? X.pickDir : ""; X.pick = false; X.pickFor = ""; save(); BK = {}; loadAds(true);
         if (X.on && (cur() || {}).breaks) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render();
+        draw2();
       }
-      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
+      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); draw2(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
         cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; X.open[id] = true; cfg.copen = true; save(); switchTo(id);
       }
-      else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
-      else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
+      else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; draw2(); var inp = $("hdRename"); if (inp) inp.focus(); }
+      else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; draw2(); }
       else if (d.hdrm !== undefined) {   /* two taps: REMOVE, then REMOVE IT. The folder on the NAS is untouched */
-        var rid = +d.hdrm; if (X.rm !== rid) { X.rm = rid; render(); return true; }
+        var rid = +d.hdrm; if (X.rm !== rid) { X.rm = rid; draw2(); return true; }
         X.rm = 0; var was = rid === cfg.ch; cfg.chans = cfg.chans.filter(function (x) { return x.id !== rid; }); save();
         if (was) { if (cfg.chans.length) switchTo(cfg.chans[0].id); else { cfg.ch = 0; save(); off(); } }
-        render();
+        draw2();
       }
-      else if (d.hd === "rescan") { [[lens, LS_HOLOLEN], [adLens, LS_HOLOADLEN]].forEach(function (m) { Object.keys(m[0]).forEach(function (k) { if (m[0][k].s < 0) delete m[0][k]; }); lsSet(m[1], m[0]); }); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); render(); }   /* unreadable ones are measured again too */
-      else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
+      else if (d.hd === "rescan") { [[lens, LS_HOLOLEN], [adLens, LS_HOLOADLEN]].forEach(function (m) { Object.keys(m[0]).forEach(function (k) { if (m[0][k].s < 0) delete m[0][k]; }); lsSet(m[1], m[0]); }); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); draw2(); }   /* unreadable ones are measured again too */
+      else if (d.hdlook) { cfg.look = d.hdlook; save(); draw2(); }
       return true;
     }
     document.addEventListener("keydown", function (e) {
       if (state.screen !== "holodeck") return;
-      if (e.key === "Escape") { if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); return; }
+      if (e.key === "Escape") { if (X.sleepOpen) { X.sleepOpen = false; draw2(); } else if (X.big) fullOff(); return; }
       var t = e.target || {}; if (X.prog !== "visual" || X.sleepOpen || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "") || t.isContentEditable || !nasConf()) return;
       if (/^\d$/.test(e.key)) { e.preventDefault(); padKey(e.key); }   /* a keyboard's digits work the keypad (2.57) */
       else if (e.key === "Enter" && X.typed && t.tagName !== "BUTTON") { e.preventDefault(); padGo(); }
@@ -1063,7 +1063,7 @@
       if (!X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });
-    return { render: render, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
+    return { render: draw2, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
   })();
   function renderHolodeck() { holo.render(); }
 

@@ -19,8 +19,8 @@ async function open(b, when, start, setup) {
   await lane(ctx);
   await ctx.addInitScript(() => {
     window.__said = [];
-    function U(t) { this.text = t; }
-    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: U, configurable: true, writable: true });
+    function url(t) { this.text = t; }
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: url, configurable: true, writable: true });
     const voices = [{ name: 'Moira', lang: 'en-IE', voiceURI: 'com.apple.voice.compact.en-IE.Moira' }];
     Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() {}, getVoices() { return voices; }, addEventListener() {} }, configurable: true });
   });
@@ -60,7 +60,10 @@ const loaded = p => p.waitForFunction(() => !document.querySelector('.as-cell.wa
   const rows1 = await p.$$eval('.as-rowlab:not(.kd)', els => els.map(e => e.textContent.trim()));
   assert.deepStrictEqual(rows1, ['CALENDAR', 'TASKS', 'HABITS', 'LOG', 'REVIEW', 'LIBRARY', 'TAROT', 'APIARY', 'QUEUE', 'UPKEEP'], rows1.join(','));
   const sweep = await txt(p, '.as-tiles');
-  assert.ok(sweep.includes('TASKS DONE 13 BEST WK 34') && sweep.includes('BOOKS FINISHED 2 AVG 4.5★') && sweep.includes('LOG DAYS LOCKED') && /HONEY [\d.]+lb \d+ PULLS?/.test(sweep) && sweep.includes('REVIEWS 4/ 9'), sweep);
+  assert.ok(sweep.includes('TASKS DONE 13 BEST WK 34') && sweep.includes('BOOKS FINISHED 2 AVG 4.5★') && sweep.includes('LOG DAYS LOCKED') && sweep.includes('REVIEWS 4/ 9'), sweep);
+  // the simulated apiary's honey was pulled 20 real days ago, while this page's clock stands in 2026: the HONEY tile shows
+  // only while that day falls in 2026 (D79: run later, it is next year's honey)
+  assert.strictEqual(/HONEY [\d.]+lb \d+ PULLS?/.test(sweep), new Date(Date.now() - 20 * 864e5).getFullYear() === 2026, sweep);
   // weeks after today are dots; the TODAY line stands at this week
   assert.ok(await p.$eval('[data-ascell="tasks:52"]', e => e.classList.contains('fut')));
   assert.ok(await p.$('.as-today'));

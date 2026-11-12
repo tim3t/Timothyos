@@ -78,40 +78,40 @@
     items.sort(function (a, b) { return a.p.z - b.p.z; });
     lm.hits = [];
     items.forEach(function (it) {
-      var p = it.p, dt = lmDay(it.k), near = Math.abs(it.d), info = lm.days[it.k] || { ev: [], kd: [] }, gap = (9 + 13 * p.s) * U, top = p.y;
-      cx.globalAlpha = p.a;
+      var pt = it.p, dt = lmDay(it.k), near = Math.abs(it.d), info = lm.days[it.k] || { ev: [], kd: [] }, gap = (9 + 13 * pt.s) * U, top = pt.y;
+      cx.globalAlpha = pt.a;
       cx.fillStyle = it.k === 0 ? C.b : C.c;
-      cx.beginPath(); cx.arc(p.x, p.y, (2.5 + 4 * p.s) * U, 0, TAU); cx.fill();
+      cx.beginPath(); cx.arc(pt.x, pt.y, (2.5 + 4 * pt.s) * U, 0, TAU); cx.fill();
       // events hang from the day like beads on a warp thread; past seven, the column stops growing
       var ev = info.ev, show = ev.slice(0, 7), back = near < .5 ? 1 : Math.min(1, .4 + .6 * (near - .5) / 1.5);   /* the days beside the crossing step back */
-      cx.globalAlpha = p.a * back;
+      cx.globalAlpha = pt.a * back;
       /* read top to bottom, start of the day to its end: the earliest bead is highest, the latest sits on the loop */
       show.forEach(function (e, i) {
-        var by = p.y - gap * (show.length - i) - 4 * U, br = (2.2 + 6.8 * p.s) * U;
+        var by = pt.y - gap * (show.length - i) - 4 * U, brk = (2.2 + 6.8 * pt.s) * U;
         cx.fillStyle = C[e.area] || C.c;
-        cx.beginPath(); cx.arc(p.x, by, br, 0, TAU); cx.fill();
-        if (i === 0) top = by - br;
+        cx.beginPath(); cx.arc(pt.x, by, brk, 0, TAU); cx.fill();
+        if (i === 0) top = by - brk;
         if (near < .5) {
-          beads.push({ x: p.x - br, y: by - br, w: br * 2, h: br * 2 });
-          lm.hits.push({ ev: e.ev, x: p.x, y: by, r: Math.max(br, 14) });
-          if (p.s > .5) labels.push({ t: e.time + "  " + (e.ev.title || "Busy"), x: p.x - br - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: p.a, pr: 200 - i * .1, plate: true });
+          beads.push({ x: pt.x - brk, y: by - brk, w: brk * 2, h: brk * 2 });
+          lm.hits.push({ ev: e.ev, x: pt.x, y: by, r: Math.max(brk, 14) });
+          if (pt.s > .5) labels.push({ t: e.time + "  " + (e.ev.title || "Busy"), x: pt.x - brk - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: pt.a, pr: 200 - i * .1, plate: true });
         }
       });
-      if (ev.length > show.length && p.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: p.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: p.a, pr: near < .5 ? 190 : 40 });
-      cx.globalAlpha = p.a;
+      if (ev.length > show.length && pt.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: pt.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: pt.a, pr: near < .5 ? 190 : 40 });
+      cx.globalAlpha = pt.a;
       // a key date sits below the day as a diamond
-      var o = (16 + 14 * p.s) * U;
+      var o = (16 + 14 * pt.s) * U;
       if (info.kd.length) {
-        var kr = (4 + 7 * p.s) * U, ky = p.y + o;
-        cx.fillStyle = C.b; cx.beginPath(); cx.moveTo(p.x, ky - kr); cx.lineTo(p.x + kr, ky); cx.lineTo(p.x, ky + kr); cx.lineTo(p.x - kr, ky); cx.closePath(); cx.fill();
-        if (near < .5) lm.hits.push({ kd: info.kd[0].o, x: p.x, y: ky, r: Math.max(kr, 14) });
-        o += kr + (12 + 6 * p.s) * U;
-        if (p.s > .4) labels.push({ t: String(info.kd[0].o.d.title || "").toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: p.x, y: p.y + o + (14 + 6 * p.s) * U, f: "600 " + Math.round((11 + 4 * p.s) * U) + "px " + C.display, c: C.b, al: "center", a: p.a, pr: (near < .5 ? 205 : 70) + p.s * 10 - near });
+        var kr = (4 + 7 * pt.s) * U, ky = pt.y + o;
+        cx.fillStyle = C.b; cx.beginPath(); cx.moveTo(pt.x, ky - kr); cx.lineTo(pt.x + kr, ky); cx.lineTo(pt.x, ky + kr); cx.lineTo(pt.x - kr, ky); cx.closePath(); cx.fill();
+        if (near < .5) lm.hits.push({ kd: info.kd[0].o, x: pt.x, y: ky, r: Math.max(kr, 14) });
+        o += kr + (12 + 6 * pt.s) * U;
+        if (pt.s > .4) labels.push({ t: String(info.kd[0].o.d.title || "").toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: pt.x, y: pt.y + o + (14 + 6 * pt.s) * U, f: "600 " + Math.round((11 + 4 * pt.s) * U) + "px " + C.display, c: C.b, al: "center", a: pt.a, pr: (near < .5 ? 205 : 70) + pt.s * 10 - near });
       } else o += 4 * U;
-      if (p.s > .36) labels.push({ t: DOW[dt.getDay()] + " " + dt.getDate(), x: p.x, y: p.y + o, f: (near < .5 ? "700 " : "400 ") + Math.round((10 + 9 * p.s) * U) + "px " + C.display, c: it.k === 0 ? C.b : C.dim, al: "center", a: p.a, pr: (near < .5 ? 210 : 60) + p.s * 20 });
-      if (dt.getDate() === 1 && p.s > .25) labels.push({ t: MON[dt.getMonth()] + " " + dt.getFullYear(), x: p.x, y: top - 14 * U, f: "600 " + Math.round((11 + 9 * p.s) * U) + "px " + C.display, c: C.a, al: "center", a: p.a, pr: 75 });
+      if (pt.s > .36) labels.push({ t: DOW[dt.getDay()] + " " + dt.getDate(), x: pt.x, y: pt.y + o, f: (near < .5 ? "700 " : "400 ") + Math.round((10 + 9 * pt.s) * U) + "px " + C.display, c: it.k === 0 ? C.b : C.dim, al: "center", a: pt.a, pr: (near < .5 ? 210 : 60) + pt.s * 20 });
+      if (dt.getDate() === 1 && pt.s > .25) labels.push({ t: MON[dt.getMonth()] + " " + dt.getFullYear(), x: pt.x, y: top - 14 * U, f: "600 " + Math.round((11 + 9 * pt.s) * U) + "px " + C.display, c: C.a, al: "center", a: pt.a, pr: 75 });
       cx.globalAlpha = 1;
-      lm.hits.push({ k: it.k, x: p.x, y: p.y, top: top, r: Math.max(18, 26 * p.s) * U, z: p.z });
+      lm.hits.push({ k: it.k, x: pt.x, y: pt.y, top: top, r: Math.max(18, 26 * pt.s) * U, z: pt.z });
     });
     // the focus ring at the crossing; no other day's label may sit on it or on today's beads
     var fp = lmPlace(0), rr = (14 + 8 * fp.s) * U, taken = [], ring = { x: fp.x - rr, y: fp.y - rr, w: rr * 2, h: rr * 2 };

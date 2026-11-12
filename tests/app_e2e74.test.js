@@ -118,7 +118,7 @@ const louds = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.hololou
   assert.ok(!(await p.$('#hdVideoB')), 'no backup');
   const n0 = await p.evaluate(() => window.__lvN);
   await p.evaluate(() => { window.__lv.resume = () => Promise.resolve(); return window.__lv.suspend(); });
-  await until(() => p.evaluate(() => { const b = document.getElementById('hdSnd'); return b && !b.hidden; }), 10000);
+  await until(() => p.evaluate(() => { const b2 = document.getElementById('hdSnd'); return b2 && !b2.hidden; }), 10000);
   assert.strictEqual(await lvl(p), 'TAP FOR SOUND');
   await p.click('#hdSnd');
   await until(async () => { const x = await vid(p); return x && !x.paused && x.t > .3; });

@@ -88,9 +88,9 @@
     else if (st.status === "error") { cls = "error"; line1 = "SYNC ERROR"; line2 = "SEE SYSTEMS"; }
     else { cls = "ok"; line1 = at ? "SYNCED" : "WAITING"; line2 = at; }
     if (Date.now() < egg.sdUntil) { line1 = "STARDATE"; line2 = stardate(new Date()); }
-    var waiting = queued().length, failed = state.queue.length - waiting;
+    var isWaiting = queued().length, failed = state.queue.length - isWaiting;
     if (state.conn && failed) { cls = "error"; line1 = "NOT SAVED"; line2 = failed + (failed === 1 ? " CAPTURE" : " CAPTURES"); }
-    else if (state.conn && waiting) line2 = waiting + " QUEUED";
+    else if (state.conn && isWaiting) line2 = isWaiting + " QUEUED";
     s.className = "status " + cls;
     s.innerHTML = '<b><span class="dot"></span>' + line1 + "</b><span>" + esc(line2) + "</span>";
   }

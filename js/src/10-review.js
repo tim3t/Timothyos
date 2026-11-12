@@ -212,8 +212,8 @@
       if (sp) {   /* 2.41.1: a line per bearing (Timothy's Waymarkers), saved as one paragraph, "Bearing: words" a line */
         html += '<div class="rv-lab"><span class="ov-sub">' + f[1] + '</span></div><div class="rv-bears">' +
           (sp.pre ? '<div class="rv-bear pre"><label for="rv-bear-pre">EARLIER NOTES</label><textarea id="rv-bear-pre" data-rvb="pre" rows="2" maxlength="2000">' + esc(sp.pre) + "</textarea></div>" : "") +
-          names.map(function (nm, i) {
-            return '<div class="rv-bear"><label for="rv-bear-' + i + '">' + esc(nm) + '</label><textarea id="rv-bear-' + i + '" data-rvb="' + i + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(sp.parts[i]) + "</textarea></div>";
+          names.map(function (nm, ix) {
+            return '<div class="rv-bear"><label for="rv-bear-' + ix + '">' + esc(nm) + '</label><textarea id="rv-bear-' + ix + '" data-rvb="' + ix + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(sp.parts[ix]) + "</textarea></div>";
           }).join("") + "</div>";
         return;
       }

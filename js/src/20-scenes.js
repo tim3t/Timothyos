@@ -41,7 +41,6 @@
   var SCN_WAITS = [[60, "1 MIN"], [300, "5 MIN"], [900, "15 MIN"], [1800, "30 MIN"], [3600, "1 HR"], [7200, "2 HR"]];
   eng.scn = { list: lsGet(LS_HASCN) || [], at: 0, busy: false, err: null, d: null, pick: null, orig: "", hold: 0, held: false, msg: "", chk: false };
   function scnById(id) { return eng.scn.list.filter(function (x) { return x.id === id; })[0] || null; }
-  function scnOpenNow() { return eng.sheetKind === "scn" && !$("detailScrim").hidden; }
   function scnSw() { return haDevices().filter(function (d) { return devCaps(d).sw; }); }
 
   /* --- words --- */
@@ -111,7 +110,7 @@
     var bad = function () { d.foreign = true; }, ids = {};
     arr(cfg.triggers || cfg.trigger).forEach(function (t) {
       var p = t.platform || t.trigger, f;
-      if (p === "time" && typeof t.at === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(t.at)) { var hm = t.at.split(":"); f = { t: "time", at: p2(+hm[0]) + ":" + hm[1], days: null }; }
+      if (p === "time" && typeof t.at === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(t.at)) { var hhmm = t.at.split(":"); f = { t: "time", at: p2(+hhmm[0]) + ":" + hhmm[1], days: null }; }
       else if (p === "sun" && (t.event === "sunset" || t.event === "sunrise")) { var o = t.offset ? scnDur(t.offset) : 0; if (o == null) { bad(); return; } f = { t: "sun", ev: t.event, off: Math.round(o / 60), days: null }; }
       else { bad(); return; }
       if (t.id) ids[t.id] = d.ifs.length;
@@ -297,14 +296,14 @@
     if (b) b.addEventListener("input", function () { s.b = +b.value; $("scnBOut").textContent = s.b + "%"; });
     if (k) k.addEventListener("input", function () { s.k = +k.value; s.hs = null; $("scnKOut").textContent = s.k + " K"; });
     if (!w) return;
-    var place = function () { var hs = s.hs || [30, 70], ang = hs[0] * Math.PI / 180, r = hs[1] / 2; kn.style.left = (50 + Math.sin(ang) * r) + "%"; kn.style.top = (50 - Math.cos(ang) * r) + "%"; kn.style.background = rgbCss(hsvRgb(hs[0], hs[1])); w.setAttribute("aria-valuetext", "hue " + hs[0] + ", strength " + hs[1] + "%"); };
-    var pick = function (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; s.hs = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; s.k = null; place(); };
+    var spot = function () { var hs = s.hs || [30, 70], ang = hs[0] * Math.PI / 180, r = hs[1] / 2; kn.style.left = (50 + Math.sin(ang) * r) + "%"; kn.style.top = (50 - Math.cos(ang) * r) + "%"; kn.style.background = rgbCss(hsvRgb(hs[0], hs[1])); w.setAttribute("aria-valuetext", "hue " + hs[0] + ", strength " + hs[1] + "%"); };
+    var pick = function (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; s.hs = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; s.k = null; spot(); };
     var dn = false;
     w.addEventListener("pointerdown", function (e) { e.preventDefault(); dn = true; try { w.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } pick(e); });
     w.addEventListener("pointermove", function (e) { if (dn) pick(e); });
     ["pointerup", "pointercancel"].forEach(function (t) { w.addEventListener(t, function () { dn = false; }); });
-    w.addEventListener("keydown", function (e) { var dh = { ArrowLeft: -10, ArrowRight: 10 }[e.key], ds = { ArrowUp: 10, ArrowDown: -10 }[e.key]; if (!dh && !ds) return; e.preventDefault(); var hs = s.hs || [30, 70]; s.hs = [(hs[0] + (dh || 0) + 360) % 360, Math.max(0, Math.min(100, hs[1] + (ds || 0)))]; s.k = null; place(); });
-    place();
+    w.addEventListener("keydown", function (e) { var dh = { ArrowLeft: -10, ArrowRight: 10 }[e.key], ds = { ArrowUp: 10, ArrowDown: -10 }[e.key]; if (!dh && !ds) return; e.preventDefault(); var hs = s.hs || [30, 70]; s.hs = [(hs[0] + (dh || 0) + 360) % 360, Math.max(0, Math.min(100, hs[1] + (ds || 0)))]; s.k = null; spot(); });
+    spot();
   }
   function scnTake(ids) {   /* the chosen lights as they are now: one step per setting shared, then what's off */
     var steps = [], by = {}, on = [], off = [];

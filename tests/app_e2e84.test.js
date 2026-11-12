@@ -70,7 +70,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   assert.ok(await p.$('.sk-dchip[data-skday="' + bar + '"][aria-pressed="true"]'), 'that day, picked in the strip');
 
   // ---- DAYS
-  const D = n => p.evaluate(n => { const d = new Date(); d.setDate(d.getDate() - n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }, n);
+  const D = n => p.evaluate(cnt => { const d = new Date(); d.setDate(d.getDate() - cnt); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }, n);
   assert.strictEqual(await p.$$eval('.sk-dchip', l => l.length), 14);
   const marks = await p.$$eval('.sk-dchip i', l => l.map(x => x.className.replace('sk-s-', '')));
   assert.deepStrictEqual([marks[13], marks[12], marks[5], marks[11]], ['partial', 'partial', 'missing', 'arrived'], marks.join(' '));

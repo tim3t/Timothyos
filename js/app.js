@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.80.1";
+  var VERSION = "2.80.2";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -286,18 +286,18 @@
   }
   function withRetry(run) {
     var attempt = 0, paused = 0;
-    function go() {
+    function proceed() {
       var started = Date.now();
       return run().catch(function (err) {
         /* Cut off by the iPad going to sleep or to another app: try again once it's back. */
-        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(go); }
+        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(proceed); }
         if (navigator.onLine === false || !transient(err) || attempt >= RETRY_DELAYS.length) throw err;
         markRetried(err);
         var wait = RETRY_DELAYS[attempt++];
-        return new Promise(function (res) { setTimeout(res, wait); }).then(go);
+        return new Promise(function (res) { setTimeout(res, wait); }).then(proceed);
       });
     }
-    return go();
+    return proceed();
   }
   /* Run at most MAX_PARALLEL requests at once; the rest wait their turn. */
   var active = 0, waiting = [];
@@ -467,14 +467,14 @@
   function apiOnce(params, conn, label, timeoutMs) {
     conn = conn || state.conn;
     var url = conn.url, how = readVia[url];
-    var go = function (m) { return m === "get" ? apiGetOnce(params, conn, label, timeoutMs) : postOnce(conn, readBody(params), label || params.action, timeoutMs || 45000, false); };
-    return go(how || "post").then(function (j) { if (!readVia[url]) readVia[url] = "post"; return j; }, function (err) {
+    var proceed = function (m) { return m === "get" ? apiGetOnce(params, conn, label, timeoutMs) : postOnce(conn, readBody(params), label || params.action, timeoutMs || 45000, false); };
+    return proceed(how || "post").then(function (j) { if (!readVia[url]) readVia[url] = "post"; return j; }, function (err) {
       var code = err && err.code;
       if (!how && code === "unknown_action") {   /* an older bridge, unless the GET doesn't know it either (a read that bridge lacks) */
         readVia[url] = "get"; markRetried(err);
-        return go("get").catch(function (e2) { if (e2 && e2.code === "unknown_action" && readVia[url] === "get") delete readVia[url]; throw e2; });
+        return proceed("get").catch(function (e2) { if (e2 && e2.code === "unknown_action" && readVia[url] === "get") delete readVia[url]; throw e2; });
       }
-      if (how === "get" && code === "use_post") { readVia[url] = "post"; markRetried(err); return go("post"); }   /* updated since */
+      if (how === "get" && code === "use_post") { readVia[url] = "post"; markRetried(err); return proceed("post"); }   /* updated since */
       throw err;
     });
   }
@@ -859,9 +859,9 @@
     else if (st.status === "error") { cls = "error"; line1 = "SYNC ERROR"; line2 = "SEE SYSTEMS"; }
     else { cls = "ok"; line1 = at ? "SYNCED" : "WAITING"; line2 = at; }
     if (Date.now() < egg.sdUntil) { line1 = "STARDATE"; line2 = stardate(new Date()); }
-    var waiting = queued().length, failed = state.queue.length - waiting;
+    var isWaiting = queued().length, failed = state.queue.length - isWaiting;
     if (state.conn && failed) { cls = "error"; line1 = "NOT SAVED"; line2 = failed + (failed === 1 ? " CAPTURE" : " CAPTURES"); }
-    else if (state.conn && waiting) line2 = waiting + " QUEUED";
+    else if (state.conn && isWaiting) line2 = isWaiting + " QUEUED";
     s.className = "status " + cls;
     s.innerHTML = '<b><span class="dot"></span>' + line1 + "</b><span>" + esc(line2) + "</span>";
   }
@@ -1150,16 +1150,16 @@
     function synced(k) { return !!KEY[k] && !M.off[KEY[k]]; }
     function can() { return !!state.conn && state.caps.indexOf("profile") > -1; }
     function live() { return M.on && !M.paused && can(); }
-    function hash(str) { var h = 5381, i = str.length; while (i) h = (h * 33) ^ str.charCodeAt(--i); return (h >>> 0).toString(36) + "." + str.length; }
+    function hashStr(str) { var h = 5381, i = str.length; while (i) h = (h * 33) ^ str.charCodeAt(--i); return (h >>> 0).toString(36) + "." + str.length; }
     function stored(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
     lsHook = function (k) {   /* a change on this iPad: when, and by which iPad; sent a little later. The same value written again is no change. */
       if (X.applying || !KEY[k]) return;
-      var h = hash(stored(k));
+      var h = hashStr(stored(k));
       if (M.h[k] === h) return;
       M.h[k] = h; M.at[k] = Date.now(); M.by[k] = me(); save();
-      if (live() && synced(k)) soon(k === PLAYS && pl.el && !pl.el.paused ? 30000 : 4000);   /* while playing, every 30 seconds; paused, at once */
+      if (live() && synced(k)) isSoon(k === PLAYS && pl.el && !pl.el.paused ? 30000 : 4000);   /* while playing, every 30 seconds; paused, at once */
     };
-    function soon(ms) { var due = Date.now() + ms; if (X.t && X.due <= due) return; clearTimeout(X.t); X.due = due; X.t = setTimeout(sync, ms); }
+    function isSoon(ms) { var due = Date.now() + ms; if (X.t && X.due <= due) return; clearTimeout(X.t); X.due = due; X.t = setTimeout(sync, ms); }
     function raw(k) { var v = lsGet(k); return v === undefined ? null : v; }
     function sync(asked) {   /* asked: SYNC NOW or joining, so a change that came in shows at once */
       clearTimeout(X.t); X.t = 0;
@@ -1177,7 +1177,7 @@
       Object.keys(plays).forEach(function (p) { if ((plays[p].at || 0) > since) o[p] = plays[p]; });
       return o;
     }
-    function put(k, v, at, by) { X.applying = true; if (v === null || v === undefined) lsDel(k); else lsSet(k, v); X.applying = false; M.h[k] = hash(stored(k)); M.at[k] = at; M.by[k] = by || ""; M.sent[k] = at; }
+    function put(k, v, at, by) { X.applying = true; if (v === null || v === undefined) lsDel(k); else lsSet(k, v); X.applying = false; M.h[k] = hashStr(stored(k)); M.at[k] = at; M.by[k] = by || ""; M.sent[k] = at; }
     function mergePlays(r) {   /* each episode keeps its newer place; the one playing now keeps going */
       var inc = (r && r.v) || {}, n = 0;
       Object.keys(inc).forEach(function (p) {
@@ -2251,15 +2251,15 @@
      later days pushed today's list out the moment it was saved, and the app fetched it forever.)
      Provisional lists stay in memory but aren't stored. */
   function saveTasks() {
-    var today = ymd(new Date()), from = ymd(addDays(new Date(), -3)), pin = plan ? plan.day : null, keep = {}, store = {};
+    var today = ymd(new Date()), from = ymd(addDays(new Date(), -3)), pin = plan ? plan.day : null, keep = {}, stored = {};
     var days = Object.keys(state.tasks).filter(function (d) { return state.tasks[d] && (d >= from || d === pin); });
     days.sort(function (a, b) {
       var ra = a === today || a === pin ? 1 : 0, rb = b === today || b === pin ? 1 : 0;
       return rb - ra || (state.tasks[b].fetched || 0) - (state.tasks[a].fetched || 0);
     });
-    days.slice(0, 8).forEach(function (d) { keep[d] = state.tasks[d]; if (!keep[d].provisional) store[d] = keep[d]; });
+    days.slice(0, 8).forEach(function (d) { keep[d] = state.tasks[d]; if (!keep[d].provisional) stored[d] = keep[d]; });
     state.tasks = keep;
-    lsSet(LS_TASKS, store);
+    lsSet(LS_TASKS, stored);
   }
   function describeTasks(err) {
     var code = err && (err.code || err.message);
@@ -2607,7 +2607,6 @@
      already loads, plus weather (Open-Meteo) and the bridge's "done" counts. */
   var HEAVY_HOURS = 7, KD_WARN_DAYS = 3, PICK_BY_HOUR = 10, STALE_SYNC_MS = 6 * 3600 * 1000;
   var HIGH = "🔴 High";
-  var BAL_AREAS = ["work", "personal", "farm", "hobby"];
   var HIVE = { minF: 60, maxWind: 12, maxRain: 30, from: 10, to: 17 };
   var WX_FRESH_MS = 30 * 60 * 1000, DONE_FRESH_MS = 10 * 60 * 1000;
 
@@ -2787,10 +2786,10 @@
     if (!j) return null;
     var hours = wxHours(j), today = ymd(now), start = now.getHours() + (now.getMinutes() ? 1 : 0), label = "TODAY", day = today;
     if (Math.max(start, HIVE.from) >= HIVE.to) { day = ymd(addDays(now, 1)); start = 0; label = "TOMORROW"; }
-    var slot = hours.filter(function (x) { return x.day === day && x.hr >= Math.max(start, HIVE.from) && x.hr < HIVE.to; });
-    if (!slot.length) return null;
+    var slotAt = hours.filter(function (x) { return x.day === day && x.hr >= Math.max(start, HIVE.from) && x.hr < HIVE.to; });
+    if (!slotAt.length) return null;
     var why = { cool: 0, wind: 0, rain: 0 }, best = null, run = null, hiT = -99;
-    slot.forEach(function (x) {
+    slotAt.forEach(function (x) {
       hiT = Math.max(hiT, x.temp);
       var wet = x.code >= 51 || (x.rain != null && x.rain > HIVE.maxRain);
       var ok = x.temp >= HIVE.minF && x.wind <= HIVE.maxWind && !wet;
@@ -3018,15 +3017,15 @@
     if (nowH >= FOCUS_START && nowH <= FOCUS_END) html += '<span class="ov-nowln" style="left:' + pct(nowH) + '%"><i class="tnum">' + hm(now) + "</i></span>";
     html += '</div><div class="ov-ticks">' + [7, 9, 11, 13, 15, 17, 19, 21].map(function (h) { return '<span class="tnum" style="left:' + pct(h) + '%">' + p2(h) + "</span>"; }).join("") + "</div>";
     /* pins: what's due and today's key date at the left, dinner at 18:00 */
-    var pins = "", due = rbDueList(today);
-    if (due.length) pins += '<button type="button" class="rb-pin pin-due" data-act="plan" data-day="' + today + '"><b>' + (due.some(function (t) { return t.due < today; }) ? "OVERDUE" : "DUE TODAY") + "</b><span>" + esc(due[0].title) + (due.length > 1 ? " +" + (due.length - 1) : "") + "</span></button>";
+    var pinList = "", due = rbDueList(today);
+    if (due.length) pinList += '<button type="button" class="rb-pin pin-due" data-act="plan" data-day="' + today + '"><b>' + (due.some(function (t) { return t.due < today; }) ? "OVERDUE" : "DUE TODAY") + "</b><span>" + esc(due[0].title) + (due.length > 1 ? " +" + (due.length - 1) : "") + "</span></button>";
     if (canDates() && state.dates) {
       var kd = occurrences(today, today).filter(function (o) { return o.s <= today && o.e >= today; })[0];
-      if (kd) pins += '<button type="button" class="rb-pin pin-kd" data-kd="' + esc(kd.id) + '"><b>TODAY</b><span>' + esc(kd.d.title) + "</span></button>";
+      if (kd) pinList += '<button type="button" class="rb-pin pin-kd" data-kd="' + esc(kd.id) + '"><b>TODAY</b><span>' + esc(kd.d.title) + "</span></button>";
     }
     var dn = state.conn && canMeals() && ml.data ? mlDinner(mlToday()) : null;
     var dpin = dn ? '<button type="button" class="rb-pin pin-dinner" data-mlnow="open" style="left:' + pct(18) + '%"><b>' + (dn.status === "eaten" ? "DINNER ✓" : "18:00 DINNER") + "</b><span>" + esc(mlDName(dn)) + "</span></button>" : "";
-    if (pins || dpin) html += '<div class="rb-pins"><div class="rb-pinl">' + pins + "</div>" + dpin + "</div>";
+    if (pinList || dpin) html += '<div class="rb-pins"><div class="rb-pinl">' + pinList + "</div>" + dpin + "</div>";
     return html;
   }
   /* --- ORDERS OF THE DAY: the picks, what's due outside them, the intent --- */
@@ -3718,8 +3717,8 @@
       if (sp) {   /* 2.41.1: a line per bearing (Timothy's Waymarkers), saved as one paragraph, "Bearing: words" a line */
         html += '<div class="rv-lab"><span class="ov-sub">' + f[1] + '</span></div><div class="rv-bears">' +
           (sp.pre ? '<div class="rv-bear pre"><label for="rv-bear-pre">EARLIER NOTES</label><textarea id="rv-bear-pre" data-rvb="pre" rows="2" maxlength="2000">' + esc(sp.pre) + "</textarea></div>" : "") +
-          names.map(function (nm, i) {
-            return '<div class="rv-bear"><label for="rv-bear-' + i + '">' + esc(nm) + '</label><textarea id="rv-bear-' + i + '" data-rvb="' + i + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(sp.parts[i]) + "</textarea></div>";
+          names.map(function (nm, ix) {
+            return '<div class="rv-bear"><label for="rv-bear-' + ix + '">' + esc(nm) + '</label><textarea id="rv-bear-' + ix + '" data-rvb="' + ix + '" rows="1" maxlength="600" placeholder="Where it showed this week">' + esc(sp.parts[ix]) + "</textarea></div>";
           }).join("") + "</div>";
         return;
       }
@@ -4107,7 +4106,7 @@
     if (!askState.context || Date.now() - askState.contextAt > SNAPSHOT_MS) { askState.context = briefing(); askState.contextAt = Date.now(); }
     saveAsk();
   }
-  function money(usd) { return usd < 1 ? (Math.round(usd * 1000) / 10) + "¢" : "$" + usd.toFixed(2); }
+  function money(usdAmt) { return usdAmt < 1 ? (Math.round(usdAmt * 1000) / 10) + "¢" : "$" + usdAmt.toFixed(2); }
   function spendLine(s) { return s ? "$" + s.usd.toFixed(2) + " THIS MONTH · " + (s.usd >= s.budget && s.cont ? "CONTINUED PAST $" + s.budget.toFixed(2) : "REMINDER AT $" + s.budget.toFixed(2)) : ""; }
   function modelName(m) { return /haiku/.test(m || "") ? "HAIKU" : /sonnet/.test(m || "") ? "SONNET" : /opus/.test(m || "") ? "OPUS" : String(m || "").toUpperCase(); }
   function describeAi(err) {
@@ -4305,7 +4304,7 @@
   /* CONFIRM: make the change exactly as the app's own buttons would. */
   function runProposal(mi, pi) {
     var p = askState.msgs[mi].proposals[pi], i = p.input, today = ymd(new Date());
-    var finish = function (ok, note) { p.state = ok ? "done" : "failed"; p.note = note || ""; saveAsk(); renderAsk(); render(true); };
+    var finish = function (ok, noteText) { p.state = ok ? "done" : "failed"; p.note = noteText || ""; saveAsk(); renderAsk(); render(true); };
     var fail = function (err) { finish(false, "Not done: " + describeTasks(err)); };
     p.state = "working"; renderAsk();
     if (p.kind === "add_task") {
@@ -4386,8 +4385,8 @@
   function aiSection() {
     var s = state.aiSpend, html = "<section>" + phead("ASK CLAUDE", canAsk() ? "ON" : "OFF");
     if (!canAsk()) return html + '<div class="stubbox"><span class="pill">SETUP</span><span>Needs ANTHROPIC_API_KEY in its Script Properties. Steps are in the README under <b>Ask Claude</b>.</span></div></section>';
-    var cap = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / cap * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / cap * 100)) : 80;
-    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + cap.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
+    var capText = (s && s.cap) || 10, pct = s ? Math.min(100, Math.round(s.usd / capText * 100)) : 0, mark = s ? Math.min(100, Math.round(s.budget / capText * 100)) : 80;
+    html += '<dl class="kv"><dt>THIS MONTH</dt><dd>' + (s ? '<div class="aimeter" style="--mark:' + mark + '%"><span style="width:' + pct + '%" class="' + (s.usd >= s.budget ? "hot" : pct >= 60 ? "warm" : "") + '"></span><i aria-hidden="true"></i></div><span class="tnum">$' + s.usd.toFixed(2) + " · reminder at $" + s.budget.toFixed(2) + (s.usd >= s.budget && s.cont ? " (continued)" : "") + " · $" + capText.toFixed(0) + " ceiling in the Claude Console · " + s.calls + " calls</span>" : '<span class="muted">Not loaded yet</span>') + "</dd>" +
       "<dt>MODELS</dt><dd>Sonnet 5.5 for questions, weekly summaries and the morning briefing · Opus 5.5 for THINK HARDER</dd>" +
       "<dt>MORNING BRIEFING</dt><dd>" + (state.caps.indexOf("brief") < 0 ? "Needs the Google bridge updated (README, Updating the Google bridge)." : (lsGet(LS_BRIEFOFF) ? "Off. " : "On: written the first time Bridge is in front after 06:00, about 1 to 2¢ a day. ") +
         '<button type="button" class="chip sm" data-brief="' + (lsGet(LS_BRIEFOFF) ? "on" : "off") + '">' + (lsGet(LS_BRIEFOFF) ? "TURN ON" : "TURN OFF") + "</button>" + vaLine() + briefVoiceLine() + newsSetLine()) + "</dd>" +
@@ -4476,9 +4475,9 @@
     }, { passive: false });
     var end = function () {
       if (ptr.y0 === null) return;
-      var go = ptr.dy * 0.55 >= PTR_AT;
+      var proceed = ptr.dy * 0.55 >= PTR_AT;
       ptr.y0 = null; ptr.dy = 0;
-      if (go) ledgerRefresh(); else ptrPaint();
+      if (proceed) ledgerRefresh(); else ptrPaint();
     };
     c.addEventListener("touchend", end); c.addEventListener("touchcancel", end);
   })();
@@ -4502,7 +4501,7 @@
       if (y.cats.some(function (c) { return c.m[i]; })) idx.push(i);
     }
     return { months: idx.length, cats: y.cats.map(function (c) {
-      var tot = idx.reduce(function (s, i) { return s + Math.max(0, c.m[i] || 0); }, 0);
+      var tot = idx.reduce(function (s, ix) { return s + Math.max(0, c.m[ix] || 0); }, 0);
       return { id: c.id, name: c.name, group: c.group, avg: idx.length ? tot / idx.length : 0, now: Math.max(0, c.now || 0), all: c };
     }).filter(function (c) { return c.avg > 0.5 || c.now > 0.5; }).sort(function (a, b) { return b.avg - a.avg || b.now - a.now; }) };
   }
@@ -4666,12 +4665,12 @@
     });
   }
   function queueAddSubmit() {
-    var name = $("qName").value.trim(), costRaw = $("qCost").value.trim(), note = $("qNote").value.trim();
+    var name = $("qName").value.trim(), costRaw = $("qCost").value.trim(), noteText = $("qNote").value.trim();
     if (!name) { toast("Type what you want to add first."); $("qName").focus(); return; }
     if (isEarlGrey(name)) { var qn = $("qName"); qn.value = ""; qn.defaultValue = ""; $("qCost").value = ""; $("qNote").value = ""; qn.blur(); replicate(); return; }
     var cost = costRaw ? parseFloat(costRaw.replace(/[^0-9.]/g, "")) : null;
     if (costRaw && !isFinite(cost)) { toast("The cost should be a number, like 280."); $("qCost").focus(); return; }
-    var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: note.slice(0, 200) };
+    var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: noteText.slice(0, 200) };
     queueSend({ action: "queueadd", item: item }).then(function (j) {
       if (!j || !j.item || !state.ledger || !state.ledger.queue) return;
       var q = state.ledger.queue;
@@ -5386,9 +5385,9 @@
     mine.saving = true; logStatus();
     apiPost({ action: "logsave", pin: pin, date: d, text: text }).then(function (j) {
       if (logDrafts[d] && logDrafts[d].text === text) { delete logDrafts[d]; logDraftsSave(); }
-      var norm = logNorm(text);
-      mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: norm, saved: j.saved || new Date().toISOString() });
-      if (mine.dates) { if (norm) mine.dates[d] = true; else delete mine.dates[d]; }
+      var normed = logNorm(text);
+      mine.entries[d] = Object.assign({}, mine.entries[d] || {}, { text: normed, saved: j.saved || new Date().toISOString() });
+      if (mine.dates) { if (normed) mine.dates[d] = true; else delete mine.dates[d]; }
       mine.saveErr = null;
       if (lg === mine && mine.day === d) logSavedFx(mine.manual);
       mine.manual = false;
@@ -5454,7 +5453,7 @@
   var DAYSL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   var MONTHSL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   function parseDiary(raw) {
-    var text = String(raw || "").replace(/\r\n?/g, "\n").replace(/ /g, " ");
+    var text = String(raw || "").replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ");   /* non-breaking spaces become plain ones */
     var re = new RegExp("^[ \\t]*(" + DAYSL.join("|") + "),[ \\t]+(" + MONTHSL.join("|") + ")[ \\t]+(\\d{1,2}),[ \\t]+(\\d{4})[ \\t]*$", "gm");
     var heads = [], m, out = [], notes = [], by = {};
     while ((m = re.exec(text))) heads.push({ at: m.index, end: m.index + m[0].length, wd: m[1], mo: MONTHSL.indexOf(m[2]), d: +m[3], y: +m[4] });
@@ -5745,128 +5744,128 @@
     }
     function opened(k, dflt) { var o = st().open; return k in o ? o[k] : dflt; }
     function listHtml() {
-      var S = st(), d = draft(), html = "";
-      html += '<div class="btnrow sx-starts">' + Object.keys(TYPES).map(function (k) { return '<button type="button" class="btn sm" style="background: var(--' + TYPES[k].c + ')" data-sx="new" data-t="' + k + '">+ ' + TYPES[k].short + " SESSION</button>"; }).join("") + "</div>";
-      if (d) html += '<div class="sx-resume"><span class="pill">NOT SAVED</span><span><b>' + TYPES[d.type].short + " · " + dLong(d.day) + "</b>" + (d.id ? " · changes" : "") + " · stopped at " + STEPS[d.step || 0] + "</span>" +
+      var S = st(), d = draft(), out = "";
+      out += '<div class="btnrow sx-starts">' + Object.keys(TYPES).map(function (k) { return '<button type="button" class="btn sm" style="background: var(--' + TYPES[k].c + ')" data-sx="new" data-t="' + k + '">+ ' + TYPES[k].short + " SESSION</button>"; }).join("") + "</div>";
+      if (d) out += '<div class="sx-resume"><span class="pill">NOT SAVED</span><span><b>' + TYPES[d.type].short + " · " + dLong(d.day) + "</b>" + (d.id ? " · changes" : "") + " · stopped at " + STEPS[d.step || 0] + "</span>" +
         '<span class="sx-gap"></span><button type="button" class="btn sm" data-sx="resume">RESUME</button><button type="button" class="btn sm ghost" data-sx="drop">' + (S.drop === true ? "DISCARD IT" : "DISCARD") + "</button></div>";
-      if (S.err && !S.list) return html + '<div class="errtxt">' + esc(S.err) + '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="reload">TRY AGAIN</button></div>';
-      if (!S.list) return html + '<div class="empty">Opening session notes…</div>';
-      if (!S.list.length) return html + '<div class="empty">No sessions yet. Start one above after your next session; it saves to 🛋️ Session Notes in Notion.</div>' + foot();
+      if (S.err && !S.list) return out + '<div class="errtxt">' + esc(S.err) + '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="reload">TRY AGAIN</button></div>';
+      if (!S.list) return out + '<div class="empty">Opening session notes…</div>';
+      if (!S.list.length) return out + '<div class="empty">No sessions yet. Start one above after your next session; it saves to 🛋️ Session Notes in Notion.</div>' + foot();
       Object.keys(TYPES).forEach(function (type) {
         var t = TYPES[type], list = mine(type);
         if (!list.length) return;
         var open = opened(type, true), last = list[0];
-        html += '<section class="sx-type" style="--c: var(--' + t.c + ')"><div class="sx-thead"><button type="button" class="sx-tog" aria-expanded="' + open + '" data-sx="tog" data-k="' + type + '"><span class="sx-caret">▼</span><span><b>' + t.name + "</b><small>" +
+        out += '<section class="sx-type" style="--c: var(--' + t.c + ')"><div class="sx-thead"><button type="button" class="sx-tog" aria-expanded="' + open + '" data-sx="tog" data-k="' + type + '"><span class="sx-caret">▼</span><span><b>' + t.name + "</b><small>" +
           list.length + (list.length === 1 ? " SESSION" : " SESSIONS") + " · LAST " + dLong(last.day).slice(4) + (last.next && last.next >= ymd(new Date()) ? " · NEXT " + dLong(last.next).slice(4) : "") + "</small></span></button>" +
           (canSesAsk() ? '<button type="button" class="btn sm ask" data-sx="suggest" data-t="' + type + '">SUGGEST TOPICS</button>' : "") + "</div>";
         if (open) {
           var years = []; list.forEach(function (s) { var y = s.day.slice(0, 4); if (years.indexOf(y) < 0) years.push(y); });
           years.forEach(function (y, yi) {
             var ky = type + y, oy = opened(ky, yi === 0), iny = list.filter(function (s) { return s.day.slice(0, 4) === y; });
-            html += '<div class="sx-year"><div class="sx-yhead"><button type="button" class="sx-tog" aria-expanded="' + oy + '" data-sx="tog" data-k="' + ky + '"><span class="sx-caret">▼</span><b>' + y + '</b></button><span class="sx-rule"></span><span class="sx-cnt">' + iny.length + (iny.length === 1 ? " SESSION" : " SESSIONS") + "</span></div>";
+            out += '<div class="sx-year"><div class="sx-yhead"><button type="button" class="sx-tog" aria-expanded="' + oy + '" data-sx="tog" data-k="' + ky + '"><span class="sx-caret">▼</span><b>' + y + '</b></button><span class="sx-rule"></span><span class="sx-cnt">' + iny.length + (iny.length === 1 ? " SESSION" : " SESSIONS") + "</span></div>";
             if (oy) {
               var first = true;
               [3, 2, 1, 0].forEach(function (q) {
                 var inq = iny.filter(function (s) { return Math.floor((+s.day.slice(5, 7) - 1) / 3) === q; });
                 if (!inq.length) return;
                 var kq = ky + "Q" + (q + 1), oq = opened(kq, yi === 0 && first); first = false;
-                html += '<div class="sx-q"><button type="button" class="sx-tog sx-qtog" aria-expanded="' + oq + '" data-sx="tog" data-k="' + kq + '"><span class="sx-caret">▼</span><b>Q' + (q + 1) + " · " + QN[q] + '</b><span class="sx-cnt">· ' + inq.length + "</span></button>" +
+                out += '<div class="sx-q"><button type="button" class="sx-tog sx-qtog" aria-expanded="' + oq + '" data-sx="tog" data-k="' + kq + '"><span class="sx-caret">▼</span><b>Q' + (q + 1) + " · " + QN[q] + '</b><span class="sx-cnt">· ' + inq.length + "</span></button>" +
                   (oq ? '<div class="sx-rows">' + inq.map(rowHtml).join("") + "</div>" : "") + "</div>";
               });
             }
-            html += "</div>";
+            out += "</div>";
           });
         }
-        html += "</section>";
+        out += "</section>";
       });
-      return html + foot();
+      return out + foot();
     }
     function foot() {
       return '<small class="muted sx-foot">Only saved sessions are listed. Arriving → leaving: how you came in and went out, 1 (LOW) to 5 (BRIGHT).' +
         (canSessions() && state.caps.indexOf("sessionsuggest") > -1 && !lsGet(LS_SNAI) ? " SUGGEST TOPICS is off: SYSTEMS → CAPTAIN'S LOG → SHARE SESSIONS WITH ASK." : "") + "</small>";
     }
     function oneHtml(s) {
-      var S = st(), t = TYPES[s.type], list = mine(s.type), i = list.indexOf(s), num = list.length - i;
-      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button><span class="sx-gap"></span>' +
+      var S = st(), t = TYPES[s.type], list = mine(s.type), i = list.indexOf(s), numAt = list.length - i;
+      var out = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button><span class="sx-gap"></span>' +
         '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i + 1] ? list[i + 1].id : "") + '"' + (list[i + 1] ? "" : " disabled") + ">◀ EARLIER</button>" +
         '<button type="button" class="btn sm ghost" data-sx="open" data-id="' + esc(list[i - 1] ? list[i - 1].id : "") + '"' + (list[i - 1] ? "" : " disabled") + ">LATER ▶</button></div>";
-      html += '<section class="sx-one" style="--c: var(--' + t.c + ')">' + phead(t.short + " · SESSION " + num, dLong(s.day) + (s.where ? " · " + s.where.toUpperCase() : ""), t.c) + '<div class="sx-grid"><dl class="kv">';
-      if (s.arriving) html += "<dt>ARRIVING</dt><dd>" + s.arriving + " · " + MOODS[s.arriving] + "</dd>";
-      if (s.onMind) html += "<dt>ON MY MIND</dt><dd>" + txt(s.onMind) + "</dd>";
-      if (s.leaving) html += "<dt>LEAVING</dt><dd>" + s.leaving + " · " + MOODS[s.leaving] + "</dd>";
-      if (s.felt) html += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
-      if (s.next) html += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
-      html += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
-      if (s.topics.length) html += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
-      if (s.carried.length) html += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
-      if (s.practice.length) html += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
-      if (s.nextTime) html += '<div class="sx-wide"><div class="sx-lab">BRING UP NEXT TIME</div><div>' + txt(s.nextTime) + "</div></div>";
-      html += '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="edit">EDIT</button>' + (s.url ? '<a class="btn sm ghost" href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
+      out += '<section class="sx-one" style="--c: var(--' + t.c + ')">' + phead(t.short + " · SESSION " + numAt, dLong(s.day) + (s.where ? " · " + s.where.toUpperCase() : ""), t.c) + '<div class="sx-grid"><dl class="kv">';
+      if (s.arriving) out += "<dt>ARRIVING</dt><dd>" + s.arriving + " · " + MOODS[s.arriving] + "</dd>";
+      if (s.onMind) out += "<dt>ON MY MIND</dt><dd>" + txt(s.onMind) + "</dd>";
+      if (s.leaving) out += "<dt>LEAVING</dt><dd>" + s.leaving + " · " + MOODS[s.leaving] + "</dd>";
+      if (s.felt) out += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
+      if (s.next) out += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
+      out += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
+      if (s.topics.length) out += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
+      if (s.carried.length) out += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
+      if (s.practice.length) out += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
+      if (s.nextTime) out += '<div class="sx-wide"><div class="sx-lab">BRING UP NEXT TIME</div><div>' + txt(s.nextTime) + "</div></div>";
+      out += '</div><div class="btnrow"><button type="button" class="btn sm" data-sx="edit">EDIT</button>' + (s.url ? '<a class="btn sm ghost" href="' + esc(s.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") +
         '<button type="button" class="btn sm ' + (S.del === s.id ? "warn" : "ghost") + '" data-sx="del"' + (S.saving ? " disabled" : "") + ">" + (S.del === s.id ? "DELETE IT" : "DELETE") + "</button></div>" +
         (S.del === s.id ? '<small class="muted">Moves the page to Notion\'s trash, where it can be restored.</small>' : "") + (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") + "</section>";
-      return html;
+      return out;
     }
     function chips(list, cur, act, label) {
       return '<div class="chips">' + list.map(function (v) { return '<button type="button" class="chip sm" data-sx="' + act + '" data-v="' + esc(v) + '" aria-pressed="' + (String(cur) === String(v)) + '">' + esc(label ? label(v) : String(v).toUpperCase()) + "</button>"; }).join("") + "</div>";
     }
     function formHtml() {
       var S = st(), d = draft(), t = TYPES[d.type], step = d.step || 0, last = mine(d.type).filter(function (s) { return s.id !== d.id; })[0];
-      var html = '<section class="sx-form" style="--c: var(--' + t.c + ')">' + phead((d.id ? "CHANGE " : "NEW ") + t.short + " SESSION", "STEP " + (step + 1) + " OF 5 · KEPT ON THIS IPAD UNTIL SAVED", t.c);
-      html += '<div class="sx-steps">' + STEPS.map(function (n, i) { return '<button type="button" data-sx="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : "") + ">" + (i + 1) + " " + n + "</button>"; }).join("") + "</div>";
+      var out = '<section class="sx-form" style="--c: var(--' + t.c + ')">' + phead((d.id ? "CHANGE " : "NEW ") + t.short + " SESSION", "STEP " + (step + 1) + " OF 5 · KEPT ON THIS IPAD UNTIL SAVED", t.c);
+      out += '<div class="sx-steps">' + STEPS.map(function (n, i) { return '<button type="button" data-sx="step" data-v="' + i + '"' + (i === step ? ' aria-current="step"' : "") + ">" + (i + 1) + " " + n + "</button>"; }).join("") + "</div>";
       if (step === 0) {
-        if (!d.id) html += '<div class="sx-field"><div class="sx-lab">TYPE</div>' + chips(Object.keys(TYPES), d.type, "dtype", function (k) { return TYPES[k].short; }) + "</div>";
-        html += '<div class="sx-field sx-date"><label class="sx-lab" for="sxDate">DATE</label><input type="date" id="sxDate" value="' + esc(d.day) + '" max="' + ymd(new Date()) + '"></div>' +
+        if (!d.id) out += '<div class="sx-field"><div class="sx-lab">TYPE</div>' + chips(Object.keys(TYPES), d.type, "dtype", function (k) { return TYPES[k].short; }) + "</div>";
+        out += '<div class="sx-field sx-date"><label class="sx-lab" for="sxDate">DATE</label><input type="date" id="sxDate" value="' + esc(d.day) + '" max="' + ymd(new Date()) + '"></div>' +
           '<div class="sx-field"><div class="sx-lab">WHERE</div>' + chips(WHERE, d.where, "dwhere") + "</div>" +
           '<div class="sx-field"><div class="sx-lab">HOW I\'M ARRIVING</div>' + chips([1, 2, 3, 4, 5], d.arriving, "din", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxMind">ON MY MIND GOING IN</label><textarea id="sxMind" rows="2" placeholder="A line or two (optional)">' + esc(d.onMind) + "</textarea></div>" +
           (!d.id && last && last.nextTime ? '<div class="sx-carry"><b>From ' + dLong(last.day).slice(4) + ", to bring up:</b> " + txt(last.nextTime) + "</div>" : "");
       } else if (step === 1) {
         var names = d.topics.map(function (x) { return x.name; }), all = topics(d.type).concat(names.filter(function (n) { return topics(d.type).indexOf(n) < 0; }));
-        html += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
           '<div class="sx-add"><input type="text" id="sxNewTopic" maxlength="40" placeholder="Another topic" autocomplete="off" aria-label="Another topic"><button type="button" class="btn sm" data-sx="addtopic">ADD</button></div></div>';
-        html += d.topics.length ? d.topics.map(function (x, i) { return '<div class="sx-tin"><label class="sx-lab" for="sxNote-' + i + '">' + esc(x.name) + '</label><textarea id="sxNote-' + i + '" rows="2" placeholder="What came up, in a sentence or two">' + esc(x.note) + "</textarea></div>"; }).join("")
+        out += d.topics.length ? d.topics.map(function (x, i) { return '<div class="sx-tin"><label class="sx-lab" for="sxNote-' + i + '">' + esc(x.name) + '</label><textarea id="sxNote-' + i + '" rows="2" placeholder="What came up, in a sentence or two">' + esc(x.note) + "</textarea></div>"; }).join("")
           : '<div class="empty">Each topic you tap gets its own short box.</div>';
       } else if (step === 2) {
-        html += '<div class="sx-field"><label class="sx-lab" for="sxLanded">WHAT LANDED</label><textarea id="sxLanded" rows="3" placeholder="The thing you want to remember from today">' + esc(d.landed) + "</textarea></div>" +
+        out += '<div class="sx-field"><label class="sx-lab" for="sxLanded">WHAT LANDED</label><textarea id="sxLanded" rows="3" placeholder="The thing you want to remember from today">' + esc(d.landed) + "</textarea></div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxPhrase">A PHRASE TO KEEP</label><input type="text" id="sxPhrase" maxlength="300" placeholder="Words worth carrying around (optional)" value="' + esc(d.phrase) + '"></div>';
       } else if (step === 3) {
-        if (d.carried.length) html += '<div class="sx-field"><div class="sx-lab">LAST TIME\'S PRACTICE · HOW DID IT GO?</div>' + d.carried.map(function (c, i) {
+        if (d.carried.length) out += '<div class="sx-field"><div class="sx-lab">LAST TIME\'S PRACTICE · HOW DID IT GO?</div>' + d.carried.map(function (c, i) {
           return '<div class="sx-prac"><span>' + esc(c.text) + '</span><div class="chips">' + DID.map(function (o) { return '<button type="button" class="chip sm" data-sx="dcar" data-i="' + i + '" data-v="' + o[0] + '" aria-pressed="' + (c.did === o[0]) + '">' + o[1] + "</button>"; }).join("") + "</div></div>";
         }).join("") + "</div>";
-        html += '<div class="sx-field"><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + d.practice.map(function (x, i) { return '<div class="sx-prac"><span>' + esc(x) + '</span><button type="button" class="chip sm" data-sx="dpdel" data-i="' + i + '" aria-label="Remove ' + esc(x) + '">✕</button></div>'; }).join("") +
+        out += '<div class="sx-field"><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + d.practice.map(function (x, i) { return '<div class="sx-prac"><span>' + esc(x) + '</span><button type="button" class="chip sm" data-sx="dpdel" data-i="' + i + '" aria-label="Remove ' + esc(x) + '">✕</button></div>'; }).join("") +
           '<div class="sx-add"><input type="text" id="sxPrac" maxlength="300" placeholder="Something to try, notice or do" autocomplete="off" aria-label="Something to practise"><button type="button" class="btn sm" data-sx="dpadd"' + (d.practice.length >= 12 ? " disabled" : "") + ">ADD</button></div></div>";
       } else {
-        html += '<div class="sx-field"><div class="sx-lab">HOW I\'M LEAVING</div>' + chips([1, 2, 3, 4, 5], d.leaving, "dout", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">HOW I\'M LEAVING</div>' + chips([1, 2, 3, 4, 5], d.leaving, "dout", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
           '<div class="sx-field"><div class="sx-lab">IT FELT</div>' + chips(FELT, d.felt, "dfelt") + "</div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxNextT">BRING UP NEXT TIME</label><textarea id="sxNextT" rows="2" placeholder="What to start with next session (optional)">' + esc(d.nextTime) + "</textarea></div>" +
           '<div class="sx-field sx-date"><label class="sx-lab" for="sxNextD">NEXT SESSION</label><input type="date" id="sxNextD" value="' + esc(d.next) + '"></div>';
       }
-      html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="step" data-v="' + Math.max(0, step - 1) + '"' + (step ? "" : " disabled") + ">◀ BACK</button>" +
+      out += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="step" data-v="' + Math.max(0, step - 1) + '"' + (step ? "" : " disabled") + ">◀ BACK</button>" +
         (step < 4 ? '<button type="button" class="btn sm" data-sx="step" data-v="' + (step + 1) + '">NEXT ▶</button>' : "") +
         '<button type="button" class="btn sm' + (step === 4 ? "" : " ghost") + (S.saving ? " busy" : "") + '" data-sx="save"' + (S.saving ? " disabled" : "") + ">" + (S.saving ? '<span class="spin" aria-hidden="true"></span>SAVING' : "SAVE SESSION") + "</button>" +
         '<button type="button" class="btn sm ghost" data-sx="list">CLOSE</button></div>' +
         (S.saveErr ? '<div class="errtxt">' + esc(S.saveErr) + "</div>" : "") +
         '<small class="muted">Tap a chip again to clear it. Only the type and date are needed. CLOSE keeps this on the iPad to RESUME later.</small></section>';
-      return html;
+      return out;
     }
     function suggestHtml() {
       var S = st(), g = S.sg, t = TYPES[g.type], list = mine(g.type).slice(0, g.n);
-      var html = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button></div><section class="sx-sg" style="--c: var(--' + t.c + ')">' + phead("SUGGEST TOPICS", t.name, t.c);
+      var out = '<div class="btnrow sx-nav"><button type="button" class="btn sm ghost" data-sx="list">◀ ALL SESSIONS</button></div><section class="sx-sg" style="--c: var(--' + t.c + ')">' + phead("SUGGEST TOPICS", t.name, t.c);
       if (!g.topics) {
-        html += '<div class="sx-field"><div class="sx-lab">FROM WHICH SESSIONS</div>' + chips([3, 6, 12], g.n, "sgn", function (n) { return "THE LAST " + n; }) + "</div>" +
+        out += '<div class="sx-field"><div class="sx-lab">FROM WHICH SESSIONS</div>' + chips([3, 6, 12], g.n, "sgn", function (n) { return "THE LAST " + n; }) + "</div>" +
           '<div class="btnrow"><button type="button" class="chip sm" data-sx="sgdeep" aria-pressed="' + g.deep + '">THINK HARDER</button></div>';
-        if (!g.preview) html += '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgpreview"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>CHECKING' : "PREVIEW") + "</button></div>" +
+        if (!g.preview) out += '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgpreview"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>CHECKING' : "PREVIEW") + "</button></div>" +
           '<small class="muted">PREVIEW shows what would go to Claude and the cost. Nothing is sent until SEND.</small>';
         else {
           var p = g.preview;
-          html += '<div class="sx-gauge tnum"><span><b>' + p.count + "</b>SESSIONS</span><span><b>" + p.dates.map(function (x) { return dLong(x).slice(4, -5); }).join(", ") + "</b>DATES</span><span><b>~" + p.tokens.toLocaleString("en-US") + "</b>TOKENS</span><span><b>~" + money(g.deep ? p.usd.deep : p.usd.fast) + "</b>" + (g.deep ? "OPUS" : "SONNET") + "</span></div>" +
+          out += '<div class="sx-gauge tnum"><span><b>' + p.count + "</b>SESSIONS</span><span><b>" + p.dates.map(function (x) { return dLong(x).slice(4, -5); }).join(", ") + "</b>DATES</span><span><b>~" + p.tokens.toLocaleString("en-US") + "</b>TOKENS</span><span><b>~" + money(g.deep ? p.usd.deep : p.usd.fast) + "</b>" + (g.deep ? "OPUS" : "SONNET") + "</span></div>" +
             '<div class="sx-carry">Goes to Claude: the notes of these ' + p.count + " " + t.short.toLowerCase() + " sessions only. Never the journal, never the other type. Claude has no tools and can't change anything." + (g.type === "couples" ? " Couples notes can mention your partner." : "") + "</div>" +
             '<div class="btnrow"><button type="button" class="btn' + (g.busy ? " busy" : "") + '" data-sx="sgsend"' + (g.busy ? " disabled" : "") + ">" + (g.busy ? '<span class="spin" aria-hidden="true"></span>ASKING' : "SEND") + '</button><button type="button" class="btn ghost" data-sx="sgchange"' + (g.busy ? " disabled" : "") + ">CHANGE</button></div>";
         }
       } else {
         var lastS = list[0];
-        html += '<small class="muted">From ' + g.info.count + " sessions · " + modelName(g.model) + " · " + money(g.cost || 0) + " · not kept on this iPad, forgotten when LOG locks</small>";
-        html += g.topics.map(function (x, i) {
+        out += '<small class="muted">From ' + g.info.count + " sessions · " + modelName(g.model) + " · " + money(g.cost || 0) + " · not kept on this iPad, forgotten when LOG locks</small>";
+        out += g.topics.map(function (x, i) {
           if (g.gone[i]) return "";
           var on = !!g.added[i];
           return '<div class="sx-sugg' + (on ? " on" : "") + '"><b>' + (i + 1) + ". " + esc(x.title) + "</b><div>" + esc(x.why) + "</div>" +
@@ -5874,11 +5873,11 @@
             '<div class="btnrow">' + (on ? '<span class="pill ok">IN BRING UP NEXT TIME</span><button type="button" class="btn sm ghost" data-sx="sgadd" data-i="' + i + '"' + (g.busy ? " disabled" : "") + ">UNDO</button>"
               : '<button type="button" class="btn sm" data-sx="sgadd" data-i="' + i + '"' + (g.busy || !lastS ? " disabled" : "") + '>ADD TO NEXT TIME</button><button type="button" class="btn sm ghost" data-sx="sgdrop" data-i="' + i + '">DISMISS</button>') + "</div></div>";
         }).join("");
-        html += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="sgchange">ASK AGAIN</button></div>' +
+        out += '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="sgchange">ASK AGAIN</button></div>' +
           '<small class="muted">ADD TO NEXT TIME writes the topic into the ' + (lastS ? dLong(lastS.day).slice(4) : "latest") + " session's BRING UP NEXT TIME in Notion, so it greets you when you start the next one.</small>";
       }
-      if (g.err) html += '<div class="errtxt">' + esc(g.err) + "</div>";
-      return html + "</section>";
+      if (g.err) out += '<div class="errtxt">' + esc(g.err) + "</div>";
+      return out + "</section>";
     }
 
     /* ---- actions ---- */
@@ -6002,19 +6001,19 @@
     }
     /* Systems → CAPTAIN'S LOG: the database, SHARE SESSIONS WITH ASK and the topic lists. */
     function systems() {
-      var html = '<label class="ov-sub" style="margin-top:14px;display:block">SESSION NOTES</label>';
-      if (!canSessions()) return html + '<small class="muted">Needs the Google bridge updated (README: Updating the Google bridge), then 🛋️ Session Notes connected to the TimothyOS integration in Notion.</small>';
-      html += '<small class="muted">LOG → SESSIONS, behind the same code as the journal. Notes live only in 🛋️ Session Notes in Notion; a session not yet saved waits on this iPad (never in a backup) until it is.</small>';
+      var out = '<label class="ov-sub" style="margin-top:14px;display:block">SESSION NOTES</label>';
+      if (!canSessions()) return out + '<small class="muted">Needs the Google bridge updated (README: Updating the Google bridge), then 🛋️ Session Notes connected to the TimothyOS integration in Notion.</small>';
+      out += '<small class="muted">LOG → SESSIONS, behind the same code as the journal. Notes live only in 🛋️ Session Notes in Notion; a session not yet saved waits on this iPad (never in a backup) until it is.</small>';
       if (state.caps.indexOf("sessionsuggest") > -1) {
         var on = !!lsGet(LS_SNAI);
-        html += '<div class="btnrow" style="margin-top:10px"><button type="button" class="chip" data-sx="ai" data-v="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-sx="ai" data-v="1" aria-pressed="' + on + '">SHARE SESSIONS WITH ASK</button></div>' +
+        out += '<div class="btnrow" style="margin-top:10px"><button type="button" class="chip" data-sx="ai" data-v="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-sx="ai" data-v="1" aria-pressed="' + on + '">SHARE SESSIONS WITH ASK</button></div>' +
           '<small class="muted">' + (on ? "SUGGEST TOPICS sends only the sessions you pick, of one type, after showing what it will send and the cost (about 1¢ with Sonnet). Counted in ASK's monthly total as SESSIONS. Nothing is sent until SEND." : "Off: Claude never reads your session notes.") + "</small>";
       }
       Object.keys(TYPES).forEach(function (k) {
-        html += '<div class="ov-sub" style="margin-top:14px">' + TYPES[k].short + ' TOPICS</div><div class="chips sx-tlist">' + topics(k).map(function (n, i) { return '<button type="button" class="chip sm" data-sx="tdel" data-t="' + k + '" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + " ✕</button>"; }).join("") + "</div>" +
+        out += '<div class="ov-sub" style="margin-top:14px">' + TYPES[k].short + ' TOPICS</div><div class="chips sx-tlist">' + topics(k).map(function (n, i) { return '<button type="button" class="chip sm" data-sx="tdel" data-t="' + k + '" data-i="' + i + '" aria-label="Remove ' + esc(n) + '">' + esc(n) + " ✕</button>"; }).join("") + "</div>" +
           '<div class="sx-add"><input type="text" id="sxT-' + k + '" maxlength="40" placeholder="A topic to add" autocomplete="off" aria-label="Add a ' + TYPES[k].short.toLowerCase() + ' topic"><button type="button" class="btn sm" data-sx="tadd" data-t="' + k + '">ADD</button><button type="button" class="btn sm ghost" data-sx="treset" data-t="' + k + '">RESET</button></div>';
       });
-      return html + '<small class="muted">Topic lists are kept on this iPad (and in your backups). A session keeps the topics it was saved with.</small>';
+      return out + '<small class="muted">Topic lists are kept on this iPad (and in your backups). A session keeps the topics it was saved with.</small>';
     }
     document.addEventListener("input", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx/.test(e.target.id || "") && !/^sx(NewTopic|Prac|T-)/.test(e.target.id)) keep(); });
     document.addEventListener("change", function (e) { if (state.screen === "log" && logTab === "sessions" && e.target && /^sx(Date|NextD)$/.test(e.target.id || "")) keep(); });
@@ -6114,40 +6113,40 @@
     items.sort(function (a, b) { return a.p.z - b.p.z; });
     lm.hits = [];
     items.forEach(function (it) {
-      var p = it.p, dt = lmDay(it.k), near = Math.abs(it.d), info = lm.days[it.k] || { ev: [], kd: [] }, gap = (9 + 13 * p.s) * U, top = p.y;
-      cx.globalAlpha = p.a;
+      var pt = it.p, dt = lmDay(it.k), near = Math.abs(it.d), info = lm.days[it.k] || { ev: [], kd: [] }, gap = (9 + 13 * pt.s) * U, top = pt.y;
+      cx.globalAlpha = pt.a;
       cx.fillStyle = it.k === 0 ? C.b : C.c;
-      cx.beginPath(); cx.arc(p.x, p.y, (2.5 + 4 * p.s) * U, 0, TAU); cx.fill();
+      cx.beginPath(); cx.arc(pt.x, pt.y, (2.5 + 4 * pt.s) * U, 0, TAU); cx.fill();
       // events hang from the day like beads on a warp thread; past seven, the column stops growing
       var ev = info.ev, show = ev.slice(0, 7), back = near < .5 ? 1 : Math.min(1, .4 + .6 * (near - .5) / 1.5);   /* the days beside the crossing step back */
-      cx.globalAlpha = p.a * back;
+      cx.globalAlpha = pt.a * back;
       /* read top to bottom, start of the day to its end: the earliest bead is highest, the latest sits on the loop */
       show.forEach(function (e, i) {
-        var by = p.y - gap * (show.length - i) - 4 * U, br = (2.2 + 6.8 * p.s) * U;
+        var by = pt.y - gap * (show.length - i) - 4 * U, brk = (2.2 + 6.8 * pt.s) * U;
         cx.fillStyle = C[e.area] || C.c;
-        cx.beginPath(); cx.arc(p.x, by, br, 0, TAU); cx.fill();
-        if (i === 0) top = by - br;
+        cx.beginPath(); cx.arc(pt.x, by, brk, 0, TAU); cx.fill();
+        if (i === 0) top = by - brk;
         if (near < .5) {
-          beads.push({ x: p.x - br, y: by - br, w: br * 2, h: br * 2 });
-          lm.hits.push({ ev: e.ev, x: p.x, y: by, r: Math.max(br, 14) });
-          if (p.s > .5) labels.push({ t: e.time + "  " + (e.ev.title || "Busy"), x: p.x - br - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: p.a, pr: 200 - i * .1, plate: true });
+          beads.push({ x: pt.x - brk, y: by - brk, w: brk * 2, h: brk * 2 });
+          lm.hits.push({ ev: e.ev, x: pt.x, y: by, r: Math.max(brk, 14) });
+          if (pt.s > .5) labels.push({ t: e.time + "  " + (e.ev.title || "Busy"), x: pt.x - brk - 7 * U, y: by + 4.5 * U, f: "500 " + Math.round(13 * U) + "px " + C.body, c: C.fg, al: "right", a: pt.a, pr: 200 - i * .1, plate: true });
         }
       });
-      if (ev.length > show.length && p.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: p.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: p.a, pr: near < .5 ? 190 : 40 });
-      cx.globalAlpha = p.a;
+      if (ev.length > show.length && pt.s > .5) labels.push({ t: "+" + (ev.length - show.length) + " LATER", x: pt.x, y: top - 6 * U, f: "600 " + Math.round(12 * U) + "px " + C.display, c: C.dim, al: "center", a: pt.a, pr: near < .5 ? 190 : 40 });
+      cx.globalAlpha = pt.a;
       // a key date sits below the day as a diamond
-      var o = (16 + 14 * p.s) * U;
+      var o = (16 + 14 * pt.s) * U;
       if (info.kd.length) {
-        var kr = (4 + 7 * p.s) * U, ky = p.y + o;
-        cx.fillStyle = C.b; cx.beginPath(); cx.moveTo(p.x, ky - kr); cx.lineTo(p.x + kr, ky); cx.lineTo(p.x, ky + kr); cx.lineTo(p.x - kr, ky); cx.closePath(); cx.fill();
-        if (near < .5) lm.hits.push({ kd: info.kd[0].o, x: p.x, y: ky, r: Math.max(kr, 14) });
-        o += kr + (12 + 6 * p.s) * U;
-        if (p.s > .4) labels.push({ t: String(info.kd[0].o.d.title || "").toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: p.x, y: p.y + o + (14 + 6 * p.s) * U, f: "600 " + Math.round((11 + 4 * p.s) * U) + "px " + C.display, c: C.b, al: "center", a: p.a, pr: (near < .5 ? 205 : 70) + p.s * 10 - near });
+        var kr = (4 + 7 * pt.s) * U, ky = pt.y + o;
+        cx.fillStyle = C.b; cx.beginPath(); cx.moveTo(pt.x, ky - kr); cx.lineTo(pt.x + kr, ky); cx.lineTo(pt.x, ky + kr); cx.lineTo(pt.x - kr, ky); cx.closePath(); cx.fill();
+        if (near < .5) lm.hits.push({ kd: info.kd[0].o, x: pt.x, y: ky, r: Math.max(kr, 14) });
+        o += kr + (12 + 6 * pt.s) * U;
+        if (pt.s > .4) labels.push({ t: String(info.kd[0].o.d.title || "").toUpperCase() + (info.kd.length > 1 ? " +" + (info.kd.length - 1) : ""), x: pt.x, y: pt.y + o + (14 + 6 * pt.s) * U, f: "600 " + Math.round((11 + 4 * pt.s) * U) + "px " + C.display, c: C.b, al: "center", a: pt.a, pr: (near < .5 ? 205 : 70) + pt.s * 10 - near });
       } else o += 4 * U;
-      if (p.s > .36) labels.push({ t: DOW[dt.getDay()] + " " + dt.getDate(), x: p.x, y: p.y + o, f: (near < .5 ? "700 " : "400 ") + Math.round((10 + 9 * p.s) * U) + "px " + C.display, c: it.k === 0 ? C.b : C.dim, al: "center", a: p.a, pr: (near < .5 ? 210 : 60) + p.s * 20 });
-      if (dt.getDate() === 1 && p.s > .25) labels.push({ t: MON[dt.getMonth()] + " " + dt.getFullYear(), x: p.x, y: top - 14 * U, f: "600 " + Math.round((11 + 9 * p.s) * U) + "px " + C.display, c: C.a, al: "center", a: p.a, pr: 75 });
+      if (pt.s > .36) labels.push({ t: DOW[dt.getDay()] + " " + dt.getDate(), x: pt.x, y: pt.y + o, f: (near < .5 ? "700 " : "400 ") + Math.round((10 + 9 * pt.s) * U) + "px " + C.display, c: it.k === 0 ? C.b : C.dim, al: "center", a: pt.a, pr: (near < .5 ? 210 : 60) + pt.s * 20 });
+      if (dt.getDate() === 1 && pt.s > .25) labels.push({ t: MON[dt.getMonth()] + " " + dt.getFullYear(), x: pt.x, y: top - 14 * U, f: "600 " + Math.round((11 + 9 * pt.s) * U) + "px " + C.display, c: C.a, al: "center", a: pt.a, pr: 75 });
       cx.globalAlpha = 1;
-      lm.hits.push({ k: it.k, x: p.x, y: p.y, top: top, r: Math.max(18, 26 * p.s) * U, z: p.z });
+      lm.hits.push({ k: it.k, x: pt.x, y: pt.y, top: top, r: Math.max(18, 26 * pt.s) * U, z: pt.z });
     });
     // the focus ring at the crossing; no other day's label may sit on it or on today's beads
     var fp = lmPlace(0), rr = (14 + 8 * fp.s) * U, taken = [], ring = { x: fp.x - rr, y: fp.y - rr, w: rr * 2, h: rr * 2 };
@@ -7321,8 +7320,8 @@
   function fitViewport() {
     var v = window.visualViewport, r = document.documentElement.style;
     if (!v || document.hidden) return;
-    var f = document.activeElement, typing = f && (f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test(f.type || ""))) || (f && f.isContentEditable);
-    if (!typing || v.height < 120) { r.removeProperty("--vv-top"); r.removeProperty("--vv-h"); return; }
+    var f = document.activeElement, isTyping = f && (f.tagName === "TEXTAREA" || (f.tagName === "INPUT" && !/^(button|checkbox|radio|range|submit|reset|file|color)$/i.test(f.type || ""))) || (f && f.isContentEditable);
+    if (!isTyping || v.height < 120) { r.removeProperty("--vv-top"); r.removeProperty("--vv-h"); return; }
     r.setProperty("--vv-top", Math.max(0, v.offsetTop) + "px");
     r.setProperty("--vv-h", v.height + "px");
   }
@@ -7538,12 +7537,12 @@
       };
       if (!h) return v1();
       if (h.unsync) return (h.end <= b.length ? Promise.resolve(buf) : rangeGet(it.path, 0, Math.min(h.end, 1048576) - 1)).then(function (whole) { out = parseId3(whole) || {}; delete out.pic; return v1(); });
-      var go = function (bb, base, pos, hops) {
+      var proceed = function (bb, base, pos, hops) {
         var stop = id3Walk(bb, base, h, pos, out, false);
         if (stop === null || hops >= 6) return v1();
-        return rangeGet(it.path, stop, Math.min(h.end, stop + 65535)).then(function (nb) { return go(new Uint8Array(nb), stop, stop, hops + 1); });
+        return rangeGet(it.path, stop, Math.min(h.end, stop + 65535)).then(function (nb) { return proceed(new Uint8Array(nb), stop, stop, hops + 1); });
       };
-      return go(b, 0, h.pos, 0);
+      return proceed(b, 0, h.pos, 0);
     });
   }
   /* Remembered per file. "s" marks a file whose tag has been read, so a file without one isn't asked again. */
@@ -7629,14 +7628,14 @@
       if (b[i] !== 255 || (b[i + 1] & 0xE0) !== 0xE0) continue;
       var v = (b[i + 1] >> 3) & 3, lay = (b[i + 1] >> 1) & 3, bri = b[i + 2] >> 4, sri = (b[i + 2] >> 2) & 3;
       if (v === 1 || lay === 0 || bri === 0 || bri === 15 || sri === 3) continue;
-      var l = 4 - lay, sr = MP3_SR[v][sri], br = MP3_BR[v === 3 ? 1 : 2][l - 1][bri], pad = (b[i + 2] >> 1) & 1, mono = (b[i + 3] >> 6) === 3;
-      var spf = l === 1 ? 384 : l === 2 || v === 3 ? 1152 : 576, flen = l === 1 ? (Math.floor(12 * br * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * br * 1000 / sr) + pad;
+      var l = 4 - lay, sr = MP3_SR[v][sri], brk = MP3_BR[v === 3 ? 1 : 2][l - 1][bri], pad = (b[i + 2] >> 1) & 1, mono = (b[i + 3] >> 6) === 3;
+      var spf = l === 1 ? 384 : l === 2 || v === 3 ? 1152 : 576, flen = l === 1 ? (Math.floor(12 * brk * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * brk * 1000 / sr) + pad;
       if (i + flen + 1 < b.length && (b[i + flen] !== 255 || (b[i + flen + 1] & 0xE0) !== 0xE0)) continue;   /* not followed by a frame: a false sync */
       var xo = i + 4 + (l === 3 ? (v === 3 ? (mono ? 17 : 32) : (mono ? 9 : 17)) : 0), x = xo + 12 <= b.length ? tag4(b, xo) : "";
       if ((x === "Xing" || x === "Info") && (u32(b, xo + 4) & 1)) return u32(b, xo + 8) * spf / sr;
       if (i + 54 <= b.length && tag4(b, i + 36) === "VBRI") return u32(b, i + 50) * spf / sr;
       if (tlen) return tlen;
-      return (total - base - i) * 8 / (br * 1000);
+      return (total - base - i) * 8 / (brk * 1000);
     }
     return tlen || null;
   }
@@ -7941,9 +7940,9 @@
     var nd = $("nasNeedle"); if (!nd) return;
     var band = nd.parentNode, t = to || band.querySelector('.nas-share[data-nasdir="' + (nas.tuned || "").replace(/["\\]/g, "") + '"]') || band.querySelector(".nas-share");
     if (!t) { nd.hidden = true; return; }
-    var r = t.getBoundingClientRect(), br = band.getBoundingClientRect();
+    var r = t.getBoundingClientRect(), brk = band.getBoundingClientRect();
     if (!swing) nd.classList.add("still");
-    nd.style.left = Math.round(r.left + r.width / 2 - br.left - 1) + "px";
+    nd.style.left = Math.round(r.left + r.width / 2 - brk.left - 1) + "px";
     if (!swing) { void nd.offsetWidth; nd.classList.remove("still"); }
   }
   function homeHtml() {
@@ -8004,7 +8003,7 @@
   }
   var nasOrder = [];
   function nowHtml() {
-    var a = pl.el, paused = !a || a.paused, nx = nextUp().slice(0, 4);
+    var nx = nextUp().slice(0, 4);
     var tg = nasTags[pl.path] || {};
     var html = '<div class="nas-now">' + artHtml(parentOf(pl.path), "nas-bigart", true) + "<div>" +
       '<button type="button" class="chip sm" data-nasdir="' + esc(parentOf(pl.path)) + '">◂ ' + esc(baseName(parentOf(pl.path)).toUpperCase()) + "</button>" +
@@ -8446,8 +8445,8 @@
         html += '<section class="ec-sec ec-sens">' + phead("SENSORS", "", "chrome-c");
         if (view === "list") html += '<div class="hr-rows">' + sens.map(haRowHtml).join("") + "</div>";
         else {
-          var sb = sens.filter(function (d) { return styleOf(d) !== "mini"; }), ss = sens.filter(function (d) { return styleOf(d) === "mini"; });
-          if (sb.length) html += '<div class="hc-grid">' + sb.map(haCardHtml).join("") + "</div>";
+          var sbox = sens.filter(function (d) { return styleOf(d) !== "mini"; }), ss = sens.filter(function (d) { return styleOf(d) === "mini"; });
+          if (sbox.length) html += '<div class="hc-grid">' + sbox.map(haCardHtml).join("") + "</div>";
           if (ss.length) html += '<div class="hm-row">' + ss.map(haMiniHtml).join("") + "</div>";
         }
         html += "</section>";
@@ -8470,10 +8469,10 @@
       (modes.length && !dead ? '<div class="chips">' + modes.map(function (m) { return '<button type="button" class="chip sm" data-hahvac="' + m + '" data-dev="' + esc(d.id) + '" aria-pressed="' + (s.state === m) + '">' + HA_HVAC[m] + "</button>"; }).join("") + "</div>" : "") + "</div>" +
       (one && !dead ? '<div class="cl-step"><button type="button" data-haclim="' + step + '" data-dev="' + esc(d.id) + '" aria-label="Warmer">+</button><button type="button" data-haclim="' + -step + '" data-dev="' + esc(d.id) + '" aria-label="Cooler">−</button></div>' : "") + haMore(d) + "</div>";
   }
-  function haClimStep(id, delta) {
+  function haClimStep(id, dlt) {
     var s = eng.states[id]; if (!s || s.missing) return;
     var a = s.attributes, lo = a.min_temp != null ? a.min_temp : -50, hi = a.max_temp != null ? a.max_temp : 150;
-    a.temperature = Math.max(lo, Math.min(hi, Math.round((a.temperature + delta) * 10) / 10));
+    a.temperature = Math.max(lo, Math.min(hi, Math.round((a.temperature + dlt) * 10) / 10));
     var q = hq["clim:" + id] || (hq["clim:" + id] = {});
     hq[id] = hq[id] || { data: {}, last: 0, t: 0, rr: 0 }; hq[id].last = Date.now();   /* hold off re-reads while you tap */
     clearTimeout(q.t);
@@ -8548,9 +8547,9 @@
     if (!list.length) return '<div class="empty">Nothing tracked yet. Tap <b>+ ITEM</b> to add something that needs doing every so often, like an oil change every 5,000 miles or a furnace filter every 3 months.</div>';
     list.sort(function (a, b) { return a.s.sort - b.s.sort; });
     list.forEach(function (x) { x.cat = upCatOf(x.u); x.c = upColor(v, x.cat); });
-    var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, soon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
+    var over = list.filter(function (x) { return x.s.lvl === "bad"; }).length, isSoon = list.filter(function (x) { return x.s.lvl === "warn"; }).length;
     var chip = function (attr, val, label, on) { return '<button type="button" class="chip sm" ' + attr + '="' + val + '" aria-pressed="' + on + '">' + label + "</button>"; };
-    var html = '<div class="up-head"><div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (soon ? " warn" : "") + '">' + soon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - soon) + " ON SCHEDULE</span></div>" +
+    var html = '<div class="up-head"><div class="eng-sum"><span class="pill ' + (over ? "bad" : "ok") + '">' + over + " OVERDUE</span><span class=\"pill" + (isSoon ? " warn" : "") + '">' + isSoon + " DUE SOON</span><span class=\"pill\">" + (list.length - over - isSoon) + " ON SCHEDULE</span></div>" +
       (v.view === "horizon" ? '<div class="up-opts"><span class="ov-sub">LOOK AHEAD</span>' + [[30, "30 DAYS"], [90, "90 DAYS"], [365, "YEAR"]].map(function (r) { return chip("data-uprange", r[0], r[1], v.range === r[0]); }).join("") + "</div>"
         : '<div class="up-opts"><span class="ov-sub">GROUP BY</span>' + chip("data-upby", "cat", "CATEGORY", v.by !== "status") + chip("data-upby", "status", "STATUS", v.by === "status") + "</div>") + "</div>";
     html += v.view === "horizon" ? upHorizonHtml(list, v, today) : upGroupsHtml(list, v);
@@ -8825,7 +8824,7 @@
   function wireWheel() {
     var w = $("haWheel"), k = $("haKnob"), id = eng.sheetId;
     if (!w) return;
-    var place = function () {
+    var spot = function () {
       var s = eng.states[id], hs = (s && s.attributes && s.attributes.hs_color) || [0, 0], ang = hs[0] * Math.PI / 180, r = hs[1] / 2;
       k.style.left = (50 + Math.sin(ang) * r) + "%"; k.style.top = (50 - Math.cos(ang) * r) + "%"; k.style.background = rgbCss(hsvRgb(hs[0], hs[1]));
       w.setAttribute("aria-valuetext", "hue " + Math.round(hs[0]) + ", strength " + Math.round(hs[1]) + "%");
@@ -8834,9 +8833,9 @@
     var pick = function (e, final) {
       if (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; at = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; }
       if (!at) return;
-      haLightSet(id, { hs_color: at }, final); place(); haLive(id);
+      haLightSet(id, { hs_color: at }, final); spot(); haLive(id);
     };
-    place();
+    spot();
     w.addEventListener("pointerdown", function (e) { e.preventDefault(); try { w.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } eng.dragging = id; w.classList.remove("off"); pick(e, false); });
     w.addEventListener("pointermove", function (e) { if (eng.dragging === id) pick(e, false); });
     var end = function () { if (eng.dragging !== id) return; pick(null, true); eng.dragging = null; haRepaint(); };
@@ -9074,7 +9073,6 @@
   var SCN_WAITS = [[60, "1 MIN"], [300, "5 MIN"], [900, "15 MIN"], [1800, "30 MIN"], [3600, "1 HR"], [7200, "2 HR"]];
   eng.scn = { list: lsGet(LS_HASCN) || [], at: 0, busy: false, err: null, d: null, pick: null, orig: "", hold: 0, held: false, msg: "", chk: false };
   function scnById(id) { return eng.scn.list.filter(function (x) { return x.id === id; })[0] || null; }
-  function scnOpenNow() { return eng.sheetKind === "scn" && !$("detailScrim").hidden; }
   function scnSw() { return haDevices().filter(function (d) { return devCaps(d).sw; }); }
 
   /* --- words --- */
@@ -9144,7 +9142,7 @@
     var bad = function () { d.foreign = true; }, ids = {};
     arr(cfg.triggers || cfg.trigger).forEach(function (t) {
       var p = t.platform || t.trigger, f;
-      if (p === "time" && typeof t.at === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(t.at)) { var hm = t.at.split(":"); f = { t: "time", at: p2(+hm[0]) + ":" + hm[1], days: null }; }
+      if (p === "time" && typeof t.at === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(t.at)) { var hhmm = t.at.split(":"); f = { t: "time", at: p2(+hhmm[0]) + ":" + hhmm[1], days: null }; }
       else if (p === "sun" && (t.event === "sunset" || t.event === "sunrise")) { var o = t.offset ? scnDur(t.offset) : 0; if (o == null) { bad(); return; } f = { t: "sun", ev: t.event, off: Math.round(o / 60), days: null }; }
       else { bad(); return; }
       if (t.id) ids[t.id] = d.ifs.length;
@@ -9330,14 +9328,14 @@
     if (b) b.addEventListener("input", function () { s.b = +b.value; $("scnBOut").textContent = s.b + "%"; });
     if (k) k.addEventListener("input", function () { s.k = +k.value; s.hs = null; $("scnKOut").textContent = s.k + " K"; });
     if (!w) return;
-    var place = function () { var hs = s.hs || [30, 70], ang = hs[0] * Math.PI / 180, r = hs[1] / 2; kn.style.left = (50 + Math.sin(ang) * r) + "%"; kn.style.top = (50 - Math.cos(ang) * r) + "%"; kn.style.background = rgbCss(hsvRgb(hs[0], hs[1])); w.setAttribute("aria-valuetext", "hue " + hs[0] + ", strength " + hs[1] + "%"); };
-    var pick = function (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; s.hs = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; s.k = null; place(); };
+    var spot = function () { var hs = s.hs || [30, 70], ang = hs[0] * Math.PI / 180, r = hs[1] / 2; kn.style.left = (50 + Math.sin(ang) * r) + "%"; kn.style.top = (50 - Math.cos(ang) * r) + "%"; kn.style.background = rgbCss(hsvRgb(hs[0], hs[1])); w.setAttribute("aria-valuetext", "hue " + hs[0] + ", strength " + hs[1] + "%"); };
+    var pick = function (e) { var r = w.getBoundingClientRect(), x = e.clientX - r.left - r.width / 2, y = e.clientY - r.top - r.height / 2; s.hs = [Math.round((Math.atan2(x, -y) * 180 / Math.PI + 360) % 360), Math.round(Math.min(1, Math.hypot(x, y) / (r.width / 2)) * 100)]; s.k = null; spot(); };
     var dn = false;
     w.addEventListener("pointerdown", function (e) { e.preventDefault(); dn = true; try { w.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } pick(e); });
     w.addEventListener("pointermove", function (e) { if (dn) pick(e); });
     ["pointerup", "pointercancel"].forEach(function (t) { w.addEventListener(t, function () { dn = false; }); });
-    w.addEventListener("keydown", function (e) { var dh = { ArrowLeft: -10, ArrowRight: 10 }[e.key], ds = { ArrowUp: 10, ArrowDown: -10 }[e.key]; if (!dh && !ds) return; e.preventDefault(); var hs = s.hs || [30, 70]; s.hs = [(hs[0] + (dh || 0) + 360) % 360, Math.max(0, Math.min(100, hs[1] + (ds || 0)))]; s.k = null; place(); });
-    place();
+    w.addEventListener("keydown", function (e) { var dh = { ArrowLeft: -10, ArrowRight: 10 }[e.key], ds = { ArrowUp: 10, ArrowDown: -10 }[e.key]; if (!dh && !ds) return; e.preventDefault(); var hs = s.hs || [30, 70]; s.hs = [(hs[0] + (dh || 0) + 360) % 360, Math.max(0, Math.min(100, hs[1] + (ds || 0)))]; s.k = null; spot(); });
+    spot();
   }
   function scnTake(ids) {   /* the chosen lights as they are now: one step per setting shared, then what's off */
     var steps = [], by = {}, on = [], off = [];
@@ -9824,8 +9822,8 @@
       var i = b.pos.map(function (p) { return p.x + "," + p.y; }).indexOf(x + "," + y);
       html += '<button type="button" class="tr-cell' + (i > -1 ? " on" + (b.pos[i].c ? " x" : "") : "") + '" data-trcell="' + x + "," + y + '" aria-label="Row ' + (y + 1) + ", column " + (x + 1) + (i > -1 ? ", position " + (i + 1) : ", empty") + '">' + (i > -1 ? i + 1 : "") + "</button>";
     }
-    html += '</div><small class="muted">Positions are numbered in the order you place them. Tap a placed square again to remove it.</small></div><div class="tr-col">' + phead("POSITIONS", b.pos.length ? b.pos.length + (b.pos.length === 1 ? " CARD" : " CARDS") : "NONE YET", "chrome-b") + '<div class="tr-plist">' + (b.pos.length ? b.pos.map(function (p, i) {
-      return '<div class="tr-pl"><b>' + (i + 1) + '</b><input type="text" id="trPL' + i + '" maxlength="40" data-trplabel="' + i + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (i + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + i + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
+    html += '</div><small class="muted">Positions are numbered in the order you place them. Tap a placed square again to remove it.</small></div><div class="tr-col">' + phead("POSITIONS", b.pos.length ? b.pos.length + (b.pos.length === 1 ? " CARD" : " CARDS") : "NONE YET", "chrome-b") + '<div class="tr-plist">' + (b.pos.length ? b.pos.map(function (p, ix) {
+      return '<div class="tr-pl"><b>' + (ix + 1) + '</b><input type="text" id="trPL' + ix + '" maxlength="40" data-trplabel="' + ix + '" value="' + esc(p.l) + '" placeholder="What this position means" aria-label="Position ' + (ix + 1) + ' label"><button type="button" class="chip sm" data-trpcross="' + ix + '" aria-pressed="' + !!p.c + '">CROSSING</button></div>';
     }).join("") : '<span class="muted">Place a position on the grid to start.</span>') + "</div>";
     if (b.pos.length) html += phead("PREVIEW", "", "chrome-c") + trBoard({ pos: trNorm(b.pos) }, [], { edit: true, cardPx: 90 });
     html += '<div class="tr-tools"><span></span><button type="button" class="btn" data-tract="bsave"' + (b.pos.length && b.nm.trim() ? "" : " disabled") + ">SAVE SPREAD</button></div>";
@@ -9965,7 +9963,7 @@
   document.addEventListener("input", function (e) {
     var t = e.target, d = t.dataset || {};
     if (t.id === "trQ") { trDraft().q = t.value; trDraftSave(); return; }
-    if (t.id === "trBName" && tr.bld) { tr.bld.nm = t.value; var sb = document.querySelector('[data-tract="bsave"]'); if (sb) sb.disabled = !(tr.bld.pos.length && t.value.trim()); return; }
+    if (t.id === "trBName" && tr.bld) { tr.bld.nm = t.value; var sbox = document.querySelector('[data-tract="bsave"]'); if (sbox) sbox.disabled = !(tr.bld.pos.length && t.value.trim()); return; }
     if (d.trplabel != null && tr.bld) { tr.bld.pos[+d.trplabel].l = t.value; return; }
     if (d.trsum) { var r = trReadings().filter(function (x) { return x.id === trId(d.trsum); })[0]; if (r) trEdit(r, { sum: t.value }); return; }
     if (d.trnote != null) { var rn = trReadings().filter(function (x) { return x.id === trId(d.trid); })[0]; if (rn) { var notes = (rn.notes || []).slice(); while (notes.length < rn.cards.length) notes.push(""); notes[+d.trnote] = t.value; trEdit(rn, { notes: notes }); } return; }
@@ -9996,10 +9994,10 @@
     return html + "</div></section>";
   }
   function tarotSection() {
-    var on = !!lsGet(LS_AITAROT), n = trReadings().length, waiting = Object.keys(tr.q).length;
+    var on = !!lsGet(LS_AITAROT), n = trReadings().length, isWaiting = Object.keys(tr.q).length;
     var html = "<section>" + phead("TAROT", canTarot() ? (tr.err ? "PROBLEM" : "NOTION") : "SETUP");
     if (!canTarot()) return html + stubBox("Needs the 🔮 Tarot database connected in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</section>";
-    html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
+    html += '<div class="calrow"><span class="st" style="background:var(--chrome-a)"></span><span><b>🔮 Tarot</b><small' + (tr.err ? ' class="errtxt">' + esc(tr.err.msg) : ">" + (tr.data ? n + (n === 1 ? " reading" : " readings") + " in 13 weeks · " + trMySpreads().length + " of your spreads · " + Object.keys(tr.data.meanings || {}).filter(function (k) { return tr.data.meanings[k]; }).length + " meanings" : "Not loaded yet") + (isWaiting ? " · " + isWaiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (tr.data && !tr.err ? " ok" : tr.err ? " bad" : "") + '">' + (tr.data && !tr.err ? "OK" : tr.err ? "ERROR" : "WAITING") + "</span></div>" + trbSystemsRow();
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR READINGS</label><div class="btnrow">' +
       '<button type="button" class="chip" data-aitarot="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aitarot="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
@@ -10013,7 +10011,7 @@
     if (wk) { var c = wk.cards[0]; seen[c.id] = 1; out.push("This week's card: " + trName(c.id) + (c.rev ? " (reversed)" : "") + (wk.sum ? ". His note: " + wk.sum : "")); }
     trReadings().filter(function (r) { return r.day >= from && !(wk && r.id === wk.id); }).slice(0, 12).forEach(function (r) {
       var pos = r.pos && r.pos.length === r.cards.length ? r.pos : trSpread(r.spread, r.cards.length).pos;
-      out.push(r.day + " · " + (r.sname || "reading") + (r.q ? ' · "' + r.q + '"' : "") + ": " + r.cards.map(function (c, i) { seen[c.id] = 1; var n = (r.notes || [])[i]; return (pos[i] ? pos[i].l.toLowerCase() + " " : "") + trName(c.id) + (c.rev ? " (reversed)" : "") + (n ? " [" + n + "]" : ""); }).join("; ") + (r.sum ? ". His reading: " + r.sum : ""));
+      out.push(r.day + " · " + (r.sname || "reading") + (r.q ? ' · "' + r.q + '"' : "") + ": " + r.cards.map(function (cc, i) { seen[cc.id] = 1; var n = (r.notes || [])[i]; return (pos[i] ? pos[i].l.toLowerCase() + " " : "") + trName(cc.id) + (cc.rev ? " (reversed)" : "") + (n ? " [" + n + "]" : ""); }).join("; ") + (r.sum ? ". His reading: " + r.sum : ""));
     });
     var mean = Object.keys(seen).filter(function (k) { return trMeaning(k); }).map(function (k) { return trName(k) + ": " + trMeaning(k); });
     if (mean.length) out.push("His own meanings: " + mean.join(" | "));
@@ -10087,10 +10085,10 @@
     var got = trb.cards[card];
     if (!got || got.loading && !got.books) { trbLoad(card); return html + '<div class="tr-bk"><div class="tr-bk-wait">OPENING YOUR BOOKS…</div></div></div>'; }
     if (got.err) return html + '<div class="tr-bk"><div class="err">' + esc(got.err) + '</div><button type="button" class="chip sm" data-trbfresh="' + card + '">TRY AGAIN</button></div></div>';
-    var books = got.books || [];
-    if (!books.length) return html + '<div class="tr-bk"><span class="muted">' + esc(trbErrText({ code: "tarot_books_empty" })) + "</span></div></div>";
-    var b = books.filter(function (x) { return x.book === trb.tab; })[0] || books[0];
-    html += '<div class="tr-bk"><div class="tr-bk-tabs" role="group" aria-label="Book">' + books.map(function (x) { return '<button type="button" class="tr-bk-tab" data-trbtab="' + x.book + '" aria-pressed="' + (x === b) + '">' + esc(x.name.toUpperCase()) + "</button>"; }).join("") + "</div>" +
+    var bookList = got.books || [];
+    if (!bookList.length) return html + '<div class="tr-bk"><span class="muted">' + esc(trbErrText({ code: "tarot_books_empty" })) + "</span></div></div>";
+    var b = bookList.filter(function (x) { return x.book === trb.tab; })[0] || bookList[0];
+    html += '<div class="tr-bk"><div class="tr-bk-tabs" role="group" aria-label="Book">' + bookList.map(function (x) { return '<button type="button" class="tr-bk-tab" data-trbtab="' + x.book + '" aria-pressed="' + (x === b) + '">' + esc(x.name.toUpperCase()) + "</button>"; }).join("") + "</div>" +
       trbPassage(b, rev) + '<small class="tr-bk-src">' + esc(b.title + (b.source ? " · " + b.source : "")) + (b.url ? ' · <a href="' + esc(b.url) + '" target="_blank" rel="noopener">OPEN IN NOTION</a>' : "") + "</small>";
     if (!hist) html += trbSugArea(r, at);
     return html + "</div></div>";
@@ -10495,7 +10493,7 @@
       (yard && yard.notes ? '<span class="ap-site">' + esc(yard.notes) + "</span>" : "") + "</section>";
     html += '<details class="ap-year" id="apYear"' + (ap.yearOpen ? " open" : "") + "><summary>THIS YEAR · HONEY, MITES, CHECK RHYTHM, THE YARD LIST</summary><div class=\"ap-yeargrid\">";
     var top = 1; hs.forEach(function (h) { top = Math.max(top, apYear(h.id, y).honey); });
-    html += '<div><h3 class="ap-h honey">HONEY ' + y + '</h3><div class="ap-bars">' + (hs.length ? hs.map(function (h) { var lb = apYear(h.id, y).honey; return "<span>" + esc(h.name) + '</span><span class="b"><i style="width:' + Math.max(lb ? 6 : 0, lb / top * 100) + '%"></i></span><span class="tnum">' + lb + " lb</span>"; }).join("") : '<span class="muted">No hives yet.</span>') + "</div></div>";
+    html += '<div><h3 class="ap-h honey">HONEY ' + y + '</h3><div class="ap-bars">' + (hs.length ? hs.map(function (h) { var lbl = apYear(h.id, y).honey; return "<span>" + esc(h.name) + '</span><span class="b"><i style="width:' + Math.max(lbl ? 6 : 0, lbl / top * 100) + '%"></i></span><span class="tnum">' + lbl + " lb</span>"; }).join("") : '<span class="muted">No hives yet.</span>') + "</div></div>";
     html += '<div><h3 class="ap-h mites">MITE CHECKS</h3><div class="ap-mrows">' + hs.map(function (h) {
       var n = apYear(h.id, y).mites, dots = "";
       for (var i = 0; i < AP_MITES_YEAR; i++) dots += '<i class="' + (i < n ? "on" : "") + '"></i>';
@@ -10514,15 +10512,15 @@
 
   /* level 2: a hive */
   function apHiveHtml() {
-    var h = apHive(ap.hive), cs = apChecks(h.id), last = cs[0], y = String(new Date().getFullYear()), lb = 0;
-    cs.forEach(function (c) { if (c.honey) lb += +c.honey; });
+    var h = apHive(ap.hive), cs = apChecks(h.id), last = cs[0], lbl = 0;
+    cs.forEach(function (c) { if (c.honey) lbl += +c.honey; });
     var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase()]]);
     if (ap.fresh) {
       var other = apHives().filter(function (x) { return x.id !== h.id && !apChecks(x.id).some(function (c) { return c.day === ymd(new Date()); }); })[0];
       html += '<div class="ap-saved"><span>✓ SAVED' + (cs.some(function (c) { return c.pending; }) ? " · GOES TO NOTION WHEN THE BRIDGE ANSWERS" : "") + "</span>" + (other ? '<button type="button" class="btn sm" data-apnextcheck="' + esc(other.id) + '">CHECK ' + esc(other.name.toUpperCase()) + " NEXT ›</button>" : "") + "</div>";
     }
     html += '<div class="ap-hive"><div class="ap-stage">' + apStack(h, 1.9, true, ap.box) + '<div class="ap-readout" id="apReadout">' + (ap.box == null ? apBoxHint(h) : apBoxRead(h, ap.box)) + '</div><button type="button" class="btn sm ghost ap-tubtn" data-apact="trueup">TRUE UP STACK</button></div>';
-    html += '<div class="ap-info"><div class="ap-hhead"><div><h2>' + esc(h.name.toUpperCase()) + "</h2><p>" + [h.queen ? "Queen " + esc(h.queen) : "", cs.length + (cs.length === 1 ? " check" : " checks"), lb ? (Math.round(lb * 10) / 10) + " lb honey" : ""].filter(Boolean).join(" · ") + "</p></div>" +
+    html += '<div class="ap-info"><div class="ap-hhead"><div><h2>' + esc(h.name.toUpperCase()) + "</h2><p>" + [h.queen ? "Queen " + esc(h.queen) : "", cs.length + (cs.length === 1 ? " check" : " checks"), lbl ? (Math.round(lbl * 10) / 10) + " lb honey" : ""].filter(Boolean).join(" · ") + "</p></div>" +
       '<button type="button" class="btn" data-apact="new">' + (ap.draft && apId(ap.draft.hive) === h.id ? "RESUME CHECK" : "+ NEW CHECK") + "</button></div>";
     if (last && last.next) html += '<div class="ap-next"><span class="ap-lab">NEXT TIME · FROM ' + apDay(last.day) + "</span><p>" + esc(last.next) + "</p></div>";
     html += cs.length ? '<div class="ap-checks" role="list">' + cs.map(function (c) {
@@ -10612,7 +10610,7 @@
       (canPlan() ? '<div class="btnrow"><button type="button" class="chip sm" data-apremind="1" aria-pressed="' + !!D.remind + '">REMIND ME IN ' + AP_REMIND_DAYS + " DAYS</button></div>" + (D.remind ? '<small class="muted">Adds "Hive check: ' + esc(h.name) + '" to the Master Task List for ' + esc(dLabel(addDays(new Date(), AP_REMIND_DAYS))) + ".</small>" : "") : "");
     var html = apCrumbs([["APIARY", "yard"], [h.name.toUpperCase(), "hive"], ["NEW CHECK"]]);
     html += '<div class="ap-hive"><div class="ap-stage">' + apStack(Object.assign({}, h, { data: Object.assign({}, h.data, { boxes: D.boxes }) }), 1.3, false) + '<div class="ap-readout"><b>' + esc(dLabel(new Date())) + "</b><span>" + (last ? "Last check " + apDay(last.day) + " · " + apAgo(last.day) : "The first check for this hive") + "</span></div></div>";
-    html += '<article class="ap-card"><nav class="ap-steps" aria-label="Steps">' + AP_STEPS.map(function (s, i) { return '<button type="button" data-apgoto="' + i + '"' + (i === D.step ? ' aria-current="step"' : "") + (i < D.step ? ' class="done"' : "") + "><i></i>" + s + "</button>"; }).join("") + "</nav>" +
+    html += '<article class="ap-card"><nav class="ap-steps" aria-label="Steps">' + AP_STEPS.map(function (s, ix) { return '<button type="button" data-apgoto="' + ix + '"' + (ix === D.step ? ' aria-current="step"' : "") + (ix < D.step ? ' class="done"' : "") + "><i></i>" + s + "</button>"; }).join("") + "</nav>" +
       '<div class="ap-q">' + q + '</div><div class="ap-navrow"><button type="button" class="btn sm ghost" data-apact="' + (D.step ? "back" : "cancel") + '">' + (D.step ? "‹ BACK" : "CANCEL") + "</button>" +
       (D.step < AP_STEPS.length - 1 ? '<button type="button" class="btn sm" data-apact="fwd">NEXT ›</button>' : '<button type="button" class="btn sm" data-apact="save">SAVE CHECK</button>') + "</div></article></div>";
     return html;
@@ -10658,9 +10656,9 @@
     return html;
   }
   function apSaveCheckEdit() {
-    var F = ap.form, num = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
+    var F = ap.form, numAt = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(F.day || "")) { toast("Pick a date first."); return false; }
-    var item = { kind: "check", hive: apId(F.hive), day: F.day, mites: num(F.mites), honey: num(F.honey), data: F.data || {} };
+    var item = { kind: "check", hive: apId(F.hive), day: F.day, mites: numAt(F.mites), honey: numAt(F.honey), data: F.data || {} };
     if (String(F.forId).indexOf("cid:") === 0) item.cid = F.forId.slice(4); else item.id = F.forId;
     AP_EDIT.forEach(function (r) { item[r[0]] = String(F[r[0]] || "").trim(); });
     var prior = ap.q["c:" + F.forId] && ap.q["c:" + F.forId].body.item;
@@ -10763,7 +10761,7 @@
       return true;
     }
     if (d.apcheck) { ap.check = d.apcheck; apNav("check", apStackEl()); return true; }
-    if (d.apstep) { var cs = apChecks(ap.hive), i = cs.map(function (c) { return apId(c.id); }).indexOf(apId(ap.check)) + +d.apstep; if (cs[i]) { ap.check = cs[i].id; ap.arm = null; render(false); } return true; }
+    if (d.apstep) { var cs = apChecks(ap.hive), si = cs.map(function (c) { return apId(c.id); }).indexOf(apId(ap.check)) + +d.apstep; if (cs[si]) { ap.check = cs[si].id; ap.arm = null; render(false); } return true; }
     if (d.apnextcheck) { ap.hive = d.apnextcheck; ap.fresh = null; ap.draft = apNewDraft(apHive(ap.hive)); apDraftSave(); apNav("new", null); return true; }
     if (d.apdel) {
       if (ap.arm === "del:" + d.apdel && Date.now() - ap.armAt < 4000) {
@@ -10802,7 +10800,7 @@
     if (d.apn) {
       var step = +d.apd;
       if (d.apn === "fdeep" || d.apn === "fmedium" || d.apn === "fsuper") { if (F) { apFormBoxes(F, d.apn.slice(1), step); render(true); } return true; }
-      if (d.apn === "tudrawn") { if (ap.tu) { var tb = ap.tu.boxes[+d.api]; tb.drawn = Math.max(0, Math.min(apN(tb), (tb.drawn == null ? (step > 0 ? 0 : 1) : tb.drawn) + step)); render(true); } return true; }
+      if (d.apn === "tudrawn") { if (ap.tu) { var tub = ap.tu.boxes[+d.api]; tub.drawn = Math.max(0, Math.min(apN(tub), (tub.drawn == null ? (step > 0 ? 0 : 1) : tub.drawn) + step)); render(true); } return true; }
       if (!D) return true;
       if (d.apn === "drawn") {
         var bx = D.boxes[+d.api];
@@ -10812,11 +10810,11 @@
       apDraftSave(); render(true); return true;
     }
     if (d.apf && D) {
-      var v = d.apv;
+      var fv = d.apv;
       if (d.apmulti) {
-        if (d.apf === "queen" && v === "NONE OF THESE") D.queen = D.queen[v] ? {} : { "NONE OF THESE": true };
-        else { D[d.apf][v] = !D[d.apf][v]; if (d.apf === "queen") delete D.queen["NONE OF THESE"]; }
-      } else D[d.apf] = D[d.apf] === v ? "" : v;   /* tap again to clear */
+        if (d.apf === "queen" && fv === "NONE OF THESE") D.queen = D.queen[fv] ? {} : { "NONE OF THESE": true };
+        else { D[d.apf][fv] = !D[d.apf][fv]; if (d.apf === "queen") delete D.queen["NONE OF THESE"]; }
+      } else D[d.apf] = D[d.apf] === fv ? "" : fv;   /* tap again to clear */
       if (d.apf === "method" && !D.method) D.mites = 0;
       apDraftSave(); render(true); return true;
     }
@@ -10853,11 +10851,11 @@
 
   /* --- Systems and Ask --- */
   function apiarySection() {
-    var on = !!lsGet(LS_AIAPIARY), waiting = Object.keys(ap.q).length;
+    var on = !!lsGet(LS_AIAPIARY), isWaiting = Object.keys(ap.q).length;
     var html = "<section>" + phead("APIARY", canApiary() ? (ap.err ? "PROBLEM" : "NOTION") : "SETUP");
     if (!canApiary()) return html + stubBox("Needs the 🐝 Apiary database connected in Notion. Steps are in the README under <b>Connect Notion</b>.") + "</section>";
     var nh = apHives().length, nc = apChecks().length;
-    html += '<div class="calrow"><span class="st" style="background:var(--farm)"></span><span><b>🐝 Apiary</b><small' + (ap.err ? ' class="errtxt">' + esc(ap.err.msg) : ">" + (ap.data ? nh + (nh === 1 ? " hive · " : " hives · ") + nc + (nc === 1 ? " check" : " checks") : "Not loaded yet") + (waiting ? " · " + waiting + " waiting to save" : "")) + "</small></span>" +
+    html += '<div class="calrow"><span class="st" style="background:var(--farm)"></span><span><b>🐝 Apiary</b><small' + (ap.err ? ' class="errtxt">' + esc(ap.err.msg) : ">" + (ap.data ? nh + (nh === 1 ? " hive · " : " hives · ") + nc + (nc === 1 ? " check" : " checks") : "Not loaded yet") + (isWaiting ? " · " + isWaiting + " waiting to save" : "")) + "</small></span>" +
       '<span class="pill' + (ap.data && !ap.err ? " ok" : ap.err ? " bad" : "") + '">' + (ap.data && !ap.err ? "OK" : ap.err ? "ERROR" : "WAITING") + "</span></div>";
     html += '<label class="ov-sub" style="margin-top:14px;display:block">ASK CLAUDE AND YOUR HIVES</label><div class="btnrow">' +
       '<button type="button" class="chip" data-aiapiary="0" aria-pressed="' + !on + '">OFF</button><button type="button" class="chip" data-aiapiary="1" aria-pressed="' + on + '">SHARE WITH ASK</button></div>' +
@@ -10943,23 +10941,23 @@
 
   /* ---- loading: each feed on its own clock ---- */
   function sciLoad(all) {
-    var pl = sciPlace(); if (!pl || !state.conn || !canScience()) return;
-    var t = sc.tab, M = 60000, q = "&latitude=" + pl.lat + "&longitude=" + pl.lon, here = state.screen === "science";   /* away from the station: a light, slow read */
+    var loc = sciPlace(); if (!loc || !state.conn || !canScience()) return;
+    var t = sc.tab, M = 60000, q = "&latitude=" + loc.lat + "&longitude=" + loc.lon, here = state.screen === "science";   /* away from the station: a light, slow read */
     /* orbits and band conditions change slowly (12 h), but eBird's notable birds are worth an hourly look while SCIENCE is
        open (the bridge keeps them an hour), and NATURE without birds asks again every 5 minutes, so a key just added to
        Script Properties shows up the next time NATURE is opened rather than up to 12 hours later (2.50.1) */
     var fd = sciV("feeds") || {}, fMin = !here ? 12 * 60 : fd.ebird ? 60 : t === "nature" ? 5 : 12 * 60;
-    sciRun("feeds", fMin * M, function () { return api({ action: "sciencefeeds", lat: pl.lat, lon: pl.lon }); });
+    sciRun("feeds", fMin * M, function () { return api({ action: "sciencefeeds", lat: loc.lat, lon: loc.lon }); });
     sciRun("kpf", (here ? 30 : 180) * M, function () { return sciGet("https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"); });
     sciRun("quakes", (here ? 15 : 60) * M, function () {
       var since = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-      return Promise.all([sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=40&minmagnitude=2&maxradiuskm=500&latitude=" + pl.lat + "&longitude=" + pl.lon + "&starttime=" + since),
+      return Promise.all([sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=40&minmagnitude=2&maxradiuskm=500&latitude=" + loc.lat + "&longitude=" + loc.lon + "&starttime=" + since),
         sciGet("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&orderby=time&limit=10&minmagnitude=6&starttime=" + new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10))])
         .then(function (r) {
           var seen = {}, out = [];
           r[0].features.concat(r[1].features).forEach(function (f) {
             if (seen[f.id]) return; seen[f.id] = 1;
-            var c = f.geometry.coordinates, d = sciKm(pl, { lat: c[1], lon: c[0] });
+            var c = f.geometry.coordinates, d = sciKm(loc, { lat: c[1], lon: c[0] });
             out.push({ id: f.id, mag: Math.round(f.properties.mag * 10) / 10, place: f.properties.place || "", at: f.properties.time, km: d.km, dir: d.dir, depth: Math.round(c[2]), url: f.properties.url });
           });
           return out.sort(function (a, b) { return b.at - a.at; });
@@ -10974,7 +10972,7 @@
       sciRun("flux", 60 * M, function () { return sciGet("https://services.swpc.noaa.gov/json/f107_cm_flux.json"); });
     }
     if (all || t === "earth") {
-      sciRun("alerts", 15 * M, function () { return sciGet("https://api.weather.gov/alerts/active?point=" + pl.lat + "," + pl.lon).then(function (j) { return (j.features || []).map(function (f) { var p = f.properties; return { id: p.id, event: p.event, headline: p.headline, sev: p.severity, ends: p.ends || p.expires, sent: p.sent }; }); }); });
+      sciRun("alerts", 15 * M, function () { return sciGet("https://api.weather.gov/alerts/active?point=" + loc.lat + "," + loc.lon).then(function (j) { return (j.features || []).map(function (f) { var p = f.properties; return { id: p.id, event: p.event, headline: p.headline, sev: p.severity, ends: p.ends || p.expires, sent: p.sent }; }); }); });
       sciRun("air", 30 * M, function () { return sciGet("https://air-quality-api.open-meteo.com/v1/air-quality?current=us_aqi,pm2_5,ozone,uv_index&timezone=auto" + q).then(function (j) { return j.current || null; }); });
     }
     if (all || t === "night") sciRun("neo", 6 * 60 * M, function () {
@@ -10987,7 +10985,7 @@
       });
     });
     if (all || t === "nature") sciRun("inat", 60 * M, function () {
-      return sciGet("https://api.inaturalist.org/v1/observations?quality_grade=research&radius=25&per_page=30&order_by=observed_on&lat=" + pl.lat + "&lng=" + pl.lon + "&d1=" + ymd(addDays(new Date(), -7))).then(function (j) {
+      return sciGet("https://api.inaturalist.org/v1/observations?quality_grade=research&radius=25&per_page=30&order_by=observed_on&lat=" + loc.lat + "&lng=" + loc.lon + "&d1=" + ymd(addDays(new Date(), -7))).then(function (j) {
         var seen = {}, out = [];
         (j.results || []).forEach(function (o) { var tx = o.taxon; if (!tx || seen[tx.id]) return; seen[tx.id] = 1; out.push({ name: tx.preferred_common_name || tx.name, sci: tx.name, group: tx.iconic_taxon_name || "", day: o.observed_on, place: o.place_guess || "" }); });
         return out;
@@ -10996,9 +10994,9 @@
   }
   /* SKY: aircraft every 10 s while the station is open on SKY TRAFFIC; the ISS's place every minute. */
   function sciSky() {
-    var pl = sciPlace(); if (!pl || !canScience() || sc.skyBusy) return;
+    var loc = sciPlace(); if (!loc || !canScience() || sc.skyBusy) return;
     sc.skyBusy = true;
-    api({ action: "sky", lat: pl.lat, lon: pl.lon }).then(function (j) { sc.sky = { at: Date.now(), list: j.aircraft || [], source: j.source || "" }; sc.skyErr = ""; sciDetect("sky"); sciRoutes(); })
+    api({ action: "sky", lat: loc.lat, lon: loc.lon }).then(function (j) { sc.sky = { at: Date.now(), list: j.aircraft || [], source: j.source || "" }; sc.skyErr = ""; sciDetect("sky"); sciRoutes(); })
       .catch(function (err) { sc.skyErr = describe(err); })
       .then(function () { sc.skyBusy = false; if (state.screen === "science" && sc.tab === "sky") sciPaintSky(); });
     if (!sc.iss || Date.now() - sc.iss.at > 60000) sciGet("https://api.wheretheiss.at/v1/satellites/25544").then(function (j) { sc.iss = { at: Date.now(), lat: j.latitude, lon: j.longitude, alt: j.altitude, vel: j.velocity, vis: j.visibility }; }).catch(function () { /* the passes still show */ });
@@ -11031,10 +11029,10 @@
   function lmAll() { return (slm.d && slm.d.list) || []; }
   function lmHome() { return (slm.d && slm.d.home) || "home"; }
   /* East and north of here, in km: flat is close enough inside 50 km. */
-  function sciXY(pl, p) { return { x: (p.lon - pl.lon) * 111.32 * Math.cos(pl.lat * Math.PI / 180), y: (p.lat - pl.lat) * 110.57 }; }
+  function sciXY(loc, p) { return { x: (p.lon - loc.lon) * 111.32 * Math.cos(loc.lat * Math.PI / 180), y: (p.lat - loc.lat) * 110.57 }; }
   function lmShown() {
-    var pl = sciPlace(); if (!pl) return [];
-    return lmAll().filter(function (x) { return !x.hidden; }).map(function (x) { var w = sciKm(pl, x); return Object.assign({ km: w.km, dir: w.dir, xy: sciXY(pl, x) }, x); }).filter(function (x) { return x.km <= SCI_KM; });
+    var loc = sciPlace(); if (!loc) return [];
+    return lmAll().filter(function (x) { return !x.hidden; }).map(function (x) { var w = sciKm(loc, x); return Object.assign({ km: w.km, dir: w.dir, xy: sciXY(loc, x) }, x); }).filter(function (x) { return x.km <= SCI_KM; });
   }
   /* Where an aircraft is, in his own terms: "4 km NE of Riverton" (the nearest landmark within 8 km). */
   function sciNear(a) {
@@ -11054,15 +11052,15 @@
   }
   /* Ask OpenStreetMap once (the first time the scope shows with landmarks on), or again on SUGGEST AGAIN. */
   function lmSuggest(force) {
-    var pl = sciPlace(); if (!pl || slm.busy || !lmOn()) return;
+    var loc = sciPlace(); if (!loc || slm.busy || !lmOn()) return;
     if (!force && ((slm.d && slm.d.asked) || Date.now() - slm.errAt < 10 * 60000)) return;
     slm.busy = true; slm.err = "";
-    var around = "(around:50000," + pl.lat + "," + pl.lon + ")";
+    var around = "(around:50000," + loc.lat + "," + loc.lon + ")";
     var q = '[out:json][timeout:25];(node["place"~"^(city|town|village)$"]' + around + ';nwr["aeroway"="aerodrome"]' + around + ';way["aeroway"="runway"]' + around + ";);out center tags;";
     var one = function (i) { return sciPostForm(SCI_OVERPASS[i], "data=" + encodeURIComponent(q)).catch(function (e) { if (i + 1 < SCI_OVERPASS.length) return one(i + 1); throw e; }); };
     one(0).then(function (j) {
       var old = {}; lmAll().forEach(function (x) { old[x.id] = x; });
-      var picks = lmPick(j.elements || [], pl).map(function (x) { var o = old[x.id]; return o ? Object.assign(x, { name: o.name, hidden: !!o.hidden }) : x; });
+      var picks = lmPick(j.elements || [], loc).map(function (x) { var o = old[x.id]; return o ? Object.assign(x, { name: o.name, hidden: !!o.hidden }) : x; });
       slm.d = { home: slm.d && slm.d.home || "", asked: true, at: Date.now(), list: lmAll().filter(function (x) { return !x.auto; }).concat(picks) };
       lmSave();
       if (!picks.length) slm.err = "OpenStreetMap had no towns or airports within 50 km. Add your own in SYSTEMS → SCIENCE.";
@@ -11071,7 +11069,7 @@
   }
   /* A few, spread out: the main airport (and one airfield), then the biggest town in each direction, one in each ring
      band first (inside 10 km, 10 to 25, 25 to 50), none within 6 km of another, at most 8 in all. */
-  function lmPick(els, pl) {
+  function lmPick(els, loc) {
     var rank = { city: 3, town: 2, village: 1 }, towns = [], ports = [], rwys = [], out = [];
     els.forEach(function (e) {
       var t = e.tags || {}, lat = e.lat != null ? e.lat : e.center && e.center.lat, lon = e.lon != null ? e.lon : e.center && e.center.lon;
@@ -11079,12 +11077,12 @@
       var p = { lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4 };
       if (t.aeroway === "runway") { var h = parseInt(String(t.ref || "").split("/")[0], 10); if (h >= 1 && h <= 36) rwys.push(Object.assign({ rwy: (h % 18) * 10 || 180 }, p)); return; }
       if (!t.name) return;
-      var w = sciKm(pl, p); if (w.km > SCI_KM || w.km < 2) return;   /* inside 2 km is the centre itself */
+      var w = sciKm(loc, p); if (w.km > SCI_KM || w.km < 2) return;   /* inside 2 km is the centre itself */
       var base = { id: e.type.charAt(0) + e.id, name: t.name, lat: p.lat, lon: p.lon, auto: true, km: w.km, dir: w.dir };
       if (t.aeroway === "aerodrome") { if (!/^(private|no)$/.test(t.access || "")) ports.push(Object.assign(base, { kind: "airport", score: (t.iata ? 3 : t.icao ? 2 : 1) * 1000 - w.km })); }
       else if (rank[t.place]) towns.push(Object.assign(base, { kind: "town", score: rank[t.place] * 1e7 + (parseInt(String(t.population || "").replace(/\D/g, ""), 10) || 0) }));
     });
-    var far = function (x) { return out.every(function (y) { var a = sciXY(pl, x), b = sciXY(pl, y); return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) >= SCI_LM_GAP; }); };
+    var far = function (x) { return out.every(function (y) { var a = sciXY(loc, x), b = sciXY(loc, y); return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)) >= SCI_LM_GAP; }); };
     var take = function (x) { if (out.length < SCI_LM_MAX && out.indexOf(x) < 0 && far(x)) { out.push(x); return true; } return false; };
     var by = function (a, b) { return b.score - a.score; };
     ports.sort(by);
@@ -11097,7 +11095,7 @@
     winners.forEach(take);
     towns.forEach(take);
     out.forEach(function (x) {
-      if (x.kind === "airport") { var r = rwys.map(function (y) { var a = sciXY(pl, x), c = sciXY(pl, y); return { r: y.rwy, d: Math.sqrt((a.x - c.x) * (a.x - c.x) + (a.y - c.y) * (a.y - c.y)) }; }).sort(function (a, b) { return a.d - b.d; })[0]; if (r && r.d <= 4) x.rwy = r.r; }
+      if (x.kind === "airport") { var r = rwys.map(function (y) { var a = sciXY(loc, x), c = sciXY(loc, y); return { r: y.rwy, d: Math.sqrt((a.x - c.x) * (a.x - c.x) + (a.y - c.y) * (a.y - c.y)) }; }).sort(function (a, b) { return a.d - b.d; })[0]; if (r && r.d <= 4) x.rwy = r.r; }
       delete x.km; delete x.dir; delete x.score;
     });
     return out;
@@ -11128,9 +11126,9 @@
   }
   /* SYSTEMS → SCIENCE: the list, kept on this iPad. */
   function lmEditor() {
-    var pl = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
+    var loc = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
     var rows = lmAll().map(function (x) {
-      var w = pl ? sciKm(pl, x) : null;
+      var w = loc ? sciKm(loc, x) : null;
       return '<div class="lm-row' + (x.hidden ? " off" : "") + '"><span class="lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
         '<small class="muted">' + kinds[x.kind] + (w ? " · " + w.km + " km " + sciCompass(w.dir) : "") + '</small><button type="button" class="chip sm" data-scilmhide="' + esc(x.id) + '" aria-pressed="' + !x.hidden + '">' + (x.hidden ? "HIDDEN" : "SHOWN") + "</button>" +
         (x.auto ? "<span></span>" : '<button type="button" class="chip sm" data-scilmdel="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">✕</button>') + "</div>";
@@ -11145,20 +11143,20 @@
       '<small class="muted">Kept only on this iPad (and in your backups). SUGGEST AGAIN asks OpenStreetMap afresh and keeps the ones you added, renamed or hid.</small></div>';
   }
   function lmAdd(name, kind, lat, lon) {
-    var pl = sciPlace(); if (!pl) return;
-    var w = sciKm(pl, { lat: lat, lon: lon });
+    var loc = sciPlace(); if (!loc) return;
+    var w = sciKm(loc, { lat: lat, lon: lon });
     if (w.km > SCI_KM) { slm.findMsg = name + " is " + w.km + " km away, outside the scope's 50 km."; render(true); return; }
     slm.d = slm.d || { home: "", asked: false, list: [] };
     slm.d.list.push({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, kind: kind, lat: Math.round(lat * 1e4) / 1e4, lon: Math.round(lon * 1e4) / 1e4, auto: false });
     lmSave(); slm.found = null; slm.findMsg = name + " added, " + w.km + " km " + sciCompass(w.dir) + "."; render(true);
   }
   function lmFind() {
-    var el = $("lmFind"), v = el ? el.value.trim() : "", pl = sciPlace(); if (!v || !pl) return;
+    var el = $("lmFind"), v = el ? el.value.trim() : "", loc = sciPlace(); if (!v || !loc) return;
     var m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (m) { if (Math.abs(+m[1]) > 90 || Math.abs(+m[2]) > 180) { slm.findMsg = "Those aren't a latitude and longitude."; render(true); return; } lmAdd("My place", "own", +m[1], +m[2]); return; }
     slm.findMsg = "Looking…"; slm.found = null; render(true);
     sciGet("https://geocoding-api.open-meteo.com/v1/search?count=20&format=json&name=" + encodeURIComponent(v)).then(function (j) {
-      slm.found = (j.results || []).map(function (r) { var w = sciKm(pl, { lat: r.latitude, lon: r.longitude }); return { name: r.name, sub: r.admin2 || r.admin1 || "", lat: r.latitude, lon: r.longitude, km: w.km, dir: w.dir, kind: /^AIRP|^AIRF/.test(r.feature_code || "") ? "airport" : /^PPL/.test(r.feature_code || "") ? "town" : "own" }; })
+      slm.found = (j.results || []).map(function (r) { var w = sciKm(loc, { lat: r.latitude, lon: r.longitude }); return { name: r.name, sub: r.admin2 || r.admin1 || "", lat: r.latitude, lon: r.longitude, km: w.km, dir: w.dir, kind: /^AIRP|^AIRF/.test(r.feature_code || "") ? "airport" : /^PPL/.test(r.feature_code || "") ? "town" : "own" }; })
         .filter(function (r) { return r.km <= SCI_KM; }).sort(function (a, b) { return a.km - b.km; }).slice(0, 6);
       slm.findMsg = slm.found.length ? "" : "Nothing called that within 50 km. Coordinates work too (latitude, longitude), or ADD WHERE I AM when you're there.";
     }).catch(function (e) { slm.findMsg = "The place search didn't answer (" + describe(e) + ")."; })
@@ -11193,21 +11191,21 @@
 
   /* ---- orbits: visible passes, worked out here ---- */
   function sciPasses() {
-    var pl = sciPlace(), f = sciV("feeds"), day = ymd(new Date());
-    if (!pl || !f || !f.tle || (sc.d.passes && sc.d.passes.day === day && sc.d.passes.tle === f.tle.iss.l1 && sc.d.passes.at > Date.now() - 6 * 3600000)) return;
+    var loc = sciPlace(), f = sciV("feeds"), day = ymd(new Date());
+    if (!loc || !f || !f.tle || (sc.d.passes && sc.d.passes.day === day && sc.d.passes.tle === f.tle.iss.l1 && sc.d.passes.at > Date.now() - 6 * 3600000)) return;
     if (sc.busy.passes) return;
     sc.busy.passes = true;
     sciLibs().then(function () {
       var list = [];
-      Object.keys(SCI_SAT).forEach(function (k) { if (f.tle[k]) list = list.concat(sciPassesFor(k, f.tle[k], pl)); });
+      Object.keys(SCI_SAT).forEach(function (k) { if (f.tle[k]) list = list.concat(sciPassesFor(k, f.tle[k], loc)); });
       list.sort(function (a, b) { return a.rise - b.rise; });
       sc.d.passes = { day: day, at: Date.now(), tle: f.tle.iss.l1, v: list }; sciSave(); sciDetect("passes");
     }).catch(function (e) { sc.err.passes = { at: Date.now(), msg: String(e.message || e) }; })
       .then(function () { delete sc.busy.passes; if (state.screen === "science" || state.screen === "bridge") render(true); });
   }
-  function sciPassesFor(k, tle, pl) {
-    var S = window.satellite, A = window.Astronomy, rec = S.twoline2satrec(tle.l1, tle.l2), obs = { latitude: pl.lat * Math.PI / 180, longitude: pl.lon * Math.PI / 180, height: 0.2 };
-    var aobs = new A.Observer(pl.lat, pl.lon, 200), out = [], cur = null, t0 = Date.now() - 10 * 60000, t1 = Date.now() + 5 * 864e5;
+  function sciPassesFor(k, tle, loc) {
+    var S = window.satellite, A = window.Astronomy, rec = S.twoline2satrec(tle.l1, tle.l2), obs = { latitude: loc.lat * Math.PI / 180, longitude: loc.lon * Math.PI / 180, height: 0.2 };
+    var aobs = new A.Observer(loc.lat, loc.lon, 200), out = [], cur = null, t0 = Date.now() - 10 * 60000, t1 = Date.now() + 5 * 864e5;
     var look = function (ms) {
       var d = new Date(ms), pv = S.propagate(rec, d); if (!pv || !pv.position) return null;
       var la = S.ecfToLookAngles(obs, S.eciToEcf(pv.position, S.gstime(d)));
@@ -11240,12 +11238,12 @@
 
   /* ---- the night sky, worked out here ---- */
   function sciNight() {
-    var pl = sciPlace(), day = ymd(new Date());
-    if (!pl || sc.busy.night || (sc.d.night && sc.d.night.day === day && sc.d.night.lat === pl.lat)) return;
+    var loc = sciPlace(), day = ymd(new Date());
+    if (!loc || sc.busy.night || (sc.d.night && sc.d.night.day === day && sc.d.night.lat === loc.lat)) return;
     sc.busy.night = true;
     sciLibs().then(function () {
-      var A = window.Astronomy, o = new A.Observer(pl.lat, pl.lon, 200), now = new Date(), d0 = sod(now), t = function (x) { return x ? x.date.getTime() : null; };
-      var n = { day: day, lat: pl.lat };
+      var A = window.Astronomy, o = new A.Observer(loc.lat, loc.lon, 200), now = new Date(), d0 = sod(now), t = function (x) { return x ? x.date.getTime() : null; };
+      var n = { day: day, lat: loc.lat };
       n.sunset = t(A.SearchRiseSet(A.Body.Sun, o, -1, d0, 1)); n.sunrise = t(A.SearchRiseSet(A.Body.Sun, o, +1, addDays(d0, 1), 1));
       n.dark = t(A.SearchAltitude(A.Body.Sun, o, -1, d0, 1, -18)); n.dawn = t(A.SearchAltitude(A.Body.Sun, o, +1, addDays(d0, 1), 1, -18));
       n.phase = A.MoonPhase(now); n.lit = Math.round(A.Illumination(A.Body.Moon, now).phase_fraction * 100);
@@ -11286,7 +11284,7 @@
   /* ---- events of interest: detected, logged here for 30 days, and in Notion ---- */
   function sciEmer(a) { return a.emergency || ({ 7500: "hijack", 7600: "radio failure", 7700: "emergency" })[a.sq] || ""; }
   function sciDetect(k) {
-    var pl = sciPlace(), now = new Date(), day = ymd(now), add = sciEvent;
+    var loc2 = sciPlace(), now = new Date(), day = ymd(now), add = sciEvent;
     if (k === "sky" && sc.sky) sc.sky.list.forEach(function (a) {
       var emer = sciEmer(a), low = a.alt != null && a.alt < 2000 && a.km <= 10;
       if (!a.mil && !emer && !low) return;
@@ -11302,7 +11300,7 @@
     if (k === "kp") (sciV("kp") || []).slice(-16).forEach(function (r) {
       var kp = parseFloat(r.Kp != null ? r.Kp : r[1]), tt = r.time_tag || r[0]; if (!(kp >= 5)) return;
       add({ key: "kp:" + String(tt).replace(/[^0-9T]/g, ""), at: new Date(Date.parse(tt + "Z")).toISOString(), dept: "space", kind: "storm", value: kp, title: "Geomagnetic storm G" + Math.min(5, Math.floor(kp) - 4) + " (Kp " + kp + ")",
-        detail: pl && kp >= sciAuroraKp(pl.lat) ? "Strong enough for aurora at this latitude" : "Aurora further north" });
+        detail: loc2 && kp >= sciAuroraKp(loc2.lat) ? "Strong enough for aurora at this latitude" : "Aurora further north" });
     });
     if (k === "flares") (sciV("flares") || []).forEach(function (f) {
       var c = f.max_class || f.current_class || ""; if (!/^[MX]/.test(c) || !f.begin_time) return;
@@ -11344,8 +11342,8 @@
     if (sc.flushing || !state.conn || !canSciLog()) return;
     var keys = sc.q.add.slice(0, 25), evs = keys.map(function (k) { return sc.log.filter(function (x) { return x.key === k; })[0]; }).filter(Boolean);
     if (keys.length && !evs.length) { sc.q.add = sc.q.add.slice(keys.length); lsSet(LS_SCIQ, sc.q); return sciFlush(); }
-    var stars = Object.keys(sc.q.star).filter(function (k) { var e = sc.log.filter(function (x) { return x.key === k; })[0]; return e && e.id; });
-    if (!evs.length && !stars.length) return;
+    var starList = Object.keys(sc.q.star).filter(function (k) { var e = sc.log.filter(function (x) { return x.key === k; })[0]; return e && e.id; });
+    if (!evs.length && !starList.length) return;
     sc.flushing = true;
     var job = evs.length ? apiPost({ action: "sciencelogadd", events: evs.map(function (e) { return { key: e.key, at: e.at, dept: e.dept, kind: e.kind, title: e.title.slice(0, 200), detail: (e.detail || "").slice(0, 500), value: e.value == null ? null : e.value, starred: !!e.starred }; }) })
       .then(function (j) {
@@ -11353,7 +11351,7 @@
         sc.q.add = sc.q.add.filter(function (k) { return keys.indexOf(k) < 0; });
         evs.forEach(function (e) { if (sc.q.star[e.key] === !!e.starred && (j.added || []).some(function (r) { return r.key === e.key; })) delete sc.q.star[e.key]; });   /* sent with its star */
       })
-      : (function () { var k = stars[0], e = sc.log.filter(function (x) { return x.key === k; })[0]; return apiPost({ action: "sciencestar", id: e.id, starred: sc.q.star[k] }).then(function () { delete sc.q.star[k]; }, function (err) { if (err && err.code === "not_writable") delete sc.q.star[k]; else throw err; }); })();
+      : (function () { var k = starList[0], e = sc.log.filter(function (x) { return x.key === k; })[0]; return apiPost({ action: "sciencestar", id: e.id, starred: sc.q.star[k] }).then(function () { delete sc.q.star[k]; }, function (err) { if (err && err.code === "not_writable") delete sc.q.star[k]; else throw err; }); })();
     job.then(function () { sc.qErr = ""; }, function (err) { sc.qErr = describe(err); clearTimeout(sc.qT); sc.qT = setTimeout(sciFlush, 60000); })
       .then(function () { sc.flushing = false; lsSet(LS_SCILOG, sc.log); lsSet(LS_SCIQ, sc.q); if (!sc.qErr && (sc.q.add.length || Object.keys(sc.q.star).some(function (k) { return sc.log.some(function (x) { return x.key === k && x.id; }); }))) sciFlush(); if (state.screen === "science" || state.screen === "systems") render(true); });
   }
@@ -11392,11 +11390,11 @@
   function sciErr(k) { var e = sc.err[k]; return e ? '<div class="sci-src warntxt">Couldn\'t read it: ' + esc(e.msg) + ". Tries again in a few minutes.</div>" : ""; }
   function sciWait(k) { return sc.busy[k] || !sc.d[k] ? '<div class="empty">' + (sc.err[k] ? esc(sc.err[k].msg) : "Reading…") + "</div>" : ""; }
   function sciSweep() {
-    var pl = sciPlace(), n = sc.sky ? sc.sky.list.length : null, ton = sciTonight(), next = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.sat === "iss" && p.set > Date.now(); })[0];
+    var loc = sciPlace(), n = sc.sky ? sc.sky.list.length : null, ton = sciTonight(), next = ((sc.d.passes && sc.d.passes.v) || []).filter(function (p) { return p.sat === "iss" && p.set > Date.now(); })[0];
     var kp = sciKpNow(), air = sciV("air"), al = sciV("alerts") || [], q = (sciV("quakes") || []).filter(function (x) { return x.km <= 500; })[0], night = sc.d.night, inat = sciV("inat"), birds = ((sciV("feeds") || {}).birds || []), tn = sciKpTonight();
     var T = [
       ["sky", n == null ? "–" : n + " aircraft", ton ? ton.name + " " + hm(new Date(ton.rise)) + " · " + ton.max + "° high" : next ? "ISS next " + DOW[new Date(next.rise).getDay()] + " " + hm(new Date(next.rise)) : "Passes once the orbits load"],
-      ["space", kp ? "Kp " + kp.kp : "–", kp ? (kp.kp >= 5 ? "Storm" : kp.kp >= 4 ? "Unsettled" : "Quiet") + " · aurora " + (pl && tn != null && tn >= sciAuroraKp(pl.lat) ? "possible tonight" : "unlikely here") : "Reading NOAA"],
+      ["space", kp ? "Kp " + kp.kp : "–", kp ? (kp.kp >= 5 ? "Storm" : kp.kp >= 4 ? "Unsettled" : "Quiet") + " · aurora " + (loc && tn != null && tn >= sciAuroraKp(loc.lat) ? "possible tonight" : "unlikely here") : "Reading NOAA"],
       ["earth", air && air.us_aqi != null ? "AQI " + Math.round(air.us_aqi) : al.length ? al.length + (al.length === 1 ? " alert" : " alerts") : "–", (al.length ? al[0].event : "No alerts") + (q ? " · M" + q.mag + " " + q.km + " km" : "")],
       ["night", night ? night.lit + "% moon" : "–", night ? sciPhaseName(night.phase) + " · " + (night.dark ? "dark at " + hm(new Date(night.dark)) : "sunset " + hm(new Date(night.sunset))) : "Working it out"],
       ["nature", inat ? inat.length + " species" : "–", (birds.length ? birds.length + " notable birds · " : "") + "seen within 25 km this week"]
@@ -11491,7 +11489,7 @@
 
   /* SPACE WEATHER */
   function sciSpaceHtml() {
-    var kp = sciV("kp") || [], kf = sciV("kpf") || [], pl = sciPlace(), now = sciKpNow(), tn = sciKpTonight(), need = pl ? sciAuroraKp(pl.lat) : 9, b = (sciV("feeds") || {}).bands;
+    var kp = sciV("kp") || [], kf = sciV("kpf") || [], loc = sciPlace(), now = sciKpNow(), tn = sciKpTonight(), need = loc ? sciAuroraKp(loc.lat) : 9, b = (sciV("feeds") || {}).bands;
     var obs = kp.slice(-8).map(function (r) { return parseFloat(r.Kp != null ? r.Kp : r[1]); }).filter(function (v) { return !isNaN(v); }), fc = kf.filter(function (r) { return (r.observed || r[2]) !== "observed" && Date.parse((r.time_tag || r[0]) + "Z") > Date.now(); }).slice(0, 16).map(function (r) { return parseFloat(r.kp != null ? r.kp : r[1]); }).filter(function (v) { return !isNaN(v); });
     var bars = obs.concat(fc).map(function (v, i) { return '<i class="' + (v >= 5 ? "g2" : v >= 4 ? "g1" : "") + (i === obs.length - 1 ? " kp-now" : "") + '" style="height:' + Math.max(4, v / 9 * 100) + '%" title="Kp ' + v + '"></i>'; }).join("");
     var flares = (sciV("flares") || []).filter(function (f) { return f.max_class; }).slice(-3).reverse(), flux = (sciV("flux") || []).slice().sort(function (x, y) { return x.time_tag < y.time_tag ? 1 : -1; })[0];   /* NOAA lists it newest first */
@@ -11582,9 +11580,9 @@
     sciLoad(false);
   }
   function sciHeadline() {
-    var pl = sciPlace(); if (!pl) return null;
+    var loc = sciPlace(); if (!loc) return null;
     var p = sciTonight(); if (p) return { d: "sky", t: p.name + " visible tonight " + hm(new Date(p.rise)), s: p.max + "° high, " + sciCompass(p.riseAz) + " to " + sciCompass(p.setAz) };
-    var tn = sciKpTonight(); if (tn != null && tn >= sciAuroraKp(pl.lat)) return { d: "space", t: "Aurora possible tonight", s: "Kp " + tn + " forecast; look north after dark" };
+    var tn = sciKpTonight(); if (tn != null && tn >= sciAuroraKp(loc.lat)) return { d: "space", t: "Aurora possible tonight", s: "Kp " + tn + " forecast; look north after dark" };
     var q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 4 && Date.now() - x.at < 864e5; })[0];
     if (q) return { d: "earth", t: "M " + q.mag + " earthquake " + q.km + " km " + sciCompass(q.dir), s: hm(new Date(q.at)) + " · " + q.place };
     var m = sciMeteor(new Date()); if (sameDay(m.d, new Date())) return { d: "night", t: m.name + " meteor shower peaks tonight", s: "Best after midnight, away from lights" };
@@ -11593,9 +11591,9 @@
 
   function sciBrief() {
     if (!canScience() || !sciPlace()) return "";
-    var out = [], p = sciTonight(), pl = sciPlace(), tn = sciKpTonight(), q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 3.5 && Date.now() - x.at < 864e5; })[0], m = sciMeteor(new Date());
+    var out = [], p = sciTonight(), loc = sciPlace(), tn = sciKpTonight(), q = (sciV("quakes") || []).filter(function (x) { return x.km <= 300 && x.mag >= 3.5 && Date.now() - x.at < 864e5; })[0], m = sciMeteor(new Date());
     if (p) out.push(p.name + " visible tonight " + hm(new Date(p.rise)) + " to " + hm(new Date(p.set)) + ", " + p.max + " degrees high, from the " + sciCompass(p.riseAz) + " to the " + sciCompass(p.setAz));
-    if (tn != null && tn >= sciAuroraKp(pl.lat)) out.push("aurora possible tonight (Kp " + tn + " forecast)");
+    if (tn != null && tn >= sciAuroraKp(loc.lat)) out.push("aurora possible tonight (Kp " + tn + " forecast)");
     if (q) out.push("M" + q.mag + " earthquake " + q.km + " km " + sciCompass(q.dir) + " at " + hm(new Date(q.at)));
     if (sameDay(m.d, new Date())) out.push(m.name + " meteor shower peaks tonight");
     return out.length ? "SKY: " + out.join("; ") + "." : "";
@@ -11645,7 +11643,7 @@
     function save() { lsSet(LS_HOLO, cfg); }
     function chById(id) { return cfg.chans.filter(function (c) { return c.id === id; })[0] || null; }
     function cur() { return chById(cfg.ch); }
-    function num(c) { return cfg.chans.indexOf(c) + 1; }
+    function numAt(c) { return cfg.chans.indexOf(c) + 1; }
     function folderName(p) { return baseName(p).replace(/_+/g, " ").trim(); }
     function ext(n) { var m = /\.([a-z0-9]+)$/i.exec(n); return m ? m[1].toLowerCase() : ""; }
     var CANPLAY = {};   /* asked once per type (2.53.1): a video element per file name made thousands at once for a big folder, and froze a new iPad */
@@ -11655,7 +11653,7 @@
        network error is tried again after 10 minutes; "format" (the iPad can't decode it) stands until the file changes.
        Before 2.51.1 an unreadable file was marked for good, with no reason kept: those are measured again too. */
     var HD_RETRY_MS = 10 * 60000;
-    function adKey(p) { var r = ""; for (var i = p.length - 1; i >= 0; i--) r += p.charAt(i); return hash(p).toString(36) + hash(r).toString(36); }   /* two hashes: a clash would have two commercials measured in turn for ever */
+    function adKey(p) { var r = ""; for (var i = p.length - 1; i >= 0; i--) r += p.charAt(i); return hashStr(p).toString(36) + hashStr(r).toString(36); }   /* two hashes: a clash would have two commercials measured in turn for ever */
     function rec(it) { return it.ad ? adLens[it._k || (it._k = adKey(it.f.path))] : lens[it.f.path]; }
     function keepLen(it, x) {   /* store a length and save that store */
       if (!it.ad) { lens[it.f.path] = x; var ks = Object.keys(lens); if (ks.length > 5000) ks.slice(0, ks.length - 5000).forEach(function (k) { delete lens[k]; }); lsSet(LS_HOLOLEN, lens); return; }
@@ -11667,16 +11665,16 @@
        it's left out quietly. Only what can be fixed (the NAS not answering, a missing folder) still asks for a look. */
     function cantDecode(it) { return unreadable(it) && rec(it).why === "format"; }
     function loudBad(it) { return unreadable(it) && rec(it).why !== "format"; }
-    function lenOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
+    function lengthOf(it) { var x = rec(it); return x && x.z === it.f.size && x.s > 0 ? x.s : null; }
 
     /* ---- a channel's folder: the running order, what's skipped, the lengths ---- */
     function seasonOf(n) { var m = /\b(?:season|series)\s*(\d+)/i.exec(n) || /\bS(\d{1,2})\b/i.exec(n) || /^\s*(\d{1,2})\s*$/.exec(n); return m ? +m[1] : null; }
     function epOf(n) { n = n.replace(/\[[^\]]*\]/g, ""); var m = /\bepisode\s*(\d+)/i.exec(n) || /\bS\d{1,2}\s*E(\d{1,3})\b/i.exec(n) || /\b\d{1,2}x(\d{1,3})\b/.exec(n) || /\bep\.?\s*(\d+)/i.exec(n); return m ? +m[1] : null; }
     function nat(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); }
     function arrange(root, kids) {   /* seasons by number, episodes by number; then other folders (specials), episodes without a number, loose files beside the seasons */
-      var vid = function (x) { return !x.dir && VIDEO.test(x.name) && !PARTIAL.test(x.name); }, seas = [], others = [], extras = [], items;
+      var video = function (x) { return !x.dir && VIDEO.test(x.name) && !PARTIAL.test(x.name); }, seas = [], others = [], extras = [], items;
       kids.forEach(function (k) {
-        var fs = k.items.filter(vid), n = seasonOf(k.d.name); if (!fs.length) return;
+        var fs = k.items.filter(video), n = seasonOf(k.d.name); if (!fs.length) return;
         if (n == null) { others.push({ name: k.d.name, fs: fs.sort(nat) }); return; }
         seas.push({ n: n, name: k.d.name, eps: fs.filter(function (f) { return epOf(f.name) != null; }).sort(function (a, b) { return epOf(a.name) - epOf(b.name) || nat(a, b); }) });
         fs.filter(function (f) { return epOf(f.name) == null; }).sort(nat).forEach(function (f) { extras.push(f); });
@@ -11685,7 +11683,7 @@
       items = [];
       seas.sort(function (a, b) { return a.n - b.n || nat(a, b); }).forEach(function (s) { s.eps.forEach(function (f) { items.push({ f: f, s: s.n, e: epOf(f.name) }); }); });
       others.sort(nat).forEach(function (o) { o.fs.forEach(function (f) { items.push({ f: f, sp: series }); }); });
-      extras.concat(root.filter(vid).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
+      extras.concat(root.filter(video).sort(nat)).forEach(function (f) { items.push({ f: f, sp: series }); });
       return { play: items.filter(function (it) { return canPlay(it.f.name); }), skip: items.filter(function (it) { return !canPlay(it.f.name); }), series: series, seasons: seas.length, specials: items.filter(function (it) { return it.sp; }).length };
     }
     function sub(d, force) { return nasList(d.path, force).then(function (k) { return { d: d, items: k.items }; }); }
@@ -11699,7 +11697,7 @@
           return Promise.all(kids.map(function (k) { return Promise.all(k.items.filter(function (x) { return x.dir; }).map(function (g) { return sub(g, force); })).then(function (gk) { return { k: k, gk: gk }; }); })).then(function (list) { return lineupOf(list, l.items); });
         });
       }).then(function (r) { r.style = style; r.shows = r.shows || null; Object.assign(s, r); PK = {}; probe(); }).catch(function (e) { s.err = nasErrText(e); s.style = style; })   /* 2.54: a folder that can't be listed waits 30 seconds too, not one redraw (it asked the NAS hundreds of times a second) */
-        .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") render(); });
+        .then(function () { s.busy = false; s.at = Date.now(); if (state.screen === "holodeck") draw2(); });
     }
     /* ---- NETWORK: a folder of show folders ---- */
     function net(c) { return !!c && c.style === "network"; }
@@ -11708,30 +11706,30 @@
       return n.split(" ").map(function (w, i) { return i && /^(and|of|the|a|an|in|on|to|for|vs)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1); }).join(" ");
     }
     function lineupOf(list, root) {   /* each show folder: its episodes in its own order (seasons and episodes by number, or by name). Videos loose in the channel's folder are one more "show" with no name (2.48.2): a folder of music videos is a daily shuffle */
-      var shows = [], play = [], skip = [], loose = arrange(root || [], []);
+      var shows = [], play = [], skipIt = [], loose = arrange(root || [], []);
       if (loose.play.length) { loose.play.forEach(function (it) { it.show = ""; }); shows.push({ name: "", items: loose.play }); play = loose.play.slice(); }
-      skip = loose.skip.slice();
+      skipIt = loose.skip.slice();
       list.forEach(function (x) {
         var r = arrange(x.k.items, x.gk), name = showName(x.k.d.name);
         r.play.forEach(function (it) { it.show = name; if (it.e == null) it.ep = epOf(it.f.name); });
         if (r.play.length) shows.push({ name: name, items: r.play });
-        play = play.concat(r.play); skip = skip.concat(r.skip);
+        play = play.concat(r.play); skipIt = skipIt.concat(r.skip);
       });
-      return { play: play, skip: skip, shows: shows, series: false, seasons: 0, specials: 0 };
+      return { play: play, skip: skipIt, shows: shows, series: false, seasons: 0, specials: 0 };
     }
     var PK = {};
     function rng(seed) { var x = seed >>> 0 || 1; return function () { x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-    function hash(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    function hashStr(t) { var h = 2166136261; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
     function dayStart(ms) { var d = new Date(ms), s = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6); if (s.getTime() > ms) s.setDate(s.getDate() - 1); return s.getTime(); }   /* the broadcast day starts at 6:00 */
     function picks(c, s, ds) {   /* the day's running order, from the date alone */
       var key = c.dir + "|" + ymd(new Date(ds)) + "|" + s.play.length; if (PK[key]) return PK[key];
-      var r = rng(hash(key)), sh = s.shows, out = [], last = -1, ord = {}, ptr = {}, used = {};
-      var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hash(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptr[k] = 0; } return ord[k]; };
+      var r = rng(hashStr(key)), sh = s.shows, out = [], last = -1, ord = {}, ptrState = {}, used = {};
+      var order = function (k) { if (!ord[k]) { var a = sh[k].items.map(function (_, i) { return i; }), q = rng(hashStr(key + "|" + sh[k].name)); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(q() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } ord[k] = a; ptrState[k] = 0; } return ord[k]; };
       var take = function (k) {   /* the show's next episode in today's shuffle that hasn't aired today; all aired: round again */
-        var o = order(k), n = o.length, u = used[k] || (used[k] = {}), c = 0;
+        var o = order(k), n = o.length, u = used[k] || (used[k] = {}), cc = 0;
         if (Object.keys(u).length >= n) u = used[k] = {};
-        while (u[o[ptr[k] % n]] && c++ < n) ptr[k]++;
-        var i = o[ptr[k]++ % n]; u[i] = 1; return i;
+        while (u[o[ptrState[k] % n]] && cc++ < n) ptrState[k]++;
+        var i = o[ptrState[k]++ % n]; u[i] = 1; return i;
       };
       out.more = function () {   /* the lineup grows as far as the day needs: the same picks every time, from the date */
         for (var m = out.length + 120; out.length < m && sh.length;) {
@@ -11749,14 +11747,14 @@
       s.est = s.est && s.est.v === X.lv ? s.est : { v: X.lv };
       if (s.est[show] == null) {
         var med = function (a) { a = a.filter(function (x) { return x > 0; }).sort(function (x, y) { return x - y; }); return a.length ? a[a.length >> 1] : 0; };
-        var ofShow = s.play.filter(function (it) { return it.show === show; }).map(function (it) { return lenOf(it) || 0; });
-        s.est[show] = med(ofShow) || med(s.play.map(function (it) { return lenOf(it) || 0; })) || 1380;
+        var ofShow = s.play.filter(function (it) { return it.show === show; }).map(function (it) { return lengthOf(it) || 0; });
+        s.est[show] = med(ofShow) || med(s.play.map(function (it) { return lengthOf(it) || 0; })) || 1380;
       }
       return s.est[show];
     }
-    function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lenOf(it); }   /* null: measured and unreadable, skipped */
+    function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lengthOf(it); }   /* null: measured and unreadable, skipped */
     function netAt(c, s, ms) {   /* with BREAKS (2.52): the day's commercials are a shuffle of their own, from the date */
-      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hash(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
+      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hashStr(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
       if (E === false) return null;
       for (var i = 0; ; i++) {
         if (i >= list.length) { if (list.length > 30000 || !s.shows.length) return null; list.more(); if (i >= list.length) return null; }
@@ -11770,7 +11768,7 @@
        channel deals the commercials like a deck, so none repeats until all have aired. Picks are seeded, so the breaks
        are computed from the clock like everything else. Over 3 minutes is skipped; an unmeasured one counts as 30 s. */
     var A = { play: null, dir: "", at: 0, busy: false, err: "", v: -1, ok: [] }, BK = {}, PM = {}, AD_MAX = 180, AD_GUESS = 30;
-    function adLen(it) { if (unknown(it)) return AD_GUESS; var d = lenOf(it); return d && d <= AD_MAX ? d : null; }   /* null: too long, or unreadable */
+    function adLen(it) { if (unknown(it)) return AD_GUESS; var d = lengthOf(it); return d && d <= AD_MAX ? d : null; }   /* null: too long, or unreadable */
     function adPool() { if (!A.play) return []; if (A.v !== X.lv) { A.v = X.lv; A.ok = A.play.filter(function (it) { return adLen(it) != null; }); } return A.ok; }
     function breaks(c) {   /* the commercials this channel's breaks draw from; null: no breaks; false: wait, the folder is being read */
       if (!c || !c.breaks || !cfg.ads) return null;
@@ -11784,7 +11782,7 @@
       a.busy = true; a.err = "";
       nasList(dir, true).then(function (l) { return Promise.all(l.items.filter(function (x) { return x.dir; }).map(function (d) { return sub(d, force); })).then(function (kids) { return arrange(l.items, kids); }); })
         .then(function (r) { a.play = r.play.map(function (it) { return { f: it.f, ad: true }; }); a.skip = r.skip; a.v = -1; a.medz = null; BK = {}; probe(); }, function (e) { a.err = nasErrText(e); })
-        .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) render(); });
+        .then(function () { a.busy = false; a.at = Date.now(); if (state.screen === "holodeck" && a === A) draw2(); });
     }
     function mixInt(x) { x = (x ^ x >>> 16) >>> 0; x = Math.imul(x, 0x7feb352d) >>> 0; x = (x ^ x >>> 15) >>> 0; x = Math.imul(x, 0x846ca68b) >>> 0; return (x ^ x >>> 16) >>> 0; }
     function shuffleOf(seed, q, n) { var r = rng(mixInt((seed + Math.imul(q + 1, 0x9e3779b1)) >>> 0)), a = []; for (var i = 0; i < n; i++) a.push(i); for (i = n - 1; i > 0; i--) { var k = Math.floor(r() * (i + 1)), t = a[i]; a[i] = a[k]; a[k] = t; } return a; }
@@ -11807,14 +11805,14 @@
     function roundAt(c, s, E, seed, st, ms) {   /* IN ORDER with breaks: one time through the order from st; its breaks come after the same episodes each time */
       var t = st.t, j = st.j, p = st.p, acc = 0;
       for (var i = 0; i < s.play.length; i++) {
-        var it = s.play[i]; if (unknown(it)) return { wait: true }; var d = lenOf(it); if (d == null) continue;
+        var it = s.play[i]; if (unknown(it)) return { wait: true }; var d = lengthOf(it); if (d == null) continue;
         if (ms < t + d * 1000) return { seg: { c: c, it: it, pos: (ms - t) / 1000, dur: d, startMs: t } }; t += d * 1000;
         if (brkDue(d, acc += d)) { var b = brkAt(E, seed, j++, p, t), a = inBreak(c, b, ms); if (a) return { seg: a }; p = b.p; acc = 0; t += b.d * 1000; }
       }
       return { end: { t: t, j: j, p: p } };
     }
     function orderAt(c, s, ms, E) {   /* each round's length differs with its commercials, so where each began is kept, from the premiere on */
-      var seed = hash(c.dir + "|ads|" + E.length), key = [seed, X.lv, c.premiere, s.at, s.play.length].join("|"), R = BK[c.id];
+      var seed = hashStr(c.dir + "|ads|" + E.length), key = [seed, X.lv, c.premiere, s.at, s.play.length].join("|"), R = BK[c.id];
       if (!R || R.key !== key) R = BK[c.id] = { key: key, r: [{ t: c.premiere, j: 0, p: 0 }] };
       ms = Math.max(ms, c.premiere);
       var k = R.r.length - 1; while (k > 0 && R.r[k].t > ms) k--;
@@ -11831,7 +11829,7 @@
     function adsInfo() {   /* the Commercials folder's line: kept up to date as they're measured */
       if (A.dir !== cfg.ads || (!A.play && !A.err)) return "Reading the folder…";
       if (!A.play) return esc(A.err);
-      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lenOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(loudBad).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
+      var n = A.play.length, ok = adPool().length, m = A.play.filter(function (it) { return !unknown(it); }).length, long = A.play.filter(function (it) { var d = lengthOf(it); return d && d > AD_MAX; }).length, bad = A.play.filter(loudBad).length, on = cfg.chans.filter(function (x) { return x.breaks; }).length;
       return n + (n === 1 ? " commercial" : " commercials") + (long ? ' · <span class="pill warn">' + long + " over 3 min, skipped</span>" : "") + (bad ? ' · <span class="pill warn">' + bad + " unreadable</span>" : "") + (A.skip && A.skip.length ? ' · <span class="pill warn">' + kinds(A.skip) + " skipped</span>" : "") +
         " · " + ok + " can air · " + m + " measured, the rest as they come up · breaks on " + on + (on === 1 ? " channel" : " channels");
     }
@@ -11867,13 +11865,13 @@
       }
       return (net(x) ? "NETWORK" : "IN ORDER") + (x.breaks ? " · BREAKS" : "") + (w ? ' · <span class="hd-att">' + esc(w) + "</span>" : "");
     }
-    function nowHtml() {   /* under the screen: what's on, time left, what's next */
+    function nowPanel() {   /* under the screen: what's on, time left, what's next */
       var ch = cur(), c = ch && (X.on && X.cur && X.cur.c === ch ? X.cur : at(ch, Date.now()));
-      if (!c) return '<span class="hd-nprow"><span class="hd-npt">' + (ch ? "CH " + num(ch) : "HOLODECK") + "</span><b>" + esc(ch ? ch.name : "Add a channel below") + "</b></span>";
+      if (!c) return '<span class="hd-nprow"><span class="hd-npt">' + (ch ? "CH " + numAt(ch) : "HOLODECK") + "</span><b>" + esc(ch ? ch.name : "Add a channel below") + "</b></span>";
       var pos = X.on && X.v && X.cur === c && isFinite(X.v.currentTime) ? X.v.currentTime : (Date.now() - c.startMs) / 1000;
       var dur = c.brk ? c.brk.dur : c.dur, p = c.brk ? (c.startMs - c.brk.startMs) / 1000 + pos : pos, n = c.brk ? pastBreak(c) : after(c);
       if (n && n.brk) n = pastBreak(n);
-      return '<span class="hd-nprow"><span class="hd-npt">' + (X.on ? "NOW" : "ON CH " + num(ch)) + "</span><b>" + esc(line(label(c.it))) + "</b><small>" + mmss(dur - p) + " left" + (n ? " · next: " + esc(line(label(n.it))) : "") + "</small></span>" +
+      return '<span class="hd-nprow"><span class="hd-npt">' + (X.on ? "NOW" : "ON CH " + numAt(ch)) + "</span><b>" + esc(line(label(c.it))) + "</b><small>" + mmssOf(dur - p) + " left" + (n ? " · next: " + esc(line(label(n.it))) : "") + "</small></span>" +
         '<span class="hd-prog"><i style="width:' + Math.max(0, Math.min(100, p / dur * 100)).toFixed(1) + '%"></i></span>';
     }
     function want(c, wide) {   /* the next length to measure: today's lineup first (NETWORK), or the running order (IN ORDER) */
@@ -11909,9 +11907,9 @@
     }
 
     /* ---- the broadcast: computed from the clock ---- */
-    function walk(items, off) {   /* what's at `off` seconds into the order; the first time round needs only the lengths up to there */
-      for (var i = 0; i < items.length; i++) { if (unknown(items[i])) return { wait: true }; var d = lenOf(items[i]); if (d == null) continue; if (off < d) return { it: items[i], pos: off, dur: d }; off -= d; }
-      return { left: off };
+    function walk(items, offset) {   /* what's at `off` seconds into the order; the first time round needs only the lengths up to there */
+      for (var i = 0; i < items.length; i++) { if (unknown(items[i])) return { wait: true }; var d = lengthOf(items[i]); if (d == null) continue; if (offset < d) return { it: items[i], pos: offset, dur: d }; offset -= d; }
+      return { left: offset };
     }
     function at(c, ms) {
       var s = c && F[c.dir]; if (!s || !s.play) return null;
@@ -11925,7 +11923,7 @@
     function endMs(c) { return c.brk ? c.brk.startMs + c.brk.dur * 1000 : c.startMs + c.dur * 1000; }   /* a commercial: the end of its whole break */
     function pastBreak(c) { return at(c.c, endMs(c) + 20); }
     function next(c) { var n = after(c); return n && n.it === c.it ? after(n) : n; }   /* a length that settled mid-episode never replays it */
-    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lenOf(it) || 0); }, 0); }
+    function loopLen(c) { var s = F[c.dir]; if (!s || !s.play || s.shows || s.play.some(unknown)) return 0; return s.play.reduce(function (n, it) { return n + (lengthOf(it) || 0); }, 0); }
     function label(it) {   /* a name and a line: "Artist - Title" for a music video; the season and episode, and a title if the name has one, for a series */
       if (it.ad) return { a: "COMMERCIAL BREAK", t: "", ad: true };
       var n = it.f.name.replace(/\.[^.]+$/, "").replace(/\[[^\]]*\]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
@@ -11958,7 +11956,7 @@
         afterFail(v, c, fmt);
       });
       v.addEventListener("playing", function () { if (X.v === v) { X.fails = 0; X.nasMiss = 0; } });
-      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tick(); });
+      v.addEventListener("timeupdate", function () { if (X.v !== v) return; if (v.currentTime !== X.ct) { X.ct = v.currentTime; X.tp = Date.now(); } tickOnce(); });
       return v;
     }
     function afterFail(v, c, fmt) {   /* the NAS answered (or it's a decode failure): LEVEL steps aside, else the file is passed over */
@@ -11986,13 +11984,13 @@
       return fetch(url(c.it.f.path), { method: "HEAD", cache: "no-store", signal: ac ? ac.signal : undefined }).then(function (r) { clearTimeout(t); return { ok: true, code: r.status }; },
         function (e) { clearTimeout(t); return { ok: false, why: e && e.name === "AbortError" ? "no answer in 5 s" : "no connection" }; });
     }
-    function nasGate(v, c, go) {
+    function nasGate(v, c, proceed) {
       if (X.nasWait) return;   /* already waiting */
       if (X.nasCheck === c) return; X.nasCheck = c;
       nasProbe(c).then(function (r) {
         X.nasCheck = null;
         if (X.v !== v || !X.on || X.cur !== c) return;
-        if (r.ok) { hdErr("NAS answered", "HTTP " + r.code + " for this file, so the file itself didn't load", c); go(); return; }
+        if (r.ok) { hdErr("NAS answered", "HTTP " + r.code + " for this file, so the file itself didn't load", c); proceed(); return; }
         nasWaitStart(c, r.why);
       });
     }
@@ -12001,13 +11999,13 @@
       X.nasWait = { since: Date.now(), n: 0, why: why, t: 0 };
       hdErr("waiting for the NAS", "NAS unreachable (" + why + "); nothing marked, LEVEL left on; trying again", c);
       X.note = "WAITING FOR THE NAS · " + why + ". The show picks up as soon as it's back.";
-      paint(); if (state.screen === "holodeck") render(true);
+      paint(); if (state.screen === "holodeck") draw2(true);
       nasRetry();
     }
     function nasRetry() {
       var w = X.nasWait; if (!w || !X.on) { X.nasWait = null; return; }
       var d = NAS_WAITS[Math.min(w.n, NAS_WAITS.length - 1)] * 1000;
-      if (Date.now() - w.since + d > 300000) { X.nasWait = null; hdErr("TV went off", "the NAS stayed unreachable for 5 minutes (" + w.why + ")", X.cur); off(); X.note = "The NAS was out of reach for 5 minutes. Check the iPad's Wi-Fi and Tailscale, then TUNE IN again."; render(); return; }
+      if (Date.now() - w.since + d > 300000) { X.nasWait = null; hdErr("TV went off", "the NAS stayed unreachable for 5 minutes (" + w.why + ")", X.cur); off(); X.note = "The NAS was out of reach for 5 minutes. Check the iPad's Wi-Fi and Tailscale, then TUNE IN again."; draw2(); return; }
       clearTimeout(w.t);
       w.t = setTimeout(function () {
         if (X.nasWait !== w || !X.on) return;
@@ -12016,8 +12014,8 @@
           if (X.nasWait !== w || !X.on) return;
           if (!r.ok) { w.why = r.why; w.n++; nasRetry(); return; }
           X.nasWait = null; X.fails = 0;
-          errLog("holodeck", "NAS back", "after " + Math.round((Date.now() - w.since) / 1000) + " s; the show picked up at its live point", "CH " + num(c.c));
-          X.note = ""; start(c, true); if (state.screen === "holodeck") render(true);
+          errLog("holodeck", "NAS back", "after " + Math.round((Date.now() - w.since) / 1000) + " s; the show picked up at its live point", "CH " + numAt(c.c));
+          X.note = ""; start(c, true); if (state.screen === "holodeck") draw2(true);
         });
       }, d);
     }
@@ -12029,7 +12027,7 @@
       return (X.v = v);
     }
     function hdErr(what, why, c) {   /* SYSTEMS → ERROR LOG (2.62): the file, the channel and what LEVEL was doing */
-      errLog("holodeck", what, why, (c && c.it ? baseName(c.it.f.path) + (c.it.ad ? " (commercial)" : "") : "?") + (c && c.c ? " · CH " + num(c.c) : "") + " · LEVEL " + (lvOn() ? "on, engine " + lvS.ac.state : !cfg.level ? "off" : lvS.paused ? "paused" : "not routed"));
+      errLog("holodeck", what, why, (c && c.it ? baseName(c.it.f.path) + (c.it.ad ? " (commercial)" : "") : "?") + (c && c.c ? " · CH " + numAt(c.c) : "") + " · LEVEL " + (lvOn() ? "on, engine " + lvS.ac.state : !cfg.level ? "off" : lvS.paused ? "paused" : "not routed"));
     }
     /* Full screen (2.53.3): Bridge draws it itself. The TV screen covers the whole app (X.big), so CRT, LIVE, the
        channel mark, credits and UP NEXT come too, and a redraw keeps it. Where the browser can also hide its own bars
@@ -12038,14 +12036,14 @@
        iPad offers it to no web app on the Home Screen, not even in its own player. */
     function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
     function fullOn() {
-      if (!X.on) return; X.big = true; render();
-      var d = document.documentElement, go = d.requestFullscreen || d.webkitRequestFullscreen;
-      if (go) { try { var r = go.call(d); if (r && r.catch) r.catch(function () { /* drawn full screen all the same */ }); } catch (e) { /* drawn full screen all the same */ } }
+      if (!X.on) return; X.big = true; draw2();
+      var d = document.documentElement, proceed = d.requestFullscreen || d.webkitRequestFullscreen;
+      if (proceed) { try { var r = proceed.call(d); if (r && r.catch) r.catch(function () { /* drawn full screen all the same */ }); } catch (e) { /* drawn full screen all the same */ } }
     }
     function fullOff() {
       var was = X.big; X.big = false;
       if (fsEl()) { var x = document.exitFullscreen || document.webkitExitFullscreen; try { var r = x && x.call(document); if (r && r.catch) r.catch(function () {}); } catch (e) { /* already out */ } }
-      if (was && state.screen === "holodeck") render();
+      if (was && state.screen === "holodeck") draw2();
     }
     ["fullscreenchange", "webkitfullscreenchange"].forEach(function (ev) { document.addEventListener(ev, function () { if (!fsEl() && X.big) fullOff(); }); });   /* the browser's own way out */
     /* A video that won't play (2.53.4). Its header can read fine (so it was measured) while the picture can't be decoded,
@@ -12055,11 +12053,11 @@
     function failed(c, why) {
       clearInterval(X.wd); keepLen(c.it, { s: -1, z: c.it.f.size, why: why, at: Date.now() }); X.lv++;
       var nm = line(label(c.it));
-      if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; render(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
+      if (why !== "format" && ++X.fails > 4) { hdErr("TV went off", "five videos in a row didn't load", c); off(); X.note = "Five videos in a row didn't load. Check the NAS and Tailscale, then TUNE IN again. SYSTEMS → ERROR LOG has the details."; draw2(); return; }   /* a decode failure doesn't count: each one leaves the schedule, so the run ends */
       X.note = why === "format" ? "" : nm + (why === "timeout" ? " didn't start; on to the next." : " didn't load; on to the next.");   /* 2.72: a decode failure moves on without a word */
       var n = next(c), s = F[c.c.dir];
       if (n) start(n, false);
-      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos play on this iPad." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; render(); }
+      else if (s && s.play && s.play.every(unreadable)) { off(); X.note = why === "format" ? "None of this channel's videos play on this iPad." : "None of this channel's videos would load. Check the NAS and Tailscale, then TUNE IN again."; draw2(); }
       else resume();
     }
     function start(c, seekLive) {
@@ -12080,10 +12078,10 @@
       clearTimeout(X.wait); if (!X.on) return;
       var c = at(cur(), Date.now()); if (c) start(c, true); else X.wait = setTimeout(resume, 1500);
     }
-    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + num(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
+    function meta(c) { if (!("mediaSession" in navigator) || !window.MediaMetadata) return; var l = label(c.it), ser = l.long != null || !!l.net; try { navigator.mediaSession.metadata = new MediaMetadata({ title: ser ? line(l) : l.t || l.a, artist: ser ? c.c.name : l.t ? l.a : "", album: "HOLODECK · CH " + numAt(c.c) + " · " + c.c.name }); } catch (e) { /* older iPadOS */ } }
     function tune() {
       var c = at(cur(), Date.now()); if (!c) return;
-      X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); render();
+      X.on = true; X.tuneAt = Date.now(); X.note = ""; lvS.paused = ""; radioUnlock(); lvRoute(); lvBackup(); burst(); start(c, true); draw2();
     }
     function off() { if (X.nasWait) clearTimeout(X.nasWait.t); X.nasWait = null; X.nasCheck = null; lvEnd(true); clearInterval(X.wd); X.big = false; if (fsEl()) fullOff(); X.on = false; X.cur = null; clearTimeout(X.wait); radioStop(); var v = X.v; if (v) { v.pause(); v.removeAttribute("src"); v.load(); if (v.parentNode !== X.keep) X.keep.appendChild(v); } }
     /* ---- 2.56.2: the TV's sound when Bridge goes to the background ----
@@ -12115,7 +12113,7 @@
       a.src = url(c.it.f.path); a.muted = false;
       var p = a.play(); if (p && p.catch) p.catch(function () { /* iPadOS said no: the picture catches up on return */ });
       if ("mediaSession" in navigator && window.MediaMetadata) {
-        try { var lb = label(c.it); navigator.mediaSession.metadata = new MediaMetadata({ title: line(lb), artist: (c.c && c.c.name) || "HOLODECK", album: "TimothyOS · HOLODECK" }); navigator.mediaSession.playbackState = "playing"; } catch (e) { /* not offered here */ }
+        try { var lbl = label(c.it); navigator.mediaSession.metadata = new MediaMetadata({ title: line(lbl), artist: (c.c && c.c.name) || "HOLODECK", album: "TimothyOS · HOLODECK" }); navigator.mediaSession.playbackState = "playing"; } catch (e) { /* not offered here */ }
       }
     }
     function toRadio() {
@@ -12240,7 +12238,7 @@
       b.pause(); b.id = "hdVideo"; X.v = b;
       X.note = "LEVEL stepped aside (" + why + "), so the TV plays on without it. It tries again at the next TUNE IN.";
       X.cur = null; var c = at(cur(), Date.now()); if (c) start(c, true); else resume();
-      if (state.screen === "holodeck") render();
+      if (state.screen === "holodeck") draw2();
       return true;
     }
     function lvLost() { return !!(X.on && lvS.ac && lvS.v === X.v && lvS.lost && Date.now() - lvS.lost > 2500 && !X.bk); }   /* with a backup ready, LEVEL steps aside instead (2.62) */
@@ -12269,9 +12267,9 @@
     }
     document.addEventListener("pointerdown", function () { if (X.on && lvS.ac && lvS.ac.state !== "running" && !document.hidden) lvWake(); }, true);   /* any tap may give the sound back */
     function switchTo(id) {   /* change channel: a moment of static, then whatever that channel is showing now */
-      if (!chById(id)) return; var moved = id !== cfg.ch; if (moved) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
-      if (X.on && moved) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
-      render();
+      if (!chById(id)) return; var didMove = id !== cfg.ch; if (didMove) X.last = cfg.ch; cfg.ch = id; X.rm = 0; X.ren = 0; save();
+      if (X.on && didMove) { X.tuneAt = Date.now(); X.note = ""; X.cur = null; if (X.v) X.v.pause(); burst(); resume(); }
+      draw2();
     }
     function step(d) { var n = cfg.chans.length; if (n < 2) return; var i = cfg.chans.indexOf(cur()); switchTo(cfg.chans[(i + d + n) % n].id); }
     function burst() {   /* a moment of static as the set warms up or changes channel */
@@ -12280,9 +12278,9 @@
     }
 
     /* ---- the screen ---- */
-    function head() { var c = cur(); if (!X.prog) return { e: "RESOURCES · HOLODECK · ARCH", t: "HOLODECK" }; return { e: "RESOURCES · HOLODECK · VISUAL" + (c ? " · CH " + num(c) + " · " + c.name.toUpperCase() : "") + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
-    function panel(c, title, meta, inner) { return '<section class="hd-panel" style="--c: var(--' + c + ')">' + phead(title, meta, c) + inner + "</section>"; }
-    function mmss(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ":" + p2(m) : m) + ":" + p2(s % 60); }
+    function head() { var c = cur(); if (!X.prog) return { e: "RESOURCES · HOLODECK · ARCH", t: "HOLODECK" }; return { e: "RESOURCES · HOLODECK · VISUAL" + (c ? " · CH " + numAt(c) + " · " + c.name.toUpperCase() : "") + (X.on ? " · ON AIR" : ""), t: "HOLODECK" }; }
+    function panel(c, title, metaInfo, inner) { return '<section class="hd-panel" style="--c: var(--' + c + ')">' + phead(title, metaInfo, c) + inner + "</section>"; }
+    function mmssOf(s) { s = Math.max(0, Math.round(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ":" + p2(m) : m) + ":" + p2(s % 60); }
     function hmLong(s) { var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.round(s % 3600 / 60); return s < 60 ? Math.round(s) + " s" : d ? d + " d " + h + " h" : h ? h + " h " + p2(m) + " m" : m + " min"; }
     function kinds(list) { var k = {}; list.forEach(function (it) { var e = ext(it.f.name).toUpperCase(); k[e] = (k[e] || 0) + 1; }); return Object.keys(k).map(function (e) { return k[e] + " " + e; }).join(", "); }
     function count(s, n) { return s.series ? s.seasons + (s.seasons === 1 ? " season" : " seasons") + (s.specials ? " + specials" : "") + " · " + n + (n === 1 ? " episode" : " episodes") : n + (n === 1 ? " video" : " videos"); }
@@ -12300,7 +12298,7 @@
     }
     function tuneSub() {
       var c = cur(), s = c && F[c.dir];
-      if (at(c, Date.now())) return "CHANNEL " + num(c) + " · " + c.name.toUpperCase();
+      if (at(c, Date.now())) return "CHANNEL " + numAt(c) + " · " + c.name.toUpperCase();
       if (!c) return "ADD A CHANNEL BELOW";
       if (!s || !s.play) return s && s.err ? "CAN'T REACH THE FOLDER" : "READING THE FOLDER…";
       if (!s.play.length) return "NO VIDEOS HERE THE IPAD CAN PLAY";
@@ -12317,7 +12315,7 @@
       var t = X.typed, n = cfg.chans.length, c = t ? cfg.chans[+t - 1] : cur(), more = t.length === 1 && n >= +t * 10;
       if (X.kmsg) return '<b class="hd-chnum">' + esc(X.kmsg) + "</b><small>" + (n ? "CHANNELS 1 TO " + n : "NO CHANNELS YET") + "</small>";
       if (t) return '<b class="hd-chnum">CH ' + t + (more ? "_" : "") + "</b><small>" + (c ? esc(c.name.toUpperCase()) + " · ENTER OR WAIT" : "…") + "</small>";
-      return '<b class="hd-chnum">CH ' + (c ? num(c) : "–") + "</b><small>" + esc(c ? c.name.toUpperCase() : "NO CHANNELS YET") + "</small>";
+      return '<b class="hd-chnum">CH ' + (c ? numAt(c) : "–") + "</b><small>" + esc(c ? c.name.toUpperCase() : "NO CHANNELS YET") + "</small>";
     }
     function padShow() {   /* the display and the number on the screen, in place: no redraw while typing */
       var e = $("hdLcd"); if (e) e.innerHTML = padHtml();
@@ -12343,8 +12341,8 @@
         '<button type="button" class="hd-look" data-hdlook="' + to + '" aria-label="Look: ' + cfg.look.toUpperCase() + ". Tap for " + to.toUpperCase() + '"><small>LOOK</small><span>' + cfg.look.toUpperCase() + "</span></button>" +
         '<div class="hd-pad"><div class="hd-lcd" id="hdLcd" aria-live="polite">' + padHtml() + '</div><div class="hd-keys" role="group" aria-label="Channel keypad">' +
         ["1", "2", "3", "4", "5", "6", "7", "8", "9", "last", "0", "ok"].map(function (k) {
-          var off = !n || (k === "last" && !back);
-          return '<button type="button" class="hd-key' + (k === "ok" ? " ok" : k === "last" ? " fn" : "") + '" data-hdkey="' + k + '"' + (k === "last" ? ' aria-label="Last channel"' : k === "ok" ? ' aria-label="Enter"' : "") + (off ? " disabled" : "") + ">" + (k === "last" ? "↺ LAST" : k === "ok" ? "ENTER" : k) + "</button>";
+          var offset = !n || (k === "last" && !back);
+          return '<button type="button" class="hd-key' + (k === "ok" ? " ok" : k === "last" ? " fn" : "") + '" data-hdkey="' + k + '"' + (k === "last" ? ' aria-label="Last channel"' : k === "ok" ? ' aria-label="Enter"' : "") + (offset ? " disabled" : "") + ">" + (k === "last" ? "↺ LAST" : k === "ok" ? "ENTER" : k) + "</button>";
         }).join("") + "</div></div>" +
         '<span class="hd-rpair"><button type="button" class="hd-rb" data-hd="up"' + (n > 1 ? "" : " disabled") + '>CH ▲</button><button type="button" class="hd-rb" data-hd="down"' + (n > 1 ? "" : " disabled") + ">CH ▼</button></span>" +
         '<button type="button" class="hd-rv" data-hd="full"' + (X.on ? "" : " disabled") + ">FULL SCREEN</button>" +
@@ -12373,9 +12371,9 @@
         }
         if (u.brk) { if (q) q.b = endMs(u); else carry = carry || u.brk.startMs; var nb = pastBreak(u); if (!nb || nb.startMs <= u.startMs) { u = null; break; } u = nb; continue; }
         var st = u.startMs; if (st >= W1) break;
-        var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slot = Math.floor((st - W0) / TG_HALF);
-        if (short && q && q.short && q.slot === slot) { q.list.push(u); q.b = en; }
-        else { if (q) out.push(q); q = { a: carry || st, b: en, short: short, slot: slot, list: [u] }; carry = 0; }
+        var en = st + u.dur * 1000, short = u.dur < TG_SHORT, slotAt = Math.floor((st - W0) / TG_HALF);
+        if (short && q && q.short && q.slot === slotAt) { q.list.push(u); q.b = en; }
+        else { if (q) out.push(q); q = { a: carry || st, b: en, short: short, slot: slotAt, list: [u] }; carry = 0; }
         var n = after(u); if (!n || n.startMs <= st) { u = null; break; } u = n;
       }
       if (q) out.push(q);
@@ -12393,9 +12391,9 @@
         var one = !q.short || q.list.length === 1, l = label(q.list[0].it), live = now >= q.a && now < q.b;
         var shown = live ? q.list.filter(function (u) { return u.startMs + u.dur * 1000 > now; }) : q.list;
         var tip = hm(new Date(q.a)) + "–" + hm(new Date(q.b)) + "\n" + shown.slice(0, 12).map(function (u) { return line(label(u.it)); }).join("\n") + (shown.length > 12 ? "\nand " + (shown.length - 12) + " more" : "");
-        return '<button type="button" class="hd-gc' + (live ? " live" : "") + (q.b <= now ? " past" : "") + '" data-hdg="' + c.id + '" ' + pos + ' title="' + esc(tip) + '"><b>' + (q.a < W0 ? "◂ " : "") + esc(one ? l.a : tgName(q.list)) + "</b><small>" + esc(one ? l.t || (q.short ? "" : mmss((q.list[0].dur))) : q.list.length + (tgEps(q.list) ? " episodes" : " videos")) + (q.b > W1 ? " ▸" : "") + "</small></button>";
+        return '<button type="button" class="hd-gc' + (live ? " live" : "") + (q.b <= now ? " past" : "") + '" data-hdg="' + c.id + '" ' + pos + ' title="' + esc(tip) + '"><b>' + (q.a < W0 ? "◂ " : "") + esc(one ? l.a : tgName(q.list)) + "</b><small>" + esc(one ? l.t || (q.short ? "" : mmssOf((q.list[0].dur))) : q.list.length + (tgEps(q.list) ? " episodes" : " videos")) + (q.b > W1 ? " ▸" : "") + "</small></button>";
       }).join("");
-      return '<div class="hd-grow" aria-current="' + on + '"><button type="button" class="hd-gch" data-hdg="' + c.id + '" aria-label="Channel ' + num(c) + ", " + esc(c.name) + (on ? ", on screen" : ", tune in") + '"><b>' + num(c) + '</b><span><span class="hd-gnm">' + esc(c.name) + "</span><small>" + (net(c) ? "NETWORK" : "IN ORDER") + (c.breaks && cfg.ads ? " · BREAKS" : "") + '</small></span></button><div class="hd-gtl">' + cells + "</div></div>";
+      return '<div class="hd-grow" aria-current="' + on + '"><button type="button" class="hd-gch" data-hdg="' + c.id + '" aria-label="Channel ' + numAt(c) + ", " + esc(c.name) + (on ? ", on screen" : ", tune in") + '"><b>' + numAt(c) + '</b><span><span class="hd-gnm">' + esc(c.name) + "</span><small>" + (net(c) ? "NETWORK" : "IN ORDER") + (c.breaks && cfg.ads ? " · BREAKS" : "") + '</small></span></button><div class="hd-gtl">' + cells + "</div></div>";
     }
     function tgHtml(now) {
       var W0 = tgFrom(now), W1 = W0 + TG_SPAN;
@@ -12454,8 +12452,8 @@
     function archHtml() {
       var now = Date.now(), lines = [], pn = !!pl.path && !pl.closed, ks, root = nasConf() && nas.lists["/"];
       cfg.chans.forEach(function (x) { if (nasConf()) load(x, false); }); loadAds(false);
-      if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) render(); }, function () { /* the line says so */ });
-      var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + num(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
+      if (nasConf() && !root && !nas.inflight["/"]) nasList("/").then(function () { if (state.screen === "holodeck" && !X.prog) draw2(); }, function () { /* the line says so */ });
+      var vis = cfg.chans.slice(0, 3).map(function (x) { var o = at(x, now); return "<span><em>CH " + numAt(x) + "</em><b>" + esc(o ? x.name + " · " + line(label(o.it)) : x.name) + "</b></span>"; }).join("") || '<span><em>NONE YET</em><b>Add a channel inside</b></span>';
       if (pn) lines.push("<span><em>" + (pl.el && !pl.el.paused ? "PLAYING" : "PAUSED") + "</em><b>" + esc(dispName(pl.path)) + "</b></span>");
       ks = Object.keys(plays).filter(function (k) { var r = plays[k]; return !r.done && r.p > 30 && k !== pl.path; }).sort(function (a, b) { return plays[b].at - plays[a].at; });
       if (ks.length) lines.push("<span><em>CONTINUE</em><b>" + esc(dispName(ks[0]) + " · " + baseName(parentOf(ks[0]))) + "</b></span>");
@@ -12464,7 +12462,7 @@
       var playing = pn && pl.el && !pl.el.paused;
       return '<div class="hd-arch' + (X.fade ? " leaving" : "") + '"><div class="hd-grid" aria-hidden="true"><i class="hd-wall"></i><i class="hd-floor"></i><i class="hd-fade"></i></div><div class="hd-px">' +
         '<div class="hd-atop"><span class="cap"></span><span class="rule"></span><h2>ENTER PROGRAM</h2></div><div class="hd-progs">' +
-        '<button type="button" class="hd-pg" data-hdprog="visual" style="--c: var(--chrome-d)"><span class="no">PROGRAM 01</span><span class="nm">VISUAL</span><span class="kind">TELEVISION · ' + (cfg.chans.length ? cfg.chans.length + (cfg.chans.length === 1 ? " CHANNEL" : " CHANNELS") + " ALWAYS ON AIR" : "CHANNELS FROM NAS FOLDERS") + '</span><span class="lu">' + vis + '</span><span class="go">ENTER ▸ ' + (cur() ? "CH " + num(cur()) : "ADD A CHANNEL") + "</span></button>" +
+        '<button type="button" class="hd-pg" data-hdprog="visual" style="--c: var(--chrome-d)"><span class="no">PROGRAM 01</span><span class="nm">VISUAL</span><span class="kind">TELEVISION · ' + (cfg.chans.length ? cfg.chans.length + (cfg.chans.length === 1 ? " CHANNEL" : " CHANNELS") + " ALWAYS ON AIR" : "CHANNELS FROM NAS FOLDERS") + '</span><span class="lu">' + vis + '</span><span class="go">ENTER ▸ ' + (cur() ? "CH " + numAt(cur()) : "ADD A CHANNEL") + "</span></button>" +
         '<button type="button" class="hd-pg" data-hdprog="audio" style="--c: var(--personal)"><span class="no">PROGRAM 02</span><span class="nm">AUDIO</span><span class="kind">RADIO · YOUR NAS FOLDERS</span><span class="lu">' + lines.join("") + '</span><span class="go">ENTER ▸ ' + (playing ? "THE PLAYER" : "THE FOLDERS") + "</span></button></div>" +
         '<div class="hd-voice">SELECT A PROGRAM</div></div></div>';
     }
@@ -12473,26 +12471,26 @@
       var go2 = function () {
         X.fade = 0;
         if (p === "audio") { var playing = pl.path && !pl.closed && pl.el && !pl.el.paused; nas.view = playing ? "now" : "home"; if (!playing) { nas.dir = "/"; nas.q = ""; } X.prog = null; go("storage"); if (nasConf()) nasLoad("/", true); return; }   /* entering AUDIO reads the shares afresh */
-        X.prog = "visual"; if (state.screen === "holodeck") { render(); $("content").scrollTop = 0; }
+        X.prog = "visual"; if (state.screen === "holodeck") { draw2(); $("content").scrollTop = 0; }
       };
       if (calm() || state.screen !== "holodeck") { go2(); return; }
-      X.fade = 1; render(); setTimeout(go2, 380);
+      X.fade = 1; draw2(); setTimeout(go2, 380);
     }
     /* ---- the sleep timer (2.49), as AUDIO's: minutes, or the end of what's on ---- */
     var SLEEPS = [["off", "OFF"], ["15", "15 MIN"], ["30", "30 MIN"], ["60", "1 HOUR"], ["120", "2 HOURS"], ["end", "END OF THIS SHOW"]];
-    function setSleep(v) {
+    function setSleepAt(v) {
       clearInterval(X.sleepT); X.sleepT = 0;
       X.sleep = v === "off" ? null : v === "end" ? "end" : +v;
       X.sleepAt = typeof X.sleep === "number" ? Date.now() + X.sleep * 60000 : 0;
-      if (typeof X.sleep === "number") X.sleepT = setInterval(sleepCheck, 5000);   /* keeps time in full screen too */
+      if (typeof X.sleep === "number") X.sleepT = setInterval(checkSleep, 5000);   /* keeps time in full screen too */
       if (X.sleep) toast(X.sleep === "end" ? "The TV goes off at the end of this show" : "The TV goes off in " + (X.sleep >= 60 ? X.sleep / 60 + (X.sleep === 60 ? " hour" : " hours") : X.sleep + " minutes"));
     }
-    function sleepCheck() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
+    function checkSleep() { if (typeof X.sleep === "number" && Date.now() >= X.sleepAt) sleepOff("Sleep timer: the TV is off"); }
     function sleepOff(msg) {
       clearInterval(X.sleepT); X.sleepT = 0; X.sleep = null;
       if (!X.on) return;
       off(); sb.slept = true; toast(msg);   /* Standby may take over now (see holoHold) */
-      if (state.screen === "holodeck") render();
+      if (state.screen === "holodeck") draw2();
     }
     function sleepLeft() { return Math.max(1, Math.ceil((X.sleepAt - Date.now()) / 60000)); }
     function sleepWin() {   /* 2.53: the sleep timer in a window of its own, large choices for a dark room */
@@ -12504,23 +12502,23 @@
           return '<button type="button" class="hd-sl" data-hdsleep="' + o[0] + '" aria-pressed="' + on + '">' + o[1] + (on && typeof X.sleep === "number" ? '<small>· <span id="hdSleepLeft2">' + sleepLeft() + "</span> LEFT</small>" : "") + "</button>";
         }).join("") + '</div><div class="btnrow hd-winend"><button type="button" class="chip sm" data-hd="sleepclose">CLOSE</button></div></div></div>';
     }
-    function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") render(); }
-    function render() {
+    function quiet() { if (!X.on) return; off(); X.note = "The TV went off while audio plays."; if (state.screen === "holodeck") draw2(); }
+    function draw2() {
       if (X.v && X.v.parentNode !== X.keep) X.keep.appendChild(X.v);   /* out of the way while the page is redrawn, so it keeps playing */
       /* 2.62.1 (Timothy: CH ▲▼ moved the TV up and down): replacing the page let the browser lay it out half built
          and drop the scroll to the top (in portrait the page itself scrolls, in landscape #content), so where the page
          was is put back once it's whole */
-      var sy = window.scrollY || 0, sc = $("content").scrollTop;
+      var sy = window.scrollY || 0, scv = $("content").scrollTop;
       if (!X.prog) { $("content").innerHTML = archHtml(); clearInterval(X.timer); X.timer = 0; paint(); return; }
       if (!nasConf()) { $("content").innerHTML = '<div class="hd">' + archBtn() + panel("chrome-d", "HOLODECK", "SETUP", stubBox("HOLODECK plays video from the NAS through its relay. Set it up first in <b>SYSTEMS → NAS RELAY</b>.")) + "</div>"; return; }
-      var c = cur(), k = num(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
+      var c = cur(), k = numAt(c), ready = !!at(c, Date.now()), s = c && F[c.dir];
       if (!c) X.pick = true;
       cfg.chans.forEach(function (x) { load(x, false); }); loadAds(false);
       var tv = '<div class="hd-stage"><div class="hd-main"><div class="hd-tv' + (cfg.look === "crt" ? " crt" : "") + (X.on ? " on" : "") + (X.on && X.big ? " big" : "") + '"><div class="hd-screen" id="hdScreen"><canvas class="hd-static" id="hdStatic" aria-hidden="true"></canvas><span class="hd-bug">HOLODECK' + (k ? " " + k : "") + '</span><span class="hd-osd" id="hdOsd" aria-hidden="true" hidden></span>' +
         (X.on ? '<button type="button" class="hd-snd" id="hdSnd" data-hd="sound"' + (lvLost() ? "" : " hidden") + '>TAP FOR SOUND</button><button type="button" class="hd-fsx" data-hd="fullexit" aria-label="Leave full screen">✕ EXIT FULL SCREEN</button><span class="hd-live" id="hdLive"></span><div class="hd-credit" id="hdCredit" hidden></div><div class="hd-upnext" id="hdUpNext" hidden><small>UP NEXT</small><b></b></div>' : '<button type="button" class="hd-tune" id="hdTune" data-hd="tune"' + (ready ? "" : " disabled") + '><span>⏻ TUNE IN</span><small id="hdTuneSub">' + esc(tuneSub()) + "</small></button>") + "</div></div>" +
         '<div class="hd-bar"><button type="button" class="chip" id="hdPower" data-hd="tune" aria-pressed="' + X.on + '" style="--c: var(--chrome-d)"' + (ready || X.on ? "" : " disabled") + ">" + (X.on ? "⏻ OFF" : "⏻ TUNE IN") + "</button>" +
         '<button type="button" class="hd-mute" data-hd="mute" aria-pressed="' + cfg.muted + '" aria-label="' + (cfg.muted ? "Muted: tap for sound" : "Mute") + '"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/>' + (cfg.muted ? '<path d="m22 9-6 6M16 9l6 6"/>' : '<path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>') + "</svg></button>" +
-        '<div class="hd-np" id="hdNow">' + nowHtml() + "</div></div>" +
+        '<div class="hd-np" id="hdNow">' + nowPanel() + "</div></div>" +
         (X.note ? '<p class="muted">' + esc(X.note) + "</p>" : "") + "</div>" + rail() + "</div>";
       var rows = cfg.chans.map(function (x, i) {
         var on = x.id === cfg.ch, arm = X.rm === x.id, open = !!X.open[x.id] || X.ren === x.id || arm;
@@ -12543,43 +12541,43 @@
       var v = vid(); if (X.on) $("hdScreen").insertBefore(v, $("hdStatic"));
       X.gh = ""; tgPaint(true); gb = $("hdTgBody"); if (gb && gs) { gb.scrollTop = gs[0]; gb.scrollLeft = gs[1]; }
       tgBind(); tgAuto(); padShow(); paint();
-      keepPlace(sy, sc);
-      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tick(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
+      keepPlace(sy, scv);
+      clearInterval(X.timer); X.timer = setInterval(function () { if (state.screen !== "holodeck") { clearInterval(X.timer); X.timer = 0; return; } tickOnce(); status(); if (!X.probing && ++X.pt % 60 === 0) probe(); }, 1000);   /* once a minute: anything due to be measured again (2.51.1) */
       if (X.on && Date.now() - X.tuneAt < 700) noise();
     }
-    function keepPlace(sy, sc) {
+    function keepPlace(sy, scv) {
       var ce = $("content");
-      if (ce.scrollTop !== sc) ce.scrollTop = sc;
+      if (ce.scrollTop !== scv) ce.scrollTop = scv;
       if ((window.scrollY || 0) !== sy) window.scrollTo({ top: sy, left: 0, behavior: "instant" });
     }
     function pickInfo(dir) {   /* what USE THIS FOLDER would make, from one level of subfolders */
       var l = nas.lists[dir]; if (!l) return null;
-      var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [], wait = false;   /* a top share (/Video) is a shelf of channels, not one */
+      var subs = dir.split("/").filter(Boolean).length < 2 ? [] : l.items.filter(function (x) { return x.dir; }), kids = [];   /* a top share (/Video) is a shelf of channels, not one */
       var missing = subs.filter(function (d) { var k = nas.lists[d.path]; if (k) kids.push({ d: d, items: k.items }); return !k; });
       if (missing.length && !X.pw[dir]) X.pw[dir] = Promise.all(missing.map(function (d) { return nasList(d.path); }))   /* asked once for the lot, one redraw when all are in (2.47.1: a redraw per folder, each adding more, froze the app on 18 folders) */
-        .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+        .then(function () { delete X.pw[dir]; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); }, function () { X.pw[dir] = "err"; if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); });
       return missing.length ? { wait: true, err: X.pw[dir] === "err" } : arrange(l.items, kids);
     }
     function fresh(dir) {   /* the picker reads a folder afresh each time it's opened, so a folder just added to the relay shows (2.48.1: it kept the list from earlier in the session) */
-      nasList(dir, true).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck" && X.pick && X.pickDir === dir) render(); });
+      nasList(dir, true).then(function () { if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck" && X.pick && X.pickDir === dir) draw2(); });
     }
     function picker() {
-      var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbs = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
-      if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) render(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") render(); });
+      var l = nas.lists[X.pickDir], parts = X.pickDir.split("/").filter(Boolean), crumbList = '<button type="button" class="chip sm" data-hdpick="/">NAS</button>' + parts.map(function (p, i) { return '<button type="button" class="chip sm" data-hdpick="/' + esc(parts.slice(0, i + 1).join("/")) + '">' + esc(p) + "</button>"; }).join("");
+      if (!l) nasList(X.pickDir).then(function () { if (state.screen === "holodeck" && X.pick) draw2(); }, function (e) { X.pickErr = nasErrText(e); if (state.screen === "holodeck") draw2(); });
       var dirs = l ? l.items.filter(function (x) { return x.dir; }) : [], pi = pickInfo(X.pickDir), n = pi && !pi.wait ? pi.play.length + pi.skip.length : 0, used = X.pickFor === "ads" ? null : cfg.chans.filter(function (x) { return x.dir === X.pickDir; })[0];
-      if (X.pickFor === "ads" && n) return pickBox(crumbs, l, dirs, X.pickDir === cfg.ads ? '<p class="muted">These are the commercials.</p>' : '<button type="button" class="btn" data-hd="useads">USE FOR COMMERCIALS · ' + n + (n === 1 ? " VIDEO" : " VIDEOS") + '</button><p class="muted">Any over 3 minutes are skipped.</p>');
-      var act = used ? '<p class="muted">This folder is channel ' + num(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
+      if (X.pickFor === "ads" && n) return pickBox(crumbList, l, dirs, X.pickDir === cfg.ads ? '<p class="muted">These are the commercials.</p>' : '<button type="button" class="btn" data-hd="useads">USE FOR COMMERCIALS · ' + n + (n === 1 ? " VIDEO" : " VIDEOS") + '</button><p class="muted">Any over 3 minutes are skipped.</p>');
+      var act = used ? '<p class="muted">This folder is channel ' + numAt(used) + ".</p>" : n ? '<button type="button" class="btn" data-hd="use">USE THIS FOLDER · ' + count(pi, n).toUpperCase() + "</button>" + (pi.series ? '<p class="muted">Seasons play in number order and episodes by their number, then the specials and extras.</p>' : "") :
         '<p class="muted">' + (pi && pi.err ? "Couldn't read the folders inside. Go up a level and back in to try again." : pi && pi.wait ? "Reading the folders inside…" : dirs.length ? "Open a folder of videos, or a series with a folder per season." : "No videos here.") + "</p>";
-      return pickBox(crumbs, l, dirs, act);
+      return pickBox(crumbList, l, dirs, act);
     }
-    function pickBox(crumbs, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbs + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
-    function tick() {
+    function pickBox(crumbList, l, dirs, act) { return '<div class="hd-pick"><div class="btnrow">' + crumbList + "</div>" + (l ? (dirs.length ? '<div class="hd-dirs">' + dirs.map(function (x) { return '<button type="button" class="hd-dir" data-hdpick="' + esc(x.path) + '"><i></i><span>' + esc(x.name) + "</span><span class=\"muted\">›</span></button>"; }).join("") + "</div>" : "") + act : '<p class="muted">' + esc(X.pickErr || "Reading…") + "</p>") + "</div>"; }
+    function tickOnce() {
       if (state.screen !== "holodeck") return;
       tgPaint(false); lvShow();
-      var np = $("hdNow"); if (np) np.innerHTML = nowHtml();
+      var np = $("hdNow"); if (np) np.innerHTML = nowPanel();
       var v = X.v, l = $("hdLive"), c = $("hdCredit");
-      if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmss(v.currentTime || 0) + " IN";
-      if (c && v && X.cur) { var lb = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lb.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lb.long) + (lb.t ? "<br>" + esc(lb.t) : "") : "<b>" + esc(lb.a) + "</b>" + (lb.t ? esc(lb.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
+      if (l && v) l.innerHTML = "<b>●</b> LIVE · " + mmssOf(v.currentTime || 0) + " IN";
+      if (c && v && X.cur) { var lbl = label(X.cur.it), d = isFinite(v.duration) ? v.duration : X.cur.dur, t = v.currentTime || 0; c.innerHTML = lbl.long != null ? "<b>" + esc(X.cur.c.name) + "</b>" + esc(lbl.long) + (lbl.t ? "<br>" + esc(lbl.t) : "") : "<b>" + esc(lbl.a) + "</b>" + (lbl.t ? esc(lbl.t) : ""); c.hidden = !!X.cur.it.ad || !(t < 8 || d - t < 8 || Date.now() - X.tuneAt < 7000); }   /* no credit for a commercial */
       var u = $("hdUpNext");   /* NETWORK: UP NEXT in an episode's last 15 seconds, like a network bumper */
       if (u && v && X.cur) { var left = (isFinite(v.duration) ? v.duration : X.cur.dur) - (v.currentTime || 0), nx = net(X.cur.c) && !X.cur.it.ad && left < 15 && left > .3 ? after(X.cur) : null;
         if (nx && nx.brk) nx = pastBreak(nx);   /* before a break: what's on after it */
@@ -12596,7 +12594,7 @@
       cfg.chans.forEach(function (x) { var e = $("hdSum" + x.id), h = chanSum(x); if (e && e.innerHTML !== h) e.innerHTML = h; });
       ["hdSleepLeft", "hdSleepLeft2"].forEach(function (id) { var sl = $(id); if (sl && typeof X.sleep === "number") sl.textContent = sleepLeft(); });
     }
-    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tick(); status(); } }
+    function paint() { if (state.screen !== "holodeck") return; var h = head(), e = $("eyebrow"); if (e) e.textContent = h.e; if (X.prog) { tickOnce(); status(); } }
     function noise() {   /* the static, drawn for half a second */
       var cv = $("hdStatic"); if (!cv) return; cv.classList.add("on"); var t0 = performance.now();
       var draw = function () { if (!cv.isConnected) return; var w = 160, h = 100; cv.width = w; cv.height = h; var x = cv.getContext("2d"), img = x.createImageData(w, h); for (var i = 0; i < img.data.length; i += 4) { var g = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = g; img.data[i + 3] = 255; } x.putImageData(img, 0, 0);
@@ -12608,62 +12606,62 @@
       if (d.hd === undefined && d.hdpick === undefined && d.hdlook === undefined && d.hdch === undefined && d.hdrm === undefined && d.hdren === undefined && d.hdprog === undefined && d.hdgo === undefined && d.hdstyle === undefined && d.hdsleep === undefined && d.hdbrk === undefined && d.hdopen === undefined && d.hdkey === undefined && d.hdg === undefined) return false;
       if (d.hdkey) { padKey(d.hdkey); return true; }
       if (d.hdg) { var gid = +d.hdg; if (gid !== cfg.ch) switchTo(gid); if (!X.on && at(cur(), Date.now())) tune(); return true; }   /* the guide: a channel or a show tunes to that channel (2.57) */
-      if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); render(); return true; }
+      if (d.hd === "chans") { cfg.copen = !(cfg.copen || X.pick); if (!cfg.copen) { X.pick = false; X.pickFor = ""; } save(); draw2(); return true; }
       if (d.hd === "gback" || d.hd === "gnext") { X.gw = Math.max(0, Math.min(6, X.gw + (d.hd === "gnext" ? 1 : -1))); tgPaint(true); var gk0 = $("hdGBack"), gk1 = $("hdGNext"); if (gk0) gk0.disabled = !X.gw; if (gk1) gk1.disabled = X.gw >= 6; return true; }
       if (d.hd === "gauto") { cfg.gauto = !cfg.gauto; save(); b.setAttribute("aria-pressed", String(cfg.gauto)); X.asHold = 0; X.asWrap = false; tgPaint(true); tgLoop(); tgAuto(); return true; }
-      if (d.hdsleep) { setSleep(d.hdsleep); X.sleepOpen = false; render(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
-      if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } render(); return true; }   /* + / − on a row (2.53) */
-      if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; render(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
-      if (d.hd === "collapse") { X.open = {}; X.ren = 0; X.rm = 0; render(); return true; }
+      if (d.hdsleep) { setSleepAt(d.hdsleep); X.sleepOpen = false; draw2(); var sb0 = document.querySelector("[data-hd=\"sleep\"]"); if (sb0) sb0.focus(); return true; }
+      if (d.hdopen) { X.open[d.hdopen] = !X.open[d.hdopen]; if (!X.open[d.hdopen]) { if (X.ren === +d.hdopen) X.ren = 0; if (X.rm === +d.hdopen) X.rm = 0; } draw2(); return true; }   /* + / − on a row (2.53) */
+      if (d.hd === "sleep" || d.hd === "sleepclose") { X.sleepOpen = d.hd === "sleep"; draw2(); var f = X.sleepOpen ? document.querySelector(".hd-win [aria-pressed=\"true\"]") : document.querySelector("[data-hd=\"sleep\"]"); if (f) f.focus(); return true; }
+      if (d.hd === "collapse") { X.open = {}; X.ren = 0; X.rm = 0; draw2(); return true; }
       if (d.hdstyle) {   /* IN ORDER or NETWORK: reread the folder for that style; if it's on screen, whatever the new style has on now */
-        var sp = d.hdstyle.split("|"), sc = chById(+sp[0]); if (!sc || (sc.style || "order") === sp[1]) return true;
-        sc.style = sp[1]; save(); load(sc, true);
-        if (X.on && sc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render(); return true;
+        var sp = d.hdstyle.split("|"), scv = chById(+sp[0]); if (!scv || (scv.style || "order") === sp[1]) return true;
+        scv.style = sp[1]; save(); load(scv, true);
+        if (X.on && scv.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
+        draw2(); return true;
       }
       if (d.hdbrk) {   /* BREAKS on or off: that channel's schedule is dealt afresh from now */
         var bc = chById(+d.hdbrk); if (!bc) return true;
         bc.breaks = !bc.breaks; save(); delete BK[bc.id]; loadAds(false);
         if (X.on && bc.id === cfg.ch) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render(); return true;
+        draw2(); return true;
       }
       if (d.hdprog) { if (!X.fade) enter(d.hdprog); return true; }
-      if (d.hdgo) { leave(); arch(); render(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
-      if (d.hd === "tune") { if (X.on) { off(); setSleep("off"); } else tune(); render(); }   /* turning it off by hand clears the sleep timer */
+      if (d.hdgo) { leave(); arch(); draw2(); $("content").scrollTop = 0; return true; }   /* ◇ ARCH: the TV goes off (unless floating) */
+      if (d.hd === "tune") { if (X.on) { off(); setSleepAt("off"); } else tune(); draw2(); }   /* turning it off by hand clears the sleep timer */
       else if (d.hd === "up" || d.hd === "down") step(d.hd === "up" ? 1 : -1);
       else if (d.hdch !== undefined) switchTo(+d.hdch);
-      else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; render(); }
-      else if (d.hd === "level") { cfg.level = !cfg.level; save(); lvSwap(); render(); }   /* 2.61 */
-      else if (d.hd === "sound") { lvSwap(); render(); }   /* iPadOS kept the sound: a new start, inside this tap */
+      else if (d.hd === "mute") { cfg.muted = !cfg.muted; save(); if (X.v) X.v.muted = cfg.muted; draw2(); }
+      else if (d.hd === "level") { cfg.level = !cfg.level; save(); lvSwap(); draw2(); }   /* 2.61 */
+      else if (d.hd === "sound") { lvSwap(); draw2(); }   /* iPadOS kept the sound: a new start, inside this tap */
       else if (d.hd === "full" && X.v) fullOn();
       else if (d.hd === "fullexit") fullOff();
-      else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); render(); }
-      else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } render(); }
+      else if (d.hd === "pick") { X.pick = !cur() || !X.pick || X.pickFor === "ads"; X.pickFor = ""; X.pickErr = ""; if (X.pick && cur()) X.pickDir = parentOf(cur().dir); if (X.pick) fresh(X.pickDir); draw2(); }
+      else if (d.hd === "adpick") { X.pick = !(X.pick && X.pickFor === "ads"); X.pickFor = X.pick ? "ads" : ""; X.pickErr = ""; if (X.pick) { X.pickDir = cfg.ads ? parentOf(cfg.ads) : cur() ? parentOf(cur().dir) : "/"; fresh(X.pickDir); } draw2(); }
       else if (d.hd === "useads" || d.hd === "adclear") {   /* the one Commercials folder: every channel with BREAKS draws from it */
         cfg.ads = d.hd === "useads" ? X.pickDir : ""; X.pick = false; X.pickFor = ""; save(); BK = {}; loadAds(true);
         if (X.on && (cur() || {}).breaks) { X.cur = null; if (X.v) X.v.pause(); X.tuneAt = Date.now(); burst(); resume(); }
-        render();
+        draw2();
       }
-      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); render(); }
+      else if (d.hdpick !== undefined) { X.pickDir = d.hdpick || "/"; X.pickErr = ""; if (X.pw[X.pickDir] === "err") delete X.pw[X.pickDir]; fresh(X.pickDir); draw2(); }
       else if (d.hd === "use") {   /* a new channel, on air from now: it starts at the beginning */
         var id = cfg.chans.reduce(function (m, x) { return Math.max(m, x.id); }, 0) + 1;
         cfg.chans.push({ id: id, name: folderName(X.pickDir), dir: X.pickDir, premiere: Date.now() }); X.pick = false; X.pickFor = ""; X.open[id] = true; cfg.copen = true; save(); switchTo(id);
       }
-      else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; render(); var inp = $("hdRename"); if (inp) inp.focus(); }
-      else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; render(); }
+      else if (d.hdren !== undefined) { X.ren = X.ren === +d.hdren ? 0 : +d.hdren; X.rm = 0; draw2(); var inp = $("hdRename"); if (inp) inp.focus(); }
+      else if (d.hd === "rensave") { var c = chById(X.ren), nm = ($("hdRename") || {}).value; if (c) { c.name = String(nm || "").trim().slice(0, 40) || folderName(c.dir); save(); } X.ren = 0; draw2(); }
       else if (d.hdrm !== undefined) {   /* two taps: REMOVE, then REMOVE IT. The folder on the NAS is untouched */
-        var rid = +d.hdrm; if (X.rm !== rid) { X.rm = rid; render(); return true; }
+        var rid = +d.hdrm; if (X.rm !== rid) { X.rm = rid; draw2(); return true; }
         X.rm = 0; var was = rid === cfg.ch; cfg.chans = cfg.chans.filter(function (x) { return x.id !== rid; }); save();
         if (was) { if (cfg.chans.length) switchTo(cfg.chans[0].id); else { cfg.ch = 0; save(); off(); } }
-        render();
+        draw2();
       }
-      else if (d.hd === "rescan") { [[lens, LS_HOLOLEN], [adLens, LS_HOLOADLEN]].forEach(function (m) { Object.keys(m[0]).forEach(function (k) { if (m[0][k].s < 0) delete m[0][k]; }); lsSet(m[1], m[0]); }); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); render(); }   /* unreadable ones are measured again too */
-      else if (d.hdlook) { cfg.look = d.hdlook; save(); render(); }
+      else if (d.hd === "rescan") { [[lens, LS_HOLOLEN], [adLens, LS_HOLOADLEN]].forEach(function (m) { Object.keys(m[0]).forEach(function (k) { if (m[0][k].s < 0) delete m[0][k]; }); lsSet(m[1], m[0]); }); X.lv++; cfg.chans.forEach(function (x) { load(x, true); }); loadAds(true); draw2(); }   /* unreadable ones are measured again too */
+      else if (d.hdlook) { cfg.look = d.hdlook; save(); draw2(); }
       return true;
     }
     document.addEventListener("keydown", function (e) {
       if (state.screen !== "holodeck") return;
-      if (e.key === "Escape") { if (X.sleepOpen) { X.sleepOpen = false; render(); } else if (X.big) fullOff(); return; }
+      if (e.key === "Escape") { if (X.sleepOpen) { X.sleepOpen = false; draw2(); } else if (X.big) fullOff(); return; }
       var t = e.target || {}; if (X.prog !== "visual" || X.sleepOpen || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || "") || t.isContentEditable || !nasConf()) return;
       if (/^\d$/.test(e.key)) { e.preventDefault(); padKey(e.key); }   /* a keyboard's digits work the keypad (2.57) */
       else if (e.key === "Enter" && X.typed && t.tagName !== "BUTTON") { e.preventDefault(); padGo(); }
@@ -12678,7 +12676,7 @@
       if (!X.on || state.screen !== "holodeck") return;
       var c = at(cur(), Date.now()); if (c && X.cur && c.it.f.path === X.cur.it.f.path) { var pos = (Date.now() - c.startMs) / 1000; if (Math.abs((X.v.currentTime || 0) - pos) > 3) X.v.currentTime = pos; if (X.v.paused) X.v.play().catch(function () {}); } else if (c) start(c, true);
     });
-    return { render: render, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
+    return { render: draw2, head: head, click: click, leave: leave, arch: arch, enter: enter, archBtn: archBtn, quiet: quiet, onAir: function () { return X.on; } };
   })();
   function renderHolodeck() { holo.render(); }
 
@@ -12705,8 +12703,8 @@
     var HUE = ["#56c7b8", "#c99bc4", "#f6c66b", "#9db0ff", "#e8a27a", "#7bd88f", "#dcc6a0"];
     if (!SCALES[S.scale]) S.scale = "pent";
     function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-    function snap(semi) { var sc = SCALES[S.scale].s; if (!sc) return semi; var o = Math.floor(semi / 12), r = semi - o * 12, best = 0, bd = 99; sc.concat([12]).forEach(function (d) { if (Math.abs(d - r) < bd) { bd = Math.abs(d - r); best = d; } }); return o * 12 + best; }
-    function note(deg, oct) { var sc = SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10], n = sc.length, o = Math.floor(deg / n); return 48 + S.key + (oct || 0) * 12 + o * 12 + sc[((deg % n) + n) % n]; }
+    function snap(semi) { var scv = SCALES[S.scale].s; if (!scv) return semi; var o = Math.floor(semi / 12), r = semi - o * 12, best = 0, bd = 99; scv.concat([12]).forEach(function (d) { if (Math.abs(d - r) < bd) { bd = Math.abs(d - r); best = d; } }); return o * 12 + best; }
+    function noteText(deg, oct) { var scv = SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10], n = scv.length, o = Math.floor(deg / n); return 48 + S.key + (oct || 0) * 12 + o * 12 + scv[((deg % n) + n) % n]; }
     function mname(m) { return KEYS[((Math.round(m) % 12) + 12) % 12] + Math.floor(Math.round(m) / 12 - 1); }
 
     /* ---- the room: everything plays through one chain ---- */
@@ -12774,7 +12772,7 @@
     function lost() {   /* iPadOS took the sound away mid-play */
       X.on = false; X.beat = false; X.lost = true; thV = {}; held = []; dr.touches = {};
       if (X.rec) X.rec.mr.stop();
-      if (state.screen === "ressikan") render();
+      if (state.screen === "ressikan") draw();
     }
 
     /* ---- FIELD: the theremin ---- */
@@ -12819,7 +12817,7 @@
       v.trail.push([x, y]); if (v.trail.length > 40) v.trail.shift();
     }
     function thKill(v) { v.g.gain.setTargetAtTime(0, A.currentTime, .15); setTimeout(function () { ["o1", "o2", "o3", "sub", "rm", "trem", "lfo"].forEach(function (k) { try { v[k].stop(); } catch (e) { /* stopped */ } }); }, 1200); }
-    function thUp(id) { var v = thV[id]; if (!v) return; delete thV[id]; if (X.hold) { v.held = true; held.push(v); if (held.length > 4) thKill(held.shift()); render(); } else { thKill(v); paint(); } }
+    function thUp(id) { var v = thV[id]; if (!v) return; delete thV[id]; if (X.hold) { v.held = true; held.push(v); if (held.length > 4) thKill(held.shift()); draw(); } else { thKill(v); paint(); } }
     function thRelease(all) { held.forEach(thKill); held = []; if (all) Object.keys(thV).forEach(function (k) { thKill(thV[k]); delete thV[k]; }); }
     function thAll() { return Object.keys(thV).map(function (k) { return thV[k]; }).concat(held); }
 
@@ -12858,7 +12856,7 @@
         var b = A.createOscillator(), bg = A.createGain(); b.type = "triangle"; b.frequency.value = 180; bg.gain.setValueAtTime(.18, t); bg.gain.exponentialRampToValueAtTime(.001, t + .08); b.connect(bg); bg.connect(beatBus); b.start(t); b.stop(t + .1); }
       else if (id === "hat") { var hn = A.createBufferSource(); hn.buffer = noise(); var hf = A.createBiquadFilter(); hf.type = "highpass"; hf.frequency.value = 7000; hn.connect(hf); hf.connect(out); out.gain.setValueAtTime(g % 4 === 2 ? .16 : .09, t); out.gain.exponentialRampToValueAtTime(.001, t + .05); hn.start(t); hn.stop(t + .08); }
       else { var root = PROG[Math.floor(g / 16) % 4], len = (SCALES[S.scale].s || [0, 2, 3, 5, 7, 9, 10]).length;
-        [0, 2, 4, 6].forEach(function (k, i) { if (len < 6 && i === 3) return; var m = note(root + k, 0), c = A.createOscillator(), mo = A.createOscillator(), mg = A.createGain(), eg = A.createGain();
+        [0, 2, 4, 6].forEach(function (k, i) { if (len < 6 && i === 3) return; var m = noteText(root + k, 0), c = A.createOscillator(), mo = A.createOscillator(), mg = A.createGain(), eg = A.createGain();
           c.frequency.value = hz(m); mo.frequency.value = hz(m) * 2; mg.gain.setValueAtTime(hz(m) * .9, t); mg.gain.exponentialRampToValueAtTime(hz(m) * .05, t + .8); mo.connect(mg); mg.connect(c.frequency);   /* a soft electric piano */
           eg.gain.setValueAtTime(.0001, t); eg.gain.exponentialRampToValueAtTime(.075, t + .01 + i * .012); eg.gain.exponentialRampToValueAtTime(.001, t + 1.8); c.connect(eg); eg.connect(out); c.start(t); mo.start(t); c.stop(t + 2); mo.stop(t + 2); }); }
     }
@@ -12876,10 +12874,10 @@
     }
     function driftTick() {
       clearTimeout(dr.timer); dr.timer = setTimeout(driftTick, 900 + (1 - S.dr.density) * 5200);
-      if (X.sleep && Date.now() > X.sleepAt) { X.sleep = 0; setPower(false); if (state.screen === "ressikan") render(); return; }
+      if (X.sleep && Date.now() > X.sleepAt) { X.sleep = 0; setPower(false); if (state.screen === "ressikan") draw(); return; }
       if (!X.on || S.card !== "drift" || S.dmode === "play") return;
-      var t = A.currentTime, deg = Math.floor(Math.random() * 7), m = note(deg, Math.round(S.dr.depth * 2) - 1), dur = 6 + Math.random() * 8;
-      tone(m, t, dur, { pan: Math.random() * 1.2 - .6 }); if (Math.random() < .18) tone(note(deg + 7, 1), t, 4, { chime: true, vol: .08, atk: .01 });
+      var t = A.currentTime, deg = Math.floor(Math.random() * 7), m = noteText(deg, Math.round(S.dr.depth * 2) - 1), dur = 6 + Math.random() * 8;
+      tone(m, t, dur, { pan: Math.random() * 1.2 - .6 }); if (Math.random() < .18) tone(noteText(deg + 7, 1), t, 4, { chime: true, vol: .08, atk: .01 });
       dr.blobs.push({ x: Math.random(), y: .15 + Math.random() * .6, r: .1 + Math.random() * .2, hue: deg, born: performance.now(), life: dur * 1000 }); if (dr.blobs.length > 16) dr.blobs.shift();
     }
     function driftDown(id, x, y) {
@@ -12908,9 +12906,9 @@
     var canv = [];
     function fit(cv) { var r = cv.getBoundingClientRect(), d = Math.min(2, window.devicePixelRatio || 1); if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) { cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); } return d; }
     function drawField(cv) {
-      var d = fit(cv), x = cv.getContext("2d"), W = cv.width, H = cv.height, now = performance.now() / 1000, span = 12 + Math.round(S.th.range * 36), sc = SCALES[S.scale].s, vs = thAll(), still = calm();
+      var d = fit(cv), x = cv.getContext("2d"), W = cv.width, H = cv.height, now = performance.now() / 1000, span = 12 + Math.round(S.th.range * 36), scv = SCALES[S.scale].s, vs = thAll(), still = calm();
       x.fillStyle = "rgba(4,4,8,.28)"; x.fillRect(0, 0, W, H); x.lineWidth = d; x.font = (11 * d) + "px Antonio, sans-serif";
-      for (var s = 0; s <= span; s++) { var r = s % 12; if (sc && sc.indexOf(r) < 0) continue; var y = H - (s / span) * H; x.strokeStyle = r === 0 ? "rgba(246,198,107,.22)" : "rgba(154,134,181,.10)"; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); if (r === 0) { x.fillStyle = "rgba(246,198,107,.5)"; x.fillText(KEYS[S.key] + (2 + Math.floor(s / 12)), 8 * d, y - 4 * d); } }
+      for (var s = 0; s <= span; s++) { var r = s % 12; if (scv && scv.indexOf(r) < 0) continue; var y = H - (s / span) * H; x.strokeStyle = r === 0 ? "rgba(246,198,107,.22)" : "rgba(154,134,181,.10)"; x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); if (r === 0) { x.fillStyle = "rgba(246,198,107,.5)"; x.fillText(KEYS[S.key] + (2 + Math.floor(s / 12)), 8 * d, y - 4 * d); } }
       var pulse = !still && bt.flash.kick && performance.now() - bt.flash.kick < 140 ? .12 : 0;   /* the field breathes with the kick */
       for (var k = 0; k < 7; k++) { x.beginPath(); var yy = (k + .5) / 7 * H; for (var px = 0; px <= W; px += 12 * d) { var off = still ? 0 : Math.sin(px / W * 6 + now * .7 + k) * (4 + pulse * 60) * d; vs.forEach(function (v) { var dx = px - v.x * W, dy = yy - v.y * H, dd = Math.sqrt(dx * dx + dy * dy) + 40 * d; off += (v.y * H - yy) * 60 * d / dd * .6; }); if (px === 0) x.moveTo(px, yy + off); else x.lineTo(px, yy + off); } x.strokeStyle = "rgba(86,199,184," + (vs.length ? .22 : .08 + pulse) + ")"; x.stroke(); }
       vs.forEach(function (v, i) {
@@ -13016,7 +13014,7 @@
         '<p class="muted">Height is pitch (locked to the scale), across is brightness and left to right in your headphones. A beat that\'s on keeps playing here.</p>');
     }
     function head() { return { e: "REFLECT · RESSIKAN · " + (S.card === "field" ? "FIELD" : "DRIFT") + (X.beat ? " · BEAT " + Math.round(bpm()) + " BPM" : ""), t: "RESSIKAN" }; }
-    function render() {
+    function draw() {
       $("content").innerHTML = '<div class="rs">' + soundStrip() + cardsHtml() + (S.card === "field" ? fieldHtml() : driftHtml()) + "</div>";
       canv = [].map.call(document.querySelectorAll("#content canvas[data-rscv]"), function (el) { return { el: el, k: el.dataset.rscv }; });
       document.querySelectorAll("#content [data-rssurf]").forEach(bindSurface);
@@ -13070,9 +13068,9 @@
         var mime = mr.mimeType || type || "audio/webm", blob = new Blob(chunks, { type: mime }), n = new Date();
         X.takes.unshift({ n: "TAKE " + (X.takes.length + 1), url: URL.createObjectURL(blob), blob: blob, file: "Ressikan " + ymd(n) + " " + p2(n.getHours()) + p2(n.getMinutes()) + p2(n.getSeconds()) + (/mp4/.test(mime) ? ".m4a" : ".webm") });
         if (X.takes.length > 6) URL.revokeObjectURL(X.takes.pop().url);
-        X.rec = null; if (state.screen === "ressikan") render();
+        X.rec = null; if (state.screen === "ressikan") draw();
       };
-      mr.start(250); X.rec = { mr: mr, at: Date.now() }; render();
+      mr.start(250); X.rec = { mr: mr, at: Date.now() }; draw();
     }
     function saveTake(tk) {   /* the share sheet's Save to Files, or a download where sharing files isn't offered */
       var f = typeof File === "function" ? new File([tk.blob], tk.file, { type: tk.blob.type }) : null;
@@ -13082,28 +13080,28 @@
     function click(b) {
       if (state.screen !== "ressikan") return false;
       var d = b.dataset;
-      if (d.rsact === "power") { setPower(!X.on); render(); }
-      else if (d.rsact === "beat") { setBeat(!X.beat); render(); }
-      else if (d.rsact === "vinyl") { S.vinyl = !S.vinyl; applyFx(); keep(); render(); }
-      else if (d.rsact === "place") { S.place = S.place === "beside" ? "inside" : "beside"; keep(); render(); }
-      else if (d.rsact === "hold") { X.hold = !X.hold; if (!X.hold && A) thRelease(false); render(); }
-      else if (d.rsact === "release") { if (A) thRelease(false); render(); }
+      if (d.rsact === "power") { setPower(!X.on); draw(); }
+      else if (d.rsact === "beat") { setBeat(!X.beat); draw(); }
+      else if (d.rsact === "vinyl") { S.vinyl = !S.vinyl; applyFx(); keep(); draw(); }
+      else if (d.rsact === "place") { S.place = S.place === "beside" ? "inside" : "beside"; keep(); draw(); }
+      else if (d.rsact === "hold") { X.hold = !X.hold; if (!X.hold && A) thRelease(false); draw(); }
+      else if (d.rsact === "release") { if (A) thRelease(false); draw(); }
       else if (d.rsact === "rec") toggleRec();
       else if (d.rssave) { var tk = X.takes[+d.rssave]; if (tk) saveTake(tk); }
-      else if (d.rscard) { S.card = d.rscard; keep(); applyBed(); render(); }
-      else if (d.rsscale) { S.scale = d.rsscale; keep(); render(); }
-      else if (d.rskey) { S.key = (S.key + Number(d.rskey) + 12) % 12; keep(); render(); }
-      else if (d.rspat) { loadPat(d.rspat); render(); }
-      else if (d.rslane) { LANES.forEach(function (l) { if (l.id !== d.rslane) return; var L = [16, 12, 10, 8], nl = L[(L.indexOf(l.len) + 1) % L.length]; steps[l.id] = steps[l.id].map(function (s) { return Math.round(s / l.len * nl) % nl; }).filter(function (s, i, a) { return a.indexOf(s) === i; }); l.len = nl; }); S.pat = "custom"; keep(); render(); }
-      else if (d.rsacross) { S.across = d.rsacross; if (A) thAll().forEach(thApply); keep(); render(); }
-      else if (d.rsdmode) { S.dmode = d.rsdmode; keep(); applyBed(); render(); }
-      else if (d.rsbed) { S.bedKind = d.rsbed; keep(); applyBed(); render(); }
-      else if (d.rssleep !== undefined) { X.sleep = Number(d.rssleep); X.sleepAt = Date.now() + X.sleep * 60000; render(); }
+      else if (d.rscard) { S.card = d.rscard; keep(); applyBed(); draw(); }
+      else if (d.rsscale) { S.scale = d.rsscale; keep(); draw(); }
+      else if (d.rskey) { S.key = (S.key + Number(d.rskey) + 12) % 12; keep(); draw(); }
+      else if (d.rspat) { loadPat(d.rspat); draw(); }
+      else if (d.rslane) { LANES.forEach(function (l) { if (l.id !== d.rslane) return; var L = [16, 12, 10, 8], nl = L[(L.indexOf(l.len) + 1) % L.length]; steps[l.id] = steps[l.id].map(function (s) { return Math.round(s / l.len * nl) % nl; }).filter(function (s, i, a) { return a.indexOf(s) === i; }); l.len = nl; }); S.pat = "custom"; keep(); draw(); }
+      else if (d.rsacross) { S.across = d.rsacross; if (A) thAll().forEach(thApply); keep(); draw(); }
+      else if (d.rsdmode) { S.dmode = d.rsdmode; keep(); applyBed(); draw(); }
+      else if (d.rsbed) { S.bedKind = d.rsbed; keep(); applyBed(); draw(); }
+      else if (d.rssleep !== undefined) { X.sleep = Number(d.rssleep); X.sleepAt = Date.now() + X.sleep * 60000; draw(); }
       else return false;
       return true;
     }
     function leave() { if (X.rec) X.rec.mr.stop(); if (X.on) setPower(false); X.sleep = 0; }   /* leaving the station: quiet */
-    return { render: render, head: head, click: click, leave: leave, card: function (k) { S.card = k; keep(); } };
+    return { render: draw, head: head, click: click, leave: leave, card: function (k) { S.card = k; keep(); } };
   })();
   function renderRessikan() { rs.render(); }
 
@@ -13663,7 +13661,7 @@
       (dn ? '<button type="button" class="chip sm" data-mlset="none">CLEAR</button>' : "") + (dn && dn.kind === "meal" && mlMeal(dn.meal) && canRecipes() ? '<button type="button" class="chip sm" data-mlcook="' + esc(dn.meal) + '" style="--c: var(--chrome-d)">COOK</button>' : "") + '<button type="button" class="chip sm" data-ml="unsel">DONE</button></span></div>';
   }
   function mlPlanHtml() {
-    var t = mlToday(), mon = mlMonday(ml.wk), html = '<div class="ml-plan"><div class="ml-main">';
+    var mon = mlMonday(ml.wk), html = '<div class="ml-plan"><div class="ml-main">';
     var wl = ml.wk === 0 ? "THIS WEEK" : ml.wk === 1 ? "NEXT WEEK" : ml.wk === -1 ? "LAST WEEK" : "IN " + ml.wk + " WEEKS";
     html += '<section class="ml-panel ml-week" aria-label="' + wl + '"><div class="ml-ph"><h3>' + wl + '</h3><span class="ml-sub">' + p2(mon.getDate()) + " " + MON[mon.getMonth()] + " TO " + p2(addDays(mon, 6).getDate()) + " " + MON[addDays(mon, 6).getMonth()] + "</span>" +
       '<span class="ml-wkn"><button type="button" class="chip sm" data-ml="wkprev" aria-label="The week before"' + (ml.wk <= -1 ? " disabled" : "") + '>◀</button><button type="button" class="chip sm" data-ml="wknext" aria-label="The week after"' + (ml.wk >= 2 ? " disabled" : "") + ">▶</button></span></div>";
@@ -13676,9 +13674,9 @@
         (ml.planErr ? '<div class="errtxt">' + esc(ml.planErr) + "</div>" : "");
       if (ml.plan) {
         var n = ml.plan.filter(function (p) { return p.take; }).length;
-        html += '<div class="ml-props"><b class="ml-sub">CLAUDE PROPOSES</b>' + ml.plan.map(function (p, i) {
+        html += '<div class="ml-props"><b class="ml-sub">CLAUDE PROPOSES</b>' + ml.plan.map(function (p, ix) {
           var m = mlMeal(p.meal), d = parseYmd(p.date);
-          return '<button type="button" class="ml-prop" data-mltake="' + i + '" aria-pressed="' + p.take + '"><i aria-hidden="true">' + (p.take ? "✓" : "") + "</i><span><small>" + DOW[d.getDay()] + " " + d.getDate() + "</small><b>" + esc(m ? m.name : p.meal) + "</b><small>" + esc(p.why) + "</small></span></button>";
+          return '<button type="button" class="ml-prop" data-mltake="' + ix + '" aria-pressed="' + p.take + '"><i aria-hidden="true">' + (p.take ? "✓" : "") + "</i><span><small>" + DOW[d.getDay()] + " " + d.getDate() + "</small><b>" + esc(m ? m.name : p.meal) + "</b><small>" + esc(p.why) + "</small></span></button>";
         }).join("") + '<span class="btnrow"><button type="button" class="chip" data-ml="planok"' + (n ? "" : " disabled") + ' style="--c: var(--ok)">PLAN THESE (' + n + ')</button><button type="button" class="chip" data-ml="planno">NOT NOW</button></span></div>';
       }
       html += "</div>";
@@ -13757,7 +13755,7 @@
     render(true);
   }
   function mlLogHtml() {
-    var t = mlToday(), start = mlMonday(-4), html = '<section class="ml-panel ml-log" aria-label="Five weeks of dinners"><div class="ml-ph"><h3>FIVE WEEKS</h3><span class="ml-sub">SOLID: EATEN · OUTLINED: PLANNED · TAP A NIGHT</span></div><div class="ml-cal">';
+    var start = mlMonday(-4), html = '<section class="ml-panel ml-log" aria-label="Five weeks of dinners"><div class="ml-ph"><h3>FIVE WEEKS</h3><span class="ml-sub">SOLID: EATEN · OUTLINED: PLANNED · TAP A NIGHT</span></div><div class="ml-cal">';
     ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].forEach(function (d) { html += '<span class="ml-dow">' + d + "</span>"; });
     for (var i = 0; i < 35; i++) html += mlDayBtn(ymd(addDays(start, i)), true);
     html += "</div>";
@@ -13853,7 +13851,7 @@
     else if (a === "plan") mlPlanAsk();
     else if (a === "planno") { ml.plan = null; ml.planErr = ""; render(true); }
     else if (a === "planok" && ml.plan) {
-      var n = 0; ml.plan.forEach(function (p) { if (p.take && !mlDinner(p.date) && mlMeal(p.meal)) { mlQueue({ op: "dinner", dinner: { date: p.date, status: "planned", kind: "meal", meal: p.meal } }); n++; } });
+      var n = 0; ml.plan.forEach(function (pt) { if (pt.take && !mlDinner(pt.date) && mlMeal(pt.meal)) { mlQueue({ op: "dinner", dinner: { date: pt.date, status: "planned", kind: "meal", meal: pt.meal } }); n++; } });
       ml.plan = null; toast(n + (n === 1 ? " night planned" : " nights planned")); render(true);
     }
     else if (a === "add") { ml.add = !ml.add; render(true); var an = $("mlAddN"); if (an) an.focus(); }
@@ -13865,7 +13863,7 @@
     else if (a === "imp") { ml.imp = { mode: "link", url: "", text: "", file: null, busy: false, err: "" }; ml.form = null; ml.sel = null; ml.editing = false; render(true); var iu = $("mlImpUrl"); if (iu) iu.focus(); }
     else if (a === "impno") { ml.imp = null; render(true); }
     else if (a === "paste" && ml.imp) {
-      if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (t) { var u = (String(t || "").match(/https?:\/\/\S+/) || [""])[0]; if (u) { ml.imp.url = u; render(true); } else toast("No link on the clipboard. Copy the recipe's link first."); }, function () { toast("Couldn't read the clipboard. Paste the link into the box."); });
+      if (navigator.clipboard && navigator.clipboard.readText) navigator.clipboard.readText().then(function (tt) { var u = (String(tt || "").match(/https?:\/\/\S+/) || [""])[0]; if (u) { ml.imp.url = u; render(true); } else toast("No link on the clipboard. Copy the recipe's link first."); }, function () { toast("Couldn't read the clipboard. Paste the link into the box."); });
       else toast("Paste the link into the box.");
     }
     else if (a === "impgo" && ml.imp) mlImpGo();
@@ -14080,12 +14078,12 @@
       return "left: " + r(x / W) + "; top: " + r(y / H) + "; width: " + r(w / W) + "; height: " + r(h / H);
     }
     function kc(k) { return "k-" + k.toLowerCase().replace("-", ""); }
-    function pl(n, one, many) { return n + " " + (n === 1 ? one : many); }
+    function loc(n, one, many) { return n + " " + (n === 1 ? one : many); }
     function countLine(D, zid) {
       var l = zItems(D, zid), pots = l.filter(function (i) { return i.type === "POTS"; }).length, nb = l.length - pots, np = l.reduce(function (a, i) { return a + i.plants.length; }, 0);
       if (!l.length) return "Nothing added yet";
       var z = zone(zid), noun = z.kind === "pond" ? ["area", "areas"] : z.kind === "meadow" ? ["patch", "patches"] : ["bed", "beds"];
-      return (nb ? pl(nb, noun[0], noun[1]) + " · " : "") + (pots ? pl(pots, "pot", "pots") + " · " : "") + pl(np, "planting", "plantings");
+      return (nb ? loc(nb, noun[0], noun[1]) + " · " : "") + (pots ? loc(pots, "pot", "pots") + " · " : "") + loc(np, "planting", "plantings");
     }
     function addKind(z) { var ks = ZKINDS[z.kind]; return X.ak && ks.indexOf(X.ak) > -1 ? X.ak : ks[0]; }
     function tips(it) {
@@ -14143,13 +14141,13 @@
       if (X.view === "glance") return { e: g + " · QUICK GLANCE · " + (X.gs || seasonOf(now)), t: "ARBORETUM" };
       return { e: g + " · " + phase(now) + " " + seasonOf(now), t: "ARBORETUM" };
     }
-    function chips(list, attr, isOn, c) {
-      return list.map(function (x) { return '<button type="button" class="chip sm" style="--c: var(--' + (c || "personal") + ')" data-' + attr + '="' + x[0] + '" aria-pressed="' + isOn(x[0]) + '">' + x[1] + "</button>"; }).join("");
+    function chips(list, attr, onNow, c) {
+      return list.map(function (x) { return '<button type="button" class="chip sm" style="--c: var(--' + (c || "personal") + ')" data-' + attr + '="' + x[0] + '" aria-pressed="' + onNow(x[0]) + '">' + x[1] + "</button>"; }).join("");
     }
     function mapHtml(D) {
       var now = new Date(), cs = seasonOf(now), h = '<div class="arb-cols"><div class="arb-map" role="group" aria-label="Map of ' + esc(gname(D)) + '">';
       var mp = zItems(D, "meadow").reduce(function (a, i) { return a + i.plants.length; }, 0), pp = zItems(D, "pond").reduce(function (a, i) { return a + i.plants.length; }, 0);
-      h += '<button type="button" class="arb-mz arb-meadow" data-arbz="meadow" style="' + P(60, 0, 480, 250) + '" aria-label="The Meadow: ' + esc(countLine(D, "meadow")) + '"><span>THE MEADOW</span><small>' + (mp ? pl(mp, "planting", "plantings") : zItems(D, "meadow").length ? countLine(D, "meadow") : "") + "</small></button>";
+      h += '<button type="button" class="arb-mz arb-meadow" data-arbz="meadow" style="' + P(60, 0, 480, 250) + '" aria-label="The Meadow: ' + esc(countLine(D, "meadow")) + '"><span>THE MEADOW</span><small>' + (mp ? loc(mp, "planting", "plantings") : zItems(D, "meadow").length ? countLine(D, "meadow") : "") + "</small></button>";
       h += '<span class="arb-shed" aria-hidden="true" style="' + P(0, 262, 58, 28) + '">SHED</span>';
       [["z3", 30, 290, 540, 335], ["z2", 105, 330, 390, 255], ["z1", 180, 370, 240, 175]].forEach(function (r) {
         h += '<button type="button" class="arb-mz arb-ring ' + r[0] + '" data-arbz="' + r[0] + '" style="' + P(r[1], r[2], r[3], r[4]) + '" aria-label="' + zone(r[0]).name.replace("ZONE", "Zone") + ": " + esc(countLine(D, r[0])) + '"></button>';
@@ -14169,7 +14167,7 @@
           (j ? '<span class="arb-jobs">' + j + " TO DO</span>" : "") + "</button>";
       }).join("");
       var open = jobsIn(D, cs).filter(function (r) { return !r.done; });
-      h += '<button type="button" class="arb-seas" data-arbv="glance"><b>' + phase(now) + " " + cs + " · " + pl(open.length, "JOB", "JOBS") + " TO DO</b><span>" +
+      h += '<button type="button" class="arb-seas" data-arbv="glance"><b>' + phase(now) + " " + cs + " · " + loc(open.length, "JOB", "JOBS") + " TO DO</b><span>" +
         (open.length ? esc(open.slice(0, 2).map(function (r) { return r.j.t + ", " + zone(r.it.zone).short; }).join(" · ")) + (open.length > 2 ? " · and more" : "") : D.items.length ? "Nothing left this " + cs.toLowerCase() + ". Every season is in QUICK GLANCE." : "Start with a zone: add its beds, what's planted, and their jobs through the year.") + "</span></button>";
       h += '<label class="arb-lbl arb-gname" for="arbGName">THE GARDEN\'S NAME<input id="arbGName" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Name it" value="' + esc(D.name) + '"></label>';
       return h + "</aside></div>";
@@ -14231,9 +14229,9 @@
     }
     function glanceHtml(D) {
       var now = new Date(), cur = seasonOf(now), gs = X.gs || cur, h = '<div class="arb-g2"><div class="arb-gside"><div class="arb-mini" role="group" aria-label="Show one zone">';
-      var mz = function (zid, cls, box, lb) {
+      var mz = function (zid, cls, box, lbl) {
         var n = openN(D, gs, zid);
-        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + pl(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lb ? '<span class="lb ' + lb + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lb ? "</span>" : "") + "</button>";
+        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="lb ' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
       };
       h += mz("meadow", "arb-meadow", [30, 0, 240, 125]) + mz("z3", "arb-ring z3", [15, 145, 270, 180], "tr") + mz("z2", "arb-ring z2", [55, 172, 190, 128], "tr") + mz("z1", "arb-ring z1", [92, 200, 116, 80], "tr") + mz("pond", "arb-pond", [60, 180, 46, 30]);
       h += '<div class="arb-home" aria-hidden="true" style="' + P(123, 232, 54, 36, 300, 330) + '"></div></div>';
@@ -14702,13 +14700,13 @@
     var areas = row.id === "cal" ? AS_AREAS.filter(function (a) { return LIVE.indexOf(a) > -1; }) : null;
     var series = areas ? areas.map(function (a) { return asMonthly(y, r, AS_AREAS.indexOf(a)); }) : [asMonthly(y, r)];
     var tot = series[0].map(function (_, m) { return series.reduce(function (s, x) { return s + x[m]; }, 0); });
-    var W = 560, H = 210, L = 34, B = 22, T = 18, slot = (W - L) / 12, bw = Math.min(30, slot - 8), mx = Math.max.apply(null, tot) || 1;
+    var W = 560, H = 210, L = 34, B = 22, T = 18, slotAt = (W - L) / 12, bw = Math.min(30, slotAt - 8), mx = Math.max.apply(null, tot) || 1;
     var nice = Math.ceil(mx * 1.12 / 4) * 4 || 4, yy = function (v) { return T + (H - T - B) * (1 - v / nice); }, best = tot.indexOf(Math.max.apply(null, tot));
     var lastM = y === new Date().getFullYear() ? new Date().getMonth() : 11;
     var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + row.name + ' by month">';
     [0, .5, 1].forEach(function (f) { var v = yy(nice * f); s += '<line x1="' + L + '" x2="' + W + '" y1="' + v + '" y2="' + v + '" class="gl"/><text class="ax" x="' + (L - 6) + '" y="' + (v + 4) + '" text-anchor="end">' + Math.round(nice * f) + "</text>"; });
     for (var m = 0; m < 12; m++) {
-      var x = L + m * slot + (slot - bw) / 2, base = 0;
+      var x = L + m * slotAt + (slotAt - bw) / 2, base = 0;
       s += '<text class="ax" x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + MON[m].charAt(0) + MON[m].slice(1).toLowerCase() + "</text>";
       if (m > lastM) { s += '<circle cx="' + (x + bw / 2) + '" cy="' + (yy(0) - 3) + '" r="1.5" class="fut"/>'; continue; }
       s += '<rect class="hitm" data-asbar="' + m + '" x="' + (x - 4) + '" y="' + T + '" width="' + (bw + 8) + '" height="' + (H - T - B) + '"/>';
@@ -14721,9 +14719,9 @@
       if (m === best && tot[m]) s += '<text class="vl" x="' + (x + bw / 2) + '" y="' + (yy(tot[m]) - 5) + '" text-anchor="middle">' + asHrs(tot[m]) + "</text>";
     }
     s += "</svg>";
-    var bm = as.bar != null && as.bar <= lastM ? as.bar : best, lg = areas ? '<div class="as-blegend">' + areas.map(function (a) { return '<span><i style="background: var(--' + a + ')"></i>' + AREAS[a].name + "</span>"; }).join("") + "</div>" : "";
+    var bm = as.bar != null && as.bar <= lastM ? as.bar : best, logg = areas ? '<div class="as-blegend">' + areas.map(function (a) { return '<span><i style="background: var(--' + a + ')"></i>' + AREAS[a].name + "</span>"; }).join("") + "</div>" : "";
     var line = areas ? asHrs(tot[bm]) + " h: " + areas.map(function (a, i) { return AREAS[a].name.toLowerCase() + " " + asHrs(series[i][bm]); }).join(", ") + "." : asMonthText(row, series[0][bm]);
-    return lg + s + '<div class="as-readout sm"><b>' + MONL[bm] + "</b><span>" + esc(line) + "</span></div>";
+    return logg + s + '<div class="as-readout sm"><b>' + MONL[bm] + "</b><span>" + esc(line) + "</span></div>";
   }
   function asMonthText(row, v) {
     var u = { tasks: ["task done", "tasks done"], habits: ["day meditated", "days meditated"], log: ["day written", "days written"], review: ["weekly review", "weekly reviews"], library: ["book finished", "books finished"],
@@ -14776,7 +14774,7 @@
     } else if (row.id === "science") {
       var sd = yd.science.dept;
       F.push([big(t), t === 1 ? "event logged by SCIENCE" : "events logged by SCIENCE"]);
-      F.push([esc(Object.keys(sd).sort(function (a, b) { return sd[b] - sd[a]; }).map(function (k) { return SCI_DEPTS[k][0].toLowerCase() + " " + sd[k]; }).join(" · ")), "by department"]);
+      F.push([esc(Object.keys(sd).sort(function (av, b) { return sd[b] - sd[av]; }).map(function (k) { return SCI_DEPTS[k][0].toLowerCase() + " " + sd[k]; }).join(" · ")), "by department"]);
       F.push([yd.science.starred.length + " starred", "on the key-date line above"]);
     } else {
       F.push([big(t), "upkeep items marked done"]);
@@ -15125,12 +15123,12 @@
     return html;
   }
   function backupSection() {
-    var pend = bkPending(), drafts = bkDrafts(), at = lsGet(LS_BKAT);
+    var pend = bkPending(), draftList = bkDrafts(), at = lsGet(LS_BKAT);
     var html = '<section id="sec-backup">' + phead("BACKUP AND RESTORE", at ? "LAST BACKUP " + esc(stamp(Date.parse(at))) : "NO BACKUP YET") +
       '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>';
     if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google (" + esc(bkPendingList().join(", ")) + "). Back up once they've gone.</div>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-act="bksend">SEND NOW</button></div>';
-    if (drafts.length) html += '<small class="muted">Not in a backup: ' + esc(drafts.join(", ")) + ". Save or finish it first if it matters.</small>";
+    if (draftList.length) html += '<small class="muted">Not in a backup: ' + esc(draftList.join(", ")) + ". Save or finish it first if it matters.</small>";
     if (bk.out) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn capture" data-act="bksave">SAVE TO FILES</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
     else html += '<label class="ov-sub" for="bkPass">PASSPHRASE (8 OR MORE CHARACTERS)</label><input type="password" id="bkPass" autocomplete="new-password" value="' + esc(bk.p1) + '">' +
       '<label class="ov-sub" for="bkPass2">THE SAME AGAIN</label><input type="password" id="bkPass2" autocomplete="new-password" value="' + esc(bk.p2) + '">' +
@@ -15241,8 +15239,8 @@
   function skWhen(iso) { var t = new Date(iso); return isNaN(t) ? "" : skShort(ymd(t)) + " " + p2(t.getHours()) + ":" + p2(t.getMinutes()); }
   function skList(keys) { var w = keys.map(function (k) { return SK_WHAT[k] || k; }); return w.length > 1 ? w.slice(0, -1).join(", ") + " and " + w[w.length - 1] : w.join(""); }
   function skRing(d, size, stroke, g) {   /* MOVE, EXERCISE, STAND as three rings, outside in; dashed where nothing came */
-    var rs = [[d && skVal(d, "active"), g.move, "--chrome-d"], [d && skVal(d, "exercise"), g.exercise, "--hero"], [d && skVal(d, "stand"), g.stand, "--work"]], c = size / 2;
-    return '<svg viewBox="0 0 ' + size + " " + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + rs.map(function (q, i) {
+    var ringSpec = [[d && skVal(d, "active"), g.move, "--chrome-d"], [d && skVal(d, "exercise"), g.exercise, "--hero"], [d && skVal(d, "stand"), g.stand, "--work"]], c = size / 2;
+    return '<svg viewBox="0 0 ' + size + " " + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + ringSpec.map(function (q, i) {
       var r = c - stroke / 2 - i * (stroke + 3), circ = 2 * Math.PI * r, f = q[0] === null || q[0] === undefined ? null : Math.min(q[0] / q[1], 1);
       return '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="#24262f" stroke-width="' + stroke + '"' + (f === null ? ' stroke-dasharray="3 4"' : "") + "/>" +
         (f ? '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="var(' + q[2] + ')" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + (circ * f).toFixed(1) + " " + circ.toFixed(1) + '" transform="rotate(-90 ' + c + " " + c + ')"/>' : "");
@@ -15419,26 +15417,26 @@
     html += '<div class="sk-stamp">' + gotLine + updLine + lackLine + "</div>";
     var g = v.goals;
     html += '<div class="sk-daygrid"><div class="sk-col"><section class="sk-panel sk-inner" aria-label="Activity"><span class="sk-lbl">ACTIVITY</span><div class="sk-ringbox">' + skRing(d, 150, 16, g) + '<div class="sk-rv">' +
-      [["MOVE", "active", g.move, "kcal", "--chrome-d"], ["EXERCISE", "exercise", g.exercise, "min", "--hero"], ["STAND", "stand", g.stand, "h", "--work"]].map(function (q) {
-        var n = skVal(d, q[1]);
-        return '<div><span style="color:var(' + q[4] + ')">' + q[0] + "</span><span>" + (n === null ? '<span class="muted">NOT IN YET</span>' : "<b>" + Math.round(n).toLocaleString() + "</b> of " + q[2] + " " + q[3] + (n >= q[2] ? ' <span class="sk-met">✓</span>' : "")) + "</span></div>";
+      [["MOVE", "active", g.move, "kcal", "--chrome-d"], ["EXERCISE", "exercise", g.exercise, "min", "--hero"], ["STAND", "stand", g.stand, "h", "--work"]].map(function (qt) {
+        var n = skVal(d, qt[1]);
+        return '<div><span style="color:var(' + qt[4] + ')">' + qt[0] + "</span><span>" + (n === null ? '<span class="muted">NOT IN YET</span>' : "<b>" + Math.round(n).toLocaleString() + "</b> of " + qt[2] + " " + qt[3] + (n >= qt[2] ? ' <span class="sk-met">✓</span>' : "")) + "</span></div>";
       }).join("") + "</div></div></section>";
     if (d.sleep && d.sleep.asleep) {
       var S = d.sleep, len = S.len || (S.asleep + (S.awake || 0)) || 1, segs = (S.segs || []).slice().sort(function (a, b) { return a[1] - b[1]; });
       html += '<section class="sk-panel sk-inner" aria-label="Sleep"><div class="sk-dh"><span class="sk-lbl">THE NIGHT BEFORE · SLEEP</span><span class="sk-lbl">' + esc(S.bed || "") + (S.wake ? " TO " + esc(S.wake) : "") + "</span></div>" +
         '<div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep" + (S.awake ? " · " + skHM(S.awake) + " awake" : "") + "</small></div>" +
         '<div class="sk-sleepbar" role="img" aria-label="Sleep stages through the night">' + (segs.length ? segs.map(function (g2) { var stg = SK_STAGES.filter(function (z) { return z[0] === g2[0]; })[0]; return '<i style="left:' + (g2[1] / len * 100).toFixed(2) + "%;width:" + Math.max(0.3, g2[2] / len * 100).toFixed(2) + "%;background:var(" + (stg ? stg[2] : "--line") + ')"></i>'; }).join("")
-          : [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].reduce(function (acc, q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; acc.h += '<i style="left:' + (acc.at / len * 100).toFixed(2) + "%;width:" + ((q[1] || 0) / len * 100).toFixed(2) + "%;background:var(" + stg[2] + ')"></i>'; acc.at += q[1] || 0; return acc; }, { h: "", at: 0 }).h) + "</div>" +
-        '<div class="sk-legend">' + [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].map(function (q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; return '<span><i style="background:var(' + stg[2] + ')"></i>' + stg[1] + " " + skHM(q[1] || 0) + "</span>"; }).join("") + "</div>" +
+          : [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].reduce(function (acc, qt) { var stg = SK_STAGES.filter(function (z) { return z[0] === qt[0]; })[0]; acc.h += '<i style="left:' + (acc.at / len * 100).toFixed(2) + "%;width:" + ((qt[1] || 0) / len * 100).toFixed(2) + "%;background:var(" + stg[2] + ')"></i>'; acc.at += qt[1] || 0; return acc; }, { h: "", at: 0 }).h) + "</div>" +
+        '<div class="sk-legend">' + [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].map(function (qt) { var stg = SK_STAGES.filter(function (z) { return z[0] === qt[0]; })[0]; return '<span><i style="background:var(' + stg[2] + ')"></i>' + stg[1] + " " + skHM(qt[1] || 0) + "</span>"; }).join("") + "</div>" +
         '<button type="button" class="chip sm" style="--c: var(--personal)" data-sknight="' + x + '" data-sktab="sleep">OPEN IN SLEEP</button></section>';
     }
     html += "</div>";
     var nt = skNormal("temp"), lv = skLatest("vo2", 60);
-    html += '<section class="sk-panel sk-inner" aria-label="Every measure"><span class="sk-lbl">EVERY MEASURE FOR THIS DAY</span><div class="sk-mfs">' + [["Resting heart rate", "rhr"], ["Heart rate variability", "hrv"], ["Breathing rate", "resp"], ["Wrist temperature", "temp"], ["Steps", "steps"], ["Cardio fitness", "vo2"]].map(function (q) {
-      var m = SK_M.filter(function (z) { return z.k === q[1]; })[0], n = skVal(d, q[1]), nm = m ? skNormal(m.k) : null, w = m && n !== null ? skWhere(m, n, nm) : "", shown = "";
-      if (n !== null) shown = q[1] === "temp" ? (nt.mid === null ? n.toFixed(1) + "<small>°</small>" : (n - nt.mid >= 0 ? "+" : "") + (n - nt.mid).toFixed(1) + "<small>° from your normal</small>") : esc(skFmt(m, n)) + "<small>" + esc(m.unit) + "</small>";
-      var why = q[1] === "vo2" ? "The watch estimates it every few days, from outdoor walks. Latest: " + (lv ? lv.v.toFixed(1) + " on " + skShort(lv.date) : "none yet") + "." : st.s === "partial" && st.lack.indexOf(q[1]) > -1 ? "Comes with the next morning's send." : exp.indexOf(q[1]) === -1 && q[1] !== "temp" ? "Not part of the shortcut yet (README → SICKBAY)." : "Not sent for this day.";
-      return '<div class="sk-mf"><span>' + q[0] + "</span>" + (n === null ? '<span class="sk-ns">' + (q[1] === "vo2" ? "NOT MEASURED" : "NOT IN") + '</span><span class="sk-why">' + esc(why) + "</span>"
+    html += '<section class="sk-panel sk-inner" aria-label="Every measure"><span class="sk-lbl">EVERY MEASURE FOR THIS DAY</span><div class="sk-mfs">' + [["Resting heart rate", "rhr"], ["Heart rate variability", "hrv"], ["Breathing rate", "resp"], ["Wrist temperature", "temp"], ["Steps", "steps"], ["Cardio fitness", "vo2"]].map(function (qt) {
+      var m = SK_M.filter(function (z) { return z.k === qt[1]; })[0], n = skVal(d, qt[1]), nm = m ? skNormal(m.k) : null, w = m && n !== null ? skWhere(m, n, nm) : "", shown = "";
+      if (n !== null) shown = qt[1] === "temp" ? (nt.mid === null ? n.toFixed(1) + "<small>°</small>" : (n - nt.mid >= 0 ? "+" : "") + (n - nt.mid).toFixed(1) + "<small>° from your normal</small>") : esc(skFmt(m, n)) + "<small>" + esc(m.unit) + "</small>";
+      var why = qt[1] === "vo2" ? "The watch estimates it every few days, from outdoor walks. Latest: " + (lv ? lv.v.toFixed(1) + " on " + skShort(lv.date) : "none yet") + "." : st.s === "partial" && st.lack.indexOf(qt[1]) > -1 ? "Comes with the next morning's send." : exp.indexOf(qt[1]) === -1 && qt[1] !== "temp" ? "Not part of the shortcut yet (README → SICKBAY)." : "Not sent for this day.";
+      return '<div class="sk-mf"><span>' + qt[0] + "</span>" + (n === null ? '<span class="sk-ns">' + (qt[1] === "vo2" ? "NOT MEASURED" : "NOT IN") + '</span><span class="sk-why">' + esc(why) + "</span>"
         : '<span class="sk-mv">' + shown + "</span>" + (w ? '<span class="sk-vs ' + (skGood(m, w) ? "ok" : "warn") + '">' + (w === "in" ? "Within" : w === "above" ? "Above" : "Below") + " your normal (" + skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + ")</span>" : "")) + "</div>";
     }).join("") + "</div></section></div></section>";
     return html;
@@ -15493,8 +15491,8 @@
         (left !== null ? '<span class="sk-left' + (left <= 7 ? " warn" : "") + '">' + (left <= 7 ? "▲ REFILL · " : "") + left + " LEFT</span>" : "") +
         '<button type="button" class="sk-tick" data-sktake="' + esc(m.id) + '" aria-pressed="' + done + '" aria-label="' + (done ? "Taken today: " : "Mark taken today: ") + esc(m.name) + '">' + (done ? "✓" : "") + "</button></div>";
     }).join("") : '<p class="sk-p muted">Nothing yet. + MEDICINE adds one; tick it each day you take it.</p>';
-    var ap = skAppts(v);
-    html += '</section><section class="sk-panel" aria-label="Appointments"><span class="sk-lbl c">APPOINTMENTS · FROM YOUR CALENDARS</span>' + (ap.length ? ap.map(function (e) {
+    var apx = skAppts(v);
+    html += '</section><section class="sk-panel" aria-label="Appointments"><span class="sk-lbl c">APPOINTMENTS · FROM YOUR CALENDARS</span>' + (apx.length ? apx.map(function (e) {
       var dd = Math.round((sod(e._s) - sod(new Date())) / 86400000);
       return '<div class="sk-appt"><span class="sk-ad"><b>' + e._s.getDate() + "</b><small>" + MON[e._s.getMonth()] + '</small></span><span class="sk-at"><b>' + esc(e.title) + "</b><small>" + (e.allDay ? "All day" : hm(e._s)) + " · " + esc(AREAS[e.area] ? AREAS[e.area].name : "") + "</small></span><span class=\"sk-in\">" + (dd === 0 ? "TODAY" : dd === 1 ? "TOMORROW" : "IN " + dd + " DAYS") + "</span></div>"; }).join("")
       : '<p class="sk-p muted">None in the next two months. Events whose titles contain one of these words show here:</p>') +
@@ -15644,18 +15642,18 @@
   /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a
      max-height in CSS (Ask) stops there and scrolls inside. Scroll positions around it are kept. */
-  function growBox(ta, typing) {
+  function growBox(ta, isTyping) {
     if (!ta || ta.tagName !== "TEXTAREA" || ta.classList.contains("cl-text") || ta.classList.contains("cl-mirror") || !ta.offsetParent) return;
     /* a pass after a redraw only sizes new boxes and ones that overflow; shrinking waits for typing
        (and never touches scroll needlessly: setting it would stop a smooth scroll under way) */
-    if (!typing && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
+    if (!isTyping && ta.style.height && ta.scrollHeight <= ta.clientHeight) return;
     var keep = [], el = ta.parentElement;
     for (; el; el = el.parentElement) if (el.scrollHeight > el.clientHeight) keep.push([el, el.scrollTop]);
-    var edge = ta.offsetHeight - ta.clientHeight, cap = parseFloat(getComputedStyle(ta).maxHeight) || Infinity;
+    var edge = ta.offsetHeight - ta.clientHeight, capText = parseFloat(getComputedStyle(ta).maxHeight) || Infinity;
     ta.style.height = "auto";
     var want = ta.scrollHeight + edge;
-    ta.style.height = Math.min(want, cap) + "px";
-    ta.style.overflowY = want > cap ? "auto" : "hidden";
+    ta.style.height = Math.min(want, capText) + "px";
+    ta.style.overflowY = want > capText ? "auto" : "hidden";
     keep.forEach(function (k) { if (k[0].scrollTop !== k[1]) k[0].scrollTop = k[1]; });
   }
   var growPending = 0;
@@ -15681,12 +15679,12 @@
   function render(keepScroll) {
     var wrap = $("tlwrap");
     var keep = keepScroll && wrap ? wrap.scrollTop : null;
-    var active = document.activeElement, typing = active && active.id && $("content").contains(active) && /^(INPUT|TEXTAREA)$/.test(active.tagName)
-      ? { id: active.id, value: active.value, a: active.selectionStart, b: active.selectionEnd } : null;
+    var isActive = document.activeElement, isTyping = isActive && isActive.id && $("content").contains(isActive) && /^(INPUT|TEXTAREA)$/.test(isActive.tagName)
+      ? { id: isActive.id, value: isActive.value, a: isActive.selectionStart, b: isActive.selectionEnd } : null;
     /* Text typed into any field since the last draw survives a redraw (a sync landing while you
        fill in a form), not just the field in use. A field you haven't touched shows fresh data. */
     /* Writing in the log: a background redraw would cost the keyboard its place. Leave the page alone. */
-    if (keepScroll && state.screen === "log" && active && /^clText-/.test(active.id)) { setAreas(); renderHeader(); renderStatus(); return; }
+    if (keepScroll && state.screen === "log" && isActive && /^clText-/.test(isActive.id)) { setAreas(); renderHeader(); renderStatus(); return; }
     if (keepScroll && state.screen === "storage" && pl.scrub) { setAreas(); renderHeader(); renderStatus(); return; }   /* a finger is on the scrubber: a background redraw would take it away */
     /* 2.54.1: writing in any field, a redraw nobody asked for (the clock, a sync landing) waits until you leave it. It
        used to swap the field for a fresh copy and put the focus back, and on the iPad an emoji picked from the keyboard
@@ -15705,11 +15703,11 @@
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
-    if (typing && $(typing.id)) {
-      var el = $(typing.id);
-      el.value = typing.value;
+    if (isTyping && $(isTyping.id)) {
+      var el = $(isTyping.id);
+      el.value = isTyping.value;
       el.focus();
-      try { el.setSelectionRange(typing.a, typing.b); } catch (x) { /* not a text field */ }
+      try { el.setSelectionRange(isTyping.a, isTyping.b); } catch (x) { /* not a text field */ }
     }
     var w2 = $("tlwrap");
     if (w2) w2.scrollTop = keep !== null ? keep : state.scrollTarget || 0;
@@ -15877,7 +15875,7 @@
       else if (la === "aipreview") logAiPreview();
       else if (la === "aisend") logAiSend(false);
       else if (la === "aifollow") logAiSend(true);
-      else if (la === "ainew") { var ka = lg.ai; lg.ai.msgs = []; lg.ai.preview = null; lg.ai.q = ""; lg.ai.preset = null; lg.ai.err = null; render(true); }
+      else if (la === "ainew") { lg.ai.msgs = []; lg.ai.preview = null; lg.ai.q = ""; lg.ai.preset = null; lg.ai.err = null; render(true); }
       else if (la === "aideep") { lg.ai.deep = !lg.ai.deep; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }
       else if (la === "aiinsights") logAiInsights();
       else if (la === "aiopenback") { lg.ai.open = null; render(true); }

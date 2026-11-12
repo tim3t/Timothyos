@@ -198,15 +198,15 @@
      later days pushed today's list out the moment it was saved, and the app fetched it forever.)
      Provisional lists stay in memory but aren't stored. */
   function saveTasks() {
-    var today = ymd(new Date()), from = ymd(addDays(new Date(), -3)), pin = plan ? plan.day : null, keep = {}, store = {};
+    var today = ymd(new Date()), from = ymd(addDays(new Date(), -3)), pin = plan ? plan.day : null, keep = {}, stored = {};
     var days = Object.keys(state.tasks).filter(function (d) { return state.tasks[d] && (d >= from || d === pin); });
     days.sort(function (a, b) {
       var ra = a === today || a === pin ? 1 : 0, rb = b === today || b === pin ? 1 : 0;
       return rb - ra || (state.tasks[b].fetched || 0) - (state.tasks[a].fetched || 0);
     });
-    days.slice(0, 8).forEach(function (d) { keep[d] = state.tasks[d]; if (!keep[d].provisional) store[d] = keep[d]; });
+    days.slice(0, 8).forEach(function (d) { keep[d] = state.tasks[d]; if (!keep[d].provisional) stored[d] = keep[d]; });
     state.tasks = keep;
-    lsSet(LS_TASKS, store);
+    lsSet(LS_TASKS, stored);
   }
   function describeTasks(err) {
     var code = err && (err.code || err.message);

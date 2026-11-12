@@ -83,8 +83,8 @@
   function skWhen(iso) { var t = new Date(iso); return isNaN(t) ? "" : skShort(ymd(t)) + " " + p2(t.getHours()) + ":" + p2(t.getMinutes()); }
   function skList(keys) { var w = keys.map(function (k) { return SK_WHAT[k] || k; }); return w.length > 1 ? w.slice(0, -1).join(", ") + " and " + w[w.length - 1] : w.join(""); }
   function skRing(d, size, stroke, g) {   /* MOVE, EXERCISE, STAND as three rings, outside in; dashed where nothing came */
-    var rs = [[d && skVal(d, "active"), g.move, "--chrome-d"], [d && skVal(d, "exercise"), g.exercise, "--hero"], [d && skVal(d, "stand"), g.stand, "--work"]], c = size / 2;
-    return '<svg viewBox="0 0 ' + size + " " + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + rs.map(function (q, i) {
+    var ringSpec = [[d && skVal(d, "active"), g.move, "--chrome-d"], [d && skVal(d, "exercise"), g.exercise, "--hero"], [d && skVal(d, "stand"), g.stand, "--work"]], c = size / 2;
+    return '<svg viewBox="0 0 ' + size + " " + size + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + ringSpec.map(function (q, i) {
       var r = c - stroke / 2 - i * (stroke + 3), circ = 2 * Math.PI * r, f = q[0] === null || q[0] === undefined ? null : Math.min(q[0] / q[1], 1);
       return '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="#24262f" stroke-width="' + stroke + '"' + (f === null ? ' stroke-dasharray="3 4"' : "") + "/>" +
         (f ? '<circle cx="' + c + '" cy="' + c + '" r="' + r.toFixed(1) + '" fill="none" stroke="var(' + q[2] + ')" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + (circ * f).toFixed(1) + " " + circ.toFixed(1) + '" transform="rotate(-90 ' + c + " " + c + ')"/>' : "");
@@ -261,26 +261,26 @@
     html += '<div class="sk-stamp">' + gotLine + updLine + lackLine + "</div>";
     var g = v.goals;
     html += '<div class="sk-daygrid"><div class="sk-col"><section class="sk-panel sk-inner" aria-label="Activity"><span class="sk-lbl">ACTIVITY</span><div class="sk-ringbox">' + skRing(d, 150, 16, g) + '<div class="sk-rv">' +
-      [["MOVE", "active", g.move, "kcal", "--chrome-d"], ["EXERCISE", "exercise", g.exercise, "min", "--hero"], ["STAND", "stand", g.stand, "h", "--work"]].map(function (q) {
-        var n = skVal(d, q[1]);
-        return '<div><span style="color:var(' + q[4] + ')">' + q[0] + "</span><span>" + (n === null ? '<span class="muted">NOT IN YET</span>' : "<b>" + Math.round(n).toLocaleString() + "</b> of " + q[2] + " " + q[3] + (n >= q[2] ? ' <span class="sk-met">✓</span>' : "")) + "</span></div>";
+      [["MOVE", "active", g.move, "kcal", "--chrome-d"], ["EXERCISE", "exercise", g.exercise, "min", "--hero"], ["STAND", "stand", g.stand, "h", "--work"]].map(function (qt) {
+        var n = skVal(d, qt[1]);
+        return '<div><span style="color:var(' + qt[4] + ')">' + qt[0] + "</span><span>" + (n === null ? '<span class="muted">NOT IN YET</span>' : "<b>" + Math.round(n).toLocaleString() + "</b> of " + qt[2] + " " + qt[3] + (n >= qt[2] ? ' <span class="sk-met">✓</span>' : "")) + "</span></div>";
       }).join("") + "</div></div></section>";
     if (d.sleep && d.sleep.asleep) {
       var S = d.sleep, len = S.len || (S.asleep + (S.awake || 0)) || 1, segs = (S.segs || []).slice().sort(function (a, b) { return a[1] - b[1]; });
       html += '<section class="sk-panel sk-inner" aria-label="Sleep"><div class="sk-dh"><span class="sk-lbl">THE NIGHT BEFORE · SLEEP</span><span class="sk-lbl">' + esc(S.bed || "") + (S.wake ? " TO " + esc(S.wake) : "") + "</span></div>" +
         '<div class="sk-dv"><b>' + skHM(S.asleep) + "</b><small>asleep" + (S.awake ? " · " + skHM(S.awake) + " awake" : "") + "</small></div>" +
         '<div class="sk-sleepbar" role="img" aria-label="Sleep stages through the night">' + (segs.length ? segs.map(function (g2) { var stg = SK_STAGES.filter(function (z) { return z[0] === g2[0]; })[0]; return '<i style="left:' + (g2[1] / len * 100).toFixed(2) + "%;width:" + Math.max(0.3, g2[2] / len * 100).toFixed(2) + "%;background:var(" + (stg ? stg[2] : "--line") + ')"></i>'; }).join("")
-          : [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].reduce(function (acc, q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; acc.h += '<i style="left:' + (acc.at / len * 100).toFixed(2) + "%;width:" + ((q[1] || 0) / len * 100).toFixed(2) + "%;background:var(" + stg[2] + ')"></i>'; acc.at += q[1] || 0; return acc; }, { h: "", at: 0 }).h) + "</div>" +
-        '<div class="sk-legend">' + [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].map(function (q) { var stg = SK_STAGES.filter(function (z) { return z[0] === q[0]; })[0]; return '<span><i style="background:var(' + stg[2] + ')"></i>' + stg[1] + " " + skHM(q[1] || 0) + "</span>"; }).join("") + "</div>" +
+          : [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].reduce(function (acc, qt) { var stg = SK_STAGES.filter(function (z) { return z[0] === qt[0]; })[0]; acc.h += '<i style="left:' + (acc.at / len * 100).toFixed(2) + "%;width:" + ((qt[1] || 0) / len * 100).toFixed(2) + "%;background:var(" + stg[2] + ')"></i>'; acc.at += qt[1] || 0; return acc; }, { h: "", at: 0 }).h) + "</div>" +
+        '<div class="sk-legend">' + [["d", S.deep], ["c", S.core], ["r", S.rem], ["a", S.awake]].map(function (qt) { var stg = SK_STAGES.filter(function (z) { return z[0] === qt[0]; })[0]; return '<span><i style="background:var(' + stg[2] + ')"></i>' + stg[1] + " " + skHM(qt[1] || 0) + "</span>"; }).join("") + "</div>" +
         '<button type="button" class="chip sm" style="--c: var(--personal)" data-sknight="' + x + '" data-sktab="sleep">OPEN IN SLEEP</button></section>';
     }
     html += "</div>";
     var nt = skNormal("temp"), lv = skLatest("vo2", 60);
-    html += '<section class="sk-panel sk-inner" aria-label="Every measure"><span class="sk-lbl">EVERY MEASURE FOR THIS DAY</span><div class="sk-mfs">' + [["Resting heart rate", "rhr"], ["Heart rate variability", "hrv"], ["Breathing rate", "resp"], ["Wrist temperature", "temp"], ["Steps", "steps"], ["Cardio fitness", "vo2"]].map(function (q) {
-      var m = SK_M.filter(function (z) { return z.k === q[1]; })[0], n = skVal(d, q[1]), nm = m ? skNormal(m.k) : null, w = m && n !== null ? skWhere(m, n, nm) : "", shown = "";
-      if (n !== null) shown = q[1] === "temp" ? (nt.mid === null ? n.toFixed(1) + "<small>°</small>" : (n - nt.mid >= 0 ? "+" : "") + (n - nt.mid).toFixed(1) + "<small>° from your normal</small>") : esc(skFmt(m, n)) + "<small>" + esc(m.unit) + "</small>";
-      var why = q[1] === "vo2" ? "The watch estimates it every few days, from outdoor walks. Latest: " + (lv ? lv.v.toFixed(1) + " on " + skShort(lv.date) : "none yet") + "." : st.s === "partial" && st.lack.indexOf(q[1]) > -1 ? "Comes with the next morning's send." : exp.indexOf(q[1]) === -1 && q[1] !== "temp" ? "Not part of the shortcut yet (README → SICKBAY)." : "Not sent for this day.";
-      return '<div class="sk-mf"><span>' + q[0] + "</span>" + (n === null ? '<span class="sk-ns">' + (q[1] === "vo2" ? "NOT MEASURED" : "NOT IN") + '</span><span class="sk-why">' + esc(why) + "</span>"
+    html += '<section class="sk-panel sk-inner" aria-label="Every measure"><span class="sk-lbl">EVERY MEASURE FOR THIS DAY</span><div class="sk-mfs">' + [["Resting heart rate", "rhr"], ["Heart rate variability", "hrv"], ["Breathing rate", "resp"], ["Wrist temperature", "temp"], ["Steps", "steps"], ["Cardio fitness", "vo2"]].map(function (qt) {
+      var m = SK_M.filter(function (z) { return z.k === qt[1]; })[0], n = skVal(d, qt[1]), nm = m ? skNormal(m.k) : null, w = m && n !== null ? skWhere(m, n, nm) : "", shown = "";
+      if (n !== null) shown = qt[1] === "temp" ? (nt.mid === null ? n.toFixed(1) + "<small>°</small>" : (n - nt.mid >= 0 ? "+" : "") + (n - nt.mid).toFixed(1) + "<small>° from your normal</small>") : esc(skFmt(m, n)) + "<small>" + esc(m.unit) + "</small>";
+      var why = qt[1] === "vo2" ? "The watch estimates it every few days, from outdoor walks. Latest: " + (lv ? lv.v.toFixed(1) + " on " + skShort(lv.date) : "none yet") + "." : st.s === "partial" && st.lack.indexOf(qt[1]) > -1 ? "Comes with the next morning's send." : exp.indexOf(qt[1]) === -1 && qt[1] !== "temp" ? "Not part of the shortcut yet (README → SICKBAY)." : "Not sent for this day.";
+      return '<div class="sk-mf"><span>' + qt[0] + "</span>" + (n === null ? '<span class="sk-ns">' + (qt[1] === "vo2" ? "NOT MEASURED" : "NOT IN") + '</span><span class="sk-why">' + esc(why) + "</span>"
         : '<span class="sk-mv">' + shown + "</span>" + (w ? '<span class="sk-vs ' + (skGood(m, w) ? "ok" : "warn") + '">' + (w === "in" ? "Within" : w === "above" ? "Above" : "Below") + " your normal (" + skFmt(m, nm.lo) + " to " + skFmt(m, nm.hi) + ")</span>" : "")) + "</div>";
     }).join("") + "</div></section></div></section>";
     return html;
@@ -335,8 +335,8 @@
         (left !== null ? '<span class="sk-left' + (left <= 7 ? " warn" : "") + '">' + (left <= 7 ? "▲ REFILL · " : "") + left + " LEFT</span>" : "") +
         '<button type="button" class="sk-tick" data-sktake="' + esc(m.id) + '" aria-pressed="' + done + '" aria-label="' + (done ? "Taken today: " : "Mark taken today: ") + esc(m.name) + '">' + (done ? "✓" : "") + "</button></div>";
     }).join("") : '<p class="sk-p muted">Nothing yet. + MEDICINE adds one; tick it each day you take it.</p>';
-    var ap = skAppts(v);
-    html += '</section><section class="sk-panel" aria-label="Appointments"><span class="sk-lbl c">APPOINTMENTS · FROM YOUR CALENDARS</span>' + (ap.length ? ap.map(function (e) {
+    var apx = skAppts(v);
+    html += '</section><section class="sk-panel" aria-label="Appointments"><span class="sk-lbl c">APPOINTMENTS · FROM YOUR CALENDARS</span>' + (apx.length ? apx.map(function (e) {
       var dd = Math.round((sod(e._s) - sod(new Date())) / 86400000);
       return '<div class="sk-appt"><span class="sk-ad"><b>' + e._s.getDate() + "</b><small>" + MON[e._s.getMonth()] + '</small></span><span class="sk-at"><b>' + esc(e.title) + "</b><small>" + (e.allDay ? "All day" : hm(e._s)) + " · " + esc(AREAS[e.area] ? AREAS[e.area].name : "") + "</small></span><span class=\"sk-in\">" + (dd === 0 ? "TODAY" : dd === 1 ? "TOMORROW" : "IN " + dd + " DAYS") + "</span></div>"; }).join("")
       : '<p class="sk-p muted">None in the next two months. Events whose titles contain one of these words show here:</p>') +

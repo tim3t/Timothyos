@@ -203,12 +203,12 @@
       };
       if (!h) return v1();
       if (h.unsync) return (h.end <= b.length ? Promise.resolve(buf) : rangeGet(it.path, 0, Math.min(h.end, 1048576) - 1)).then(function (whole) { out = parseId3(whole) || {}; delete out.pic; return v1(); });
-      var go = function (bb, base, pos, hops) {
+      var proceed = function (bb, base, pos, hops) {
         var stop = id3Walk(bb, base, h, pos, out, false);
         if (stop === null || hops >= 6) return v1();
-        return rangeGet(it.path, stop, Math.min(h.end, stop + 65535)).then(function (nb) { return go(new Uint8Array(nb), stop, stop, hops + 1); });
+        return rangeGet(it.path, stop, Math.min(h.end, stop + 65535)).then(function (nb) { return proceed(new Uint8Array(nb), stop, stop, hops + 1); });
       };
-      return go(b, 0, h.pos, 0);
+      return proceed(b, 0, h.pos, 0);
     });
   }
   /* Remembered per file. "s" marks a file whose tag has been read, so a file without one isn't asked again. */
@@ -294,14 +294,14 @@
       if (b[i] !== 255 || (b[i + 1] & 0xE0) !== 0xE0) continue;
       var v = (b[i + 1] >> 3) & 3, lay = (b[i + 1] >> 1) & 3, bri = b[i + 2] >> 4, sri = (b[i + 2] >> 2) & 3;
       if (v === 1 || lay === 0 || bri === 0 || bri === 15 || sri === 3) continue;
-      var l = 4 - lay, sr = MP3_SR[v][sri], br = MP3_BR[v === 3 ? 1 : 2][l - 1][bri], pad = (b[i + 2] >> 1) & 1, mono = (b[i + 3] >> 6) === 3;
-      var spf = l === 1 ? 384 : l === 2 || v === 3 ? 1152 : 576, flen = l === 1 ? (Math.floor(12 * br * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * br * 1000 / sr) + pad;
+      var l = 4 - lay, sr = MP3_SR[v][sri], brk = MP3_BR[v === 3 ? 1 : 2][l - 1][bri], pad = (b[i + 2] >> 1) & 1, mono = (b[i + 3] >> 6) === 3;
+      var spf = l === 1 ? 384 : l === 2 || v === 3 ? 1152 : 576, flen = l === 1 ? (Math.floor(12 * brk * 1000 / sr) + pad) * 4 : Math.floor(spf / 8 * brk * 1000 / sr) + pad;
       if (i + flen + 1 < b.length && (b[i + flen] !== 255 || (b[i + flen + 1] & 0xE0) !== 0xE0)) continue;   /* not followed by a frame: a false sync */
       var xo = i + 4 + (l === 3 ? (v === 3 ? (mono ? 17 : 32) : (mono ? 9 : 17)) : 0), x = xo + 12 <= b.length ? tag4(b, xo) : "";
       if ((x === "Xing" || x === "Info") && (u32(b, xo + 4) & 1)) return u32(b, xo + 8) * spf / sr;
       if (i + 54 <= b.length && tag4(b, i + 36) === "VBRI") return u32(b, i + 50) * spf / sr;
       if (tlen) return tlen;
-      return (total - base - i) * 8 / (br * 1000);
+      return (total - base - i) * 8 / (brk * 1000);
     }
     return tlen || null;
   }
@@ -606,9 +606,9 @@
     var nd = $("nasNeedle"); if (!nd) return;
     var band = nd.parentNode, t = to || band.querySelector('.nas-share[data-nasdir="' + (nas.tuned || "").replace(/["\\]/g, "") + '"]') || band.querySelector(".nas-share");
     if (!t) { nd.hidden = true; return; }
-    var r = t.getBoundingClientRect(), br = band.getBoundingClientRect();
+    var r = t.getBoundingClientRect(), brk = band.getBoundingClientRect();
     if (!swing) nd.classList.add("still");
-    nd.style.left = Math.round(r.left + r.width / 2 - br.left - 1) + "px";
+    nd.style.left = Math.round(r.left + r.width / 2 - brk.left - 1) + "px";
     if (!swing) { void nd.offsetWidth; nd.classList.remove("still"); }
   }
   function homeHtml() {
@@ -669,7 +669,7 @@
   }
   var nasOrder = [];
   function nowHtml() {
-    var a = pl.el, paused = !a || a.paused, nx = nextUp().slice(0, 4);
+    var nx = nextUp().slice(0, 4);
     var tg = nasTags[pl.path] || {};
     var html = '<div class="nas-now">' + artHtml(parentOf(pl.path), "nas-bigart", true) + "<div>" +
       '<button type="button" class="chip sm" data-nasdir="' + esc(parentOf(pl.path)) + '">◂ ' + esc(baseName(parentOf(pl.path)).toUpperCase()) + "</button>" +

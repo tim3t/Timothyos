@@ -181,7 +181,7 @@ const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.c
   await p.click('[data-nassort="track"]');
   await p.waitForFunction(() => !document.querySelector('.nas-scan') && document.querySelectorAll('.nas-tn').length === 4, null, { timeout: 8000 });
   assert.deepStrictEqual(await p.$$eval('[data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), ['b.mp3', 'c.mp3', 'a.mp3', '0 bonus.mp3'], 'disc 1 tracks 1 to 3, then disc 2');
-  assert.deepStrictEqual(await p.$$eval('.nas-row .nas-nm', n => n.map(x => [...x.childNodes].filter(c => c.nodeName !== 'SMALL' && c.textContent).map(c => c.textContent).join('|'))), ['01|Opening', '02|Middle', '03|Closing Time', '2·01|Bonus'], 'track numbers and tag titles');
+  assert.deepStrictEqual(await p.$$eval('.nas-row .nas-nm', n => n.map(x => [...x.childNodes].filter(cc => cc.nodeName !== 'SMALL' && cc.textContent).map(cc => cc.textContent).join('|'))), ['01|Opening', '02|Middle', '03|Closing Time', '2·01|Bonus'], 'track numbers and tag titles');
   await p.screenshot({ path: D + 'storage-tracks.png' });
   await p.fill('#nasQ', 'clos'); await p.waitForTimeout(200);
   assert.deepStrictEqual(await p.$$eval('[data-nasplay]', n => n.map(x => x.dataset.nasplay.split('/').pop())), ['a.mp3'], 'search finds tag titles');
@@ -199,7 +199,7 @@ const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.c
   await p.click('[data-nasplay="/Music/Album2/b.mp3"]');
   await p.waitForFunction(() => { const a = document.getElementById('nasAudio'); return a.src.startsWith('blob:') && !a.paused; }, null, { timeout: 8000 });
   const b1 = (await cur(p)).src;
-  await p.waitForFunction(b1 => { const a = document.getElementById('nasAudio'); return a.src.startsWith('blob:') && a.src !== b1 && !a.paused; }, b1, { timeout: 8000 });
+  await p.waitForFunction(b1x => { const a = document.getElementById('nasAudio'); return a.src.startsWith('blob:') && a.src !== b1x && !a.paused; }, b1, { timeout: 8000 });
   assert.deepStrictEqual(ahead.slice(0, 2), ['c.mp3', 'a.mp3'], 'each next one read ahead, in track order: ' + ahead.join(','));
   assert.strictEqual(await p.evaluate(() => window.__ends), 0, 'handed over before the end, never waiting on it');
   const done = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.plays.v1')));

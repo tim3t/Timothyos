@@ -24,18 +24,18 @@
   }
   function withRetry(run) {
     var attempt = 0, paused = 0;
-    function go() {
+    function proceed() {
       var started = Date.now();
       return run().catch(function (err) {
         /* Cut off by the iPad going to sleep or to another app: try again once it's back. */
-        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(go); }
+        if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(proceed); }
         if (navigator.onLine === false || !transient(err) || attempt >= RETRY_DELAYS.length) throw err;
         markRetried(err);
         var wait = RETRY_DELAYS[attempt++];
-        return new Promise(function (res) { setTimeout(res, wait); }).then(go);
+        return new Promise(function (res) { setTimeout(res, wait); }).then(proceed);
       });
     }
-    return go();
+    return proceed();
   }
   /* Run at most MAX_PARALLEL requests at once; the rest wait their turn. */
   var active = 0, waiting = [];
@@ -205,14 +205,14 @@
   function apiOnce(params, conn, label, timeoutMs) {
     conn = conn || state.conn;
     var url = conn.url, how = readVia[url];
-    var go = function (m) { return m === "get" ? apiGetOnce(params, conn, label, timeoutMs) : postOnce(conn, readBody(params), label || params.action, timeoutMs || 45000, false); };
-    return go(how || "post").then(function (j) { if (!readVia[url]) readVia[url] = "post"; return j; }, function (err) {
+    var proceed = function (m) { return m === "get" ? apiGetOnce(params, conn, label, timeoutMs) : postOnce(conn, readBody(params), label || params.action, timeoutMs || 45000, false); };
+    return proceed(how || "post").then(function (j) { if (!readVia[url]) readVia[url] = "post"; return j; }, function (err) {
       var code = err && err.code;
       if (!how && code === "unknown_action") {   /* an older bridge, unless the GET doesn't know it either (a read that bridge lacks) */
         readVia[url] = "get"; markRetried(err);
-        return go("get").catch(function (e2) { if (e2 && e2.code === "unknown_action" && readVia[url] === "get") delete readVia[url]; throw e2; });
+        return proceed("get").catch(function (e2) { if (e2 && e2.code === "unknown_action" && readVia[url] === "get") delete readVia[url]; throw e2; });
       }
-      if (how === "get" && code === "use_post") { readVia[url] = "post"; markRetried(err); return go("post"); }   /* updated since */
+      if (how === "get" && code === "use_post") { readVia[url] = "post"; markRetried(err); return proceed("post"); }   /* updated since */
       throw err;
     });
   }

@@ -25,8 +25,8 @@ const reset = () => Promise.all([brief('cap=0&fail=0&shape=0'), voice('cap=0&fai
   await lane(ctx);
   await ctx.addInitScript(() => {
     window.__said = []; window.__plays = []; window.__pauses = 0;
-    function U(t) { this.text = t; }
-    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: U, configurable: true, writable: true });
+    function url(t) { this.text = t; }
+    Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: url, configurable: true, writable: true });
     const voices = [{ name: 'Samantha', lang: 'en-US', voiceURI: 'com.apple.voice.compact.en-US.Samantha' }, { name: 'Moira', lang: 'en-IE', voiceURI: 'com.apple.voice.compact.en-IE.Moira' }];
     Object.defineProperty(window, 'speechSynthesis', { value: { speak(u) { window.__said.push(u); }, cancel() {}, getVoices() { return voices; }, addEventListener() {} }, configurable: true });
     // the player, simulated: what it was asked to play is kept; the test ends each clip

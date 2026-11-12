@@ -58,9 +58,9 @@
     }, { passive: false });
     var end = function () {
       if (ptr.y0 === null) return;
-      var go = ptr.dy * 0.55 >= PTR_AT;
+      var proceed = ptr.dy * 0.55 >= PTR_AT;
       ptr.y0 = null; ptr.dy = 0;
-      if (go) ledgerRefresh(); else ptrPaint();
+      if (proceed) ledgerRefresh(); else ptrPaint();
     };
     c.addEventListener("touchend", end); c.addEventListener("touchcancel", end);
   })();
@@ -84,7 +84,7 @@
       if (y.cats.some(function (c) { return c.m[i]; })) idx.push(i);
     }
     return { months: idx.length, cats: y.cats.map(function (c) {
-      var tot = idx.reduce(function (s, i) { return s + Math.max(0, c.m[i] || 0); }, 0);
+      var tot = idx.reduce(function (s, ix) { return s + Math.max(0, c.m[ix] || 0); }, 0);
       return { id: c.id, name: c.name, group: c.group, avg: idx.length ? tot / idx.length : 0, now: Math.max(0, c.now || 0), all: c };
     }).filter(function (c) { return c.avg > 0.5 || c.now > 0.5; }).sort(function (a, b) { return b.avg - a.avg || b.now - a.now; }) };
   }
@@ -248,12 +248,12 @@
     });
   }
   function queueAddSubmit() {
-    var name = $("qName").value.trim(), costRaw = $("qCost").value.trim(), note = $("qNote").value.trim();
+    var name = $("qName").value.trim(), costRaw = $("qCost").value.trim(), noteText = $("qNote").value.trim();
     if (!name) { toast("Type what you want to add first."); $("qName").focus(); return; }
     if (isEarlGrey(name)) { var qn = $("qName"); qn.value = ""; qn.defaultValue = ""; $("qCost").value = ""; $("qNote").value = ""; qn.blur(); replicate(); return; }
     var cost = costRaw ? parseFloat(costRaw.replace(/[^0-9.]/g, "")) : null;
     if (costRaw && !isFinite(cost)) { toast("The cost should be a number, like 280."); $("qCost").focus(); return; }
-    var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: note.slice(0, 200) };
+    var item = { cid: newCid(), title: name.slice(0, 120), cost: cost, note: noteText.slice(0, 200) };
     queueSend({ action: "queueadd", item: item }).then(function (j) {
       if (!j || !j.item || !state.ledger || !state.ledger.queue) return;
       var q = state.ledger.queue;
