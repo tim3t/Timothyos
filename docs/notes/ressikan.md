@@ -16,4 +16,6 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 
 **Saved:** `tos.ressikan.v1` with `v: 2`, compact so PROFILE SYNC (20,000 characters an item) carries 12 loops: slots as `"d:c[:b]"`, the grid as six 16-digit strings (0 off, 1 on, 2 accent). An older (FIELD) setting keeps only `key`, `fx`, `vinyl`. Loops: `snapshot()` / `openLoop()` (validated on the way in). **SAVE AS MIDI** (`midiFile()`): type 1, 96 ticks a beat, tempo and 4/4, chords held per slot (GM program by sound), bass (33), drums on channel 10 (GM notes 36, 38, 39, 42, 46, 70), mutes and the fill respected. `saveFile()` uses the share sheet with a File, else a download.
 
+**2.82.1:** iPadOS starts a drag on a long press of a button (a "1" badge; the slot lifts out of its grid). `.rs button` and the play surfaces have `-webkit-user-drag/-touch-callout/user-select: none`, and `draw()` cancels `dragstart`, `contextmenu` and `selectstart` inside `.rs` (inputs and audio aside). Groups of chips sit in `.rs-form` / `frow(label, inner)` rows, never run on in one line; ARP shows only for STYLE ARP.
+
 Tests: `app_e2e55`.

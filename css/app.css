@@ -2622,6 +2622,11 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .rs-kv { font-family: var(--display); font-size: 12px; letter-spacing: .06em; font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* 2.82 (D82): CHORDS and SOLO */
 .rs-grow { flex: 1 1 0; min-width: 0; }
+/* 2.82.1: playable surfaces don't lift out as an iPadOS drag, select their text or open the press-and-hold menu */
+.rs button, .rs-solo, .rs-slots, .rs-pads, .rs-grid { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
+.rs-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px 18px; align-items: center; }
+.rs-frow { display: contents; }
+.rs-fc { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; min-width: 0; }
 .rs-read { font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--dim); }
 .rs-slots { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 8px; }
 .rs-slotw { position: relative; min-width: 0; }
@@ -2686,6 +2691,7 @@ body.nas-pad-min .content { padding-bottom: 72px; }
   .rs-num { font-size: 22px; }
   .rs-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .rs-pad { min-height: 104px; } .rs-pn { font-size: 26px; }
+  .rs-form { grid-template-columns: minmax(0, 1fr); gap: 4px; } .rs-frow .rs-lab { margin-top: 6px; }
   .rs-srow { gap: 5px; } .rs-note { min-height: 84px; border-radius: 14px; } .rs-note b { font-size: 19px; }
 }
 

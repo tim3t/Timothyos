@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.82.1 · 2026-11-13
+- **RESSIKAN: bars and pads stay put.** Holding a bar, pad, step or SOLO note a moment too long started an iPadOS drag (a "1" badge, and the bar lifted out of the loop, blanking its neighbour). Drag, text selection and the press-and-hold menu are off on everything you play (Timothy's screenshot, the day of release).
+- **RESSIKAN: one row per group.** SOUND, STYLE, BASS and LEVELS each get a labelled row in HOW THEY PLAY, and the ARP options appear only while the style is ARP. KIT and PATTERN in THE BEAT, and SOUND and NOTES in SOLO, get the same.
+
 ## 2.82.0 · 2026-11-13
 - **RESSIKAN, revamped: CHORDS and SOLO** (from Timothy's approved mockup; "more into making chords over a beat"). The theremin and DRIFT are retired; your key and room settings carry over.
   - **CHORDS:** seven pads, the chords of your key with their numerals and names, coloured by their job (home, away, tension); COLOUR (7, 9, SUS2, SUS4, ADD6), BORROW and NEXT?. A loop of 4 or 8 bars (a chord every bar or half bar): tap a bar then a pad, or CAPTURE pads played in time; six starters and SURPRISE.

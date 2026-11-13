@@ -457,6 +457,7 @@
     function K(id, c) { var p = id.split("."), v = S[p[0]][p[1]]; return '<div class="rs-knob"><div class="rs-dial" role="slider" tabindex="0" aria-label="' + KN[id][0] + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(v * 100) + '" data-rsk="' + id + '" style="--v:' + v + (c ? ";--kc: var(--" + c + ")" : "") + '"><i></i></div><span class="rs-kl">' + KN[id][0] + '</span><span class="rs-kv" data-rskv="' + id + '">' + FMT[KN[id][1]](v) + "</span></div>"; }
     function chips(attr, opts, cur, c) { return '<div class="rs-chips">' + opts.map(function (o) { return '<button type="button" class="chip sm" data-' + attr + '="' + o[0] + '" aria-pressed="' + (String(cur) === String(o[0])) + '"' + (c ? ' style="--c: var(--' + c + ')"' : "") + ">" + o[1] + "</button>"; }).join("") + "</div>"; }
     function tog(act, on, label, c) { return '<button type="button" class="chip sm" data-rsact="' + act + '" aria-pressed="' + !!on + '"' + (c ? ' style="--c: var(--' + c + ')"' : "") + ">" + label + "</button>"; }
+    function frow(label, inner) { return '<div class="rs-frow"><span class="rs-lab">' + label + '</span><div class="rs-fc">' + inner + "</div></div>"; }   /* 2.82.1: one labelled row per group, so groups never run on */
     function panel(c, title, meta, inner, cls) { return '<section class="rs-panel' + (cls ? " " + cls : "") + '" style="--c: var(--' + c + ')">' + phead(title, meta, c) + inner + "</section>"; }
     function readText() { return !X.on ? (X.lost ? "IPADOS PAUSED THE SOUND · TAP TO START AGAIN" : "SOUND OFF · TAP PLAY OR A PAD") : X.play ? "BAR " + (X.pos.slot > -1 ? Math.floor(X.pos.slot * S.every / 16) + 1 : 1) + " OF " + S.bars : "STOPPED · " + pcName(S.key) + " " + S.mode.toUpperCase(); }
     function soundStrip() {
@@ -502,9 +503,9 @@
     }
     function playHtml() {
       return panel("chrome-b", "HOW THEY PLAY", "VOICE LEADING ON",
-        '<div class="rs-row"><span class="rs-lab">SOUND</span>' + chips("rssound", CSOUNDS, S.sound, "chrome-b") + '<span class="rs-lab">STYLE</span>' + chips("rsstyle", STYLES, S.style, "chrome-b") + "</div>" +
-        '<div class="rs-row"><span class="rs-lab">ARP</span>' + chips("rsarp", [["up", "UP"], ["down", "DOWN"], ["updown", "UP·DOWN"], ["random", "RANDOM"]], S.style === "arp" ? S.arp : "", "chrome-b") + chips("rsrate", [[2, "8THS"], [1, "16THS"]], S.style === "arp" ? S.rate : "", "chrome-b") +
-          '<span class="rs-sep"></span>' + tog("bass", S.bass, "BASS FOLLOWS THE ROOT", "chrome-b") + '<div class="rs-knobs">' + K("k.chords", "chrome-b") + K("k.bass", "chrome-b") + "</div></div>");
+        '<div class="rs-form">' + frow("SOUND", chips("rssound", CSOUNDS, S.sound, "chrome-b")) + frow("STYLE", chips("rsstyle", STYLES, S.style, "chrome-b")) +
+          (S.style === "arp" ? frow("ARP", chips("rsarp", [["up", "UP"], ["down", "DOWN"], ["updown", "UP·DOWN"], ["random", "RANDOM"]], S.arp, "chrome-b") + chips("rsrate", [[2, "8THS"], [1, "16THS"]], S.rate, "chrome-b")) : "") +
+          frow("BASS", tog("bass", S.bass, "FOLLOWS THE ROOT", "chrome-b")) + frow("LEVELS", '<div class="rs-knobs">' + K("k.chords", "chrome-b") + K("k.bass", "chrome-b") + "</div>") + "</div>");
     }
     function beatHtml() {
       var top = '<span></span>' + [0, 1, 2, 3].map(function (g) { return '<div class="rs-bg">' + ["", "e", "&", "a"].map(function (x, i) { return '<span class="rs-cn' + (i ? "" : " b") + '">' + (i ? x : g + 1) + "</span>"; }).join("") + "</div>"; }).join("");
@@ -514,7 +515,7 @@
         return '<button type="button" class="rs-lane' + (muted ? " muted" : "") + '" data-rslane="' + l[0] + '" aria-pressed="' + muted + '">' + l[1] + (muted ? " <small>MUTED</small>" : "") + "</button>" + cells;
       }).join("");
       return panel("hobby", "THE BEAT", "16 STEPS · ONE BAR, REPEATED",
-        '<div class="rs-row"><span class="rs-lab">KIT</span>' + chips("rskit", ["dusty", "808", "acoustic", "minimal"].map(function (k) { return [k, KITS[k].n]; }), S.kit, "hobby") + '<span class="rs-lab">PATTERN</span>' + chips("rspat", Object.keys(PATS).map(function (k) { return [k, PATS[k].n]; }), S.pat, "hobby") + "</div>" +
+        '<div class="rs-form">' + frow("KIT", chips("rskit", ["dusty", "808", "acoustic", "minimal"].map(function (k) { return [k, KITS[k].n]; }), S.kit, "hobby")) + frow("PATTERN", chips("rspat", Object.keys(PATS).map(function (k) { return [k, PATS[k].n]; }), S.pat, "hobby")) + "</div>" +
         '<div class="rs-gridw"><div class="rs-grid">' + top + rows + "</div></div>" +
         '<div class="rs-row">' + tog("fill", S.fill, "FILL ON THE LAST BAR", "hobby") + tog("human", S.human, "HUMANIZE", "hobby") + '<div class="rs-knobs">' + K("k.beat", "hobby") + "</div>" +
           '<p class="muted">Tap a step to turn it on, again for an accent, again to clear. Tap a lane\'s name to mute it.</p></div>');
@@ -539,7 +540,7 @@
           '<span class="rs-now" data-rsnow>' + (lit ? "<b>" + (X.play ? "NOW" : "FIRST") + "</b> " + esc(chordName(lit.s)) + " <i>" + esc(numeral(lit.s)) + "</i>" + (nx ? " <b>NEXT</b> " + esc(chordName(nx)) : "") : "<b>NO CHORDS YET</b> Write some on CHORDS") + "</span>" +
           '<span class="rs-grow"></span><span class="rs-read" data-rsread>' + readText() + "</span></div>" +
         '<div class="rs-solo" data-rssolo style="--cols: ' + rows[1].length + '">' + rows.slice().reverse().map(function (r) { return '<div class="rs-srow">' + r.map(pad).join("") + "</div>"; }).join("") + "</div>" +
-        '<div class="rs-row"><span class="rs-lab">SOUND</span>' + chips("rsssound", SSOUNDS, S.solo.sound, "chrome-a") + '<span class="rs-lab">NOTES</span>' + chips("rsscale", Object.keys(SSCALES).map(function (k) { return [k, SSCALES[k].n]; }), S.solo.scale, "chrome-a") + "</div>" +
+        '<div class="rs-form">' + frow("SOUND", chips("rsssound", SSOUNDS, S.solo.sound, "chrome-a")) + frow("NOTES", chips("rsscale", Object.keys(SSCALES).map(function (k) { return [k, SSCALES[k].n]; }), S.solo.scale, "chrome-a")) + "</div>" +
         '<div class="rs-row"><span class="rs-key"><span class="rs-lab">OCTAVE</span><button type="button" class="chip sm" data-rsoct="-1" aria-label="Octave down"' + (S.solo.oct < 0 ? " disabled" : "") + '>−</button><b>' + (S.solo.oct > 0 ? "+1" : S.solo.oct < 0 ? "−1" : "0") + '</b><button type="button" class="chip sm" data-rsoct="1" aria-label="Octave up"' + (S.solo.oct > 0 ? " disabled" : "") + ">+</button></span>" +
           '<div class="rs-knobs">' + K("k.glide", "chrome-a") + K("k.vib", "chrome-a") + K("k.solo", "chrome-a") + "</div></div>" +
         '<p class="muted">Lit notes are in the chord playing now: land on one and it always fits. Hold for a long note, slide across to glide between notes. Every note here belongs to the key, so nothing is wrong.</p>');
@@ -550,6 +551,8 @@
       document.querySelectorAll("#content [data-rsk]").forEach(bindKnob);
       document.querySelectorAll("#content [data-rspad]").forEach(function (b) { b.addEventListener("pointerdown", function (e) { if (e.button > 0) return; X.padAt = performance.now(); padTap(+b.dataset.rspad); }); });   /* on touch, not on lift: an instrument */
       var so = document.querySelector("#content [data-rssolo]"); if (so) bindSolo(so);
+      var root = document.querySelector("#content .rs");   /* 2.82.1: a held press must never lift a bar or pad out as an iPadOS drag, or open a menu */
+      ["dragstart", "contextmenu", "selectstart"].forEach(function (ev) { root.addEventListener(ev, function (e) { if (!e.target.closest || !e.target.closest("input, audio")) e.preventDefault(); }); });
       paint(); paintPlay();
     }
     function paint() {

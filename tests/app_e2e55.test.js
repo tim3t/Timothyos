@@ -59,6 +59,12 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   assert.strictEqual(await txt(p, '#eyebrow'), 'REFLECT · RESSIKAN · CHORDS · 82 BPM');
   assert.ok(/^● 82 BPM · /.test(await txt(p, '[data-rscardinfo="chords"]')));
 
+  // ---- a held press never lifts a bar or pad out as an iPadOS drag, selects text or opens a menu (2.82.1)
+  for (const sel of ['.rs-slot', '.rs-pad', '.rs-cell']) {
+    assert.deepStrictEqual(await p.$eval(sel, x => { const c = getComputedStyle(x); return [c.webkitUserDrag, c.userSelect]; }), ['none', 'none'], sel);
+    assert.deepStrictEqual(await p.$eval(sel, x => ['dragstart', 'contextmenu', 'selectstart'].map(t => { const e = new Event(t, { bubbles: true, cancelable: true }); x.dispatchEvent(e); return e.defaultPrevented; })), [true, true, true], sel);
+  }
+
   // ---- a bar, then a pad: written there, and the next bar is picked
   await p.click('[data-rsslot="1"]'); assert.ok(await p.$('.rs-slot.sel[data-rsslot="1"]'));
   await p.click('[data-rscolour=""]'); await p.click('[data-rspad="3"]');
@@ -100,9 +106,13 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   await p.click('[data-rsevery="16"]');
   assert.deepStrictEqual(await slotsText(p), ['ii7 Gm7', 'V7 C7', 'Imaj7 Fmaj7', 'vi7 Dm7']);
 
-  // ---- how they play
+  // ---- how they play: one labelled row per group (2.82.1); the ARP row only while the style is ARP
+  assert.deepStrictEqual(await p.$$eval('.rs-panel:nth-of-type(n) .rs-form .rs-frow > .rs-lab', l => l.map(x => x.textContent)).then(x => x.slice(0, 4)), ['SOUND', 'STYLE', 'BASS', 'LEVELS']);
+  assert.strictEqual(await p.$('[data-rsarp]'), null);
   for (const s of ['pad', 'pluck', 'organ', 'keys']) { await p.click('[data-rssound="' + s + '"]'); assert.strictEqual(await p.getAttribute('[data-rssound="' + s + '"]', 'aria-pressed'), 'true'); }
   for (const s of ['stab', 'strum', 'arp']) { await p.click('[data-rsstyle="' + s + '"]'); await p.waitForTimeout(300); }
+  const rowTops = await p.$$eval('.rs-frow > .rs-lab', l => l.slice(0, 3).map(x => Math.round(x.getBoundingClientRect().top)));
+  assert.ok(rowTops[0] < rowTops[1] && rowTops[1] < rowTops[2], 'SOUND, STYLE and ARP each on their own row: ' + rowTops);
   await p.click('[data-rsarp="updown"]'); await p.click('[data-rsrate="1"]'); await p.waitForTimeout(400);
   await p.click('[data-rsact="bass"]');
   await until(async () => { const s = await saved(p); return s && s.sound === 'keys' && s.style === 'arp' && s.arp === 'updown' && s.rate === 1 && s.bass === false; });
