@@ -19,13 +19,28 @@
     if (otd.err && Date.now() - otd.err < FRESH_MS) return;
     otd.busy = true;
     api({ action: "onthisday", today: t, years: 5 }).then(function (j) {
-      otd.d = { today: t, years: j.years || [], wx: have ? otd.d.wx || {} : {}, partial: j.problems && j.problems.length ? Date.now() : 0 };
-      lsSet(LS_OTD, otd.d); otd.err = 0;
+      otd.d = { today: t, years: j.years || [], wx: have ? otd.d.wx || {} : {}, partial: j.problems && j.problems.length ? Date.now() : 0, at: Date.now(),
+        probs: (j.problems || []).slice(0, 8).map(function (x) { return String(x).slice(0, 80); }) };
+      lsSet(LS_OTD, otd.d); otd.err = 0; otd.errCode = "";
       otdWeather();
-    }, function () { otd.err = Date.now(); }).then(function () { otd.busy = false; if (state.screen === "bridge") render(true); });
+    }, function (err) { otd.err = Date.now(); otd.errCode = (err && (err.code || (err.name === "AbortError" ? "timeout" : err.name === "TypeError" ? "dropped" : ""))) || "error"; }).then(function () { otd.busy = false; if (state.screen === "bridge") render(true); });
   }
   /* a new or cleared location: the past days' weather is asked again (or not shown) */
   function otdWxReset() { if (otd.d) { otd.d.wx = {}; lsSet(LS_OTD, otd.d); } }
+  /* 2.81.2: one line for COPY DIAGNOSTICS, so an empty Bridge says why: counts and source names only, never titles */
+  function otdDiag() {
+    if (!canOtd()) return "not offered by the bridge (needs 1.48)";
+    var t = ymd(new Date()), d = otd.d, parts = [];
+    if (otd.busy) parts.push("reading now");
+    if (otd.err) parts.push("last read failed " + hm(new Date(otd.err)) + " (" + (otd.errCode || "error") + "), asked again within a minute");
+    if (!d || d.today !== t) return parts.concat([d ? "nothing read today (last for " + d.today + ")" : "not read yet"]).join(" · ");
+    var ys = d.years || [], shown = otdYears();
+    parts.push("read " + (d.at ? hm(new Date(d.at)) : "today") + " for " + ys.length + " years · " + shown.length + " with something" +
+      (shown.length ? " (" + shown.map(function (v) { return v.y.year + (v.week ? " week" : ""); }).join(", ") + ")" : ", so no panel"));
+    var wx = Object.keys(d.wx || {}); if (shown.length) parts.push(place() ? "weather " + wx.filter(function (k) { return d.wx[k]; }).length + " of " + shown.length : "no location, no weather");
+    parts.push(d.probs && d.probs.length ? "problems: " + d.probs.join("; ") : "no problems");
+    return parts.join(" · ");
+  }
   /* each shown year's weather, once: high, low (°F), rain (in); kept with the day's answer */
   function otdWeather() {
     var here = place();

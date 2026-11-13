@@ -11,7 +11,7 @@ TZ = ZoneInfo("America/Chicago"); KEY = "k" * 64; HKEY = "h" * 64
 BV = re.search(r"var VERSION = '([\d.]+)'", open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "apps-script", "Code.gs")).read()).group(1)
 CAPS = ["read", "create", "holidays", "sickbay", "healthkey"]
 CALS = [{"area": "work", "ok": True, "name": "Work"}, {"area": "personal", "ok": True, "name": "Personal"}]
-ITEMS = []; SAVES = []; MODE = {"stale": 0, "young": 0}   # young (2.80.1): the shortcut started 4 days ago
+ITEMS = []; SAVES = []; MODE = {"stale": 0, "young": 0, "early": 0}   # young (2.80.1): the shortcut started 4 days ago; early (2.81.2): yesterday whole by 13:32, no send since 14:42
 def days():
     out = []; today = dt.datetime.now(TZ).date()
     for i in range(40, -1, -1):
@@ -24,10 +24,12 @@ def days():
         day = {"date": d.isoformat(), "rhr": rhr, "hrv": 44 + (k * 3) % 10, "resp": 14.4, "steps": 6000 + k * 500, "active": 380 + k * 20, "exercise": 18 + k, "stand": 10, "temp": 36.1 + (0.1 if i == 0 else 0),
                "sleep": {"asleep": sl, "deep": 55, "rem": 80, "core": sl - 135, "awake": 8, "bed": "23:%02d" % (5 + k * 7 % 50), "wake": "06:30", "len": sl + 8, "segs": segs}}
         if i % 4 == 2: day["vo2"] = 38.2   # cardio fitness every few days
-        if i == 1: [day.pop(x) for x in ("steps", "active", "exercise", "stand")]   # yesterday: the night came, the day's movement comes tomorrow
+        if i == 1 and not MODE["early"]: [day.pop(x) for x in ("steps", "active", "exercise", "stand")]   # yesterday: the night came, the day's movement comes tomorrow
         if 1 <= i <= 13:   # bridge 1.47's arrival stamps; older days arrived before they were kept
             day["_got"] = (dt.datetime(d.year, d.month, d.day, 13, 10, tzinfo=dt.timezone.utc) + dt.timedelta(days=1)).isoformat().replace("+00:00", "Z")
             if i >= 2: day["_upd"] = (dt.datetime(d.year, d.month, d.day, 13, 12, tzinfo=dt.timezone.utc) + dt.timedelta(days=2)).isoformat().replace("+00:00", "Z"); day["_add"] = ["steps", "active", "exercise", "stand"]
+        if i == 1 and MODE["early"]: day["_got"] = dt.datetime(d.year, d.month, d.day, 13, 32, tzinfo=TZ).astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+        if i == 0 and MODE["early"]: continue   # nothing sent today yet
         if i == 0: day["_got"] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
         out.append(day)
     return out
@@ -43,6 +45,7 @@ def read(q):
     if a == "holidays": return {"ok": True, "version": BV, "holidays": []}
     if a == "health":
         last = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=72 if MODE["stale"] else 3)
+        if MODE["early"]: y = dt.datetime.now(TZ).date() - dt.timedelta(days=1); last = dt.datetime(y.year, y.month, y.day, 14, 42, tzinfo=TZ).astimezone(dt.timezone.utc)
         return {"ok": True, "version": BV, "from": q.get("from"), "last": last.isoformat().replace("+00:00", "Z"), "url": "https://www.notion.so/x", "days": days(), "items": ITEMS}
     return {"ok": False, "error": "unknown_action"}
 class H(BaseHTTPRequestHandler):
@@ -52,9 +55,9 @@ class H(BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", "application/json"); self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         q = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
-        if q.get("action") == "skmode": MODE["stale"] = int(q.get("stale", "0")); MODE["young"] = int(q.get("young", "0")); return self.reply({"ok": True})
+        if q.get("action") == "skmode": MODE["stale"] = int(q.get("stale", "0")); MODE["young"] = int(q.get("young", "0")); MODE["early"] = int(q.get("early", "0")); return self.reply({"ok": True})
         if q.get("action") == "skstats": return self.reply({"ok": True, "saves": SAVES, "items": ITEMS})
-        if q.get("action") == "skreset": ITEMS.clear(); SAVES.clear(); MODE["stale"] = 0; MODE["young"] = 0; return self.reply({"ok": True})
+        if q.get("action") == "skreset": ITEMS.clear(); SAVES.clear(); MODE["stale"] = 0; MODE["young"] = 0; MODE["early"] = 0; return self.reply({"ok": True})
         return self.reply({"ok": False, "error": "use_post"})
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))

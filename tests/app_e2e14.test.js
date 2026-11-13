@@ -58,6 +58,7 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
 
   // 3. an outage over good saved data: stays quiet (SYNCED · RETRYING), panels show a muted note, not red errors
   await p.evaluate(() => document.querySelector('.elbow').click()); await settle();
+  await p.clock.runFor(61000); await settle();   // 2.81.2: past the minute after a wake, when drops count as the network reconnecting
   mode = 'dropAll';
   await p.evaluate(() => document.querySelector('#status').click());
   await p.evaluate(() => document.querySelector('[data-act="refresh"]').click());

@@ -14,7 +14,18 @@
   }
   /* iPadOS cuts off requests when the screen locks or you switch apps. */
   var lastHidden = 0;
-  document.addEventListener("visibilitychange", function () { if (document.hidden) lastHidden = Date.now(); });
+  /* 2.81.2: for a minute after the iPad wakes (or the app comes back, or the network returns), Wi-Fi and the VPN may
+     still be reconnecting. A dropped request then waits and tries again, patiently, instead of failing in a burst. */
+  var WAKE_MS = 60000, WAKE_WAITS = [1500, 3000, 6000, 12000, 20000], wakeUntil = 0;
+  document.addEventListener("visibilitychange", function () { if (document.hidden) lastHidden = Date.now(); else wakeUntil = Date.now() + WAKE_MS; });
+  window.addEventListener("online", function () { wakeUntil = Date.now() + WAKE_MS; });
+  function waking() { return Date.now() < wakeUntil; }
+  function netPause(ms) {   /* ms, or until the network says it's back */
+    return new Promise(function (res) {
+      var done = function () { clearTimeout(t); window.removeEventListener("online", done); res(); }, t = setTimeout(done, ms);
+      window.addEventListener("online", done);
+    });
+  }
   function waitVisible() {
     return new Promise(function (res) {
       if (!document.hidden) { res(); return; }
@@ -23,12 +34,15 @@
     });
   }
   function withRetry(run) {
-    var attempt = 0, paused = 0;
+    var attempt = 0, paused = 0, woke = 0;
     function proceed() {
       var started = Date.now();
       return run().catch(function (err) {
         /* Cut off by the iPad going to sleep or to another app: try again once it's back. */
         if (isNetworkError(err) && (document.hidden || lastHidden >= started) && paused < 3) { paused++; markRetried(err); return waitVisible().then(proceed); }
+        /* 2.81.2: just woken and the connection isn't up yet: not a failure, so it leaves no entry in the error log */
+        if (err && err.name === "TypeError" && waking() && woke < WAKE_WAITS.length) { unlogAttempt(err); return netPause(WAKE_WAITS[woke++]).then(proceed); }
+        if (navigator.onLine === false && waking() && woke < WAKE_WAITS.length) { return netPause(WAKE_WAITS[woke++]).then(proceed); }
         if (navigator.onLine === false || !transient(err) || attempt >= RETRY_DELAYS.length) throw err;
         markRetried(err);
         var wait = RETRY_DELAYS[attempt++];
@@ -75,6 +89,15 @@
     note("blocked by the page's rules: " + (e.effectiveDirective || e.violatedDirective || "?"), Date.now(), "blocked · " + to);
     errLog("rules", "blocked: " + (e.effectiveDirective || e.violatedDirective || "?"), to);
   });
+  /* 2.81.2: an attempt dropped while the network comes back after a wake: kept in SYSTEMS → NETWORK as WAKING, out of
+     the error log and today's failure count. */
+  function unlogAttempt(err) {
+    if (err && err.netEntry) { err.netEntry.r = "dropped · waking"; err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); }
+    var e = err && err.errEntry; if (!e) return;
+    if ((e.n || 1) > 1) e.n--; else { var i = errlog.indexOf(e); if (i > -1) errlog.splice(i, 1); }
+    lsSet(LS_ERRLOG, errlog);
+    var x = lsGet(LS_NETDAY); if (x && x.f > 0) { x.f--; lsSet(LS_NETDAY, x); }
+  }
   /* A failed attempt that is tried again isn't a failure yet: the log shows it as RETRIED. */
   function markRetried(err) { if (err && err.netEntry) { err.netEntry.retried = true; lsSet(LS_NETLOG, netlog); } if (err && err.errEntry) { err.errEntry.rt = (err.errEntry.rt || 0) + 1; lsSet(LS_ERRLOG, errlog); } }
 

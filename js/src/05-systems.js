@@ -478,6 +478,7 @@
         "BRIDGE TODAY " + (day && day.d === ymd(now) ? day.n + " requests, " + day.f + " failed, slowest " + (day.max / 1000).toFixed(1) + " s" : "no requests yet"),
         "CONDITION " + (cond.length ? cond.length + ": " + cond.map(function (i) { return "[" + (i.lvl === "bad" ? "RED" : "YELLOW") + "] " + String(i.txt).replace(/<[^>]*>/g, ""); }).join(" · ") : "green"),
         "WAITING TO SEND " + (bkPendingList().join(", ") || "nothing"),
+        "ON THIS DAY " + otdDiag(),
         "STORAGE " + storeMb(u.total) + " of about 5 MB · kept here " + storeMb(u.own) + " · saved copies " + storeMb(u.copies) + (lsFull().length ? " · NOT SAVED: " + lsFull().map(lsName).join(", ") : "") +
           (Object.keys(store.skipped).length ? " · no room to keep: " + Object.keys(store.skipped).map(lsName).join(", ") : "") + (store.dropped ? " · room made " + store.dropped + "×" : ""),
         "PROFILE SYNC " + (P.on ? "on" + (P.paused ? ", PAUSED" : "") + " · this iPad: " + (P.name || "unnamed") + " · last " + (P.last ? stamp(P.last) : "never") : "off"),

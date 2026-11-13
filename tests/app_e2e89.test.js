@@ -19,7 +19,7 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
 (async () => {
   await mode('cap=1&empty=0&reset=1&logday=' + (TODAY.slice(5) === '02-29' ? Y1.slice(0, 5) + '02-28' : Y1));
   const b = await chromium.launch(); const errs = [], wx = [];
-  const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
+  const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', permissions: ['clipboard-read', 'clipboard-write'] });
   await lane(ctx);
   await ctx.route(/archive-api\.open-meteo\.com/, r => { wx.push(r.request().url()); r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
     body: JSON.stringify({ daily: { time: ['x'], temperature_2m_max: [41.2], temperature_2m_min: [27.6], precipitation_sum: [0.1] } }) }); });
@@ -88,6 +88,13 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
   assert.strictEqual((await mode('')).reads, reads, 'no second onthisday read');
   assert.strictEqual(wx.length, wx0, 'no second weather request');
 
+  // ---- COPY DIAGNOSTICS says what it read (2.81.2): counts and years, never a title
+  const diag = async () => { await p.evaluate(() => navigator.clipboard.writeText('')); await p.click('#cmdBtn'); await p.fill('#cmdText', 'diagnostics'); await p.keyboard.press('Enter');
+    const r = await until(async () => { const t = await p.evaluate(() => navigator.clipboard.readText()); return t.startsWith('TimothyOS DIAGNOSTICS') && t; }); return r.split('\n').find(l => l.startsWith('ON THIS DAY ')) || ''; };
+  let dl = await diag();
+  assert.ok(/^ON THIS DAY read \d\d:\d\d for 5 years · 3 with something \(\d{4}, \d{4} week, \d{4}\) · weather 3 of 3 · no problems$/.test(dl), dl);
+  assert.ok(!/Sample/.test(dl));
+
   // ---- COMMANDS finds it
   await p.click('#cmdBtn'); await p.fill('#cmdText', 'on this day');
   assert.ok((await txt(p, '#cmdList')).includes('On this day'));
@@ -108,6 +115,8 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
   await until(async () => (await mode('')).reads > reads);
   await new Promise(r => setTimeout(r, 600));
   assert.strictEqual(await p.$('.otd'), null, 'nothing to show: no panel');
+  dl = await diag();
+  assert.ok(/^ON THIS DAY read \d\d:\d\d for 5 years · 0 with something, so no panel · no problems$/.test(dl), dl);
 
   console.log('errors', JSON.stringify(errs));
   assert.deepStrictEqual(errs, []);

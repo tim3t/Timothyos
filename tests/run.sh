@@ -136,7 +136,7 @@ LANES=(
   "farm|-|app_e2e19.test.js"
   "ledger|-|app_e2e20.test.js"
   "updates|-|app_e2e54.test.js"
-  "sickbay|-|app_e2e84.test.js"
+  "sickbay|-|app_e2e84.test.js app_e2e90.test.js"
 )
 #   app_e2e        linking, Day/Week/Month, detail, offline cache, phone width
 #   app_e2e6       Capture: old bridge warning, save, validation, offline queue, failure
@@ -192,6 +192,8 @@ LANES=(
 #   app_e2e86      A FULL STORE (2.77; mock :8105): SYSTEMS' storage section; the store filled to the brim: a setting makes room by dropping saved copies; with nothing to drop it is held in memory, the Condition turns red, the fix card names it, a dinner still reaches the bridge; MAKE ROOM AND SAVE once there is room, there after a reload; CLEAR SAVED COPIES; COMPUTER; phone width
 #   app_e2e87      DIAGNOSTICS (2.78; mock :8105): the section after CONNECTION; COPY DIAGNOSTICS's report has versions, bridge, features, sync, Condition, waiting, storage, links, errors; never a key, a token, an address or a title; COMPUTER copies it; phone width
 #   app_e2e88      RECIPE PHOTOS KEPT SMALL (2.79, bridge 1.46; mock :8105): older meals get their small copy once in the background, a missing picture not asked again, a pasted link, COOK; no image from a recipe site
+#   app_e2e90      HEALTH TRUES UP (2.81.2; mock :8106): PARTIAL until a send after the day ended, NO SEND SINCE with SYNC FROM HEALTH,
+#                  a wake whose dropped requests wait, retry and leave the error log alone
 #   app_e2e89      ON THIS DAY (2.81, bridge 1.48; mock :8105, faked weather archive): three years nearest first, weather and FROST, THAT WEEK,
 #                  the year sheet and tabs, kept for the day, COMMANDS, phone width, no panel on an empty day
 #   app_e2e83      ARBORETUM (2.71): the empty map, Zone 1 with four raised beds behind and three on the left with pots between, order and sides, kind, two-tap remove, plantings, jobs and typical jobs, the pond's depth bands, QUICK GLANCE by season with ticks for this turn of the season, the garden's name, a reload, COMPUTER, 400 px wide

@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.81.2 · 2026-11-13
+- **SICKBAY: ARRIVED means whole.** A day is ARRIVED only once a send came in after it ended. Until then it's PARTIAL, and says when it was last sent ("Last sent at 14:42 on the day itself: the rest of the day comes with the next send"). Timothy saw Thursday marked ARRIVED with its steps short of Health: every measure was in by 13:32, but nothing came after 14:42.
+- **SICKBAY: NO SEND SINCE …** When the Health shortcut hasn't sent for over 14 hours, the banner on every tab says so, with **SYNC FROM HEALTH** to run it now. README → SICKBAY adds a morning run when Sleep Focus turns off, so yesterday is whole within minutes of waking.
+- **COPY DIAGNOSTICS: ON THIS DAY** says what it read today: how many years, which had something, the weather, any source that failed. Counts and years only.
+- **A quieter wake:** for a minute after the iPad wakes or comes back, a request the network drops while Wi-Fi and the VPN reconnect waits and tries again (up to about 40 seconds) instead of failing. Those attempts show in SYSTEMS → NETWORK as WAKING, not in the error log or today's failure count.
+
 ## 2.81.1 · 2026-11-13 (needs bridge 1.48)
 - **ON THIS DAY: OPEN THIS DAY IN LOG** (Timothy's choice, option A). Every year's sheet has the same button, whether or not you wrote that day, so it reveals nothing. LOG asks for your PIN as always, shows THEN OPENS with the date, and opens that day once unlocked. Leaving LOG forgets the request.
 

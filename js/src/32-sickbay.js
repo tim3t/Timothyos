@@ -59,6 +59,7 @@
   /* ---- 2.80 (bridge 1.47, D78): days arrive a day or two late, by design; DAYS shows each one catching up ---- */
   var SK_WHAT = { sleep: "sleep", rhr: "resting heart rate", hrv: "heart rate variability", resp: "breathing rate", temp: "wrist temperature", steps: "steps", active: "move", exercise: "exercise", stand: "stand", vo2: "cardio fitness" };
   var SK_DAILY = ["sleep", "rhr", "hrv", "resp", "steps", "active", "exercise", "stand"];   /* what a whole day has; cardio fitness and wrist temperature come when they come */
+  var SK_LATE_MS = 14 * 3600000;
   function skAge(date) { return Math.round((sod(new Date()) - parseYmd(date)) / 864e5); }
   function skHas(d) { return !!d && SK_DAILY.concat(["vo2", "temp"]).some(function (k) { return skVal(d, k) !== null; }); }
   function skExpected() {   /* the measures the shortcut sends: on at least half of the last 14 days that arrived */
@@ -76,7 +77,12 @@
       return { s: later ? "missing" : "waiting", lack: [] };
     }
     var lack = (exp || skExpected()).filter(function (k) { return skVal(d, k) === null; });
-    return { s: age === 0 || lack.length ? "partial" : "arrived", lack: lack };
+    if (age === 0 || lack.length) return { s: "partial", lack: lack };
+    /* 2.81.2 (Timothy, 13 Nov): whole only once a send came in after the day ended. Every measure can be there by
+       mid-afternoon (steps from 14:42 on aren't); the send after midnight brings the rest. */
+    var last = Math.max(skLastSync(), Date.parse(d._got || "") || 0, Date.parse(d._upd || "") || 0);
+    if (last && ymd(new Date(last)) <= date) return { s: "partial", lack: [], early: last };
+    return { s: "arrived", lack: [] };
   }
   var SK_DOWL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   function skShort(date) { var d = parseYmd(date); return SK_DOWL[d.getDay()].slice(0, 3) + " " + d.getDate() + " " + MON[d.getMonth()].charAt(0) + MON[d.getMonth()].slice(1).toLowerCase(); }   /* Wed 11 Nov */
@@ -186,9 +192,13 @@
     if (!skDays().length) return "";
     var exp = skExpected(), recent = [], full = null;
     for (var i = 13; i >= 0; i--) { var dt = ymd(addDays(new Date(), -i)), st = skStatus(dt, exp); if (st.s === "arrived") full = dt; else if (st.s !== "before") recent.push(skShort(dt) + " (" + (st.s === "missing" ? "missed" : st.s) + ")"); }
-    return '<div class="sk-arrive"><span class="sk-adot" aria-hidden="true"></span><span><b>HEALTH ARRIVES A DAY OR TWO LATE</b><small>' + (full ? "Latest complete day: " + skShort(full) + ". " : "No complete day in the last two weeks yet. ") +
+    /* 2.81.2: the shortcut runs up to four times a day; over 14 hours without a send means runs are being missed (a locked HUB) */
+    var l = skLastSync(), late = l && Date.now() - l > SK_LATE_MS;
+    return '<div class="sk-arrive' + (late ? " sk-late" : "") + '"><span class="sk-adot" aria-hidden="true"></span><span><b>' + (late ? "NO SEND SINCE " + stamp(l).toUpperCase() : "HEALTH ARRIVES A DAY OR TWO LATE") + "</b><small>" +
+      (late ? "The Health shortcut's runs aren't arriving. On HUB, SYNC FROM HEALTH runs it now; Auto-Lock set to Never keeps the timed runs working. " : "") +
+      (full ? "Latest complete day: " + skShort(full) + ". " : "No complete day in the last two weeks yet. ") +
       (recent.length ? "Still coming in: " + recent.join(", ") + "." : "Everything is in.") + "</small></span>" +
-      (skView().tab !== "days" ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktab="days">SEE THE DAYS</button>' : "") + "</div>";
+      (late ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-skact="sync">SYNC FROM HEALTH</button>' : skView().tab !== "days" ? '<button type="button" class="chip sm" style="--c: var(--personal)" data-sktab="days">SEE THE DAYS</button>' : "") + "</div>";
   }
   function skVitalsHtml(v) {
     if (!skDays().length) return skEmpty();
@@ -257,7 +267,7 @@
     if (st.s === "missing") return html + '<div class="sk-emptyday sk-missed"><b>NOTHING ARRIVED FOR THIS DAY</b><span>The sends before and after it came in, so this day was skipped (the iPhone may have been off or locked through the morning). The daily send covers only the last 3 days. To fill it in, run the ' + SK_SHORTCUT + " shortcut by hand with its Health range reaching back to this date; SICKBAY takes days up to 14 days back.</span></div></section>";
     var gotLine = d._got ? "<span><b>Arrived " + esc(skWhen(d._got)) + "</b>, " + (function () { var n = Math.round((parseYmd(ymd(new Date(d._got))) - pd2) / 864e5); return n <= 0 ? "the same day" : n === 1 ? "1 day later" : n + " days later"; })() + ".</span>" : "<span>Arrived before arrival times were kept (bridge 1.47).</span>";
     var updLine = d._upd ? "<span><b>Updated " + esc(skWhen(d._upd)) + "</b>: added " + esc(skList(Array.isArray(d._add) ? d._add : [])) + ".</span>" : "";
-    var lackLine = st.s === "partial" ? '<span class="sk-lack">' + (x === today ? "Today is still under way: its steps and rings grow with each send." : "Still to come: " + esc(skList(st.lack)) + ", with the next morning's send.") + "</span>" : "";
+    var lackLine = st.s === "partial" ? '<span class="sk-lack">' + (x === today ? "Today is still under way: its steps and rings grow with each send." : st.early ? "Last sent at " + hm(new Date(st.early)) + " on the day itself: the rest of the day (steps, rings, anything later) comes with the next send." : "Still to come: " + esc(skList(st.lack)) + ", with the next morning's send.") + "</span>" : "";
     html += '<div class="sk-stamp">' + gotLine + updLine + lackLine + "</div>";
     var g = v.goals;
     html += '<div class="sk-daygrid"><div class="sk-col"><section class="sk-panel sk-inner" aria-label="Activity"><span class="sk-lbl">ACTIVITY</span><div class="sk-ringbox">' + skRing(d, 150, 16, g) + '<div class="sk-rv">' +

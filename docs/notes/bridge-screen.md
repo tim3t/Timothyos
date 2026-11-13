@@ -40,6 +40,7 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 - **Order and fallback:** `otdItems(y)` puts the exact date first in `OTD_ORDER`; a year with nothing on the date uses the week (±3 days) and is marked THAT WEEK; habits count only on the exact date. Years with nothing are dropped; no years, no panel.
 - **Sheet:** `otdOpen(i)` fills `#detailSheet` (class `otd-sheet`) with year tabs (`[data-otd]`), the weather, each group and the privacy note.
 - **The Log:** `go()` locks LOG whenever its screen is entered or left (90-app-shell), so `logOpen()` is never true on the Bridge and nothing of the Log is shown. Each sheet has OPEN THIS DAY IN LOG (2.81.1, `[data-otdlog]`, on every year alike so it says nothing about an entry): `go("log")` then `lg.want = date`; the PIN pad shows THEN OPENS, `logUnlock` opens `lg.want` instead of today, and `logFresh()` clears it when LOG locks.
+- **Diagnostics (2.81.2):** `otdDiag()` gives COPY DIAGNOSTICS its ON THIS DAY line: capability, a failed read and its code, when it read, years asked, years with something, weather, the bridge's `problems`. `otd.d` keeps `at` and `probs` for it.
 - **Tests:** `bridge_onthisday.test.js` (the read), `app_e2e89` (panel, weather, sheet, cache, COMMANDS, narrow, empty; mock_v24 `otdmode`).
 
 ## COMPUTER (2.35)

@@ -48,7 +48,7 @@ const NAS = 'nas-token-' + 'n'.repeat(40);
   await until(async () => /Diagnostics copied/.test(await txt(p, '#toast')));
   const r = await p.evaluate(() => navigator.clipboard.readText());
   const ver = await p.evaluate(() => fetch('version.json').then(x => x.json()).then(j => j.version));
-  for (const want of ['TimothyOS DIAGNOSTICS', 'APP ' + ver, 'BRIDGE deployed ', 'this app needs ', 'FEATURES ', 'meals', 'SYNC ', 'BRIDGE TODAY ', 'CONDITION ', 'WAITING TO SEND ',
+  for (const want of ['TimothyOS DIAGNOSTICS', 'APP ' + ver, 'BRIDGE deployed ', 'this app needs ', 'FEATURES ', 'meals', 'SYNC ', 'BRIDGE TODAY ', 'CONDITION ', 'WAITING TO SEND ', 'ON THIS DAY not offered by the bridge (needs 1.48)',
     'STORAGE ', 'of about 5 MB', 'PROFILE SYNC off', 'LINKS NAS relay set · Home Assistant not set · pinned today, meals', 'ERRORS 1 kept', '[BRIDGE] events: timed out at (an address)'])
     assert.ok(r.includes(want), 'the report has "' + want + '":\n' + r);
   for (const never of [K, NAS, '127.0.0.1:' + P8105 + '', 'script.google.com', 'ts.net', 'AKfyc', 'Secret groceries', 'Sample '])
