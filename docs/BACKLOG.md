@@ -8,6 +8,8 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
+| Deploy bridge 1.48.0 | Apps Script (README → Updating the Google bridge) | ON THIS DAY appears once it is in (app 2.81) |
+| ON THIS DAY and the Log | A choice | LOG locks whenever its screen is left, so the planned "a Log entry exists" line can never show on the Bridge. Options: an always-present OPEN THIS DAY IN LOG (asks for the PIN, reveals nothing), or leave the Log out |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |
@@ -23,7 +25,7 @@ Also raised in the review, not yet agreed: a lint or type check; one shared simu
 
 ## From the diagnostic (2026-11-13), not yet agreed
 
-Done the same day: the weekly CI run (finding 1) and housekeeping (4). Finding 3 (the npm cache) needed nothing: "not found" was the first run after package-lock.json changed, and the next run restored it.
+Done the same day: the weekly CI run (finding 1), housekeeping (4) and ON THIS DAY (2.81, D80). Finding 3 (the npm cache) needed nothing: "not found" was the first run after package-lock.json changed, and the next run restored it.
 
 - **2. Tooling refresh:** Playwright and ESLint are pinned; refresh them each quarter (ESLint carries a moderate advisory in a sub-dependency, test-only).
 - **5. Image rules:** only book covers (Open Library) and SCIENCE's aircraft photos still load from outside; give aircraft photos the recipe treatment, then allow only Open Library and his own hosts.
@@ -34,7 +36,7 @@ Done the same day: the weekly CI run (finding 1) and housekeeping (4). Finding 3
 - **10. Silent error handlers:** 51 swallow errors, 13 log; log the ones that matter.
 - **11. A contract test** between the simulated bridges' replies and the real bridge's.
 - **12. Fixed waits** left in frozen-clock tests (662, 477 s; about a minute to gain).
-- **Stations proposed:** ON THIS DAY (Timothy chose it next, 2026-11-13), ATMOSPHERICS, OBSERVATION LOUNGE, TACTICAL, TEN FORWARD, ACADEMY.
+- **Stations proposed:** ATMOSPHERICS, OBSERVATION LOUNGE, TACTICAL, TEN FORWARD, ACADEMY.
 
 ## Put off, to return to
 

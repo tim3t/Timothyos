@@ -1,5 +1,5 @@
 
-  var VERSION = "2.80.2";
+  var VERSION = "2.81.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -61,7 +61,7 @@
      that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
      notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
   var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
-    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1"];
+    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1", "tos.otd.v1"];
   var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
   var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
   var store = { failed: {}, skipped: {}, dropped: 0, droppedAt: 0, said: false, t: 0 };

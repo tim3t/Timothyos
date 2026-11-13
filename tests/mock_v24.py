@@ -122,6 +122,31 @@ def _png(w, h):
     ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
     return "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\n" + ch(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + ch(b"IDAT", zlib.compress(raw)) + ch(b"IEND", b"")).decode()
 PIC = _png(80, 60)   # a recipe's picture as the bridge returns it (1.46)
+# 2.81 (bridge 1.48): ON THIS DAY, off unless ?action=otdmode&cap=1. Invented history around today's date in past years:
+# last year on the date itself; two years back only in the week around it; four years back on the date. empty=1: none.
+OTD = {"cap": 0, "empty": 0, "reads": 0}
+def otd_years(today, n):
+    t = dt.date.fromisoformat(today); out = []
+    for y in range(1, n + 1):
+        try: d = t.replace(year=t.year - y)
+        except ValueError: d = t.replace(year=t.year - y, day=28)
+        iso = lambda k: (d + dt.timedelta(days=k)).isoformat()
+        r = {"year": d.year, "date": d.isoformat(), "from": iso(-3), "to": iso(3), "events": [], "tasks": [], "dinners": [], "checks": [], "books": [], "tarot": [], "review": None, "habits": []}
+        if not OTD["empty"] and y == 1:
+            r["events"] = [{"date": iso(0), "area": "farm", "title": "Sample hay delivery", "allDay": False, "time": "10:00"}, {"date": iso(0), "area": "personal", "title": "Sample dentist", "allDay": False, "time": "15:30"}]
+            r["tasks"] = [{"date": iso(0), "title": t2, "area": "Sample Home"} for t2 in ("Clean the gutters", "Order winter feed", "Swap the furnace filter")]
+            r["dinners"] = [{"date": iso(0), "name": "Sample white chili"}]
+            r["checks"] = [{"date": iso(0), "hive": "Hive One", "did": "Winter wrap on", "honey": None}]
+            r["habits"] = [{"date": iso(0), "med": False, "walk": True, "water": 2.5}]
+        if not OTD["empty"] and y == 2:
+            r["events"] = [{"date": iso(-2), "area": "hobby", "title": "Sample woodworking class", "allDay": False, "time": "18:00"}]
+            r["books"] = [{"date": iso(-2), "title": "The Sample Orchard", "rating": 4}]
+            r["review"] = {"week": iso(-3), "wentWell": "The garden beds got mulched before the cold"}
+        if not OTD["empty"] and y == 4:
+            r["events"] = [{"date": iso(0), "area": "family", "title": "Sample school concert", "allDay": False, "time": "14:00"}]
+            r["tarot"] = [{"date": iso(0), "spread": "Weekly spread", "cards": [{"id": "M17", "rev": False}]}]
+        out.append(r)
+    return out
 MEAL = {"cap": 0, "meals": [], "dinners": [], "posts": [], "plans": 0, "full": {}}   # 2.60: full = recipes saved as page bodies
 def meal_day(off):
     import datetime as _dt
@@ -498,8 +523,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -537,6 +562,14 @@ class H(BaseHTTPRequestHandler):
             if "finish" in q: EXPORT["st"] = dict(EXPORT["st"], running=None, last=exp_last(0))
             body = {"ok": True, "now": EXPORT["now"], "st": EXPORT["st"]}
         elif q.get("action") == "exportstatus" and EXPORT["cap"]: body = {"ok": True, "version": VER["v"], "export": EXPORT["st"]}
+        elif q.get("action") == "otdmode":
+            for k in ("cap", "empty"):
+                if k in q: OTD[k] = int(q[k])
+            if "reset" in q: OTD["reads"] = 0
+            body = {"ok": True, "reads": OTD["reads"]}
+        elif q.get("action") == "onthisday" and OTD["cap"]:
+            OTD["reads"] += 1
+            body = {"ok": True, "version": VER["v"], "today": q.get("today"), "side": 3, "years": otd_years(q.get("today"), int(q.get("years", 5))), "problems": []}
         elif q.get("action") == "mealmode":
             if "cap" in q: MEAL["cap"] = int(q["cap"])
             if "reset" in q: MEAL.update(meals=[], dinners=[], posts=[], plans=0, full={})

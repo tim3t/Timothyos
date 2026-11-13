@@ -4,7 +4,7 @@ Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen 
 
 **This file is the short version** (kept under 30 KB; a test fails if it grows past that). It holds what applies to every change: the architecture, the rules, code conventions, the release checklist and testing. Everything about one station or subsystem lives in its own file under `docs/notes/`: **before changing a station, read its notes file** (the index below), and `docs/notes/quirks.md` before "fixing" anything that looks odd. When a change teaches something worth keeping, write it in that station's notes file, not here.
 
-`docs/DESIGN.md` holds the decisions (D1 to D79; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` every release. Both are long: search them (`grep "D57" docs/DESIGN.md`, `grep -n "^## 2.59" CHANGELOG.md`) instead of reading them whole. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
+`docs/DESIGN.md` holds the decisions (D1 to D80; its sections 1 to 13 are the original plan, kept as history) and `CHANGELOG.md` every release. Both are long: search them (`grep "D57" docs/DESIGN.md`, `grep -n "^## 2.59" CHANGELOG.md`) instead of reading them whole. `README.md` is Timothy's setup and daily-use guide: keep it accurate whenever behavior or setup changes.
 
 **`docs/BACKLOG.md` is where parked work lives**: what is waiting on Timothy, what is agreed and not started, what was put off, and the roadmap. Whenever something is postponed, offered or promised in conversation, add it there in the same change; take it out when it is done. A conversation is summarized when it grows long, and anything kept only in chat is lost then.
 
@@ -15,7 +15,7 @@ Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen 
 | Bridge actions | `docs/notes/bridge-actions.md` | Every bridge action: method, name, what it does, limits |
 | App core | `docs/notes/app-core.md` | Redraws that keep the page still, the error log, requests and the page's security rules, the service worker, storage (a full store), motion and standby, life areas and colours |
 | SYSTEMS | `docs/notes/systems.md` | Bridge version and Notion column checks, backup and restore, PROFILE SYNC, Upkeep in Notion, the weekly Notion export |
-| The Bridge, briefing, COMPUTER | `docs/notes/bridge-screen.md` | The overview screen (Time Ribbon, Condition rules, weather, balance, holidays, breaks), the Morning Briefing, the Family calendar and WEEK strip, COMPUTER |
+| The Bridge, briefing, COMPUTER | `docs/notes/bridge-screen.md` | The overview screen (Time Ribbon, Condition rules, weather, balance, holidays, breaks), ON THIS DAY, the Morning Briefing, the Family calendar and WEEK strip, COMPUTER |
 | REVIEW, LEDGER, TIME LOOM | `docs/notes/review-ledger-loom.md` | Weekly Review, Ledger (YNAB, read-only), Time Loom |
 | LOG | `docs/notes/log.md` | Captain's Log (authorization, search, Log Ask, bulleted lists, Easter eggs) and SESSIONS |
 | Stations, HABITS, LIBRARY, TAROT, APIARY | `docs/notes/stations-habits-library.md` | The station list and pins, Habits, growing text boxes, Tarot and its books, Apiary, Library |
@@ -62,7 +62,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.80.2**, **bridge 1.47.1** (release checklist step 2 keeps this line current).
+Current versions: **app 2.81.0**, **bridge 1.48.0** (release checklist step 2 keeps this line current).
 
 ## Rules
 

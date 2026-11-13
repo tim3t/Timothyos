@@ -75,7 +75,7 @@ const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p)
 const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
 const A = require('assert');
 console.log('setup without token:'); ctx.setup(); const key = props.ACCESS_KEY;
-A.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'profile', 'news'], 'no Notion token: no Notion capabilities (profile sync and headlines need none)');
+A.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday'], 'no Notion token: no Notion capabilities (profile sync and headlines need none)');
 A.strictEqual(get({ action: 'tasks', key, day: '2026-10-06' }).error, 'notion_not_configured');
 props.NOTION_TOKEN = 'ntn_wrong'; A.strictEqual(get({ action: 'ping', key }).notion.error, 'notion_unauthorized', 'a wrong token is reported, not hidden');
 props.NOTION_TOKEN = 'ntn_test'; console.log('setup with token:'); ctx.setup();
@@ -153,7 +153,7 @@ assert.strictEqual(dn.ok, true);
 assert.ok(dn.done.every(x => !('title' in x)), 'no titles leave the bridge');
 assert.ok(!dn.done.some(x => x.at < '2026-09-06'), 'older than 30 days excluded');
 assert.ok(dn.done.length >= 1);
-assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'profile', 'news', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay', 'healthkey']);
+assert.deepStrictEqual(get({ action: 'ping', key }).capabilities, ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday', 'tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay', 'healthkey']);
 console.log('days clamp:', get({ action: 'done', key, days: '999' }).days, get({ action: 'done', key, days: 'x' }).days);
 
 console.log('--- weekly review ---');

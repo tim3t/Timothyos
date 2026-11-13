@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.47.1';
+var VERSION = '1.48.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -122,7 +122,7 @@ var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -183,10 +183,96 @@ function read_(p) {
   if (p.action === 'sciencefeeds') return sciFeeds_(p.lat, p.lon);
   if (p.action === 'sciencelog') return scienceLog_(String(p.from || ''), String(p.to || ''));
   if (p.action === 'year') return year_(String(p.from || ''), String(p.to || ''));
+  if (p.action === 'onthisday') return onThisDay_(String(p.today || ''), p.years);
   if (p.action === 'exportstatus') return { ok: true, version: VERSION, export: exportStatus_() };
   if (p.action === 'schema') return schema_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   if (p.action === 'tarotbook') return tarotBook_(String(p.card || ''), p.fresh === '1' || p.fresh === 1 || p.fresh === true);
   return null;
+}
+// ---- ON THIS DAY (1.48, app 2.81, D80) -------------------------------------------------------------------------
+// The same date in past years, and the week around it (three days either side), from what Timothy already keeps:
+// calendar events (never Work), tasks marked done (by their last edit, the only date a finished task carries), dinners,
+// hive checks, books finished, tarot readings, the weekly review's "went well", and habits. One request; one Notion
+// query per database for every year at once; each source on its own, so one that isn't set up leaves the rest. Nothing
+// is written. Kept for 6 hours (the past doesn't change much). The app adds the weather and, only while LOG is
+// unlocked, whether there's a Log entry.
+var OTD_YEARS = 5, OTD_SIDE = 3;
+function otdShift_(ymd, n) { var d = new Date(ymd + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function onThisDay_(today, years) {
+  if (!realDay_(today)) return { ok: false, error: 'bad_request' };
+  years = Math.max(1, Math.min(10, Math.floor(Number(years)) || OTD_YEARS));
+  var cache = CacheService.getScriptCache(), ck = 'otd:' + today + ':' + years, hit = cache.get(ck);
+  if (hit) return JSON.parse(hit);
+  var md = today.slice(5), out = [], ranges = [];
+  for (var y = 1; y <= years; y++) {
+    var yr = Number(today.slice(0, 4)) - y, date = yr + '-' + md;
+    if (!realDay_(date)) date = yr + '-02-28';   // 29 February, in a year without one
+    var row = { year: yr, date: date, from: otdShift_(date, -OTD_SIDE), to: otdShift_(date, OTD_SIDE), events: [], tasks: [], dinners: [], checks: [], books: [], tarot: [], review: null, habits: [] };
+    out.push(row); ranges.push(row);
+  }
+  var inR = function (day) { day = String(day || '').slice(0, 10); return ranges.filter(function (r) { return day >= r.from && day <= r.to; })[0] || null; };
+  var orDates = function (prop) { return { or: ranges.map(function (r) { return { and: [{ property: prop, date: { on_or_after: r.from } }, { property: prop, date: { on_or_before: r.to } }] }; }) }; };
+  var problems = [], tryIt = function (name, fn) { try { fn(); } catch (e) { problems.push(name + ': ' + ((e && e.notion) || 'error')); } };
+  tryIt('calendars', function () {
+    sources_().forEach(function (src) {
+      if (src.area === 'work') return;   // Timothy's choice: never work
+      var o = openCalendar_(src.id()); if (!o.cal) return;
+      var tz = o.cal.getTimeZone();
+      ranges.forEach(function (r) {
+        o.cal.getEvents(new Date(r.from + 'T00:00:00Z'), new Date(otdShift_(r.to, 1) + 'T12:00:00Z')).forEach(function (ev) {
+          if (declined_(ev)) return;
+          var it = toItem_(ev, src.area, tz), day = it.allDay ? it.start : Utilities.formatDate(ev.getStartTime(), tz, 'yyyy-MM-dd');
+          if (day >= r.from && day <= r.to && !it.busy) r.events.push({ date: day, area: it.area, title: it.title.slice(0, 120), allDay: it.allDay, time: it.allDay ? '' : Utilities.formatDate(ev.getStartTime(), tz, 'HH:mm') });
+        });
+      });
+    });
+  });
+  if (props_('NOTION_TOKEN')) {
+    tryIt('tasks', function () {
+      queryAll_(tasksSource_(), { and: [{ property: 'Status', select: { equals: '✅ Done' } }, { or: ranges.map(function (r) { return { and: [{ timestamp: 'last_edited_time', last_edited_time: { on_or_after: r.from + 'T00:00:00Z' } }, { timestamp: 'last_edited_time', last_edited_time: { before: otdShift_(r.to, 1) + 'T12:00:00Z' } }] }; }) }] }, 3).forEach(function (pg) {
+        var t = toTask_(pg), day = String(pg.last_edited_time || '').slice(0, 10), r = inR(day);
+        if (r) r.tasks.push({ date: day, title: t.title.slice(0, 120), area: t.area });
+      });
+    });
+    tryIt('dinners', function () {
+      queryAll_(dinnersSource_(), orDates('Date'), 3).forEach(function (pg) {
+        var p = pg.properties || {}, day = day_(p.Date), r = inR(day);
+        if (r && sel_(p.Status) !== 'Planned') r.dinners.push({ date: day, name: plain_(p.Dinner && p.Dinner.title).slice(0, 120) });
+      });
+    });
+    tryIt('tarot', function () {
+      queryAll_(tarotSource_(), { and: [{ property: 'Kind', select: { equals: 'Reading' } }, orDates('Date')] }, 3).map(toTarot_).forEach(function (t) {
+        var r = inR(t.day); if (r) r.tarot.push({ date: t.day, spread: (t.sname || '').slice(0, 60), cards: (t.cards || []).slice(0, 10).map(function (c) { return { id: c.id, rev: !!c.rev }; }) });
+      });
+    });
+    tryIt('habits', function () {
+      queryAll_(habitsSource_(), orDates('Date'), 3).map(toHabit_).forEach(function (h) {
+        var r = inR(h.date); if (r) r.habits.push({ date: h.date, med: h.med, walk: h.walk, water: h.water });
+      });
+    });
+    tryIt('apiary', function () {
+      var a = apiary_(), names = {};
+      (a.hives || []).forEach(function (h) { names[String(h.id).replace(/-/g, '')] = h.name; });
+      (a.checks || []).forEach(function (c) {
+        var r = inR(c.day); if (r) r.checks.push({ date: c.day, hive: names[String(c.hive || '').replace(/-/g, '')] || 'A hive', did: String(c.did || c.mood || '').slice(0, 160), honey: c.honey });
+      });
+    });
+    tryIt('library', function () {
+      (library_().books || []).forEach(function (b) {
+        var r = inR(b.finished); if (r) r.books.push({ date: b.finished, title: String(b.title || '').slice(0, 120), rating: b.rating });
+      });
+    });
+    tryIt('reviews', function () {
+      (reviews_(104).reviews || []).forEach(function (v) {
+        if (!v.week || !v.wentWell) return;
+        ranges.forEach(function (r) { if (r.date >= v.week && r.date <= otdShift_(v.week, 6) && !r.review) r.review = { week: v.week, wentWell: String(v.wentWell).slice(0, 300) }; });
+      });
+    });
+  }
+  out.forEach(function (r) { ['events', 'tasks', 'dinners', 'checks', 'books', 'tarot', 'habits'].forEach(function (k) { r[k].sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.time || '') < String(b.time || '') ? -1 : 1; }); }); });
+  var res = { ok: true, version: VERSION, today: today, side: OTD_SIDE, years: out, problems: problems };
+  if (!problems.length) { try { cache.put(ck, JSON.stringify(res), 21600); } catch (x) { /* too large to cache */ } }
+  return res;
 }
 /** Another request held the script lock past its wait (LockService throws "Lock timeout"): the app retries "busy" quietly. */
 function lockBusy_(err) { return /lock timeout|another process was holding the lock/i.test(String((err && err.message) || err)); }

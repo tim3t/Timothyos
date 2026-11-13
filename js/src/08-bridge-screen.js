@@ -342,7 +342,7 @@
       '<section class="rb-card rb-ribbon" data-panel="now">' + rbRibbon(now, list, today) + "</section>" +
       '<div class="rb-cols"><section class="rb-card" data-panel="prio">' + rbOrders(today) + "</section>" +
       '<section class="rb-card" data-panel="home">' + rbHome(now, today) + "</section>" +
-      '<section class="rb-card rb-comms" data-panel="comms">' + rbComms(now, today, brief, folded) + "</section></div></div>";
+      '<section class="rb-card rb-comms" data-panel="comms">' + rbComms(now, today, brief, folded) + "</section></div>" + otdPanel() + "</div>";   /* 2.81: ON THIS DAY under the columns */
     var c = $("content"), sy = window.scrollY || 0, sc = c.scrollTop;   /* the minute redraw never moves the page (2.62.1's rule) */
     c.innerHTML = html;
     if (c.scrollTop !== sc) c.scrollTop = sc;

@@ -480,6 +480,12 @@ The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). Since 2.6
 
 HORIZON and BALANCE left the Bridge in 2.63; their numbers still feed ASK and REVIEW, and the balance targets stay in **SYSTEMS → BALANCE TARGETS**. The weather remembers whether its details are open.
 
+**ON THIS DAY** (bridge 1.48)
+- **Where:** under the Bridge's three columns, a card for each of the last five years with something on today's date, nearest first. When the date itself is empty, the card says **THAT WEEK** and shows the three days either side.
+- **What:** your calendars except Work, tasks finished, dinners eaten, hive checks, books finished, tarot cards (never your question), the weekly review's "went well", and habits. Each card shows that day's weather (high, low, rain, **FROST** at 32°F or under) when a Location is set, and its first three items with **+ N MORE**.
+- **Tap a card** for the whole year, grouped by source, with tabs to the other years. **COMPUTER → On this day** opens it too.
+- **Privacy:** read once a day and kept on the iPad; nothing from the Log, and nothing goes to ASK or the briefing. A day with nothing in any year shows no panel.
+
 **Morning Briefing** (needs ASK set up)
 - **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).
 - **What:** short (about 80 words): the condition and why, today (meetings, the first and last, the longest open stretch, whether priorities are picked), outside (weather, hive check, frost), the week ahead, then one **RECOMMENDED** first action. Finances only with their **SHARE WITH ASK** switch on. Never the Captain's Log, habits, tarot or the apiary.

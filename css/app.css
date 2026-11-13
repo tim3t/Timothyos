@@ -1478,6 +1478,28 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 /* the three columns */
 .rb-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .rb-cols .prio { min-height: 48px; }
+/* 2.81 (D80): ON THIS DAY, under the Bridge's columns; a year per card, a sheet per year */
+.otd { margin-top: 12px; }
+.otd-years { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.otd-yr { text-align: left; border: 0; background: var(--panel-2); color: var(--fg); border-radius: 16px; padding: 12px 14px; display: grid; gap: 7px; align-content: start; cursor: pointer; min-width: 0; font-family: var(--body); }
+.otd-yr:hover { box-shadow: inset 0 0 0 1.5px var(--chrome-c); }
+.otd-yh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.otd-yh b { font-family: var(--display); font-weight: 600; font-size: 20px; letter-spacing: .06em; }
+.otd-dt { font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--dim); }
+.otd-wk { font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--ink); background: var(--chrome-b); border-radius: 999px; padding: 2px 9px; }
+.otd-wx { font-size: 15px; color: #c9c2b6; }
+.otd-wx b { font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: .14em; color: var(--water); }
+.otd-it { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 15px; }
+.otd-it > span:first-child { font-family: var(--display); font-size: 12px; letter-spacing: .14em; color: var(--k, var(--dim)); }
+.otd-it > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.otd-it em, .otd-grp em { font-style: normal; font-family: var(--display); font-size: 12px; letter-spacing: .12em; color: var(--dim); }
+.otd-more { font-family: var(--display); font-size: 13px; letter-spacing: .14em; color: var(--chrome-c); }
+.otd-sheet .sbody { display: grid; gap: 12px; }
+.otd-tabs { margin: 0; }
+.otd-grp { display: grid; gap: 4px; }
+.otd-grp h4 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 13px; letter-spacing: .14em; color: var(--k, var(--dim)); }
+.otd-grp p { margin: 0; font-size: 16px; color: #c9c2b6; overflow-wrap: anywhere; }
+.otd-note { font-size: 14px; }
 .rb-cols .btn { min-height: 44px; padding: 0 18px; font-size: 15px; }
 .rb [data-panel="habits"] .hb-strip { gap: 6px; }
 .rb [data-panel="habits"] .hb-chip { min-height: 40px; padding: 0 12px; font-size: 13px; }

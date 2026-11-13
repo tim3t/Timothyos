@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.80.2";
+  var VERSION = "2.81.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -67,7 +67,7 @@
      that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
      notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
   var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
-    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1"];
+    "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1", "tos.otd.v1"];
   var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
   var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
   var store = { failed: {}, skipped: {}, dropped: 0, droppedAt: 0, said: false, t: 0 };
@@ -1377,8 +1377,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.47.1";
-  var BRIDGE_FEATURES = [["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.48.0";
+  var BRIDGE_FEATURES = [["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -2945,7 +2945,7 @@
       '<section class="rb-card rb-ribbon" data-panel="now">' + rbRibbon(now, list, today) + "</section>" +
       '<div class="rb-cols"><section class="rb-card" data-panel="prio">' + rbOrders(today) + "</section>" +
       '<section class="rb-card" data-panel="home">' + rbHome(now, today) + "</section>" +
-      '<section class="rb-card rb-comms" data-panel="comms">' + rbComms(now, today, brief, folded) + "</section></div></div>";
+      '<section class="rb-card rb-comms" data-panel="comms">' + rbComms(now, today, brief, folded) + "</section></div>" + otdPanel() + "</div>";   /* 2.81: ON THIS DAY under the columns */
     var c = $("content"), sy = window.scrollY || 0, sc = c.scrollTop;   /* the minute redraw never moves the page (2.62.1's rule) */
     c.innerHTML = html;
     if (c.scrollTop !== sc) c.scrollTop = sc;
@@ -4058,7 +4058,7 @@
   function setPlace(lat, lon, name) {
     lat = Math.round(lat * 100) / 100; lon = Math.round(lon * 100) / 100;
     lsSet(LS_PLACE, { lat: lat, lon: lon, name: name || "" });
-    state.wx = null; state.wxErr = null; lsDel(LS_WX);
+    state.wx = null; state.wxErr = null; lsDel(LS_WX); otdWxReset();
     toast("Location saved. Weather loads on the Bridge.");
     render(true);
     loadWeather(true);
@@ -4077,7 +4077,7 @@
         function () { var e2 = $("bridgeErr"); if (e2) e2.textContent = "Location wasn't shared. Allow it in Settings, or type the numbers instead."; },
         { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
     } else if (act === "placeclear") {
-      lsDel(LS_PLACE); lsDel(LS_WX); state.wx = null;
+      lsDel(LS_PLACE); lsDel(LS_WX); state.wx = null; otdWxReset();
       toast("Location cleared. Weather is off.");
       render(true);
     } else if (act === "bearsave") {
@@ -6683,6 +6683,7 @@
     S("Recent requests", "RECENT REQUESTS", "network errors timeout");
     S("Error log", "ERROR LOG", "errors failures problems crash diagnostic report");
     S("This iPad's storage", "THIS IPAD'S STORAGE", "space full room memory saved copies clear cache");
+    S("On this day", "BRIDGE", "on this day past years ago history memories year back", function () { go("bridge"); setTimeout(function () { otdOpen(0); }, 50); });
     S("Copy diagnostics", "DIAGNOSTICS", "report problem debug support claude help broken", function () { diagCopy(false); });
     if (nasConf()) S("NAS relay", "NAS RELAY", "storage nas token tailscale holodeck");
     S("Home Assistant", "HOME ASSISTANT", "token devices");
@@ -15638,6 +15639,128 @@
     return lines.join("\n");
   }
   function skAiClick(b) { if (b.dataset.aisick === undefined) return false; if (b.dataset.aisick === "1") lsSet(LS_AISICK, true); else lsDel(LS_AISICK); askReshare(); render(true); return true; }
+  /* ---------- ON THIS DAY (2.81, bridge 1.48, D80; Timothy's approved mockup, 2026-11-13) ----------
+     A Bridge panel under the three columns: this date in past years, or the week around it when the date itself is
+     empty, from the calendars (never Work), tasks done, dinners, hive checks, books, tarot, the weekly review and habits
+     (one bridge read, kept for the day), with that day's weather from Open-Meteo's archive (rounded coordinates only).
+     Nothing from the Log: LOG locks whenever its screen is left, so the Bridge never sees it unlocked. Nothing here
+     goes to ASK or the Morning Briefing. On a day with nothing in any year the panel isn't drawn. */
+  var LS_OTD = "tos.otd.v1";
+  var otd = { d: lsGet(LS_OTD), busy: false, err: 0, wxBusy: false };
+  var OTD_K = { personal: ["PERSONAL", "--personal"], farm: ["FARM", "--farm"], hobby: ["GROWTH", "--hobby"], family: ["FAMILY", "--family"], tasks: ["TASKS DONE", "--chrome-b"],
+    dinner: ["DINNER", "--chrome-d"], hive: ["HIVE CHECK", "--hero"], book: ["BOOK", "--chrome-c"], tarot: ["TAROT", "--chrome-a"], review: ["THE REVIEW", "--ok"], habits: ["HABITS", "--water"] };
+  var OTD_ORDER = ["personal", "farm", "hobby", "family", "tasks", "dinner", "hive", "book", "tarot", "review", "habits"];
+  var OTD_PARTIAL_MS = 30 * 60000;   /* an answer missing a source is asked for again after half an hour */
+  function canOtd() { return state.caps.indexOf("onthisday") > -1; }
+  function loadOtd() {
+    var t = ymd(new Date()), have = otd.d && otd.d.today === t;
+    if (!state.conn || !canOtd() || otd.busy || navigator.onLine === false) return;
+    if (have && !(otd.d.partial && Date.now() - otd.d.partial > OTD_PARTIAL_MS)) { otdWeather(); return; }
+    if (otd.err && Date.now() - otd.err < FRESH_MS) return;
+    otd.busy = true;
+    api({ action: "onthisday", today: t, years: 5 }).then(function (j) {
+      otd.d = { today: t, years: j.years || [], wx: have ? otd.d.wx || {} : {}, partial: j.problems && j.problems.length ? Date.now() : 0 };
+      lsSet(LS_OTD, otd.d); otd.err = 0;
+      otdWeather();
+    }, function () { otd.err = Date.now(); }).then(function () { otd.busy = false; if (state.screen === "bridge") render(true); });
+  }
+  /* a new or cleared location: the past days' weather is asked again (or not shown) */
+  function otdWxReset() { if (otd.d) { otd.d.wx = {}; lsSet(LS_OTD, otd.d); } }
+  /* each shown year's weather, once: high, low (°F), rain (in); kept with the day's answer */
+  function otdWeather() {
+    var here = place();
+    if (!here || otd.wxBusy || !otd.d || navigator.onLine === false) return;
+    var want = otdYears().map(function (v) { return v.y.date; }).filter(function (dt) { return !(dt in otd.d.wx); });
+    if (!want.length) return;
+    otd.wxBusy = true;
+    var dt = want[0], u = "https://archive-api.open-meteo.com/v1/archive?latitude=" + here.lat + "&longitude=" + here.lon + "&start_date=" + dt + "&end_date=" + dt +
+      "&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=fahrenheit&precipitation_unit=inch&timezone=auto";
+    fetch(u, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error("http_" + r.status); return r.json(); }).then(function (j) {
+      var dd = j && j.daily, hi = dd && dd.temperature_2m_max && dd.temperature_2m_max[0], lo = dd && dd.temperature_2m_min && dd.temperature_2m_min[0], rain = dd && dd.precipitation_sum ? dd.precipitation_sum[0] : null;
+      otd.d.wx[dt] = typeof hi === "number" && typeof lo === "number" ? { hi: Math.round(hi), lo: Math.round(lo), rain: typeof rain === "number" ? Math.round(rain * 100) / 100 : null } : null;
+      lsSet(LS_OTD, otd.d);
+      otd.wxBusy = false; if (state.screen === "bridge") render(true); otdWeather();
+    }).catch(function () { otd.wxBusy = false; otd.d.wx[dt] = null; });   /* no weather for that day: the rest still shows */
+  }
+
+  /* ---- what each year holds: the date itself, else the week around it ---- */
+  function otdItems(y) {   /* [kind, text, date] */
+    var out = [], byDay = {};
+    (y.events || []).forEach(function (e) { out.push([OTD_K[e.area] ? e.area : "personal", e.title + (e.time ? ", " + e.time : ""), e.date]); });
+    (y.tasks || []).forEach(function (t) { (byDay[t.date] = byDay[t.date] || []).push(t.title); });
+    Object.keys(byDay).forEach(function (dt) { var l = byDay[dt]; out.push(["tasks", l.length + " finished: " + l.join(" · "), dt]); });
+    (y.dinners || []).forEach(function (x) { if (x.name) out.push(["dinner", x.name, x.date]); });
+    (y.checks || []).forEach(function (c) { out.push(["hive", c.hive + (c.did ? ": " + c.did : "") + (typeof c.honey === "number" && c.honey > 0 ? " · " + c.honey + " lb honey" : ""), c.date]); });
+    (y.books || []).forEach(function (b) { out.push(["book", "Finished " + b.title + (typeof b.rating === "number" ? " · " + b.rating + (b.rating === 1 ? " star" : " stars") : ""), b.date]); });
+    (y.tarot || []).forEach(function (r) {
+      var cards = (r.cards || []).map(function (c) { try { return trName(c.id) + (c.rev ? " (reversed)" : ""); } catch (e) { return ""; } }).filter(Boolean);
+      if (cards.length) out.push(["tarot", cards.slice(0, 3).join(", ") + (cards.length > 3 ? " and " + (cards.length - 3) + " more" : "") + (r.spread ? ", in " + r.spread : ""), r.date]);
+    });
+    (y.habits || []).forEach(function (h) { out.push(["habits", [h.walk ? "Walk" : "", typeof h.water === "number" ? "Water " + h.water + " L" : "", h.med ? "Meditation" : "Meditation missed"].filter(Boolean).join(" · "), h.date]); });
+    if (y.review && y.review.wentWell) out.push(["review", "Went well: " + y.review.wentWell, null]);
+    return out.sort(function (a, b) { return OTD_ORDER.indexOf(a[0]) - OTD_ORDER.indexOf(b[0]) || (String(a[2] || "") < String(b[2] || "") ? -1 : String(a[2] || "") > String(b[2] || "") ? 1 : 0); });
+  }
+  function otdYears() {   /* the years with something, nearest first: { y, week, items } */
+    return ((otd.d && otd.d.years) || []).map(function (y) {
+      var all = otdItems(y), exact = all.filter(function (it) { return it[2] === y.date; });
+      if (exact.length) return { y: y, week: false, items: exact.concat(all.filter(function (it) { return it[0] === "review"; })) };
+      var week = all.filter(function (it) { return it[0] !== "habits" && (it[2] || it[0] === "review"); });
+      return { y: y, week: true, items: week.filter(function (it) { return it[0] !== "review"; }).length ? week : [] };
+    }).filter(function (v) { return v.items.length; });
+  }
+  function otdAgo(v) { var n = Number(otd.d.today.slice(0, 4)) - v.y.year; return n === 1 ? "A YEAR AGO" : n + " YEARS AGO"; }
+  function otdShort(dt) { var p = parseYmd(dt); return DOW[p.getDay()] + " " + p.getDate() + " " + MON[p.getMonth()] + " " + p.getFullYear(); }
+  function otdWx(dt) {
+    var w = otd.d.wx && otd.d.wx[dt]; if (!w) return "";
+    return '<span class="otd-wx">' + w.hi + "°F / " + w.lo + "°F" + (w.rain ? " · " + w.rain + " in rain" : w.rain === 0 ? " · dry" : "") + (w.lo <= 32 ? ' · <b>FROST</b>' : "") + "</span>";
+  }
+  function otdLine(it, withDay) {
+    var k = OTD_K[it[0]], p = it[2] ? parseYmd(it[2]) : null;
+    return '<span class="otd-it" style="--k: var(' + k[1] + ')"><span>' + k[0] + "</span><span>" + (withDay && p ? "<em>" + DOW[p.getDay()] + " " + p.getDate() + "</em> " : "") + esc(it[1]) + "</span></span>";
+  }
+
+  /* ---- the panel ---- */
+  function otdPanel() {
+    loadOtd();
+    if (!canOtd() || !otd.d || otd.d.today !== ymd(new Date())) return "";
+    var ys = otdYears();
+    if (!ys.length) return "";   /* nothing on this date in any year: the Bridge looks as it always has */
+    return '<section class="rb-card otd" data-panel="otd" aria-label="On this day">' + phead("ON THIS DAY", ys.length + (ys.length === 1 ? " YEAR" : " YEARS") + " · TAP ONE", "chrome-c") +
+      '<div class="otd-years">' + ys.map(function (v, i) {
+        var top = v.items.slice(0, 3), rest = v.items.length - top.length;
+        return '<button type="button" class="otd-yr" data-otd="' + i + '" aria-label="' + esc(otdAgo(v) + ", " + (v.week ? "the week around " : "") + otdShort(v.y.date)) + '"><span class="otd-yh"><b>' + otdAgo(v) + "</b>" +
+          (v.week ? '<span class="otd-wk">THAT WEEK</span>' : '<span class="otd-dt">' + otdShort(v.y.date) + "</span>") + "</span>" + otdWx(v.y.date) +
+          top.map(function (it) { return otdLine(it, false); }).join("") + (rest > 0 ? '<span class="otd-more">+ ' + rest + " MORE</span>" : "") +
+          "</button>";
+      }).join("") + "</div></section>";
+  }
+
+  /* ---- a year's sheet ---- */
+  function otdOpen(i) {
+    var ys = otdYears(), v = ys[i];
+    if (!v) { toast("Nothing on this date in past years."); return; }
+    var p = parseYmd(v.y.date), long = SK_DOWL[p.getDay()].toUpperCase() + " " + p.getDate() + " " + MONL[p.getMonth()] + " " + p.getFullYear(), groups = {};
+    v.items.forEach(function (it) { (groups[it[0]] = groups[it[0]] || []).push(it); });
+    $("detailSheet").className = "sheet otd-sheet";
+    $("detailSheet").style.setProperty("--c", "var(--chrome-c)");
+    $("detailSheet").innerHTML = '<div class="sbar"><span>◆ ON THIS DAY</span><span>' + otdAgo(v) + (v.week ? " · THAT WEEK" : "") + "</span></div>" +
+      '<div class="sbody"><h3 id="detailTitle">' + (v.week ? "THE WEEK AROUND " + p.getDate() + " " + MONL[p.getMonth()] + " " + p.getFullYear() : long) + "</h3>" +
+      (v.week ? '<div class="muted">Nothing on ' + p.getDate() + " " + MONL[p.getMonth()].charAt(0) + MONL[p.getMonth()].slice(1).toLowerCase() + " itself; this is the three days either side.</div>" : "") +
+      (ys.length > 1 ? '<div class="btnrow otd-tabs" role="group" aria-label="Year">' + ys.map(function (w, j) { return '<button type="button" class="chip sm" style="--c: var(--chrome-c)" data-otd="' + j + '" aria-pressed="' + (j === i) + '">' + w.y.year + "</button>"; }).join("") + "</div>" : "") +
+      (otdWx(v.y.date) ? '<div class="otd-grp" style="--k: var(--water)"><h4>WEATHER' + (v.week ? " ON THE " + p.getDate() + (p.getDate() % 10 === 1 && p.getDate() !== 11 ? "ST" : p.getDate() % 10 === 2 && p.getDate() !== 12 ? "ND" : p.getDate() % 10 === 3 && p.getDate() !== 13 ? "RD" : "TH") : "") + "</h4><p>" + otdWx(v.y.date) + "</p></div>" : "") +
+      OTD_ORDER.filter(function (k) { return groups[k]; }).map(function (k) {
+        return '<div class="otd-grp" style="--k: var(' + OTD_K[k][1] + ')"><h4>' + OTD_K[k][0] + "</h4>" + groups[k].map(function (it) {
+          var q = it[2] ? parseYmd(it[2]) : null; return "<p>" + (v.week && q ? "<em>" + DOW[q.getDay()] + " " + q.getDate() + "</em> " : "") + esc(it[1]) + "</p>"; }).join("") + "</div>";
+      }).join("") +
+      '<div class="muted otd-note">From your calendars (not Work), Notion and the weather archive. Nothing here goes to ASK or the briefing.</div></div>' +
+      '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+    showSheet("detailScrim");
+    var on = document.querySelector('#detailSheet [data-otd][aria-pressed="true"]'); (on || $("detailClose")).focus();
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest && e.target.closest("[data-otd]"); if (!b) return;
+    otdOpen(+b.dataset.otd);
+  });
   /* ---------- Text boxes grow with their text (2.26.1) ---------- */
   /* Every textarea except the Log's editor (growLog) sizes itself to its text: as you type, after any
      redraw or sheet opening (one pass per frame), and when the window changes width. A box with a

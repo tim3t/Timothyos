@@ -553,7 +553,7 @@
   function setPlace(lat, lon, name) {
     lat = Math.round(lat * 100) / 100; lon = Math.round(lon * 100) / 100;
     lsSet(LS_PLACE, { lat: lat, lon: lon, name: name || "" });
-    state.wx = null; state.wxErr = null; lsDel(LS_WX);
+    state.wx = null; state.wxErr = null; lsDel(LS_WX); otdWxReset();
     toast("Location saved. Weather loads on the Bridge.");
     render(true);
     loadWeather(true);
@@ -572,7 +572,7 @@
         function () { var e2 = $("bridgeErr"); if (e2) e2.textContent = "Location wasn't shared. Allow it in Settings, or type the numbers instead."; },
         { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
     } else if (act === "placeclear") {
-      lsDel(LS_PLACE); lsDel(LS_WX); state.wx = null;
+      lsDel(LS_PLACE); lsDel(LS_WX); state.wx = null; otdWxReset();
       toast("Location cleared. Weather is off.");
       render(true);
     } else if (act === "bearsave") {

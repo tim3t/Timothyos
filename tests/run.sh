@@ -59,6 +59,7 @@ run bridge_tarot.test.js
 run bridge_tarotbooks.test.js
 run bridge_apiary.test.js
 run bridge_sickbay.test.js
+run bridge_onthisday.test.js
 run bridge_logsearch.test.js
 run bridge_logask.test.js
 run bridge_sessions.test.js
@@ -118,7 +119,7 @@ PY
 LANES=(
   "tarot-apiary-1|RELAY_PORT=8112 PORT_8105=8105|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e67.test.js"
   "tarot-apiary-2|RELAY_PORT=8122 PORT_8105=8113|app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e68.test.js app_e2e71.test.js"
-  "meals|RELAY_PORT=8123 PORT_8105=8114|app_e2e72.test.js app_e2e73.test.js app_e2e85.test.js app_e2e86.test.js app_e2e87.test.js app_e2e88.test.js app_e2e75.test.js"
+  "meals|RELAY_PORT=8123 PORT_8105=8114|app_e2e72.test.js app_e2e73.test.js app_e2e85.test.js app_e2e86.test.js app_e2e87.test.js app_e2e88.test.js app_e2e89.test.js app_e2e75.test.js"
   "tarot-apiary-4|RELAY_PORT=8124 PORT_8105=8115|app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js"
   "log-storage-1|RELAY_PORT=8110 PORT_8103=8103 PORT_8105=8119|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js"
   "log-storage-2|RELAY_PORT=8127 PORT_8103=8120 PORT_8105=8121|app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
@@ -191,6 +192,8 @@ LANES=(
 #   app_e2e86      A FULL STORE (2.77; mock :8105): SYSTEMS' storage section; the store filled to the brim: a setting makes room by dropping saved copies; with nothing to drop it is held in memory, the Condition turns red, the fix card names it, a dinner still reaches the bridge; MAKE ROOM AND SAVE once there is room, there after a reload; CLEAR SAVED COPIES; COMPUTER; phone width
 #   app_e2e87      DIAGNOSTICS (2.78; mock :8105): the section after CONNECTION; COPY DIAGNOSTICS's report has versions, bridge, features, sync, Condition, waiting, storage, links, errors; never a key, a token, an address or a title; COMPUTER copies it; phone width
 #   app_e2e88      RECIPE PHOTOS KEPT SMALL (2.79, bridge 1.46; mock :8105): older meals get their small copy once in the background, a missing picture not asked again, a pasted link, COOK; no image from a recipe site
+#   app_e2e89      ON THIS DAY (2.81, bridge 1.48; mock :8105, faked weather archive): three years nearest first, weather and FROST, THAT WEEK,
+#                  the year sheet and tabs, kept for the day, COMMANDS, phone width, no panel on an empty day
 #   app_e2e83      ARBORETUM (2.71): the empty map, Zone 1 with four raised beds behind and three on the left with pots between, order and sides, kind, two-tap remove, plantings, jobs and typical jobs, the pond's depth bands, QUICK GLANCE by season with ticks for this turn of the season, the garden's name, a reload, COMPUTER, 400 px wide
 #   app_e2e82      HOLODECK waits out a lost NAS (2.68): requests refused → WAITING FOR THE NAS, nothing marked, TV on, LEVEL not paused, the show picks up when the NAS is back; the NAS answering 404 is logged with its code
 #   app_e2e81      FAMILY CALENDAR and the WEEK strip (2.67, bridge 1.42): not linked (SYSTEMS OFF), linked (read-only, colour), one bar Fri to Sun cut on the right, the Monday piece cut on the left, no overlaps, opens READ-ONLY, hide toggle, MONTH, never in CAPTURE, ASK's snapshot, portrait
