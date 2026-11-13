@@ -15,7 +15,7 @@
     { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, walk, water, debit card" },
     { id: "tarot", name: "TAROT", g: "REFLECT", sub: "This week's card, readings and patterns" },
     { id: "astrometrics", name: "ASTROMETRICS", g: "REFLECT", sub: "The year at a glance, and the Ship's Year" },
-    { id: "ressikan", name: "RESSIKAN", g: "REFLECT", sub: "Play with sound: a theremin over a beat, and drift" },
+    { id: "ressikan", name: "RESSIKAN", g: "REFLECT", sub: "Play with sound: chords over a beat, and a solo on top" },
     { id: "ledger", name: "LEDGER", g: "RESOURCES", sub: "YNAB at a glance, read only" },
     { id: "library", name: "LIBRARY", g: "RESOURCES", sub: "Reading, want to read, read" },
     { id: "storage", name: "HOLODECK · AUDIO", g: "RESOURCES", sub: "Your NAS folders: podcasts, music, audiobooks", inside: "holodeck" },   /* 2.47: STORAGE became HOLODECK's AUDIO program; reached from the arch, never listed on its own */
@@ -118,7 +118,7 @@
     bridge: "home overview condition dashboard", today: "day calendar schedule agenda priorities", week: "calendar schedule",
     month: "calendar", loom: "infinity timeline calendar days", dates: "key dates birthdays anniversaries holidays countdown",
     review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated walk debit card",
-    tarot: "cards reading deck", ressikan: "music sound theremin synth synthesizer beat beats lofi drums drift ambient meditation play instrument flute", science: "sky aircraft planes flights radar iss space station satellites aurora space weather shortwave earthquakes quakes air quality alerts moon planets stars night meteors asteroids birds nature sensors", inbox: "notes note capture sort ideas thoughts later jot", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
+    tarot: "cards reading deck", ressikan: "music sound chords chord progression loop synth synthesizer beat beats lofi drums solo melody lead play instrument flute midi garageband", science: "sky aircraft planes flights radar iss space station satellites aurora space weather shortwave earthquakes quakes air quality alerts moon planets stars night meteors asteroids birds nature sensors", inbox: "notes note capture sort ideas thoughts later jot", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
     storage: "storage nas podcasts podcast audio music files listen radio audiobooks", holodeck: "tv television video videos music videos channel watch broadcast mtv vh1 cartoons shows", engineering: "home assistant lights devices thermostat upkeep maintenance",
     apiary: "bees hives beekeeping honey mites", systems: "settings setup health sync connection"
   };
@@ -168,8 +168,8 @@
       A("Tonight's sky", "SCIENCE · NIGHT SKY", "SCIENCE", "moon planets meteors eclipse asteroid stars", sciGo("night"));
     }
     A("Tune in to the HOLODECK", "HOLODECK · VISUAL", "RESOURCES", "tv watch video videos channel", function () { go("holodeck"); holo.enter("visual"); });
-    A("Play the theremin and a beat", "RESSIKAN · FIELD", "REFLECT", "music theremin synth beat lofi drums", function () { rs.card("field"); go("ressikan"); });
-    A("Drift: ambient sound", "RESSIKAN · DRIFT", "REFLECT", "ambient drift meditation sleep calm sound", function () { rs.card("drift"); go("ressikan"); });
+    A("Play chords over a beat", "RESSIKAN · CHORDS", "REFLECT", "music chords progression loop synth beat lofi drums", function () { rs.card("chords"); go("ressikan"); });
+    A("Solo over the loop", "RESSIKAN · SOLO", "REFLECT", "solo melody lead flute improvise jam", function () { rs.card("solo"); go("ressikan"); });
     if (canInbox()) {
       A("Write a note", "CAPTURE · NOTE", "TIME", "jot idea thought inbox later", function () { openCapture(null, null, "note"); });
       ((ib.data && ib.data.waiting) || []).concat((ib.data && ib.data.kept) || []).forEach(function (n) {

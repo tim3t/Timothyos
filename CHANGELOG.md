@@ -2,6 +2,14 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.82.0 · 2026-11-13
+- **RESSIKAN, revamped: CHORDS and SOLO** (from Timothy's approved mockup; "more into making chords over a beat"). The theremin and DRIFT are retired; your key and room settings carry over.
+  - **CHORDS:** seven pads, the chords of your key with their numerals and names, coloured by their job (home, away, tension); COLOUR (7, 9, SUS2, SUS4, ADD6), BORROW and NEXT?. A loop of 4 or 8 bars (a chord every bar or half bar): tap a bar then a pad, or CAPTURE pads played in time; six starters and SURPRISE.
+  - **How they play:** KEYS, PAD, PLUCK, ORGAN, as HOLD, STAB, STRUM or ARP, a bass on the root, and smooth voice leading.
+  - **The beat:** a 16-step grid with six lanes, accents and mutes, four kits, five patterns, a fill on the last bar and HUMANIZE.
+  - **MY LOOPS:** up to 12 kept on the iPad (and in backups and PROFILE SYNC). **SAVE AS MIDI** for GarageBand.
+  - **SOLO:** play a lead over the loop on two octaves of scale pads (pentatonic, full or blues), with the chord playing now lit so landing on it always fits; slide to glide. FLUTE, LEAD, BELL, SOFT.
+
 ## 2.81.3 · 2026-11-13 (needs bridge 1.48.1)
 - **ON THIS DAY reads tasks and tarot again** (bridge 1.48.1). The new diagnostics line showed both failing on Timothy's bridge with `notion_error`: their filters nested an and inside an or inside an and, one level more than Notion accepts. Both now use the same two-level shape as dinners and habits. The simulated Notion in the tests now refuses the deeper shape too, so it can't come back.
 - A source that fails now names Notion's own code in the diagnostics line, e.g. `tasks: notion_error (validation_error)`.
