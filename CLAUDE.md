@@ -62,7 +62,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.81.2**, **bridge 1.48.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.81.3**, **bridge 1.48.1** (release checklist step 2 keeps this line current).
 
 ## Rules
 

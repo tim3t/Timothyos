@@ -41,6 +41,7 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 - **Sheet:** `otdOpen(i)` fills `#detailSheet` (class `otd-sheet`) with year tabs (`[data-otd]`), the weather, each group and the privacy note.
 - **The Log:** `go()` locks LOG whenever its screen is entered or left (90-app-shell), so `logOpen()` is never true on the Bridge and nothing of the Log is shown. Each sheet has OPEN THIS DAY IN LOG (2.81.1, `[data-otdlog]`, on every year alike so it says nothing about an entry): `go("log")` then `lg.want = date`; the PIN pad shows THEN OPENS, `logUnlock` opens `lg.want` instead of today, and `logFresh()` clears it when LOG locks.
 - **Diagnostics (2.81.2):** `otdDiag()` gives COPY DIAGNOSTICS its ON THIS DAY line: capability, a failed read and its code, when it read, years asked, years with something, weather, the bridge's `problems`. `otd.d` keeps `at` and `probs` for it.
+- **Notion's nesting limit (1.48.1):** a compound filter may hold a compound that holds conditions (or → and), not one level more. 1.48.0 put the per-year `or` inside an `and` with Status or Kind, and Notion refused both (diagnostics: `tasks: notion_error; tarot: notion_error`). `orWith(extra, prop)` puts the extra condition inside each year's `and`. The test's simulated Notion refuses depth over 2; any new bridge query should keep to it. Problems carry Notion's code (`e.ncode`).
 - **Tests:** `bridge_onthisday.test.js` (the read), `app_e2e89` (panel, weather, sheet, cache, COMMANDS, narrow, empty; mock_v24 `otdmode`).
 
 ## COMPUTER (2.35)

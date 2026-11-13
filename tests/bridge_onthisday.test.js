@@ -36,6 +36,9 @@ function fetchMock(url, opts) {
   if (m === 'post' && q) {
     queries.push(q[1]);
     if (failDs === q[1]) return res(500, { message: 'simulated failure' });
+    // Notion refuses compound filters nested more than two deep (an and inside an or inside an and): 1.48.0 did that for tasks and tarot
+    const depth = f => !f || !(f.and || f.or) ? 0 : 1 + Math.max(0, ...(f.and || f.or).map(depth));
+    if (depth(body.filter) > 2) return res(400, { object: 'error', code: 'validation_error', message: 'Filters nested too deep' });
     return res(200, { results: pages.filter(p => p.db === q[1] && match(p, body.filter)), has_more: false });
   }
   writes.push(m + ' ' + path); return res(400, { message: 'unexpected ' + m + ' ' + path });
@@ -114,7 +117,7 @@ assert.strictEqual(queries.length, 0);
 // ---- one database failing leaves the rest, and isn't kept
 failDs = DB.dinners;
 r = post({ action: 'onthisday', today: '2026-11-14' });
-assert.ok(r.ok && r.problems.length === 1 && /^dinners/.test(r.problems[0]) && r.years[0].dinners.length === 0 && r.years[0].tasks.length === 1 && r.years[0].habits.length === 1, JSON.stringify(r.problems));
+assert.ok(r.ok && r.problems.length === 1 && /^dinners: notion_error \(\w+\)$/.test(r.problems[0]) && r.years[0].dinners.length === 0 && r.years[0].tasks.length === 1 && r.years[0].habits.length === 1, JSON.stringify(r.problems));
 assert.ok(!cache['otd:2026-11-14:5'], 'a partial answer is not kept');
 failDs = null;
 

@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.48.0';
+var VERSION = '1.48.1';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -212,7 +212,9 @@ function onThisDay_(today, years) {
   }
   var inR = function (day) { day = String(day || '').slice(0, 10); return ranges.filter(function (r) { return day >= r.from && day <= r.to; })[0] || null; };
   var orDates = function (prop) { return { or: ranges.map(function (r) { return { and: [{ property: prop, date: { on_or_after: r.from } }, { property: prop, date: { on_or_before: r.to } }] }; }) }; };
-  var problems = [], tryIt = function (name, fn) { try { fn(); } catch (e) { problems.push(name + ': ' + ((e && e.notion) || 'error')); } };
+  var problems = [], tryIt = function (name, fn) { try { fn(); } catch (e) { problems.push(name + ': ' + ((e && e.notion) || 'error') + (e && e.ncode ? ' (' + e.ncode + ')' : '')); } };
+  /* 1.48.1: one more condition goes inside each year's and (an or of ands), never around the or: Notion refuses a third level */
+  var orWith = function (extra, prop) { return { or: ranges.map(function (r) { return { and: [extra, { property: prop, date: { on_or_after: r.from } }, { property: prop, date: { on_or_before: r.to } }] }; }) }; };
   tryIt('calendars', function () {
     sources_().forEach(function (src) {
       if (src.area === 'work') return;   // Timothy's choice: never work
@@ -229,7 +231,7 @@ function onThisDay_(today, years) {
   });
   if (props_('NOTION_TOKEN')) {
     tryIt('tasks', function () {
-      queryAll_(tasksSource_(), { and: [{ property: 'Status', select: { equals: '✅ Done' } }, { or: ranges.map(function (r) { return { and: [{ timestamp: 'last_edited_time', last_edited_time: { on_or_after: r.from + 'T00:00:00Z' } }, { timestamp: 'last_edited_time', last_edited_time: { before: otdShift_(r.to, 1) + 'T12:00:00Z' } }] }; }) }] }, 3).forEach(function (pg) {
+      queryAll_(tasksSource_(), { or: ranges.map(function (r) { return { and: [{ property: 'Status', select: { equals: '✅ Done' } }, { timestamp: 'last_edited_time', last_edited_time: { on_or_after: r.from + 'T00:00:00Z' } }, { timestamp: 'last_edited_time', last_edited_time: { before: otdShift_(r.to, 1) + 'T12:00:00Z' } }] }; }) }, 3).forEach(function (pg) {
         var t = toTask_(pg), day = String(pg.last_edited_time || '').slice(0, 10), r = inR(day);
         if (r) r.tasks.push({ date: day, title: t.title.slice(0, 120), area: t.area });
       });
@@ -241,7 +243,7 @@ function onThisDay_(today, years) {
       });
     });
     tryIt('tarot', function () {
-      queryAll_(tarotSource_(), { and: [{ property: 'Kind', select: { equals: 'Reading' } }, orDates('Date')] }, 3).map(toTarot_).forEach(function (t) {
+      queryAll_(tarotSource_(), orWith({ property: 'Kind', select: { equals: 'Reading' } }, 'Date'), 3).map(toTarot_).forEach(function (t) {
         var r = inR(t.day); if (r) r.tarot.push({ date: t.day, spread: (t.sname || '').slice(0, 60), cards: (t.cards || []).slice(0, 10).map(function (c) { return { id: c.id, rev: !!c.rev }; }) });
       });
     });
@@ -681,6 +683,7 @@ function notion_(method, path, payload) {
   if (code >= 300) {
     var e = new Error((body && body.message) || ('Notion HTTP ' + code));
     e.notion = code === 401 ? 'notion_unauthorized' : code === 404 ? 'notion_not_shared' : code === 429 ? 'notion_busy' : 'notion_error';
+    e.ncode = String((body && body.code) || code).slice(0, 40);   // 1.48.1: Notion's own code (validation_error…), for ON THIS DAY's problems
     throw e;
   }
   return body;
