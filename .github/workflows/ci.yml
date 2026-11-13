@@ -15,6 +15,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # 2026-11-13 (the diagnostic's finding 1): once a week even when nothing is pushed. It tests and never publishes. It
+  # keeps the ffmpeg copy in use (GitHub drops a cache nobody reads for 7 days) and runs the suite as of 60 days from
+  # now, so a test that the calendar is about to break shows up weeks before a release meets it (D79). A failure is
+  # emailed by GitHub to whoever last changed this schedule. GitHub pauses a schedule after 60 days without a push.
+  schedule:
+    - cron: '23 10 * * 1'   # Mondays 10:23 UTC (04:23 in Chicago)
 
 permissions:
   contents: read
@@ -84,6 +90,18 @@ jobs:
         run: |
           set -o pipefail
           bash tests/run.sh 2>&1 | tee run.log
+      # The weekly run only: the same suite as of 60 days from now (faketime; NO_FAKE_STAT keeps file times real, which
+      # fix_videos --selftest needs). faketime comes from Ubuntu; if its server is down this check is skipped, not failed.
+      - name: The calendar ahead (weekly run only)
+        if: github.event_name == 'schedule'
+        timeout-minutes: 25
+        run: |
+          set -o pipefail
+          if ! sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y --no-install-recommends faketime >/dev/null 2>&1 \
+             && ! { sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y --no-install-recommends faketime >/dev/null 2>&1; }; then
+            echo "::warning::faketime could not be installed (Ubuntu's package server); the 60-days-ahead check was skipped this week."; exit 0
+          fi
+          NO_FAKE_STAT=1 FAKETIME_FORCE_MONOTONIC_FIX=1 faketime -f "+60d" bash tests/run.sh 2>&1 | tee ahead.log
       - name: Summary
         if: always()
         run: |
@@ -91,6 +109,7 @@ jobs:
             echo "### TimothyOS tests"
             echo '```'
             if [ -f run.log ]; then grep -E "^(FAIL|ALL PASSED|SOME TESTS FAILED)| browser tests took " run.log || true; else echo "The tests did not start."; fi
+            if [ -f ahead.log ]; then echo "As of 60 days from now:"; grep -E "^(FAIL|ALL PASSED|SOME TESTS FAILED)" ahead.log || true; fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Keep the screenshots of a failed run
@@ -102,10 +121,10 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
       - name: Build the site (the app's own files only)
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.event_name != 'schedule' && github.ref == 'refs/heads/main'
         run: python3 tools/build_site.py _site
       - name: Hand the site to the deploy job
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request' && github.event_name != 'schedule' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
@@ -113,7 +132,7 @@ jobs:
   deploy:
     name: deploy
     needs: test
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
