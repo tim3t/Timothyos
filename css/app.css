@@ -1300,6 +1300,7 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 .cl-word:not(:disabled):active span { color: var(--ink); }
 .cl-word:disabled { opacity: .35; }
 .cl-msg { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--dim); min-height: 2.6em; max-width: 46ch; }
+.cl-want { font-family: var(--display); font-size: var(--t-label); letter-spacing: var(--ls-label); color: var(--chrome-c); margin-top: -4px; }
 .cl-pad { display: grid; grid-template-columns: repeat(3, 88px); gap: 12px; margin-top: 10px; }
 .cl-key { height: 64px; border: 0; border-radius: 32px; background: var(--panel-2); font-family: var(--display); font-size: 28px; font-weight: 600; cursor: pointer; }
 .cl-key.del { background: transparent; border: 2px solid var(--line); font-size: 22px; }

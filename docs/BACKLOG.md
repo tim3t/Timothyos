@@ -9,7 +9,6 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 | Item | Where | Notes |
 |---|---|---|
 | Deploy bridge 1.48.0 | Apps Script (README → Updating the Google bridge) | ON THIS DAY appears once it is in (app 2.81) |
-| ON THIS DAY and the Log | A choice | LOG locks whenever its screen is left, so the planned "a Log entry exists" line can never show on the Bridge. Options: an always-present OPEN THIS DAY IN LOG (asks for the PIN, reveals nothing), or leave the Log out |
 | SICKBAY trial verdict | After a few days of the four daily automations | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |

@@ -484,7 +484,8 @@ HORIZON and BALANCE left the Bridge in 2.63; their numbers still feed ASK and RE
 - **Where:** under the Bridge's three columns, a card for each of the last five years with something on today's date, nearest first. When the date itself is empty, the card says **THAT WEEK** and shows the three days either side.
 - **What:** your calendars except Work, tasks finished, dinners eaten, hive checks, books finished, tarot cards (never your question), the weekly review's "went well", and habits. Each card shows that day's weather (high, low, rain, **FROST** at 32°F or under) when a Location is set, and its first three items with **+ N MORE**.
 - **Tap a card** for the whole year, grouped by source, with tabs to the other years. **COMPUTER → On this day** opens it too.
-- **Privacy:** read once a day and kept on the iPad; nothing from the Log, and nothing goes to ASK or the briefing. A day with nothing in any year shows no panel.
+- **OPEN THIS DAY IN LOG** (in every year's sheet, whether or not you wrote that day): LOG asks for your PIN, says THEN OPENS with the date, and opens that day.
+- **Privacy:** read once a day and kept on the iPad; nothing from the Log is read for it, and nothing goes to ASK or the briefing. A day with nothing in any year shows no panel.
 
 **Morning Briefing** (needs ASK set up)
 - **When:** the first time Bridge is in front after 06:00, it writes this morning's briefing: about 5 to 10 seconds, once a day. If Bridge stood by overnight, that happens at 06:00, so it's waiting when you arrive, and Standby shows **BRIEFING READY · TAP TO READ** (the tap wakes the screen onto it).

@@ -2,7 +2,8 @@
 // Bridge's columns: a card for each past year with something (last year on the date itself; two years back only in the
 // week around it, marked THAT WEEK; four years back), each with that day's weather (one archive request per year,
 // rounded coordinates), its first three items and "+ N MORE". A card opens the year's sheet: every source grouped, the
-// week's items with their days, year tabs. Nothing about the Log. Kept for the day (a reload asks nothing again). A day
+// week's items with their days, year tabs. OPEN THIS DAY IN LOG on every year (says nothing of an entry): the PIN, then that
+// day; leaving LOG forgets it. Kept for the day (a reload asks nothing again). A day
 // with nothing: no panel.
 // COMMANDS finds it. Phone width.
 const { chromium } = require('playwright');
@@ -16,7 +17,7 @@ const ymdIn = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago
 const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
 
 (async () => {
-  await mode('cap=1&empty=0&reset=1');
+  await mode('cap=1&empty=0&reset=1&logday=' + (TODAY.slice(5) === '02-29' ? Y1.slice(0, 5) + '02-28' : Y1));
   const b = await chromium.launch(); const errs = [], wx = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   await lane(ctx);
@@ -59,7 +60,26 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
   sh = await txt(p, '#detailSheet');
   assert.ok(/THE WEEK AROUND/.test(sh) && /three days either side/.test(sh) && /GROWTH [A-Z]{3} \d+ Sample woodworking class/.test(sh) && /THE REVIEW Went well: The garden beds/.test(sh), sh);
   await p.screenshot({ path: 'out/e89-sheet.png' });
+  assert.ok(await p.$('#detailSheet [data-otdlog]'), 'OPEN THIS DAY IN LOG on a year with no entry too: it says nothing about the Log');
   await p.click('#detailClose');
+
+  // ---- OPEN THIS DAY IN LOG: the PIN as always, then that day
+  await p.click('.otd-yr >> nth=0'); await p.waitForSelector('#detailSheet [data-otdlog]');
+  const day = await p.getAttribute('#detailSheet [data-otdlog]', 'data-otdlog');
+  assert.strictEqual(day, TODAY.slice(5) === '02-29' ? Y1.slice(0, 5) + '02-28' : Y1);
+  await p.click('#detailSheet [data-otdlog]');
+  await p.waitForSelector('[data-lpin="1"]'); await p.waitForSelector('#detailScrim', { state: 'hidden' }); await p.screenshot({ path: 'out/e89-pin.png' });
+  assert.ok(/^THEN OPENS [A-Z]{3} \d+ [A-Z]{3} \d{4}$/.test(await txt(p, '.cl-want')), await txt(p, '.cl-want'));
+  assert.strictEqual(await p.$('[id^="clText-"]'), null, 'locked: nothing of the entry');
+  for (const k of '135790') await p.click('[data-lpin="' + k + '"]');
+  await until(async () => (await p.$$eval('[id^="clText-"]', l => l.map(x => x.value).join(' '))).includes('A sample entry.'));
+  const head = +day.slice(8, 10) + ' ' + ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][+day.slice(5, 7) - 1] + ' ' + day.slice(0, 4);
+  assert.ok((await txt(p, '#content')).includes(head + ' ·'), 'that day is open: ' + head);
+  // leaving LOG forgets the request: the next visit opens today
+  await p.click('.elbow'); await p.waitForSelector('.otd .otd-yr');
+  await p.click('[data-screen="log"].nav'); await p.waitForSelector('[data-lpin="1"]');
+  assert.strictEqual(await p.$('.cl-want'), null);
+  await p.click('.elbow'); await p.waitForSelector('.otd .otd-yr');
 
   // ---- kept for the day: a reload asks the bridge and the archive nothing
   const reads = (await mode('')).reads, wx0 = wx.length;

@@ -566,6 +566,7 @@ class H(BaseHTTPRequestHandler):
             for k in ("cap", "empty"):
                 if k in q: OTD[k] = int(q[k])
             if "reset" in q: OTD["reads"] = 0
+            if "logday" in q: LOG[q["logday"]] = "A sample entry."   # a Log entry on that past date (OPEN THIS DAY IN LOG)
             body = {"ok": True, "reads": OTD["reads"]}
         elif q.get("action") == "onthisday" and OTD["cap"]:
             OTD["reads"] += 1

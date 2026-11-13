@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.81.0";
+  var VERSION = "2.81.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -4967,7 +4967,7 @@
   var LOG_BATCH = 3;                     /* entries per import request (short requests fail less) */
   var lg = logFresh();
   var logDrafts = lsGet(LS_LDRAFT) || {};
-  function logFresh() { return { pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null, ai: null, sn: null }; }
+  function logFresh() { return { want: null, pin: null, digits: "", word: null, msg: "", busy: false, dates: null, month: null, day: null, entries: {}, loading: {}, err: {}, timer: null, saving: false, again: false, saveErr: null, imp: null, manual: false, pick: false, pickYear: null, find: null, whole: true, idx: null, ai: null, sn: null }; }
   function canLog() { return state.caps.indexOf("log") > -1; }
   function canLogSearch() { return state.caps.indexOf("logsearch") > -1; }
   function canLogAsk() { return canLog() && state.caps.indexOf("logask") > -1 && !!lsGet(LS_LOGAI); }
@@ -5040,8 +5040,9 @@
       if (state.screen !== "log") return;
       lg.pin = pin; lg.digits = ""; lg.word = null; lg.dates = {};
       (j.dates || []).forEach(function (d) { lg.dates[d] = true; });
-      var t = ymd(new Date());
-      lg.day = t; lg.month = som(new Date());
+      var t = lg.want || ymd(new Date());   /* 2.81.1: ON THIS DAY's OPEN THIS DAY IN LOG asked for a past day */
+      lg.want = null;
+      lg.day = t; lg.month = som(parseYmd(t));
       noteTouch();
       loadLogDay(t);
       if (Object.keys(logDrafts).length) logSave(pin);   /* anything left from last time */
@@ -5561,6 +5562,7 @@
       $("content").innerHTML = html + '<section class="cl-lock' + (coded ? " coded" : "") + '">' + phead("CAPTAIN'S LOG", coded ? "AUTHORIZATION REQUIRED" : "LOCKED", "chrome-c") +
         '<div class="cl-dots" aria-label="' + (coded ? (lg.word ? "Code word chosen, " : "No code word yet, ") + lg.digits.length + " of 4 digits" : lg.digits.length + " of 6 digits") + '">' + dots + "</div>" +
         '<div class="cl-msg" role="status">' + (lg.busy ? (coded ? "VERIFYING AUTHORIZATION…" : "CHECKING…") : lg.msg ? esc(lg.msg) : prompt) + "</div>" +
+        (lg.want ? '<div class="cl-want">THEN OPENS ' + otdShort(lg.want) + "</div>" : "") +
         (coded ? '<div class="cl-words">' + LOG_WORDS.map(function (w) {
           return '<button type="button" class="cl-word" data-lpin="' + w[0] + '"' + (lg.busy || lg.word ? " disabled" : "") + ' aria-label="' + w[0] + '"><b>' + w[1] + "</b><span>" + w[0] + "</span></button>";
         }).join("") + "</div>" : "") +
@@ -15643,7 +15645,8 @@
      A Bridge panel under the three columns: this date in past years, or the week around it when the date itself is
      empty, from the calendars (never Work), tasks done, dinners, hive checks, books, tarot, the weekly review and habits
      (one bridge read, kept for the day), with that day's weather from Open-Meteo's archive (rounded coordinates only).
-     Nothing from the Log: LOG locks whenever its screen is left, so the Bridge never sees it unlocked. Nothing here
+     Nothing from the Log: LOG locks whenever its screen is left, so the Bridge never sees it unlocked. Each year's sheet
+     has OPEN THIS DAY IN LOG (2.81.1, every year alike): LOG asks for the PIN, then opens that day. Nothing here
      goes to ASK or the Morning Briefing. On a day with nothing in any year the panel isn't drawn. */
   var LS_OTD = "tos.otd.v1";
   var otd = { d: lsGet(LS_OTD), busy: false, err: 0, wxBusy: false };
@@ -15753,12 +15756,16 @@
           var q = it[2] ? parseYmd(it[2]) : null; return "<p>" + (v.week && q ? "<em>" + DOW[q.getDay()] + " " + q.getDate() + "</em> " : "") + esc(it[1]) + "</p>"; }).join("") + "</div>";
       }).join("") +
       '<div class="muted otd-note">From your calendars (not Work), Notion and the weather archive. Nothing here goes to ASK or the briefing.</div></div>' +
-      '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+      '<div class="sfoot btnrow">' + (canLog() ? '<button type="button" class="btn ghost" data-otdlog="' + v.y.date + '">OPEN THIS DAY IN LOG</button>' : "") +
+      '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
     showSheet("detailScrim");
     var on = document.querySelector('#detailSheet [data-otd][aria-pressed="true"]'); (on || $("detailClose")).focus();
   }
   document.addEventListener("click", function (e) {
-    var b = e.target.closest && e.target.closest("[data-otd]"); if (!b) return;
+    var b = e.target.closest && e.target.closest("[data-otd], [data-otdlog]"); if (!b) return;
+    /* 2.81.1 (Timothy chose option A): the same button on every year, so it says nothing about whether an entry exists.
+       LOG asks for the PIN as always, then opens that day instead of today. */
+    if (b.dataset.otdlog) { var dt = b.dataset.otdlog; closeDetail(); go("log"); lg.want = dt; render(true); return; }
     otdOpen(+b.dataset.otd);
   });
   /* ---------- Text boxes grow with their text (2.26.1) ---------- */

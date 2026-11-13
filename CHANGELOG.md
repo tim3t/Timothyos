@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.81.1 · 2026-11-13 (needs bridge 1.48)
+- **ON THIS DAY: OPEN THIS DAY IN LOG** (Timothy's choice, option A). Every year's sheet has the same button, whether or not you wrote that day, so it reveals nothing. LOG asks for your PIN as always, shows THEN OPENS with the date, and opens that day once unlocked. Leaving LOG forgets the request.
+
 ## 2.81.0 · 2026-11-13 (needs bridge 1.48)
 - **ON THIS DAY on the Bridge** (from Timothy's approved mockup): under the three columns, a card for each of the last five years that has something on this date, nearest first, with that day's weather (high, low, rain, FROST at 32°F or under) and its first three items. When the date itself is empty, the card shows **THAT WEEK**: the three days either side. Tap a card for the whole year: every source grouped, the week's items with their days, and tabs to move between years.
 - **What it gathers:** your calendars except Work (never declined or busy-only events), tasks finished, dinners eaten (not planned ones), hive checks, books finished, tarot readings (the cards, never the question), the weekly review's "went well", and habits. Nothing from the Log. Nothing goes to ASK or the briefing.

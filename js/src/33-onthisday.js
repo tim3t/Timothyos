@@ -2,7 +2,8 @@
      A Bridge panel under the three columns: this date in past years, or the week around it when the date itself is
      empty, from the calendars (never Work), tasks done, dinners, hive checks, books, tarot, the weekly review and habits
      (one bridge read, kept for the day), with that day's weather from Open-Meteo's archive (rounded coordinates only).
-     Nothing from the Log: LOG locks whenever its screen is left, so the Bridge never sees it unlocked. Nothing here
+     Nothing from the Log: LOG locks whenever its screen is left, so the Bridge never sees it unlocked. Each year's sheet
+     has OPEN THIS DAY IN LOG (2.81.1, every year alike): LOG asks for the PIN, then opens that day. Nothing here
      goes to ASK or the Morning Briefing. On a day with nothing in any year the panel isn't drawn. */
   var LS_OTD = "tos.otd.v1";
   var otd = { d: lsGet(LS_OTD), busy: false, err: 0, wxBusy: false };
@@ -112,11 +113,15 @@
           var q = it[2] ? parseYmd(it[2]) : null; return "<p>" + (v.week && q ? "<em>" + DOW[q.getDay()] + " " + q.getDate() + "</em> " : "") + esc(it[1]) + "</p>"; }).join("") + "</div>";
       }).join("") +
       '<div class="muted otd-note">From your calendars (not Work), Notion and the weather archive. Nothing here goes to ASK or the briefing.</div></div>' +
-      '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
+      '<div class="sfoot btnrow">' + (canLog() ? '<button type="button" class="btn ghost" data-otdlog="' + v.y.date + '">OPEN THIS DAY IN LOG</button>' : "") +
+      '<button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
     showSheet("detailScrim");
     var on = document.querySelector('#detailSheet [data-otd][aria-pressed="true"]'); (on || $("detailClose")).focus();
   }
   document.addEventListener("click", function (e) {
-    var b = e.target.closest && e.target.closest("[data-otd]"); if (!b) return;
+    var b = e.target.closest && e.target.closest("[data-otd], [data-otdlog]"); if (!b) return;
+    /* 2.81.1 (Timothy chose option A): the same button on every year, so it says nothing about whether an entry exists.
+       LOG asks for the PIN as always, then opens that day instead of today. */
+    if (b.dataset.otdlog) { var dt = b.dataset.otdlog; closeDetail(); go("log"); lg.want = dt; render(true); return; }
     otdOpen(+b.dataset.otd);
   });
