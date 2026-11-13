@@ -92,8 +92,8 @@ jobs:
           bash tests/run.sh 2>&1 | tee run.log
       # The weekly run only: the same suite as of 60 days from now (faketime; NO_FAKE_STAT keeps file times real, which
       # fix_videos --selftest needs). faketime comes from Ubuntu; if its server is down this check is skipped, not failed.
-      - name: The calendar ahead (weekly run only)
-        if: github.event_name == 'schedule'
+      - name: The calendar ahead (the weekly run, and a run started by hand)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         timeout-minutes: 25
         run: |
           set -o pipefail
