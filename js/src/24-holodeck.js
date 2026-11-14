@@ -140,10 +140,20 @@
       return s.est[show];
     }
     function netLen(s, it) { return unknown(it) ? typical(s, it.show) : lengthOf(it); }   /* null: measured and unreadable, skipped */
+    /* 2.82.2: netAt walked the day from 6:00 on every call, and a redraw asks for many moments on every channel: opening
+       a channel's details took 0.6 s (e63 on a busy test machine: over 2 s). It now keeps checkpoints along each channel's
+       day (the walk's whole state every 64 items) and resumes from the last one before the moment asked: the same
+       answers, without walking the morning again. Anything the walk depends on is in the key, as in the guide's own cache. */
+    var NC = {};
     function netAt(c, s, ms) {   /* with BREAKS (2.52): the day's commercials are a shuffle of their own, from the date */
-      var ds = dayStart(ms), list = picks(c, s, ds), t = ds, E = breaks(c), seed = E ? hashStr(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0, j = 0, p = 0, acc = 0;
+      var ds = dayStart(ms), list = picks(c, s, ds), E = breaks(c), seed = E ? hashStr(c.dir + "|ads|" + ymd(new Date(ds)) + "|" + E.length) : 0;
       if (E === false) return null;
-      for (var i = 0; ; i++) {
+      var key = [c.dir, ds, s.at, s.play.length, X.lv, E ? E.length : 0, A.at || 0, A.dir, Math.floor(Date.now() / 60000)].join("|"), cp = NC[c.id];   /* the minute: a set-aside file's retry window can end with no other sign */
+      if (!cp || cp.key !== key) cp = NC[c.id] = { key: key, pts: [{ i: 0, t: ds, j: 0, p: 0, acc: 0 }] };
+      var pts = cp.pts, k = pts.length - 1; while (k > 0 && pts[k].t > ms) k--;
+      var st = pts[k], t = st.t, j = st.j, p = st.p, acc = st.acc;
+      for (var i = st.i; ; i++) {
+        if (i % 64 === 0 && i > pts[pts.length - 1].i) pts.push({ i: i, t: t, j: j, p: p, acc: acc });
         if (i >= list.length) { if (list.length > 30000 || !s.shows.length) return null; list.more(); if (i >= list.length) return null; }
         var d = netLen(s, list[i]); if (d == null) continue; if (ms < t + d * 1000) return { c: c, it: list[i], pos: (ms - t) / 1000, dur: d, startMs: t }; t += d * 1000;
         if (E && brkDue(d, acc += d)) { var b = brkAt(E, seed, j++, p, t), a = inBreak(c, b, ms); if (a) return a; p = b.p; acc = 0; t += b.d * 1000; }

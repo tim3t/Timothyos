@@ -4,6 +4,7 @@ A heading ending in **(needs bridge 1.N)** means that version's new features nee
 
 ## 2.82.2 · 2026-11-14
 - **RESSIKAN: the playing bar stays in the loop.** While the loop played, the bar playing jumped out of its place (about 50 px right), and its labels piled into a white chip over the chord name (Timothy's screenshots). The cause: the bar was marked with the class `now`, which the app already uses for TODAY's current-time line (positioned absolutely, with white labels). 2.82.1 blamed an iPadOS drag; that guard stays, but this was the real fault. Every state class in RESSIKAN now carries its `rs-` prefix, and the RESSIKAN test fails if any class inside it could match a rule from elsewhere in the app.
+- **HOLODECK answers a tap at once again.** Opening a channel's details took about 0.6 s with a big Commercials folder (over 2 s on the busy test machine, which held this release back): a network channel's schedule was walked from 6:00 on every question, many times per redraw. It now keeps checkpoints along the day and resumes from the nearest one: 16 ms, with the same answers (checked against the old walk on every HOLODECK test, 4,906 answers in one).
 
 ## 2.82.1 · 2026-11-13
 - **RESSIKAN: bars and pads stay put.** Holding a bar, pad, step or SOLO note a moment too long started an iPadOS drag (a "1" badge, and the bar lifted out of the loop, blanking its neighbour). Drag, text selection and the press-and-hold menu are off on everything you play (Timothy's screenshot, the day of release).
