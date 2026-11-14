@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.82.2 · 2026-11-14
+- **RESSIKAN: the playing bar stays in the loop.** While the loop played, the bar playing jumped out of its place (about 50 px right), and its labels piled into a white chip over the chord name (Timothy's screenshots). The cause: the bar was marked with the class `now`, which the app already uses for TODAY's current-time line (positioned absolutely, with white labels). 2.82.1 blamed an iPadOS drag; that guard stays, but this was the real fault. Every state class in RESSIKAN now carries its `rs-` prefix, and the RESSIKAN test fails if any class inside it could match a rule from elsewhere in the app.
+
 ## 2.82.1 · 2026-11-13
 - **RESSIKAN: bars and pads stay put.** Holding a bar, pad, step or SOLO note a moment too long started an iPadOS drag (a "1" badge, and the bar lifted out of the loop, blanking its neighbour). Drag, text selection and the press-and-hold menu are off on everything you play (Timothy's screenshot, the day of release).
 - **RESSIKAN: one row per group.** SOUND, STYLE, BASS and LEVELS each get a labelled row in HOW THEY PLAY, and the ARP options appear only while the style is ARP. KIT and PATTERN in THE BEAT, and SOUND and NOTES in SOLO, get the same.

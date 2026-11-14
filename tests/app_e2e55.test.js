@@ -13,6 +13,10 @@ const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P81
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const saved = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.ressikan.v1') || 'null'));
 const until = async (fn, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
+// 2.82.2: every class inside RESSIKAN is rs- (or one of the app's shared pieces it means to use), so a global rule can never
+// reach it: "now" once took the app's .now (TODAY's time line) and threw the playing bar out of the loop
+const SHARED = ['chip', 'sm', 'muted', 'phead', 'cap', 'rule', 'meta', 'rs'];
+const foreign = p => p.$$eval('.rs, .rs *', (l, ok) => [...new Set(l.flatMap(x => [...x.classList]).filter(c => !c.startsWith('rs-') && !ok.includes(c)))], SHARED);
 const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs-num').textContent + ' ' + b.querySelector('.rs-nm').textContent));
 
 (async () => {
@@ -41,7 +45,7 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   assert.deepStrictEqual(await p.$$eval('.rs-pad', l => l.map(x => x.querySelector('.rs-pn').textContent + ' ' + x.querySelector('.rs-pc').textContent)),
     ['Imaj7 Fmaj7', 'ii7 Gm7', 'iii7 Am7', 'IVmaj7 B♭maj7', 'V7 C7', 'vi7 Dm7', 'viiø7 Em7♭5']);
   assert.deepStrictEqual(await slotsText(p), ['ii7 Gm7', 'V7 C7', 'Imaj7 Fmaj7', 'vi7 Dm7']);
-  assert.deepStrictEqual(await p.$$eval('.rs-pad.next .rs-pn', l => l.map(x => x.textContent)), ['ii7', 'IVmaj7', 'V7'], 'NEXT? after vi: ii, IV, V');
+  assert.deepStrictEqual(await p.$$eval('.rs-pad.rs-nextup .rs-pn', l => l.map(x => x.textContent)), ['ii7', 'IVmaj7', 'V7'], 'NEXT? after vi: ii, IV, V');
 
   // ---- SOUND ON; iPadOS takes the sound away mid-play: SOUND OFF, and the next tap starts clean (2.44.1)
   await p.click('[data-rsact="power"]');
@@ -54,8 +58,12 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   // ---- PLAY: the loop runs (sound comes on with it), the bar playing glows, the playhead moves
   await p.click('[data-rsact="play"]');
   await until(async () => (await acs(p)).join() === 'closed,running');
-  await p.waitForSelector('.rs-slot.now', { timeout: 5000 }); await p.waitForSelector('.rs-cell.ph', { timeout: 5000 });
+  await p.waitForSelector('.rs-slot.rs-playing', { timeout: 5000 }); await p.waitForSelector('.rs-cell.rs-head', { timeout: 5000 });
   assert.ok(/^BAR [1-4] OF 4$/.test(await txt(p, '[data-rsread]')), await txt(p, '[data-rsread]'));
+  // the playing bar stays in the loop, level with the others, its labels in place (2.82.2)
+  const geo = await p.$$eval('.rs-slot', l => l.map(x => { const r = x.getBoundingClientRect(); return [x.classList.contains('rs-playing'), Math.round(r.top), Math.round(r.height), getComputedStyle(x).position, getComputedStyle(x.querySelector('.rs-nm')).position]; }));
+  assert.ok(geo.some(g => g[0]) && geo.every(g => g[1] === geo[0][1] && g[2] === geo[0][2] && g[3] === 'static' && g[4] === 'static'), JSON.stringify(geo));
+  assert.deepStrictEqual(await foreign(p), [], 'only rs- classes while playing');
   assert.strictEqual(await txt(p, '#eyebrow'), 'REFLECT · RESSIKAN · CHORDS · 82 BPM');
   assert.ok(/^● 82 BPM · /.test(await txt(p, '[data-rscardinfo="chords"]')));
 
@@ -66,10 +74,10 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   }
 
   // ---- a bar, then a pad: written there, and the next bar is picked
-  await p.click('[data-rsslot="1"]'); assert.ok(await p.$('.rs-slot.sel[data-rsslot="1"]'));
+  await p.click('[data-rsslot="1"]'); assert.ok(await p.$('.rs-slot.rs-picked[data-rsslot="1"]'));
   await p.click('[data-rscolour=""]'); await p.click('[data-rspad="3"]');
   assert.deepStrictEqual((await slotsText(p))[1], 'IV B♭');
-  assert.ok(await p.$('.rs-slot.sel[data-rsslot="2"]'), 'the next bar is picked');
+  assert.ok(await p.$('.rs-slot.rs-picked[data-rsslot="2"]'), 'the next bar is picked');
   await p.click('[data-rscolour="sus4"]'); await p.click('[data-rspad="4"]');
   assert.deepStrictEqual((await slotsText(p))[2], 'Vsus Csus4');
   await p.click('[data-rsslot="2"]'); await p.click('[data-rsclear="2"]');
@@ -151,13 +159,14 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   assert.strictEqual(await p.$$eval('[data-rsnote]', l => l.length), 11, 'pentatonic: two octaves and the top note');
   assert.deepStrictEqual(await p.$$eval('.rs-srow:last-child [data-rsnote] b', l => l.map(x => x.textContent)), ['F', 'G', 'A', 'C', 'D']);
   await until(async () => /^NOW \S+ \S+ NEXT \S+$/.test(await txt(p, '[data-rsnow]')));
-  const lit = await p.$$eval('[data-rsnote].tone', l => l.length); assert.ok(lit >= 2, 'the chord playing is lit: ' + lit);
+  const lit = await p.$$eval('[data-rsnote].rs-tone', l => l.length); assert.ok(lit >= 2, 'the chord playing is lit: ' + lit);
   const n1 = await (await p.$('.rs-srow:last-child [data-rsnote]:nth-child(1)')).boundingBox(), n3 = await (await p.$('.rs-srow:last-child [data-rsnote]:nth-child(3)')).boundingBox();
   await p.mouse.move(n1.x + n1.width / 2, n1.y + n1.height / 2); await p.mouse.down();
-  assert.ok(await p.$('.rs-srow:last-child [data-rsnote]:nth-child(1).down'));
+  assert.ok(await p.$('.rs-srow:last-child [data-rsnote]:nth-child(1).rs-held'));
   await p.mouse.move(n3.x + n3.width / 2, n3.y + n3.height / 2, { steps: 6 });
-  assert.ok(await p.$('.rs-srow:last-child [data-rsnote]:nth-child(3).down'), 'slid to the third note');
-  await p.mouse.up(); assert.strictEqual(await p.$('[data-rsnote].down'), null);
+  assert.ok(await p.$('.rs-srow:last-child [data-rsnote]:nth-child(3).rs-held'), 'slid to the third note');
+  assert.deepStrictEqual(await foreign(p), [], 'only rs- classes while a note is held');
+  await p.mouse.up(); assert.strictEqual(await p.$('[data-rsnote].rs-held'), null);
   await p.click('[data-rsscale="full"]'); assert.strictEqual(await p.$$eval('[data-rsnote]', l => l.length), 15);
   await p.click('[data-rsscale="blues"]'); assert.strictEqual(await p.$$eval('[data-rsnote]', l => l.length), 13);
   for (const s of ['lead', 'bell', 'soft', 'flute']) await p.click('[data-rsssound="' + s + '"]');

@@ -330,7 +330,7 @@
     }
     function bindSolo(el) {
       var under = function (e) { var p = document.elementFromPoint(e.clientX, e.clientY); p = p && p.closest ? p.closest("[data-rsnote]") : null; return p && el.contains(p) ? p : null; };
-      var mark = function () { var on = {}; Object.keys(X.touch).forEach(function (k) { on[X.touch[k]] = true; }); el.querySelectorAll("[data-rsnote]").forEach(function (b) { b.classList.toggle("down", !!on[b.dataset.rsnote]); }); };
+      var mark = function () { var on = {}; Object.keys(X.touch).forEach(function (k) { on[X.touch[k]] = true; }); el.querySelectorAll("[data-rsnote]").forEach(function (b) { b.classList.toggle("rs-held", !!on[b.dataset.rsnote]); }); };
       el.addEventListener("pointerdown", function (e) {
         var p = under(e); if (!p) return; e.preventDefault();
         if (!X.on) setPower(true); if (!X.on) return;
@@ -476,7 +476,7 @@
       var n = slotCount(), sl = "";
       for (var i = 0; i < n; i++) {
         var s = slots[i], bar = Math.floor(i * S.every / 16) + 1;
-        sl += '<div class="rs-slotw"><button type="button" class="rs-slot' + (s ? "" : " empty") + (X.sel === i ? " sel" : "") + '" data-rsslot="' + i + '" style="--f: var(--' + (s ? FNC[fnOf(s)] : "line") + ')"><span class="rs-bar">BAR ' + bar + (S.every === 8 ? (i % 2 ? "·B" : "·A") : "") + "</span>" +
+        sl += '<div class="rs-slotw"><button type="button" class="rs-slot' + (s ? "" : " rs-blank") + (X.sel === i ? " rs-picked" : "") + '" data-rsslot="' + i + '" style="--f: var(--' + (s ? FNC[fnOf(s)] : "line") + ')"><span class="rs-bar">BAR ' + bar + (S.every === 8 ? (i % 2 ? "·B" : "·A") : "") + "</span>" +
           '<span class="rs-num">' + (s ? numeral(s) : "—") + '</span><span class="rs-nm">' + (s ? chordName(s) : "Empty") + "</span></button>" +
           (X.sel === i && s ? '<button type="button" class="rs-x" data-rsclear="' + i + '" aria-label="Clear bar ' + bar + '">✕</button>' : "") + "</div>";
       }
@@ -486,7 +486,7 @@
           '<span class="rs-key"><span class="rs-lab">KEY</span><button type="button" class="chip sm" data-rskey="-1" aria-label="Key down">−</button><b>' + pcName(S.key) + '</b><button type="button" class="chip sm" data-rskey="1" aria-label="Key up">+</button></span>' +
           chips("rsmode", [["major", "MAJOR"], ["minor", "MINOR"]], S.mode, "personal") + '<span class="rs-read" data-rsread>' + readText() + "</span></div>" +
         '<div class="rs-row"><span class="rs-lab">START FROM</span>' + chips("rsstart", Object.keys(STARTS).map(function (k) { return [k, STARTS[k].n]; }), "") + tog("surprise", false, "✦ SURPRISE", "hero") + "</div>" +
-        '<div class="rs-slots' + (S.every === 8 ? " half" : "") + '" style="--n: ' + Math.min(n, 8) + '">' + sl + "</div>" +
+        '<div class="rs-slots' + (S.every === 8 ? " rs-halfbar" : "") + '" style="--n: ' + Math.min(n, 8) + '">' + sl + "</div>" +
         '<div class="rs-row"><span class="rs-lab">LENGTH</span>' + chips("rsbars", [[4, "4 BARS"], [8, "8 BARS"]], S.bars) + '<span class="rs-lab">A CHORD EVERY</span>' + chips("rsevery", [[16, "BAR"], [8, "HALF BAR"]], S.every) +
           '<span class="rs-grow"></span>' + tog("capture", X.capture, "● CAPTURE", "hobby") + "</div>" +
         '<p class="muted">' + (X.capture ? "CAPTURE is on: play the loop and tap pads in time; each lands in the bar it's played in." : "Tap a bar, then a pad, to write a chord. Or play the loop, turn on CAPTURE and tap pads in time.") + "</p>");
@@ -496,7 +496,7 @@
       return panel("chrome-d", "CHORDS", pcName(S.key) + " " + S.mode.toUpperCase() + (S.borrow ? " · BORROWED FROM " + S.mode.replace("major", "MINOR").replace("minor", "MAJOR").toUpperCase() : " · THE SEVEN THAT FIT"),
         '<div class="rs-pads">' + [0, 1, 2, 3, 4, 5, 6].map(function (d) {
           var s = { d: d, c: S.colour, b: S.borrow }, fn = fnOf(s);
-          return '<button type="button" class="rs-pad' + (follow.indexOf(d) > -1 ? " next" : "") + '" data-rspad="' + d + '" style="--f: var(--' + FNC[fn] + ')"><span class="rs-pn">' + numeral(s) + '</span><span class="rs-pc">' + chordName(s) + '</span><span class="rs-fn">' + FNW[fn] + "</span></button>";
+          return '<button type="button" class="rs-pad' + (follow.indexOf(d) > -1 ? " rs-nextup" : "") + '" data-rspad="' + d + '" style="--f: var(--' + FNC[fn] + ')"><span class="rs-pn">' + numeral(s) + '</span><span class="rs-pc">' + chordName(s) + '</span><span class="rs-fn">' + FNW[fn] + "</span></button>";
         }).join("") + "</div>" +
         '<div class="rs-row"><span class="rs-lab">COLOUR</span>' + chips("rscolour", COLOURS, S.colour) + tog("borrow", S.borrow, "BORROW", "work") + tog("next", S.next, "NEXT?", "hero") +
           '<span class="rs-grow"></span><span class="rs-legend"><i style="--f: var(--personal)"></i>HOME <i style="--f: var(--work)"></i>AWAY <i style="--f: var(--hobby)"></i>TENSION</span></div>');
@@ -508,11 +508,11 @@
           frow("BASS", tog("bass", S.bass, "FOLLOWS THE ROOT", "chrome-b")) + frow("LEVELS", '<div class="rs-knobs">' + K("k.chords", "chrome-b") + K("k.bass", "chrome-b") + "</div>") + "</div>");
     }
     function beatHtml() {
-      var top = '<span></span>' + [0, 1, 2, 3].map(function (g) { return '<div class="rs-bg">' + ["", "e", "&", "a"].map(function (x, i) { return '<span class="rs-cn' + (i ? "" : " b") + '">' + (i ? x : g + 1) + "</span>"; }).join("") + "</div>"; }).join("");
+      var top = '<span></span>' + [0, 1, 2, 3].map(function (g) { return '<div class="rs-bg">' + ["", "e", "&", "a"].map(function (x, i) { return '<span class="rs-cn' + (i ? "" : " rs-beatnum") + '">' + (i ? x : g + 1) + "</span>"; }).join("") + "</div>"; }).join("");
       var rows = LANES.map(function (l, li) {
         var muted = S.mute.indexOf(l[0]) > -1, cells = "";
-        for (var g = 0; g < 4; g++) { cells += '<div class="rs-bg">'; for (var i = 0; i < 4; i++) { var k = g * 4 + i, v = G[li][k]; cells += '<button type="button" class="rs-cell' + (v ? " on" : "") + (v === 2 ? " acc" : "") + '" data-rscell="' + li + ":" + k + '" style="--lc: ' + l[2] + '" aria-label="' + l[1] + " step " + (k + 1) + (v === 2 ? ", accent" : v ? ", on" : ", off") + '"></button>'; } cells += "</div>"; }
-        return '<button type="button" class="rs-lane' + (muted ? " muted" : "") + '" data-rslane="' + l[0] + '" aria-pressed="' + muted + '">' + l[1] + (muted ? " <small>MUTED</small>" : "") + "</button>" + cells;
+        for (var g = 0; g < 4; g++) { cells += '<div class="rs-bg">'; for (var i = 0; i < 4; i++) { var k = g * 4 + i, v = G[li][k]; cells += '<button type="button" class="rs-cell' + (v ? " rs-on" : "") + (v === 2 ? " rs-acc" : "") + '" data-rscell="' + li + ":" + k + '" style="--lc: ' + l[2] + '" aria-label="' + l[1] + " step " + (k + 1) + (v === 2 ? ", accent" : v ? ", on" : ", off") + '"></button>'; } cells += "</div>"; }
+        return '<button type="button" class="rs-lane' + (muted ? " rs-muted" : "") + '" data-rslane="' + l[0] + '" aria-pressed="' + muted + '">' + l[1] + (muted ? " <small>MUTED</small>" : "") + "</button>" + cells;
       }).join("");
       return panel("hobby", "THE BEAT", "16 STEPS · ONE BAR, REPEATED",
         '<div class="rs-form">' + frow("KIT", chips("rskit", ["dusty", "808", "acoustic", "minimal"].map(function (k) { return [k, KITS[k].n]; }), S.kit, "hobby")) + frow("PATTERN", chips("rspat", Object.keys(PATS).map(function (k) { return [k, PATS[k].n]; }), S.pat, "hobby")) + "</div>" +
@@ -534,7 +534,7 @@
     }
     function soloHtml() {
       var lit = soloLit(), rows = soloNotes(), nx = X.play && X.pos.slot > -1 ? slots[(X.pos.slot + 1) % slotCount()] : null;
-      var pad = function (m) { var pc = ((m % 12) + 12) % 12, cls = lit && lit.pcs.indexOf(pc) > -1 ? (pc === lit.root ? " tone root" : " tone") : ""; return '<button type="button" class="rs-note' + cls + '" data-rsnote="' + m + '"><b>' + pcName(pc) + "</b><span>" + Math.floor(m / 12 - 1) + "</span></button>"; };
+      var pad = function (m) { var pc = ((m % 12) + 12) % 12, cls = lit && lit.pcs.indexOf(pc) > -1 ? (pc === lit.root ? " rs-tone rs-root" : " rs-tone") : ""; return '<button type="button" class="rs-note' + cls + '" data-rsnote="' + m + '"><b>' + pcName(pc) + "</b><span>" + Math.floor(m / 12 - 1) + "</span></button>"; };
       return panel("chrome-a", "SOLO", "OVER THE LOOP · " + SSCALES[S.solo.scale].n + " IN " + pcName(S.key) + " " + S.mode.toUpperCase(),
         '<div class="rs-row"><button type="button" class="rs-go" data-rsact="play" aria-pressed="' + X.play + '">' + (X.play ? "■ STOP" : "▶ PLAY") + "</button>" +
           '<span class="rs-now" data-rsnow>' + (lit ? "<b>" + (X.play ? "NOW" : "FIRST") + "</b> " + esc(chordName(lit.s)) + " <i>" + esc(numeral(lit.s)) + "</i>" + (nx ? " <b>NEXT</b> " + esc(chordName(nx)) : "") : "<b>NO CHORDS YET</b> Write some on CHORDS") + "</span>" +
@@ -565,14 +565,16 @@
     function paintPlay() {   /* the playhead, the bar playing, the chord to solo over: classes only, so a touch in progress is never redrawn */
       if (state.screen !== "ressikan") return;
       var c = $("content"); if (!c) return;
-      c.querySelectorAll(".rs-cell.ph").forEach(function (el) { el.classList.remove("ph"); });
-      if (X.play && X.pos.step > -1) c.querySelectorAll('[data-rscell$=":' + X.pos.step + '"]').forEach(function (el) { el.classList.add("ph"); });
-      c.querySelectorAll(".rs-slot").forEach(function (b) { b.classList.toggle("now", X.play && +b.dataset.rsslot === X.pos.slot); });
+      c.querySelectorAll(".rs-cell.rs-head").forEach(function (el) { el.classList.remove("rs-head"); });
+      if (X.play && X.pos.step > -1) c.querySelectorAll('[data-rscell$=":' + X.pos.step + '"]').forEach(function (el) { el.classList.add("rs-head"); });
+      /* 2.82.2: state classes are rs- too. "now" picked up the app's global .now (TODAY's time line): the playing bar went
+         absolute, 50 px to the right, and its labels became white chips (Timothy's screenshots, 13 and 14 Nov) */
+      c.querySelectorAll(".rs-slot").forEach(function (b) { b.classList.toggle("rs-playing", X.play && +b.dataset.rsslot === X.pos.slot); });
       c.querySelectorAll("[data-rsread]").forEach(function (el) { el.textContent = readText(); });
       if (X.pos.slot !== lastSlot) {
         lastSlot = X.pos.slot;
         var lit = soloLit(), nowEl = c.querySelector("[data-rsnow]");
-        c.querySelectorAll("[data-rsnote]").forEach(function (b) { var pc = ((+b.dataset.rsnote % 12) + 12) % 12, on = lit && lit.pcs.indexOf(pc) > -1; b.classList.toggle("tone", !!on); b.classList.toggle("root", !!on && pc === lit.root); });
+        c.querySelectorAll("[data-rsnote]").forEach(function (b) { var pc = ((+b.dataset.rsnote % 12) + 12) % 12, on = lit && lit.pcs.indexOf(pc) > -1; b.classList.toggle("rs-tone", !!on); b.classList.toggle("rs-root", !!on && pc === lit.root); });
         if (nowEl && lit) { var nx = X.play && X.pos.slot > -1 ? slots[(X.pos.slot + 1) % slotCount()] : null; nowEl.innerHTML = "<b>" + (X.play ? "NOW" : "FIRST") + "</b> " + esc(chordName(lit.s)) + " <i>" + esc(numeral(lit.s)) + "</i>" + (nx ? " <b>NEXT</b> " + esc(chordName(nx)) : ""); }
         var ci = c.querySelector('[data-rscardinfo="chords"]'); if (ci) ci.innerHTML = X.play ? '<span class="rs-live">● ' + bpm() + " BPM</span> · " + esc(lit ? chordName(lit.s) : "") : "Chords over a beat";
       }

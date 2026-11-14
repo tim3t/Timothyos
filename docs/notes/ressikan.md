@@ -18,4 +18,6 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 
 **2.82.1:** iPadOS starts a drag on a long press of a button (a "1" badge; the slot lifts out of its grid). `.rs button` and the play surfaces have `-webkit-user-drag/-touch-callout/user-select: none`, and `draw()` cancels `dragstart`, `contextmenu` and `selectstart` inside `.rs` (inputs and audio aside). Groups of chips sit in `.rs-form` / `frow(label, inner)` rows, never run on in one line; ARP shows only for STYLE ARP.
 
+**2.82.2: the real cause of the "lifted" bar.** The playing slot had the class `now`, and `css/app.css` has a global `.now` (TODAY's time line: `position: absolute; left: 50px`, and `.now span` as white chips at -50/-12 px). Every state class is now `rs-` (`rs-playing`, `rs-picked`, `rs-blank`, `rs-halfbar`, `rs-nextup`, `rs-on`, `rs-acc`, `rs-head`, `rs-muted`, `rs-tone`, `rs-root`, `rs-held`, `rs-beatnum`). e55's `foreign()` guard lists any class in `.rs` that isn't `rs-` or shared (`chip`, `sm`, `muted`, phead's pieces), checked while playing and while a SOLO note is held, and checks the playing bar sits level with the others. 2.82.1's drag guard was a misdiagnosis but stays (harmless; a long press can still start a drag on iPadOS).
+
 Tests: `app_e2e55`.
