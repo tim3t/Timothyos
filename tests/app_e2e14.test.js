@@ -69,9 +69,16 @@ const CONN = JSON.stringify({ url: 'http://127.0.0.1:8095/macros/s/test/exec', k
   assert.strictEqual(await p.locator('#content .err').count(), 0, 'no red errors over saved data');
   console.log('stale notes:', await p.locator('.stale').count(), '| cond:', await p.getAttribute('.ov-cond', 'class'));
   await p.screenshot({ path: D + 'sync-outage.png' });
+  // a longer outage: after two quiet retries (30 s, then 60 s) it says OFFLINE, keeping the saved data (2.83: made
+  // certain here, so recovering from OFFLINE is always tested, not only when the timing happens to get there)
+  for (let i = 0; i < 30 && !/OFFLINE/.test(await p.textContent('#status')); i++) { await p.clock.runFor(10000); await p.waitForTimeout(150); }
+  assert.ok(/OFFLINE\s*CACHED/.test(await p.textContent('#status')), 'a long outage says OFFLINE: ' + (await p.textContent('#status')));
   // the app retries 30 s, then 60 s, after each failed attempt; give it up to 4 simulated minutes rather than a fixed moment
   mode = 'pass';
-  for (let i = 0; i < 24 && /RETRYING/.test(await p.textContent('#status')); i++) { await p.clock.runFor(10000); await p.waitForTimeout(150); }
+  // 2.83: until SYNCED, not only while RETRYING. A third failure in the outage turns the status to OFFLINE (two quiet
+  // retries, then say so); whether it gets there depends on timing, and an app that's OFFLINE must come back by itself too
+  const synced = async () => { const t = (await p.textContent('#status')).replace(/\s+/g, ' '); return t.includes('SYNCED') && !t.includes('RETRYING'); };
+  for (let i = 0; i < 24 && !(await synced()); i++) { await p.clock.runFor(10000); await p.waitForTimeout(150); }
   await settle();
   console.log('recovered status:', (await p.textContent('#status')).trim());
   assert.ok((await p.textContent('#status')).replace(/\s+/g, ' ').includes('SYNCED'));

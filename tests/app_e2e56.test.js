@@ -286,11 +286,20 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   await p.waitForFunction(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); return Object.keys(l).filter(k => k.startsWith('/Video/Test Series/') && l[k].why === 'net').length >= 3; }, null, { timeout: 30000 });
   assert.ok(await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1')); return !Object.keys(l).some(k => k.startsWith('/Video/Test Series/') && l[k].why === 'format'); }), 'the NAS failing never marks a video as one the iPad can\'t play (2.53.4)');
   await fetch(R + '/__fail?n=0'); await cdp.send('Network.setCacheDisabled', { cacheDisabled: false });
-  if (await p.$('#hdLive')) await p.click('[data-hd="tune"]');   /* off */
+  // 2.83: off for certain. TUNE IN and OFF are one control, and the TV turns itself off when nothing loads (as here): a
+  // look at the live badge, then a tap, could land after it went off and tune it back in, and TUNE IN never came back
+  // (e56 failed about one full run in four; caught 15 Nov with every file measured and the TV on throughout)
+  for (let i = 0; i < 10 && !(await p.$('#hdTune')); i++) { if ((await p.getAttribute('#hdPower', 'aria-pressed')) === 'true') await p.click('#hdPower'); await p.waitForTimeout(400); }
+  assert.ok(await p.$('#hdTune'), 'the TV is off before LOOK AGAIN');
   await p.click('[data-hd="rescan"]');   /* LOOK AGAIN: the set-aside ones are measured afresh */
   // re-measuring is slow when the whole suite runs at once (61 s against 38 s alone, 12 Nov): up to 60 s, the same check
   await p.waitForFunction(() => !Object.values(JSON.parse(localStorage.getItem('tos.hololen.v1'))).some(x => x.s < 0), null, { timeout: 60000 });
-  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 60000 });
+  // 2.83: on a timeout, say what HOLODECK reported, so a slow measure tells itself apart from a schedule that never comes
+  const hdState = () => p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hololen.v1') || '{}'), k = Object.keys(l).filter(x => x.startsWith('/Video/Test Series/'));
+    return { sub: (document.getElementById('hdTuneSub') || {}).textContent, power: (document.getElementById('hdPower') || { getAttribute: () => 'none' }).getAttribute('aria-pressed'), info: [...document.querySelectorAll('[id^="hdInfo"]')].map(e => e.textContent).join(' / '), measured: k.filter(x => l[x].s > 0).length, setAside: k.filter(x => l[x].s < 0).length, at: new Date().toISOString() }; });
+  const seen = []; const watch = setInterval(async () => { try { seen.push(await hdState()); } catch (e) { /* closing */ } }, 5000);
+  await p.waitForSelector('.hd-tune:not([disabled])', { timeout: 60000 }).catch(async e => { clearInterval(watch); throw new Error(e.message.split('\n')[0] + ' · now ' + JSON.stringify(await hdState()) + ' · every 5 s ' + JSON.stringify(seen.map(x => [x.sub, x.measured, x.setAside]))); });
+  clearInterval(watch);
 
   // ---- 2.47: ◇ ARCH, AUDIO (STORAGE's screen) and its radio band; one at a time
   await p.click('[data-hd="tune"]'); await p.waitForFunction(() => { const v = document.getElementById('hdVideo'); return v && v.getAttribute('src'); });
