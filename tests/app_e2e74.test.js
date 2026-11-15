@@ -11,7 +11,7 @@ const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
+const until = require('./lib/explain').until(15000, 200);   // B3: a timeout says what the page showed
 const lvl = p => p.evaluate(() => { const e = document.getElementById('hdLvl'); return e ? e.textContent : null; });
 const db = t => { const m = /^([+−])(\d+\.\d) DB$/.exec(t || ''); return m ? (m[1] === '−' ? -1 : 1) * +m[2] : null; };
 const vid = p => p.evaluate(() => { const vs = document.querySelectorAll('video#hdVideo'), v = vs[0]; return v && { n: vs.length, co: v.getAttribute('crossorigin'), paused: v.paused, t: v.currentTime, src: decodeURIComponent(v.getAttribute('src') || '') }; });

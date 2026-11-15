@@ -13,7 +13,7 @@ const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P81
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=briefmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=briefstats').then(r => r.json());
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 const at = s => new Date('2026-10-' + s + ':00-05:00');
 const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250); };
 

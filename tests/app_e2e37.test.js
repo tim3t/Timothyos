@@ -9,6 +9,7 @@
 const { chromium } = require('playwright');
 const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(R + '/__stats').then(r => r.json());
@@ -116,6 +117,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.ok(await p.$eval(sky, n => n.classList.contains('on') && /rgb\(97, ?180, ?255\)/.test(n.style.getPropertyValue('--lc'))), 'colour card in the light\'s colour');
   assert.ok((await txt(p, sky)).includes('ON · 70% · COLOR'), await txt(p, sky));
   assert.ok(await p.isVisible('.hm:has-text("Barn Porch")'), 'compact button');
+  assert.deepStrictEqual(await reachIns(p, 'engineering'), [], 'no rule from elsewhere reaches into ENGINEERING (B2)');
   await p.screenshot({ path: D + 'eng-controls.png' });
 
   // ---- the switch toggles, confirmed by a re-read
@@ -154,6 +156,7 @@ const stats = () => fetch(R + '/__stats').then(r => r.json());
   assert.ok(!('hs_color' in c[c.length - 1]), 'never colour and white in one call');
   await p.click('[data-hafx="Candle"]'); await p.waitForTimeout(250);
   c = await calls(); assert.strictEqual(c[c.length - 1].effect, 'Candle');
+  assert.deepStrictEqual(await reachIns(p, 'engineering'), [], 'no rule from elsewhere reaches into ENGINEERING (B2)');
   await p.screenshot({ path: D + 'eng-panel.png' });
   // style change from the panel: DIMMER, then drag its bar
   await p.click('[data-hastyle="dimmer"]'); await p.click('#detailClose'); await p.waitForTimeout(300);

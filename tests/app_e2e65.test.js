@@ -16,7 +16,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 const prof = q => fetch(B + '&action=profmode&' + q).then(r => r.json());
 const upk = q => fetch(B + '&action=upkmode&' + q).then(r => r.json());
 const ls = (p, k) => p.evaluate(kk => JSON.parse(localStorage.getItem(kk) || 'null'), k);
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 const EP = '/Podcasts/Show A/ep 1.wav';
 const systems = async p => { await p.click('#status'); await p.waitForSelector('#sec-sync'); };
 const station = async (p, st) => { await p.click('#allBtn'); await p.click('[data-station="' + st + '"]'); };   // the pins came from HUB: open stations from ALL STATIONS

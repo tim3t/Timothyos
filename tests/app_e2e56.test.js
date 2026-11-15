@@ -11,6 +11,7 @@
 const { chromium } = require('playwright');
 const { lane, P8104 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const D = __dirname + '/out/', K = 'k'.repeat(64), R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const visual = async p => { await p.waitForSelector('.hd-arch'); await p.click('[data-hdprog="visual"]'); await p.waitForSelector('.hd'); };
@@ -100,6 +101,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok((await txt(p, '#eyebrow')).endsWith('· ON AIR'));
   assert.ok((await txt(p, '#hdLive')).startsWith('● LIVE ·'));
   assert.strictEqual(await p.getAttribute('#hdCredit', 'hidden'), null, 'the credit shows on tuning in');
+  assert.deepStrictEqual(await reachIns(p, 'holodeck'), [], 'no rule from elsewhere reaches into HOLODECK (B2)');
   await p.screenshot({ path: D + 'holodeck.png' });
   // the next video when one ends
   await p.waitForFunction(src => { const v = document.getElementById('hdVideo'); return v && decodeURIComponent(v.getAttribute('src') || '') !== src && v.currentTime > 0 && !v.paused; }, v1.src, { timeout: 12000 });

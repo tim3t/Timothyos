@@ -33,7 +33,7 @@
     var el = $("ptr"); if (!el) return;
     var h = ptr.busy ? 48 : Math.min(ptr.dy * 0.55, 90);
     el.style.height = h + "px"; el.style.opacity = ptr.busy || ptr.dy > 8 ? 1 : 0;
-    el.className = "ptr" + (ptr.busy ? " busy" : ptr.dy * 0.55 >= PTR_AT ? " ready" : "");
+    el.className = "lg-ptr" + (ptr.busy ? " busy" : ptr.dy * 0.55 >= PTR_AT ? " ready" : "");
     el.innerHTML = ptr.busy ? '<span class="spin" aria-hidden="true"></span>REFRESHING FROM YNAB…' : ptr.dy * 0.55 >= PTR_AT ? "RELEASE TO REFRESH" : "PULL TO REFRESH";
   }
   function ledgerRefresh() {
@@ -104,7 +104,7 @@
   }
 
   function renderLedger() {
-    var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="ptr" id="ptr" aria-live="polite"></div>';
+    var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="lg-ptr" id="ptr" aria-live="polite"></div>';
     if (!canLedger() && !canQueue()) {
       $("content").innerHTML = html + "<section>" + phead("LEDGER", "") + stubBox(state.conn ? "The Ledger needs the Google bridge updated. Steps are in the README under <b>Ledger</b>." : "Link calendars first.") + "</section></div>";
       return;

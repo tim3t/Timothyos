@@ -18,7 +18,7 @@ const publish = v => {   // the test server dates files to the second: move them
 // a static server that answers 500 to everything while a file named __fail exists (a hosting hiccup, 2.50)
 const SRV = "import http.server, os\nclass H(http.server.SimpleHTTPRequestHandler):\n    def log_message(self, *a): pass\n    def do_GET(self):\n        if os.path.exists('__fail'): self.send_response(500); self.send_header('Content-Length', '5'); self.end_headers(); self.wfile.write(b'oops!'); return\n        return super().do_GET()\nhttp.server.ThreadingHTTPServer(('127.0.0.1', %d), H).serve_forever()\n";
 const server = spawn('python3', ['-c', SRV.replace('%d', String(PORT))], { cwd: DIR, stdio: 'ignore', detached: true });
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn().catch(() => null); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
+const until = require('./lib/explain').until(15000, 200, true);   // B3: a timeout says what the page showed; a check that throws is "not yet"
 const whole = p => p.evaluate(() => ({
   bar: document.querySelector('.topbar span').textContent,
   css: getComputedStyle(document.documentElement).getPropertyValue('--hero').trim(),

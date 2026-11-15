@@ -11,7 +11,7 @@ const fs = require('fs');
 const K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const ctl = q => fetch(B + '&action=' + q).then(r => r.json());
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(15000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   const b = await chromium.launch(); const errs = [];

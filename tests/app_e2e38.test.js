@@ -12,7 +12,7 @@ const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(B + '/macros/s/test/exec?key=' + K + '&action=stats').then(r => r.json());
-const until = async (fn, ms = 6000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(6000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   const b = await chromium.launch(); const errs = [];

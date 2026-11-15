@@ -7,7 +7,7 @@ const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each sim
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
+const until = require('./lib/explain').until(15000, 120);   // B3: a timeout says what the page showed
 
 (async () => {
   const b = await chromium.launch(); const errs = [];

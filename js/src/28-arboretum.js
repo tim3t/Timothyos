@@ -261,7 +261,7 @@
       var now = new Date(), cur = seasonOf(now), gs = X.gs || cur, h = '<div class="arb-g2"><div class="arb-gside"><div class="arb-mini" role="group" aria-label="Show one zone">';
       var mz = function (zid, cls, box, lbl) {
         var n = openN(D, gs, zid);
-        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="lb ' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
+        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="arb-lb arb-lb-' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
       };
       h += mz("meadow", "arb-meadow", [30, 0, 240, 125]) + mz("z3", "arb-ring z3", [15, 145, 270, 180], "tr") + mz("z2", "arb-ring z2", [55, 172, 190, 128], "tr") + mz("z1", "arb-ring z1", [92, 200, 116, 80], "tr") + mz("pond", "arb-pond", [60, 180, 46, 30]);
       h += '<div class="arb-home" aria-hidden="true" style="' + P(123, 232, 54, 36, 300, 330) + '"></div></div>';

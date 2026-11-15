@@ -10,7 +10,7 @@ const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each sim
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = (a, q) => fetch(B + '&action=' + a + '&' + q).then(r => r.json());
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(15000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   await mode('readmode', 'post=1&get=1&reset=1'); await mode('apmode', 'on=1');

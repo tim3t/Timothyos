@@ -10,7 +10,7 @@ const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
+const until = require('./lib/explain').until(10000, 120);   // B3: a timeout says what the page showed
 const ymdIn = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const TODAY = ymdIn(new Date());
 const COPIES = ['tos.cache.v1', 'tos.tasks.v1', 'tos.dates.v1', 'tos.done.v1', 'tos.weeks.v1', 'tos.rlog.v1', 'tos.habits.v1', 'tos.library.v1', 'tos.tarot.v1', 'tos.apiary.v1', 'tos.inbox.v1', 'tos.ledger.v1',

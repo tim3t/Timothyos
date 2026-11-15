@@ -12,7 +12,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 const brief = q => fetch(B + '&action=briefmode&' + q).then(r => r.json());
 const voice = q => fetch(B + '&action=voicemode&' + q).then(r => r.json());
 const calls = () => fetch(B + '&action=voicestats').then(r => r.json()).then(j => j.calls);
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 const plays = p => p.evaluate(() => window.__plays.slice());
 const ended = p => p.evaluate(() => window.__audio.dispatchEvent(new Event('ended')));
 const bridge = async p => { await p.click('.elbow'); await p.waitForTimeout(250); };

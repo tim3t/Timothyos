@@ -12,7 +12,7 @@ const assert = require('assert');
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const saved = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.ressikan.v1') || 'null'));
-const until = async (fn, ms = 5000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
+const until = require('./lib/explain').until(5000, 120);   // B3: a timeout says what the page showed
 // 2.82.2: every class inside RESSIKAN is rs- (or one of the app's shared pieces it means to use), so a global rule can never
 // reach it: "now" once took the app's .now (TODAY's time line) and threw the playing bar out of the loop
 const SHARED = ['chip', 'sm', 'muted', 'phead', 'cap', 'rule', 'meta', 'rs'];

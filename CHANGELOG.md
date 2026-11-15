@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.84.1 · 2026-11-15
+- **WEEK: an event carried over from last week shows its dates again.** Its bar carried the class `cl` ("continues left"), which is also the Captain's Log's page layout, a two-column grid; that rule reached in and pushed the date label out of the bar. Found by the new guard below, not by eye.
+- More names that belonged to another screen, harmless today but one rule-order change from breaking, now carry their station's prefix: TAROT's reversed mark (REVIEW's `rv`), ASTROMETRICS' KEY DATES row (DATES' `kd`), SCIENCE's landmarks on the scope (LOOM's `lm`) and its landmark editor (LOOM's `lm-` prefix, now `sci-lm-`), LEDGER's pull-to-refresh.
+- Behind the scenes (B2): one test walks every station and asks the page whether any stylesheet rule that isn't the station's own (or the kit every screen shares) matches anything in it; eight station tests ask the same at their fullest. A class taken from elsewhere, as RESSIKAN's playing bar took TODAY's `.now` in 2.82.1, now fails the tests.
+- Behind the scenes (B3): every test wait that times out now says what the screen showed at that moment (screen, status, toast, open sheet, the start of the content, the newest error-log line), so one failure on the test machine is enough to find its cause. The house rule is in CLAUDE.md.
+
 ## 2.84.0 · 2026-11-15
 - **The error log tells a recovered request from a failure.** A request that failed once and went through on Bridge's own retry now reads **RECOVERED**, dimmed, in SYSTEMS → ERROR LOG and RECENT REQUESTS, and no longer counts as trouble: it leaves the "IN 24 H" count and BRIDGE TODAY's failures. Before, it read "1 retried", which looked like a lost request. A request that fails for good still counts as before.
 - **BRIDGE TODAY's "slowest" is the bridge's time, not the iPad's nap.** A request still open when iPadOS froze the app (983.7 s on 13 Nov) no longer counts as the slowest of the day; if it fails, its line says **app paused**.

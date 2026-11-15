@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:8106/macros/s/test/exec', CTL = 'http://127.0.0.1:8106/?action=';
 const ctl = q => fetch(CTL + q).then(r => r.json());
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(15000, 150);   // B3: a timeout says what the page showed
 const ymdIn = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const dayBack = n => { const [y, m, d] = ymdIn(new Date()).split('-').map(Number); return ymdIn(new Date(Date.UTC(y, m - 1, d - n, 18))); };   // n days before today in Chicago
 

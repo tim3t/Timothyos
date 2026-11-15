@@ -13,7 +13,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const tb = () => fetch(B + '&action=tbstats').then(r => r.json()).then(j => j.tb);
 const mode = q => fetch(B + '&action=tbmode&' + q).then(r => r.json());
-const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(8000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   await mode('on=1&made=0');

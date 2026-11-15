@@ -305,7 +305,7 @@
   function asChart(y, rows) {
     var n = asCols(y), nowW = asNowW(y), kd = asKeyDates(y), h = '<div class="as-chart" id="asChart" style="--n: ' + n + '"><span class="as-lab0"></span>', lastM = -1;
     for (var w = 0; w < n; w++) { var m = asMonth(y, w); h += '<span class="as-mo">' + (m !== lastM ? MON[m] : "") + "</span>"; lastM = m; }
-    h += '<span class="as-rowlab kd"><i></i>KEY DATES</span>';
+    h += '<span class="as-rowlab as-kdrow"><i></i>KEY DATES</span>';
     for (w = 0; w < n; w++) h += kd[w] ? '<button type="button" class="as-kd' + (w > nowW ? " fut" : "") + '" data-askd="' + w + '" aria-label="' + esc(asWkLabel(y, w)) + ', key date">✦</button>' : "<span></span>";
     rows.forEach(function (row) {
       var r = asRow(y, row.id), pk = row.flat ? -1 : asPeak(r);

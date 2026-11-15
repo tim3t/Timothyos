@@ -11,7 +11,7 @@ const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P81
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=sesmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json()).then(j => j.ses);
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   await mode('cap=1&reset=1&fail=0');

@@ -10,7 +10,7 @@ const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec
 const fam = q => fetch(B + '&action=familymode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 const ymdIn = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -47,7 +47,7 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
 
   // ---- WEEK: the trip is one bar over Friday to Sunday, cut square on the right; the concert on Wednesday
   await p.click('[data-screen="week"].nav'); await p.waitForSelector('.wkads');
-  const bar = await p.$$eval('.wkspan.a-family', n => n.map(x => ({ t: x.textContent, col: x.style.gridColumn.replace(/\s/g, ''), cr: x.classList.contains('cr'), cl: x.classList.contains('cl') })));
+  const bar = await p.$$eval('.wkspan.a-family', n => n.map(x => ({ t: x.textContent, col: x.style.gridColumn.replace(/\s/g, ''), cr: x.classList.contains('wk-cr'), cl: x.classList.contains('wk-cl') })));
   console.log('this week:', JSON.stringify(bar));
   assert.deepStrictEqual(bar, [{ t: 'Sample trip' + label, col: '5/8', cr: true, cl: false }]);
   const w = await p.$eval('.wkspan.a-family', e => e.getBoundingClientRect().width), col = await p.$eval('.wkh', e => e.getBoundingClientRect().width);
@@ -59,7 +59,7 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
   await p.click('#detailClose');
   // next week: the Monday piece, cut square on the left
   await p.click('#nextBtn');
-  const nx = () => p.$$eval('.wkspan.a-family', n => n.map(x => [x.style.gridColumn.replace(/\s/g, ''), x.classList.contains('cl'), x.classList.contains('cr')]));
+  const nx = () => p.$$eval('.wkspan.a-family', n => n.map(x => [x.style.gridColumn.replace(/\s/g, ''), x.classList.contains('wk-cl'), x.classList.contains('wk-cr')]));
   try { await until(async () => (await nx()).length, 8000); } catch (e) { /* the assert shows it */ }
   assert.deepStrictEqual(await nx(), [['1/2', true, false]]);
   await p.click('#prevBtn');

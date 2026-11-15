@@ -84,7 +84,7 @@
   function trKw(id, rev) { if (id[0] === "M") return TR_MAJ_KW[+id.slice(1)][rev ? 1 : 0]; var k = TR_RANK_KW[+id.slice(1) - 1] + " · " + TR_SUITS[id[0]].theme; return rev ? "blocked or inward: " + k : k; }
   function trCard(id, rev, extra) {
     var s = trSuit(id);
-    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + trArt(id) + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="rv">R</span>' : "") + "</span>";
+    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + trArt(id) + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="tr-rv">R</span>' : "") + "</span>";
   }
   function trErrText(err) {
     var code = err && (err.code || err.message);

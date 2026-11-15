@@ -9,8 +9,9 @@
 const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:8106/macros/s/test/exec', CTL = 'http://127.0.0.1:8106/?action=';
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 
 (async () => {
   await fetch(CTL + 'skreset');
@@ -63,6 +64,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   const bar = await p.getAttribute('.sk-chart .sk-bars button >> nth=20', 'data-skbar');
   await p.click('.sk-chart .sk-bars button >> nth=20');
   assert.ok(/OPEN THE DAY/.test(await txt('.sk-bartip')), await txt('.sk-bartip'));
+  assert.deepStrictEqual(await reachIns(p, 'sickbay'), [], 'no rule from elsewhere reaches into SICKBAY (B2)');
   await p.screenshot({ path: 'out/e84-vitals.png' });
   await p.click('.sk-bartip [data-skday]');
   await p.waitForSelector('.sk-day');
@@ -96,6 +98,7 @@ const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const
   await p.click('[data-skstep="-1"]');
   assert.ok(/Arrived before arrival times were kept/.test(await txt('.sk-day')), 'an older day');
   await p.click('.sk-dchip[data-skday="' + await D(2) + '"]');
+  assert.deepStrictEqual(await reachIns(p, 'sickbay'), [], 'no rule from elsewhere reaches into SICKBAY (B2)');
   await p.screenshot({ path: 'out/e84-days.png' });
   // a ring on VITALS opens its day
   await p.click('[data-sktab="vitals"]'); await p.click('.sk-dayring >> nth=3');

@@ -10,11 +10,12 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=scimode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=scistats').then(r => r.json());
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
+const until = require('./lib/explain').until(15000, 200);   // B3: a timeout says what the page showed
 const NOW = Date.parse('2026-10-24T19:30:00-05:00'), T0 = Date.parse('2026-10-25T00:00:00Z'), iso = ms => new Date(ms).toISOString();
 const SEED = ['eq:old1', 'moon:full:2026-08-28', 'met:Perseids:2026'], mine = evs => evs.filter(e => !SEED.includes(e.key));
 const kp = [[-27, 2.33], [-24, 3], [-21, 5.33], [-18, 4.67], [-15, 3.67], [-12, 3], [-9, 2.67], [-6, 3], [-3, 3.33]].map(([h, v]) => ({ time_tag: iso(T0 + h * 3600e3).slice(0, 19), Kp: v, a_running: 9, station_count: 8 }));
@@ -107,8 +108,8 @@ const hits = {};
   assert.strictEqual(await p.$('#sciSky .sci-detail'), null);
 
   // ---- landmarks: suggested once from OpenStreetMap, a few and spread out, muted under the aircraft
-  await p.waitForSelector('.sci-scope g.lm', { timeout: 8000 });
-  const lms = await p.$$eval('.sci-scope g.lm', els => els.map(e => e.textContent));
+  await p.waitForSelector('.sci-scope g.sci-lm', { timeout: 8000 });
+  const lms = await p.$$eval('.sci-scope g.sci-lm', els => els.map(e => e.textContent));
   assert.deepStrictEqual(lms, ['Test International', 'Grass Strip', 'Testburg', 'Oakfield', 'Riverton', 'Pinecrest'], lms.join('|'));   // airports first; no village 4 km from Riverton, nothing at the centre, no private field
   assert.strictEqual(await p.getAttribute('g[data-scilm="w8"] line', 'transform'), 'rotate(120)', 'the runway at its heading');
   assert.ok(await p.$('g[data-scilm="n1"] path') && !(await p.$('g[data-scilm="n10"] line')), 'a town is a diamond; an airfield without a runway is a plain circle');
@@ -120,10 +121,10 @@ const hits = {};
   await p.click('g[data-scilm="n2"] .tap');
   assert.strictEqual(await txt(p, '.sci-lmsel'), 'Riverton · town · 18 km E of home');
   await p.click('[data-scilmt]');   // off: no marks, no "near"
-  assert.strictEqual(await p.$('.sci-scope g.lm'), null);
+  assert.strictEqual(await p.$('.sci-scope g.sci-lm'), null);
   assert.ok(!(await txt(p, '.sci-rows')).includes('near '));
   await p.click('[data-scilmt]');
-  assert.strictEqual(await p.$$eval('.sci-scope g.lm', e => e.length), 6);
+  assert.strictEqual(await p.$$eval('.sci-scope g.sci-lm', e => e.length), 6);
   assert.strictEqual(hits['overpass-api.de/api/interpreter'], 1, 'asked once');
   // visible passes from the real orbit: mornings this week, low in the north
   await p.waitForSelector('.sci-passes tbody tr', { timeout: 15000 });
@@ -131,6 +132,7 @@ const hits = {};
   assert.ok(/^ISS (Low, \d+° up|Bright, easy to see) (SUN|MON|TUE|WED|THU) \d\d \d\d:\d\d [NESW]{1,3} \d+° [NESW]{1,3} [NESW]{1,3} \d\d:\d\d \d+ min$/.test(pass), pass);
   const issNow = (await p.$$eval('.sci-detail', els => els.map(e => e.textContent))).find(t => t.startsWith('ISS NOW'));
   assert.ok(issNow && issNow.includes('425 KM UP') && issNow.includes("27,571 km/h · in Earth's shadow · next visible here " + pass.match(/ (SUN|MON|TUE|WED|THU) /)[1] + ' at ' + pass.match(/ \d\d (\d\d:\d\d)/)[1]), issNow);
+  assert.deepStrictEqual(await reachIns(p, 'science'), [], 'no rule from elsewhere reaches into SCIENCE (B2)');
   await p.screenshot({ path: D + 'science-sky.png', fullPage: true });
 
   // ---- the event log: once each in Notion
@@ -177,6 +179,7 @@ const hits = {};
   await p.click('[data-scitab="night"]'); await p.waitForSelector('.sci-moon');
   const ni = await txt(p, '.sci-panel');
   assert.ok(/Waxing gibbous \d+% lit/.test(ni) && ni.includes('2026 TA1') && ni.includes('0.7 LD') && ni.includes('METEORS Leonids, peak TUE 17 NOV'), ni);
+  assert.deepStrictEqual(await reachIns(p, 'science'), [], 'no rule from elsewhere reaches into SCIENCE (B2)');
   await p.screenshot({ path: D + 'science-night.png', fullPage: true });
   await p.click('[data-scitab="nature"]'); await p.waitForSelector('.sci-panel .stubbox');
   const na = await txt(p, '.sci-panel');
@@ -211,8 +214,8 @@ const hits = {};
   // ---- Systems: the landmarks, edited on this iPad
   await p.click('#status'); await p.waitForSelector('#sec-science');
   const secL = await txt(p, '#sec-science'); assert.ok(secL.includes('Landmarks on the scope 6 shown. Kept only on this iPad.'), secL);
-  await p.click('[data-scilmact="edit"]'); await p.waitForSelector('.lm-edit');
-  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 6);
+  await p.click('[data-scilmact="edit"]'); await p.waitForSelector('.sci-lm-edit');
+  assert.strictEqual(await p.$$eval('.sci-lm-row', e => e.length), 6);
   await p.fill('[data-scilmname="n2"]', 'River Town'); await p.dispatchEvent('[data-scilmname="n2"]', 'change');
   await p.click('[data-scilmhide="n3"]');
   await p.fill('#lmHome', 'Juniper Hill'); await p.dispatchEvent('#lmHome', 'change');
@@ -223,23 +226,23 @@ const hits = {};
   await p.click('[data-scilmadd="0"]');
   await p.fill('#lmFind', '44.6, -93.27'); await p.keyboard.press('Enter');
   await p.click('[data-scilmact="here"]');
-  await p.waitForFunction(() => document.querySelectorAll('.lm-row').length === 9, null, { timeout: 5000 });
-  const names = await p.$$eval('.lm-name', e => e.map(x => x.value));
+  await p.waitForFunction(() => document.querySelectorAll('.sci-lm-row').length === 9, null, { timeout: 5000 });
+  const names = await p.$$eval('.sci-lm-name', e => e.map(x => x.value));
   assert.deepStrictEqual(names.slice(6), ['Water Tower Hill', 'My place', 'My place']);
   const dels = await p.$$('[data-scilmdel]'); assert.strictEqual(dels.length, 3, 'only your own can be removed'); await dels[2].click();
-  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 8);
+  assert.strictEqual(await p.$$eval('.sci-lm-row', e => e.length), 8);
   await p.click('[data-scilmact="suggest"]');
-  await p.waitForFunction(() => !/Finding/.test(document.querySelector('.lm-edit').textContent), null, { timeout: 5000 });
+  await p.waitForFunction(() => !/Finding/.test(document.querySelector('.sci-lm-edit').textContent), null, { timeout: 5000 });
   assert.strictEqual(hits['overpass-api.de/api/interpreter'], 2);
-  assert.strictEqual(await p.$$eval('.lm-row', e => e.length), 8, 'your own kept');
+  assert.strictEqual(await p.$$eval('.sci-lm-row', e => e.length), 8, 'your own kept');
   assert.strictEqual(await p.inputValue('[data-scilmname="n2"]'), 'River Town', 'a rename kept');
   assert.strictEqual(await p.getAttribute('[data-scilmhide="n3"]', 'aria-pressed'), 'false', 'a hidden one stays hidden');
   await p.click('[data-scilmact="done"]');
   // back on the scope
-  await p.click('#allBtn'); await p.click('[data-station="science"]'); await p.waitForSelector('.sci-scope g.lm');
-  const lms2 = await p.$$eval('.sci-scope g.lm', els => els.map(e => e.textContent));
+  await p.click('#allBtn'); await p.click('[data-station="science"]'); await p.waitForSelector('.sci-scope g.sci-lm');
+  const lms2 = await p.$$eval('.sci-scope g.sci-lm', els => els.map(e => e.textContent));
   assert.ok(lms2.includes('River Town') && !lms2.includes('Oakfield') && lms2.includes('Water Tower Hill') && lms2.length === 7, lms2.join('|'));
-  assert.strictEqual(await p.$$eval('.sci-scope g.lm rect', e => e.length), 2, 'a found hill and your place: squares');
+  assert.strictEqual(await p.$$eval('.sci-scope g.sci-lm rect', e => e.length), 2, 'a found hill and your place: squares');
   await p.click('g[data-scilm="n2"] .tap');
   assert.strictEqual(await txt(p, '.sci-lmsel'), 'River Town · town · 18 km E of Juniper Hill');
   await (await p.$('.sci-scope')).screenshot({ path: D + 'science-landmarks.png' });

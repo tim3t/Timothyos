@@ -10,7 +10,7 @@ const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const post = b => fetch(U, { method: 'POST', body: JSON.stringify(Object.assign({ key: K }, b)) }).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 120)); } };
+const until = require('./lib/explain').until(15000, 120);   // B3: a timeout says what the page showed
 const posts = async act => (await mode('')).posts.filter(x => x[0] === act);
 const JPEG = /^data:image\/jpeg;base64,/;
 

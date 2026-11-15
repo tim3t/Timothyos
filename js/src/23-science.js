@@ -231,7 +231,7 @@
       var clash = boxes.some(function (b) { return !(bx[2] < b[0] || bx[0] > b[2] || bx[3] < b[1] || bx[1] > b[3]); });
       if (!clash) boxes.push(bx);
       var icon = x.kind === "airport" ? '<circle r="4.5"/>' + (x.rwy != null ? '<line transform="rotate(' + x.rwy + ')" y1="-8" y2="8"/>' : "") : x.kind === "own" ? '<rect x="-4" y="-4" width="8" height="8"/>' : '<path d="M0 -5 L5 0 L0 5 L-5 0 Z"/>';
-      s += '<g class="lm' + (x.id === slm.sel ? " sel" : "") + '" data-scilm="' + esc(x.id) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="12"/>' + icon +
+      s += '<g class="sci-lm' + (x.id === slm.sel ? " sel" : "") + '" data-scilm="' + esc(x.id) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="12"/>' + icon +
         (clash ? "" : '<text x="' + (right ? 8 : -8) + '" y="3.5" text-anchor="' + (right ? "start" : "end") + '">' + esc(name) + "</text>") + "</g>";
     });
     return s + "</g>";
@@ -248,16 +248,16 @@
     var loc = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
     var rows = lmAll().map(function (x) {
       var w = loc ? sciKm(loc, x) : null;
-      return '<div class="lm-row' + (x.hidden ? " off" : "") + '"><span class="lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
+      return '<div class="sci-lm-row' + (x.hidden ? " off" : "") + '"><span class="sci-lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="sci-lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
         '<small class="muted">' + kinds[x.kind] + (w ? " · " + w.km + " km " + sciCompass(w.dir) : "") + '</small><button type="button" class="chip sm" data-scilmhide="' + esc(x.id) + '" aria-pressed="' + !x.hidden + '">' + (x.hidden ? "HIDDEN" : "SHOWN") + "</button>" +
         (x.auto ? "<span></span>" : '<button type="button" class="chip sm" data-scilmdel="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">✕</button>') + "</div>";
     }).join("");
     var found = (slm.found || []).map(function (r, i) { return '<button type="button" class="chip sm" data-scilmadd="' + i + '">+ ' + esc(r.name) + (r.sub ? " · " + esc(r.sub) : "") + " · " + r.km + " km " + sciCompass(r.dir) + "</button>"; }).join("");
-    return '<div class="lm-edit">' +
-      '<label class="lm-home"><span class="ov-sub">THE CENTRE IS CALLED</span><input type="text" id="lmHome" data-scilmhome value="' + esc(slm.d && slm.d.home || "") + '" placeholder="home" maxlength="30"></label>' +
+    return '<div class="sci-lm-edit">' +
+      '<label class="sci-lm-home"><span class="ov-sub">THE CENTRE IS CALLED</span><input type="text" id="lmHome" data-scilmhome value="' + esc(slm.d && slm.d.home || "") + '" placeholder="home" maxlength="30"></label>' +
       (rows || '<div class="empty">' + (slm.busy ? "Finding landmarks…" : "None yet.") + "</div>") +
-      '<div class="lm-add"><input type="text" id="lmFind" placeholder="A place name, or latitude, longitude" aria-label="Find a place to add"><button type="button" class="chip sm" data-scilmact="find">FIND</button><button type="button" class="chip sm" data-scilmact="here">ADD WHERE I AM</button></div>' +
-      (found ? '<div class="btnrow lm-found">' + found + "</div>" : "") + (slm.findMsg ? '<small class="muted">' + esc(slm.findMsg) + "</small>" : "") +
+      '<div class="sci-lm-add"><input type="text" id="lmFind" placeholder="A place name, or latitude, longitude" aria-label="Find a place to add"><button type="button" class="chip sm" data-scilmact="find">FIND</button><button type="button" class="chip sm" data-scilmact="here">ADD WHERE I AM</button></div>' +
+      (found ? '<div class="btnrow sci-lm-found">' + found + "</div>" : "") + (slm.findMsg ? '<small class="muted">' + esc(slm.findMsg) + "</small>" : "") +
       '<div class="btnrow"><button type="button" class="chip sm" data-scilmact="suggest">SUGGEST AGAIN</button><button type="button" class="chip sm" data-scilmact="done">DONE</button></div>' +
       '<small class="muted">Kept only on this iPad (and in your backups). SUGGEST AGAIN asks OpenStreetMap afresh and keeps the ones you added, renamed or hid.</small></div>';
   }

@@ -188,7 +188,7 @@
       if (it.m) return '<button type="button" class="kdspan a-' + taskArea(it.m.o.d.area) + '" ' + pos + ' data-kd="' + esc(it.m.o.id) + '">◆ ' + esc(it.m.o.d.title) + (it.m.tag ? " · " + it.m.tag : "") + "</button>";
       state.index[it.ev.id] = it.ev;
       var n = it.b - it.a + 1;
-      return '<button type="button" class="wkspan a-' + it.ev.area + (it.cl ? " cl" : "") + (it.cr ? " cr" : "") + pendingCls(it.ev) + '" ' + pos + ' data-id="' + esc(it.ev.id) + '" title="' + esc(it.ev.title) + '">' + esc(it.ev.title) +
+      return '<button type="button" class="wkspan a-' + it.ev.area + (it.cl ? " wk-cl" : "") + (it.cr ? " wk-cr" : "") + pendingCls(it.ev) + '" ' + pos + ' data-id="' + esc(it.ev.id) + '" title="' + esc(it.ev.title) + '">' + esc(it.ev.title) +
         (n > 1 || it.cl || it.cr ? '<small class="tnum">' + esc(spanLabel(it.ev)) + "</small>" : "") + "</button>";
     }).join("") + "</div>";
   }

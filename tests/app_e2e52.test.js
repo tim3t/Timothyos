@@ -7,11 +7,12 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=inboxmode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=inboxstats').then(r => r.json());
-const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
 const id = n => String(n).padStart(32, '0');
 const note = async n => (await stats()).notes.find(x => x.id === id(n));
 
@@ -59,6 +60,7 @@ const note = async n => (await stats()).notes.find(x => x.id === id(n));
   assert.strictEqual(await p.$$eval('.ib-prop', e => e.length), 4, 'four cards; the invented id is ignored');
   const card3 = await txt(p, '#ibn-' + id(3) + ' .ib-prop');
   assert.ok(card3.includes('SUGGESTED · KEY DATE') && card3.includes('30 NOV · every year') && !card3.includes('Not a type'), card3);
+  assert.deepStrictEqual(await reachIns(p, 'inbox'), [], 'no rule from elsewhere reaches into INBOX (B2)');
   await p.screenshot({ path: D + 'inbox-suggest.png', fullPage: true });
 
   // CHANGE: the task form, filled in; High instead of Medium

@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.84.0";
+  var VERSION = "2.84.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -998,7 +998,7 @@
       if (it.m) return '<button type="button" class="kdspan a-' + taskArea(it.m.o.d.area) + '" ' + pos + ' data-kd="' + esc(it.m.o.id) + '">◆ ' + esc(it.m.o.d.title) + (it.m.tag ? " · " + it.m.tag : "") + "</button>";
       state.index[it.ev.id] = it.ev;
       var n = it.b - it.a + 1;
-      return '<button type="button" class="wkspan a-' + it.ev.area + (it.cl ? " cl" : "") + (it.cr ? " cr" : "") + pendingCls(it.ev) + '" ' + pos + ' data-id="' + esc(it.ev.id) + '" title="' + esc(it.ev.title) + '">' + esc(it.ev.title) +
+      return '<button type="button" class="wkspan a-' + it.ev.area + (it.cl ? " wk-cl" : "") + (it.cr ? " wk-cr" : "") + pendingCls(it.ev) + '" ' + pos + ' data-id="' + esc(it.ev.id) + '" title="' + esc(it.ev.title) + '">' + esc(it.ev.title) +
         (n > 1 || it.cl || it.cr ? '<small class="tnum">' + esc(spanLabel(it.ev)) + "</small>" : "") + "</button>";
     }).join("") + "</div>";
   }
@@ -4490,7 +4490,7 @@
     var el = $("ptr"); if (!el) return;
     var h = ptr.busy ? 48 : Math.min(ptr.dy * 0.55, 90);
     el.style.height = h + "px"; el.style.opacity = ptr.busy || ptr.dy > 8 ? 1 : 0;
-    el.className = "ptr" + (ptr.busy ? " busy" : ptr.dy * 0.55 >= PTR_AT ? " ready" : "");
+    el.className = "lg-ptr" + (ptr.busy ? " busy" : ptr.dy * 0.55 >= PTR_AT ? " ready" : "");
     el.innerHTML = ptr.busy ? '<span class="spin" aria-hidden="true"></span>REFRESHING FROM YNAB…' : ptr.dy * 0.55 >= PTR_AT ? "RELEASE TO REFRESH" : "PULL TO REFRESH";
   }
   function ledgerRefresh() {
@@ -4561,7 +4561,7 @@
   }
 
   function renderLedger() {
-    var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="ptr" id="ptr" aria-live="polite"></div>';
+    var L = state.ledger, now = new Date(), html = '<div class="lg"><div class="lg-ptr" id="ptr" aria-live="polite"></div>';
     if (!canLedger() && !canQueue()) {
       $("content").innerHTML = html + "<section>" + phead("LEDGER", "") + stubBox(state.conn ? "The Ledger needs the Google bridge updated. Steps are in the README under <b>Ledger</b>." : "Link calendars first.") + "</section></div>";
       return;
@@ -9624,7 +9624,7 @@
   function trKw(id, rev) { if (id[0] === "M") return TR_MAJ_KW[+id.slice(1)][rev ? 1 : 0]; var k = TR_RANK_KW[+id.slice(1) - 1] + " · " + TR_SUITS[id[0]].theme; return rev ? "blocked or inward: " + k : k; }
   function trCard(id, rev, extra) {
     var s = trSuit(id);
-    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + trArt(id) + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="rv">R</span>' : "") + "</span>";
+    return '<span class="tr-card tr-' + s + (rev ? " rev" : "") + (extra ? " " + extra : "") + '" role="img" aria-label="' + esc(trName(id)) + (rev ? ", reversed" : "") + '"><span class="num">' + trNum(id) + '</span><span class="art">' + trArt(id) + '</span><span class="nm">' + esc(trName(id)) + "</span>" + (rev ? '<span class="tr-rv">R</span>' : "") + "</span>";
   }
   function trErrText(err) {
     var code = err && (err.code || err.message);
@@ -11155,7 +11155,7 @@
       var clash = boxes.some(function (b) { return !(bx[2] < b[0] || bx[0] > b[2] || bx[3] < b[1] || bx[1] > b[3]); });
       if (!clash) boxes.push(bx);
       var icon = x.kind === "airport" ? '<circle r="4.5"/>' + (x.rwy != null ? '<line transform="rotate(' + x.rwy + ')" y1="-8" y2="8"/>' : "") : x.kind === "own" ? '<rect x="-4" y="-4" width="8" height="8"/>' : '<path d="M0 -5 L5 0 L0 5 L-5 0 Z"/>';
-      s += '<g class="lm' + (x.id === slm.sel ? " sel" : "") + '" data-scilm="' + esc(x.id) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="12"/>' + icon +
+      s += '<g class="sci-lm' + (x.id === slm.sel ? " sel" : "") + '" data-scilm="' + esc(x.id) + '" transform="translate(' + q[0].toFixed(1) + " " + q[1].toFixed(1) + ')"><circle class="tap" r="12"/>' + icon +
         (clash ? "" : '<text x="' + (right ? 8 : -8) + '" y="3.5" text-anchor="' + (right ? "start" : "end") + '">' + esc(name) + "</text>") + "</g>";
     });
     return s + "</g>";
@@ -11172,16 +11172,16 @@
     var loc = sciPlace(), kinds = { town: "town", airport: "airport", own: "your place" };
     var rows = lmAll().map(function (x) {
       var w = loc ? sciKm(loc, x) : null;
-      return '<div class="lm-row' + (x.hidden ? " off" : "") + '"><span class="lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
+      return '<div class="sci-lm-row' + (x.hidden ? " off" : "") + '"><span class="sci-lm-ic ' + x.kind + '" aria-hidden="true"></span><input type="text" class="sci-lm-name" id="lmName-' + esc(x.id) + '" data-scilmname="' + esc(x.id) + '" value="' + esc(x.name) + '" maxlength="40" aria-label="Name for this landmark">' +
         '<small class="muted">' + kinds[x.kind] + (w ? " · " + w.km + " km " + sciCompass(w.dir) : "") + '</small><button type="button" class="chip sm" data-scilmhide="' + esc(x.id) + '" aria-pressed="' + !x.hidden + '">' + (x.hidden ? "HIDDEN" : "SHOWN") + "</button>" +
         (x.auto ? "<span></span>" : '<button type="button" class="chip sm" data-scilmdel="' + esc(x.id) + '" aria-label="Remove ' + esc(x.name) + '">✕</button>') + "</div>";
     }).join("");
     var found = (slm.found || []).map(function (r, i) { return '<button type="button" class="chip sm" data-scilmadd="' + i + '">+ ' + esc(r.name) + (r.sub ? " · " + esc(r.sub) : "") + " · " + r.km + " km " + sciCompass(r.dir) + "</button>"; }).join("");
-    return '<div class="lm-edit">' +
-      '<label class="lm-home"><span class="ov-sub">THE CENTRE IS CALLED</span><input type="text" id="lmHome" data-scilmhome value="' + esc(slm.d && slm.d.home || "") + '" placeholder="home" maxlength="30"></label>' +
+    return '<div class="sci-lm-edit">' +
+      '<label class="sci-lm-home"><span class="ov-sub">THE CENTRE IS CALLED</span><input type="text" id="lmHome" data-scilmhome value="' + esc(slm.d && slm.d.home || "") + '" placeholder="home" maxlength="30"></label>' +
       (rows || '<div class="empty">' + (slm.busy ? "Finding landmarks…" : "None yet.") + "</div>") +
-      '<div class="lm-add"><input type="text" id="lmFind" placeholder="A place name, or latitude, longitude" aria-label="Find a place to add"><button type="button" class="chip sm" data-scilmact="find">FIND</button><button type="button" class="chip sm" data-scilmact="here">ADD WHERE I AM</button></div>' +
-      (found ? '<div class="btnrow lm-found">' + found + "</div>" : "") + (slm.findMsg ? '<small class="muted">' + esc(slm.findMsg) + "</small>" : "") +
+      '<div class="sci-lm-add"><input type="text" id="lmFind" placeholder="A place name, or latitude, longitude" aria-label="Find a place to add"><button type="button" class="chip sm" data-scilmact="find">FIND</button><button type="button" class="chip sm" data-scilmact="here">ADD WHERE I AM</button></div>' +
+      (found ? '<div class="btnrow sci-lm-found">' + found + "</div>" : "") + (slm.findMsg ? '<small class="muted">' + esc(slm.findMsg) + "</small>" : "") +
       '<div class="btnrow"><button type="button" class="chip sm" data-scilmact="suggest">SUGGEST AGAIN</button><button type="button" class="chip sm" data-scilmact="done">DONE</button></div>' +
       '<small class="muted">Kept only on this iPad (and in your backups). SUGGEST AGAIN asks OpenStreetMap afresh and keeps the ones you added, renamed or hid.</small></div>';
   }
@@ -14499,7 +14499,7 @@
       var now = new Date(), cur = seasonOf(now), gs = X.gs || cur, h = '<div class="arb-g2"><div class="arb-gside"><div class="arb-mini" role="group" aria-label="Show one zone">';
       var mz = function (zid, cls, box, lbl) {
         var n = openN(D, gs, zid);
-        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="lb ' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
+        return '<button type="button" class="arb-mz ' + cls + '" data-arbgz="' + zid + '" aria-pressed="' + (X.gz === zid) + '" aria-label="' + zone(zid).short + ": " + loc(n, "job", "jobs") + ' to do" style="' + P(box[0], box[1], box[2], box[3], 300, 330) + '">' + (lbl ? '<span class="arb-lb arb-lb-' + lbl + '">' : "") + (zid === "pond" ? "P · " : zid === "meadow" ? "MEADOW · " : zone(zid).short.replace("Zone ", "Z") + " · ") + n + (lbl ? "</span>" : "") + "</button>";
       };
       h += mz("meadow", "arb-meadow", [30, 0, 240, 125]) + mz("z3", "arb-ring z3", [15, 145, 270, 180], "tr") + mz("z2", "arb-ring z2", [55, 172, 190, 128], "tr") + mz("z1", "arb-ring z1", [92, 200, 116, 80], "tr") + mz("pond", "arb-pond", [60, 180, 46, 30]);
       h += '<div class="arb-home" aria-hidden="true" style="' + P(123, 232, 54, 36, 300, 330) + '"></div></div>';
@@ -14920,7 +14920,7 @@
   function asChart(y, rows) {
     var n = asCols(y), nowW = asNowW(y), kd = asKeyDates(y), h = '<div class="as-chart" id="asChart" style="--n: ' + n + '"><span class="as-lab0"></span>', lastM = -1;
     for (var w = 0; w < n; w++) { var m = asMonth(y, w); h += '<span class="as-mo">' + (m !== lastM ? MON[m] : "") + "</span>"; lastM = m; }
-    h += '<span class="as-rowlab kd"><i></i>KEY DATES</span>';
+    h += '<span class="as-rowlab as-kdrow"><i></i>KEY DATES</span>';
     for (w = 0; w < n; w++) h += kd[w] ? '<button type="button" class="as-kd' + (w > nowW ? " fut" : "") + '" data-askd="' + w + '" aria-label="' + esc(asWkLabel(y, w)) + ', key date">✦</button>' : "<span></span>";
     rows.forEach(function (row) {
       var r = asRow(y, row.id), pk = row.flat ? -1 : asPeak(r);

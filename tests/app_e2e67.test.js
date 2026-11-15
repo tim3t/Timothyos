@@ -11,7 +11,7 @@ const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P81
 const mode = (a, q) => fetch(B + '&action=' + a + '&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=briefstats').then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(15000, 150);   // B3: a timeout says what the page showed
 const ymdIn = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 const TODAY = ymdIn(new Date()), plus = n => ymdIn(new Date(Date.parse(TODAY + 'T12:00:00Z') + n * 864e5));
 function weather() {

@@ -11,7 +11,7 @@ const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P81
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const astro = q => fetch(B + '&action=astromode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=astrostats').then(r => r.json());
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(15000, 150);   // B3: a timeout says what the page showed
 const UPKEEP = [{ id: 'u1', name: 'Juniper filter', cat: 'home', every: 3, unit: 'month', last: '2026-09-01', hist: ['2026-03-02', '2026-09-01'] }];
 
 async function open(b, when, start, setup) {
@@ -45,7 +45,7 @@ const loaded = p => p.waitForFunction(() => !document.querySelector('.as-cell.wa
   await station(p); await loaded(p);
   assert.strictEqual(await txt(p, '#title'), '2026 · DAY 296');
   assert.strictEqual(await txt(p, '#eyebrow'), 'ASTROMETRICS · THE YEAR SO FAR');
-  const rows0 = await p.$$eval('.as-rowlab:not(.kd)', els => els.map(e => e.textContent.trim()));
+  const rows0 = await p.$$eval('.as-rowlab:not(.as-kdrow)', els => els.map(e => e.textContent.trim()));
   assert.deepStrictEqual(rows0, ['CALENDAR', 'HABITS', 'LOG', 'REVIEW', 'LIBRARY', 'TAROT', 'APIARY', 'UPKEEP'], rows0.join(','));
   assert.ok((await txt(p, '.as-foot')).includes('TASKS and QUEUE need the Google bridge updated'));
   assert.ok((await txt(p, '.as-fold')).includes('Needs the Google bridge updated'));
@@ -57,7 +57,7 @@ const loaded = p => p.waitForFunction(() => !document.querySelector('.as-cell.wa
   await station(p); await loaded(p);
   const yr = (await stats()).years;
   assert.deepStrictEqual(yr[yr.length - 1], ['2026-01-01T06:00:00.000Z', '2027-01-01T06:00:00.000Z'], 'the year between local midnights');
-  const rows1 = await p.$$eval('.as-rowlab:not(.kd)', els => els.map(e => e.textContent.trim()));
+  const rows1 = await p.$$eval('.as-rowlab:not(.as-kdrow)', els => els.map(e => e.textContent.trim()));
   assert.deepStrictEqual(rows1, ['CALENDAR', 'TASKS', 'HABITS', 'LOG', 'REVIEW', 'LIBRARY', 'TAROT', 'APIARY', 'QUEUE', 'UPKEEP'], rows1.join(','));
   const sweep = await txt(p, '.as-tiles');
   assert.ok(sweep.includes('TASKS DONE 13 BEST WK 34') && sweep.includes('BOOKS FINISHED 2 AVG 4.5★') && sweep.includes('LOG DAYS LOCKED') && sweep.includes('REVIEWS 4/ 9'), sweep);

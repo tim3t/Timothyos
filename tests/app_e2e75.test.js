@@ -9,7 +9,7 @@ const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec';
-const until = async (fn, ms = 15000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 200)); } };
+const until = require('./lib/explain').until(15000, 200);   // B3: a timeout says what the page showed
 const log = p => p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]'));
 
 (async () => {

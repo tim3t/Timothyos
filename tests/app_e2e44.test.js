@@ -8,12 +8,13 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const aps = () => fetch(B + '&action=apstats').then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
 const mode = q => fetch(B + '&action=apmode&' + q).then(r => r.json());
-const until = async (fn, ms = 8000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out waiting'); await new Promise(r => setTimeout(r, 150)); } };
+const until = require('./lib/explain').until(8000, 150);   // B3: a timeout says what the page showed
 const emoji = p => p.evaluate(() => (document.querySelector('#content').innerText.match(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{2712}\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu) || []).join(''));
 
 (async () => {
@@ -42,6 +43,7 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   assert.strictEqual(await p.locator('[data-aphive="ap-h1"] .ap-stack .box').count(), 3, 'super and two deeps');
   assert.strictEqual(await p.locator('[data-aphive="ap-h1"] .box.deep:not(.unknown) .f.on').count(), 8, 'eight frames drawn in the bottom deep');
   assert.strictEqual(await emoji(p), '', 'no emoji in the yard');
+  assert.deepStrictEqual(await reachIns(p, 'apiary'), [], 'no rule from elsewhere reaches into APIARY (B2)');
   await p.screenshot({ path: D + 'apiary-yard.png' });
 
   // ---- zoom to a hive
@@ -59,6 +61,7 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   assert.ok((await txt(p, '#apReadout')).includes('BOTTOM DEEP 8 of 10'));
   await p.click('#apAbout summary');
   assert.ok((await txt(p, '#apAbout')).includes('Sample foundation'));
+  assert.deepStrictEqual(await reachIns(p, 'apiary'), [], 'no rule from elsewhere reaches into APIARY (B2)');
   await p.screenshot({ path: D + 'apiary-hive.png' });
 
   // ---- one check, then the one before it
@@ -94,6 +97,7 @@ const emoji = p => p.evaluate(() => (document.querySelector('#content').innerTex
   await p.fill('#apNext', 'Sample next time');
   await p.click('[data-apremind]');
   assert.ok((await txt(p, '.ap-q')).includes('Hive check: Juniper'));
+  assert.deepStrictEqual(await reachIns(p, 'apiary'), [], 'no rule from elsewhere reaches into APIARY (B2)');
   await p.screenshot({ path: D + 'apiary-new.png' });
   await p.click('[data-apact="save"]'); await p.waitForSelector('.ap-saved');
   assert.ok((await txt(p, '.ap-saved')).includes('CHECK BRAMBLE NEXT'));

@@ -6,6 +6,7 @@
 const { chromium } = require('playwright');
 const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec';   // its lane's own simulated bridge (2.72: on :8105 it set off e50's schema-call count in another lane)
 
 (async () => {
@@ -93,6 +94,7 @@ const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec
   assert.ok(/TAP AGAIN TO REMOVE/.test(await txt('.arb-ed')));
   await p.click('[data-arbdel]');
   assert.deepStrictEqual(await names('left'), ['Raised bed 5', 'Pot 1', 'Pot 2']);
+  assert.deepStrictEqual(await reachIns(p, 'arboretum'), [], 'no rule from elsewhere reaches into ARBORETUM (B2)');
   await p.screenshot({ path: 'out/e83-zone1.png' });
 
   // ---- back on the map: the beds show on their sides, the season's job counts
@@ -135,6 +137,7 @@ const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8103 + '/macros/s/test/exec
   await p.click('[data-arbgs="SUMMER"]');
   assert.ok(/No summer jobs yet/.test(await txt('.arb-gmain')));
   await p.click('[data-arbgs="AUTUMN"]');
+  assert.deepStrictEqual(await reachIns(p, 'arboretum'), [], 'no rule from elsewhere reaches into ARBORETUM (B2)');
   await p.screenshot({ path: 'out/e83-glance.png' });
 
   // ---- a new turn of the season: last autumn's tick no longer counts
