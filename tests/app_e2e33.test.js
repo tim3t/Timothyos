@@ -7,6 +7,7 @@ const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const { lane, P8103 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const D = __dirname + '/out/', R = 'http://127.0.0.1:' + (process.env.RELAY_PORT || '8110');
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const cur = p => p.evaluate(() => { const a = document.getElementById('nasAudio'); return a ? { t: a.currentTime, paused: a.paused, src: a.src } : null; });
@@ -161,7 +162,7 @@ const home = async p => { await audio(p); if (await p.$('.nas-now')) { await p.c
   await p.waitForFunction(() => /The Quiet Barn/.test((document.getElementById('nasBar') || {}).textContent || ''), null, { timeout: 8000 });
   assert.ok((await txt(p, '#nasBar')).includes('SHOW B HOSTS'), 'show from the tags');
   await p.waitForFunction(() => { const i = document.querySelector('#nasBar .nas-img'); return i && /^blob:/.test(i.src); }, null, { timeout: 5000 });
-  const art = await p.evaluate(() => JSON.parse(localStorage.getItem('tos.nasart.v1')));
+  const art = JSON.parse(await deep.read(p, 'tos.nasart.v1'));
   assert.ok(/^data:image\/jpeg/.test(art['/Podcasts/Show B']), 'episode artwork becomes the folder art');
   assert.ok(/^f:\/Music\/Album\/cover\.png$/.test(art['/Music/Album']));
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.nastags.v1'))['/Podcasts/Show B/ep b1.mp3'].t), 'The Quiet Barn');

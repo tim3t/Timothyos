@@ -209,11 +209,34 @@
   var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library", "tarot", "apiary", "meals"];
   var batchQ = null, batchOk = true;
   function api(params, conn) {
-    if (conn || !batchOk || BATCHABLE.indexOf(params.action) === -1) return tracked(withRetry(function () { return apiOnce(params, conn); }));
-    return tracked(new Promise(function (res, rej) {
+    var p = conn || !batchOk || BATCHABLE.indexOf(params.action) === -1 ? tracked(withRetry(function () { return apiOnce(params, conn); })) : tracked(new Promise(function (res, rej) {
       if (!batchQ) { batchQ = []; setTimeout(flushBatch, 40); }
       batchQ.push({ params: params, res: res, rej: rej });
     }));
+    return conn ? p : p.then(function (j) { capNote(params.action, j); return j; });
+  }
+  /* 2.85 (A3, bridge 1.50): a read that stopped at its row limit answers with capped: [rows]. Kept by read
+     (tos.capped.v1: { action: { rows, n, t } }) until a read of the same kind comes back whole; shown in COPY
+     DIAGNOSTICS and as a muted line at the foot of the station that shows it (CAP_SCREENS). Its id is cutNote: capNote is CAPTURE's. */
+  var CAP_SCREENS = { tasks: "today", dates: "dates", done: "review", week: "review", reviews: "review", habits: "habits", library: "library", tarot: "tarot", apiary: "apiary",
+    year: "astrometrics", inbox: "inbox", sciencelog: "science", upkeep: "engineering", meals: "meals", health: "sickbay", ledger: "ledger", onthisday: "bridge" };
+  function capNote(action, j) {
+    if (!j || j.ok === false || !action) return;
+    var m = lsGet(LS_CAPPED) || {}, c = Array.isArray(j.capped) ? j.capped.filter(function (n) { return typeof n === "number"; }) : [];
+    if (c.length) { var was = m[action], rows = Math.max.apply(null, c); if (was && was.rows === rows && was.n === c.length) return; m[action] = { rows: rows, n: c.length, t: Date.now() }; }
+    else if (m[action]) delete m[action];
+    else return;
+    lsSet(LS_CAPPED, m);
+  }
+  function capList() { var m = lsGet(LS_CAPPED) || {}; return Object.keys(m).sort().map(function (a) { return { a: a, rows: m[a].rows, n: m[a].n, t: m[a].t }; }); }
+  function capPaint() {
+    var old = $("cutNote"); if (old) old.remove();
+    var hit = capList().filter(function (x) { return CAP_SCREENS[x.a] === state.screen; }), box = $("content");
+    if (!hit.length || !box) return;
+    var rows = Math.max.apply(null, hit.map(function (x) { return x.rows; }));
+    var p = document.createElement("p"); p.id = "cutNote"; p.className = "muted cut-note";
+    p.textContent = "Bridge read the first " + rows.toLocaleString("en-US") + " rows for this screen and stopped at its limit, so anything past them isn't shown here. COPY DIAGNOSTICS in SYSTEMS has the detail.";
+    box.appendChild(p);
   }
   function flushBatch() {
     var q = batchQ; batchQ = null;

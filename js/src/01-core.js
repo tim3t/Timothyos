@@ -1,7 +1,8 @@
 
-  var VERSION = "2.84.1";
+  var VERSION = "2.85.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
+  var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
   var LS_SYNC = "tos.sync.v1";
   var LS_HIDDEN = "tos.hidden.v1";
   var LS_QUEUE = "tos.queue.v1";       /* captures waiting to be saved */
@@ -63,8 +64,12 @@
   var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
     "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1", "tos.otd.v1"];
   var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
-  var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
+  var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1", "tos.capped.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
   var store = { failed: {}, skipped: {}, dropped: 0, droppedAt: 0, said: false, t: 0 };
+  /* 2.85 (A4): the deep store (IndexedDB), read by 00-head before the app started; DEEP.keys are the saved copies kept
+     there. lsGet/lsSet/lsDel answer from memory and write through at the end of the current task, so the rest of
+     the app never knows. A write the deep store refuses goes to the 5 MB store instead, if it fits. */
+  var deep = { db: DEEP.db, mem: DEEP.mem, keys: DEEP.keys, mark: DEEP.mark, stale: DEEP.stale, due: {}, soon: false, err: "", moved: {} };
   function lsWrite(k, text) { try { localStorage.setItem(k, text); return true; } catch (e) { return false; } }
   function lsIsCopy(k) { return LS_COPIES.indexOf(k) > -1 || LS_REMADE.indexOf(k) > -1; }
   function lsMakeRoom(k, text) {
@@ -96,9 +101,10 @@
     lsTell();
     return !lsFull().length;
   }
-  function lsGet(k) { try { var v = store.failed[k] !== undefined ? store.failed[k] : localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsGet(k) { try { if (isDeep(k)) { var d = deep.mem[k]; return d ? JSON.parse(d) : null; } var v = store.failed[k] !== undefined ? store.failed[k] : localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function lsSet(k, v) {
     var text; try { text = JSON.stringify(v, function (key, val) { return key.charAt(0) === "_" ? undefined : val; }); } catch (e) { text = undefined; }
+    if (text !== undefined && isDeep(k)) { deep.mem[k] = text; deepPut(k); delete store.failed[k]; delete store.skipped[k]; if (lsHook) lsHook(k); return; }
     if (text !== undefined) {
       if (lsWrite(k, text)) { delete store.failed[k]; delete store.skipped[k]; }
       else if (lsIsCopy(k) || LS_QUIET.indexOf(k) > -1) store.skipped[k] = true;
@@ -108,18 +114,44 @@
     }
     if (lsHook) lsHook(k);
   }
-  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } delete store.failed[k]; delete store.skipped[k]; lsTell(); if (lsHook) lsHook(k); }
+  function isDeep(k) { return !!deep.db && deep.keys.indexOf(k) > -1; }
+  function deepPut(k) { deep.due[k] = true; if (!deep.soon) { deep.soon = true; Promise.resolve().then(deepFlush); } }
+  function deepFlush() {
+    deep.soon = false;
+    var keys = Object.keys(deep.due), moved = deep.moved, wipe = deep.stale; deep.due = {}; deep.moved = {};
+    if (!deep.db) return;
+    if (wipe) { deep.stale = false; Object.keys(deep.mem).forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); }); }   /* records from before the mark: cleared, then today's written again */
+    if (!keys.length) return;
+    var back = function (why) { deep.err = why; keys.forEach(function (k) { if (deep.mem[k] !== undefined && !lsWrite(k, deep.mem[k])) store.skipped[k] = true; }); };
+    try {
+      var tx = deep.db.transaction("kv", "readwrite"), os = tx.objectStore("kv");
+      if (wipe) os.clear();
+      keys.forEach(function (k) { if (deep.mem[k] !== undefined) os.put({ e: deep.mark, v: deep.mem[k] }, k); else os.delete(k); });
+      tx.oncomplete = function () { Object.keys(moved).forEach(function (k) { try { if (localStorage.getItem(k) === moved[k]) localStorage.removeItem(k); } catch (e) { /* blocked */ } }); };
+      tx.onabort = function () { back(String((tx.error && tx.error.name) || "write refused")); };
+    } catch (e) { back(String(e && e.name || e)); }
+  }
+  function lsDel(k) { if (isDeep(k)) { delete deep.mem[k]; deepPut(k); } try { localStorage.removeItem(k); } catch (e) { /* ignore */ } delete store.failed[k]; delete store.skipped[k]; lsTell(); if (lsHook) lsHook(k); }
   window.addEventListener("pagehide", function () { if (lsFull().length) lsRetry(); });
+  /* Moving in (2.85): this browser's mark, made once; copies still in the 5 MB store move to the deep store, and leave
+     the 5 MB store once the deep store has them. */
+  if (deep.db) {
+    if (!deep.mark) { deep.mark = Date.now().toString(36) + "." + Math.random().toString(36).slice(2, 8); deep.stale = true; if (!lsWrite("tos.deep.v1", deep.mark)) deep.db = null; }
+    if (deep.db) deep.keys.forEach(function (k) { var v = null; try { v = localStorage.getItem(k); } catch (e) { /* blocked */ } if (v !== null) { deep.mem[k] = v; deep.moved[k] = v; deepPut(k); } });
+    if (deep.stale) deepPut(deep.keys[0]);
+  }
   /* What the store holds, for SYSTEMS: characters by kind (a character is two bytes), and the largest few by name. */
   var LS_NAMES = { cache: "Calendars", tasks: "Tasks", dates: "Key dates", weeks: "Week summaries", rlog: "Review log", habits: "Habits", library: "Library", tarot: "Tarot", apiary: "Apiary", inbox: "Inbox", ledger: "Ledger",
     astro: "Astrometrics", sickbay: "Health days", meals: "Meals and their photos", mealrc: "Recipes read for COOK", nasart: "AUDIO artwork", nastags: "AUDIO tags", naslen: "AUDIO lengths", hololen: "HOLODECK video lengths",
     holoadlen: "Commercial lengths", hololoud: "HOLODECK loudness", plays: "Resume points", errlog: "Error log", scilog: "Science Log", sci: "Science feeds", brief: "Morning Briefing", arb: "Arboretum", holo: "HOLODECK channels",
-    upkeep: "Upkeep", log: "Log settings", profile: "Profile sync", mealgot: "Grocery ticks and added items", pins: "Pinned stations", netlog: "Recent requests", netday: "Today's request count", sync: "Last sync", visits: "Stations opened",
+    upkeep: "Upkeep", log: "Log settings", profile: "Profile sync", mealgot: "Grocery ticks and added items", pins: "Pinned stations", netlog: "Recent requests", netday: "Today's request count", capped: "Reads cut short", deep: "The deep store's mark", sync: "Last sync", visits: "Stations opened",
     ask: "Ask conversation", aispend: "Ask spending", queue: "Captures on their way", mealq: "Meal changes on their way", habitq: "Habit changes on their way", tarotq: "Tarot changes on their way", apiaryq: "Hive changes on their way",
     inboxq: "Inbox changes on their way", sciq: "Science Log entries on their way", upkeepq: "Upkeep changes on their way", sickbayq: "Sickbay changes on their way" };
   function lsName(k) { var m = /^tos\.([a-z0-9]+)\.v\d+$/.exec(k); return m ? LS_NAMES[m[1]] || 'a setting ("' + m[1] + '")' : k; }
   function lsUsage() {
-    var out = { total: 0, copies: 0, own: 0, items: [] };
+    var out = { total: 0, copies: 0, own: 0, items: [], deep: 0, deepItems: [] };
+    if (deep.db) Object.keys(deep.mem).forEach(function (k) { var n = k.length + deep.mem[k].length; out.deep += n; out.deepItems.push({ k: k, n: n, copy: true }); });
+    out.deepItems.sort(function (a, b) { return b.n - a.n; });
     try {
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i), n = k.length + (localStorage.getItem(k) || "").length;

@@ -1407,6 +1407,7 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 /* changing screens: content rises in */
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 #content.enter > * { animation: rise 200ms var(--ease-out) both; }
+.cut-note { margin: 22px 0 0; max-width: 760px; font-size: 14px; }   /* 2.85 (A3): a read cut short at its row limit */
 
 /* bars grow from their baseline when a screen opens (never on a background sync) */
 @keyframes growY { from { transform: scaleY(0); } }

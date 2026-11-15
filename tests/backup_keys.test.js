@@ -15,7 +15,8 @@ const LEFT_OUT = {
   // unsaved writing: private, and finished or discarded on this iPad (the Log draft never leaves it)
   draft: ['tos.ldraft.v1', 'tos.sndraft.v1', 'tos.rdraft.v1', 'tos.tarotdraft.v1', 'tos.apdraft.v1'],
   // this iPad's own running state
-  local: ['tos.sync.v1', 'tos.netlog.v1', 'tos.visits.v1', 'tos.bkat.v1', 'tos.ask.v1', 'tos.aispend.v1', 'tos.voicespend.v1', 'tos.profile.v1'],
+  local: ['tos.sync.v1', 'tos.netlog.v1', 'tos.visits.v1', 'tos.bkat.v1', 'tos.ask.v1', 'tos.aispend.v1', 'tos.voicespend.v1', 'tos.profile.v1',
+    'tos.capped.v1', 'tos.deep.v1'],   // 2.85: reads cut short (refilled by the next read); this browser's deep-store mark (never another iPad's)
   // retired, no longer read
   retired: ['tos.topgap.v1'],
 };

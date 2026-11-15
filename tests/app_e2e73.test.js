@@ -8,6 +8,7 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -58,7 +59,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   assert.strictEqual(saved.photo, 'https://img.example/skillet.jpg', 'where the photo came from');
   assert.ok(/^data:image\/jpeg;base64,/.test(saved.thumb) && saved.thumb.length <= 15000, 'the small copy goes with it');
   assert.ok(/^data:image\/jpeg/.test(await p.getAttribute(`.ml-row[data-mlcard="${saved.id}"] img.ml-pic`, 'src')), 'the row shows the small copy');
-  const local = await p.evaluate(id => JSON.parse(localStorage.getItem('tos.meals.v1')).meals.find(m => m.id === id), saved.id);
+  const local = JSON.parse(await deep.read(p, 'tos.meals.v1')).meals.find(m => m.id === saved.id);
   assert.ok(local && !local.full, 'the recipe text is sent, not kept in the meals list');
 
   // ---- the text, and a photo
@@ -102,7 +103,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR
   await p.click('[data-ml="cookbig"]'); assert.ok(await p.$('.ml-cook.big'));
   assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.mealview.v1')).big), true);
   assert.strictEqual(await p.evaluate(() => window.__wake), 1, 'the screen kept on, even with Standby off');
-  assert.ok(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.mealrc.v1') || '{}')), 'kept for no signal');
+  assert.ok(JSON.parse(await deep.read(p, 'tos.mealrc.v1') || '{}'), 'kept for no signal');
   await p.click('[data-ml="cookx"]');
   assert.strictEqual(await p.evaluate(() => window.__wake), 0, 'let go');
   // a meal with no recipe yet: its shopping list, and how to add steps

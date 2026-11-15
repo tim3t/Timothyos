@@ -7,6 +7,7 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=mealmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -38,7 +39,10 @@ const saved = (p, name) => p.evaluate(n => (localStorage.getItem('tos.mealgot.v1
   let sec = await txt(p, '#sec-store');
   assert.ok(/^THIS IPAD'S STORAGE [\d.]+ MB USED/.test(sec) && /IN USE [\d.]+ MB of about 5 MB/.test(sec) && sec.includes('KEPT ONLY HERE') && sec.includes('SAVED COPIES') && sec.includes('LARGEST'), sec);
   assert.ok(await p.$('#sec-store [data-act="storeclear"]:not([disabled])'), 'there are copies to clear');
-  assert.ok((await copies(p)).includes('tos.meals.v1'), 'the meals are a saved copy');
+  // 2.85 (A4): the meals and their photos are a saved copy kept in the deep store, outside the 5 MB
+  assert.ok(JSON.parse(await deep.read(p, 'tos.meals.v1')).meals.length > 0, 'the meals are a saved copy, in the deep store');
+  assert.strictEqual(await p.evaluate(() => localStorage.getItem('tos.meals.v1')), null, 'and not in the 5 MB store');
+  assert.ok(/DEEP STORE [\d.]+ MB meal photos, calendars, health days .*Meals and their photos/.test(sec), sec);
   assert.strictEqual(await p.$('#fix-store'), null);
 
   // ---- full to the brim, copies still there: a setting makes room for itself
@@ -98,6 +102,7 @@ const saved = (p, name) => p.evaluate(n => (localStorage.getItem('tos.mealgot.v1
   await ctx.setOffline(true);
   await p.click('#sec-store [data-act="storeclear"]');
   assert.deepStrictEqual(await copies(p), []);
+  assert.strictEqual(await deep.read(p, 'tos.meals.v1'), null, 'the deep store\'s copies go too');
   await until(async () => /Saved copies cleared/.test(await txt(p, '#toast')));
   assert.ok(await p.$('#sec-store [data-act="storeclear"][disabled]'), 'nothing left to clear');
   await ctx.setOffline(false);

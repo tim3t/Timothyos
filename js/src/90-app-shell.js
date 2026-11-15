@@ -63,6 +63,7 @@
     Object.keys(typed).forEach(function (id) { var f = $(id); if (f && f.value !== typed[id]) f.value = typed[id]; });
     fixJumpPaint();
     miniPaint();
+    capPaint();
     if (isTyping && $(isTyping.id)) {
       var el = $(isTyping.id);
       el.value = isTyping.value;

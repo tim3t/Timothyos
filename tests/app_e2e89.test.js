@@ -9,6 +9,7 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const mode = q => fetch(B + '&action=otdmode&' + q).then(r => r.json());
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
@@ -110,7 +111,7 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
 
   // ---- a day with nothing in any year: no panel
   await mode('empty=1');
-  await p.evaluate(() => localStorage.removeItem('tos.otd.v1'));
+  await deep.drop(p, 'tos.otd.v1');
   await p.reload(); await p.waitForSelector('.rb-cols', { timeout: 15000 });
   await until(async () => (await mode('')).reads > reads);
   await new Promise(r => setTimeout(r, 600));

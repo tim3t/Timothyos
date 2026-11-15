@@ -1028,11 +1028,13 @@ Items that need Systems say **SYSTEMS**: tap one and Systems opens on **NEEDS YO
 
 ## This iPad's storage
 
-The browser gives Bridge about 5 MB on each iPad for three kinds of thing: **what is kept only here** (settings, the garden, resume points, and changes on their way to Notion and Google), **saved copies** of your calendars, meals, health days and other data (so the app opens with something to show, even offline), and measured details such as AUDIO and HOLODECK lengths. **SYSTEMS → THIS IPAD'S STORAGE** shows how much is in use and the largest items.
+The browser gives Bridge about 5 MB on each iPad for three kinds of thing: **what is kept only here** (settings, the garden, resume points, and changes on their way to Notion and Google), **saved copies** of your data (so the app opens with something to show, even offline), and measured details such as AUDIO and HOLODECK lengths. **SYSTEMS → THIS IPAD'S STORAGE** shows how much is in use and the largest items.
+
+- **The deep store** (2.85): the large saved copies (meals and their photos, recipes, calendars, health days, the year, week summaries, library, tarot, ON THIS DAY and AUDIO's artwork) live apart in the browser's database, which has far more room, so they never crowd your settings or the changes on their way. The section's **DEEP STORE** line shows its size and largest items. Nothing to do: it moves in by itself on the first start of 2.85, and if the browser can't offer it, everything stays in the 5 MB as before.
 
 - **When something doesn't fit**, Bridge makes room by dropping saved copies, largest first. The next sync brings them back, and nothing is lost. The section notes when this last happened.
 - **If that isn't enough**, the Bridge's Condition turns red: **This iPad's storage is full**. What didn't fit is held in memory and tried again every 30 seconds, and your changes still go to Notion and Google, but closing or reloading Bridge would lose what isn't saved here. Tap the item, then **MAKE ROOM AND SAVE**.
-- **CLEAR SAVED COPIES** empties the copies and the measured details at any time. Each station refills its own the next time it syncs; lengths are measured again as you use AUDIO and HOLODECK.
+- **CLEAR SAVED COPIES** empties the copies (the deep store's too) and the measured details at any time. Each station refills its own the next time it syncs; lengths are measured again as you use AUDIO and HOLODECK.
 
 ## Backup, restore and reinstalling
 
@@ -1057,7 +1059,7 @@ Everything the app keeps on this iPad goes into one file you keep (with PROFILE 
 
 | Symptom | Fix |
 |---|---|
-| Something isn't right and you want Claude to look | **SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS**, then paste it into the conversation. It holds versions, the connection, Condition, what is waiting to be sent, storage and the error log; never keys, addresses, titles or health values |
+| Something isn't right and you want Claude to look | **SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS**, then paste it into the conversation. It holds versions, the connection, Condition, what is waiting to be sent, storage, any read cut short at the bridge's row limit, and the error log; never keys, addresses, titles or health values |
 | "The access key doesn't match" | Re-copy `ACCESS_KEY` from Script Properties |
 | Condition says **This iPad's storage is full** | The browser allows Bridge about 5 MB, and something no longer fits even after Bridge dropped its saved copies. Nothing is lost while Bridge stays open, and changes still go to Notion and Google. Tap the item, then **MAKE ROOM AND SAVE**; **SYSTEMS → THIS IPAD'S STORAGE** shows what takes the most room |
 | "The script didn't send calendar data" | You pasted the editor URL. Use the **Web app URL** from the deployment |

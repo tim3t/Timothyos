@@ -8,6 +8,7 @@ const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const D = __dirname + '/out/', K = 'k'.repeat(64), B = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
@@ -133,7 +134,7 @@ const until = require('./lib/explain').until(8000, 150);   // B3: a timeout says
   // ---- an older bridge: no BOOKS anywhere
   await mode('on=0');
   await p.setViewportSize({ width: 1180, height: 900 });
-  await p.evaluate(() => localStorage.removeItem('tos.cache.v1'));   // a fresh start: capabilities come from the bridge
+  await deep.drop(p, 'tos.cache.v1');   // a fresh start: capabilities come from the bridge
   await p.reload(); await p.waitForSelector('[data-panel="tarot"] .rb-row', { timeout: 10000 });
   await p.click('[data-screen="tarot"].nav'); await p.waitForSelector('.tr-list');
   await p.click('.tr-list [data-tropen="tr-r1"]'); await p.waitForSelector('.tr-pos');

@@ -7,6 +7,7 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const mode = q => fetch(B + '&action=sesmode&' + q).then(r => r.json());
@@ -168,7 +169,7 @@ const until = require('./lib/explain').until(10000, 150);   // B3: a timeout say
   // ---- without bridge 1.35 there is no tab
   await mode('cap=0');
   await p.setViewportSize({ width: 1180, height: 900 });
-  await p.evaluate(() => localStorage.removeItem('tos.cache.v1'));   /* the capabilities kept from the last sync */
+  await deep.drop(p, 'tos.cache.v1');   /* the capabilities kept from the last sync */
   await p.reload(); await p.waitForTimeout(2000); await toLog(); await p.waitForSelector('[data-lpin="1"]');
   assert.strictEqual(await txt(p, '#eyebrow'), 'JOURNAL · LOCKED');
   for (const d of '135790') await p.click('[data-lpin="' + d + '"]');

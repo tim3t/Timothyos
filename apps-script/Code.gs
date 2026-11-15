@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.49.0';
+var VERSION = '1.50.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -155,9 +155,31 @@ function doGet(e) {
   return json_({ ok: false, error: 'use_post' });
 }
 
+/* 1.50 (A3): a read that stopped at its row limit says so. queryAll_ reads at most maxPages x 100 rows and used to
+   return what it had without a word, so a station would one day simply show less. Each read now answers with
+   capped: [rows, ...] (the size of every list it cut short) when that happened; the app shows it in COPY DIAGNOSTICS
+   and as a muted line on the station. A read that asks for "the latest N" on purpose passes enough = true.
+   Many reads answer from Google's cache for a while; a read that asked Notion remembers its verdict ('capped:' + action,
+   6 hours), so the cached answer says the same. */
+var CAPPED_ = null, QUERIED_ = 0;
+function capped_(rows) { if (CAPPED_) CAPPED_.push(rows); }
+function read_(p) {
+  var outer = CAPPED_, outerQ = QUERIED_; CAPPED_ = []; QUERIED_ = 0;
+  try {
+    var r = readOne_(p);
+    if (r && typeof r === 'object' && r.ok !== false) {
+      var cache = CacheService.getScriptCache(), ck = 'capped:' + p.action;
+      if (QUERIED_) { if (CAPPED_.length) cache.put(ck, JSON.stringify(CAPPED_), 21600); else cache.remove(ck); }
+      else { var was = cache.get(ck); if (was) { try { CAPPED_ = JSON.parse(was); } catch (x) { CAPPED_ = []; } } }
+      if (CAPPED_.length) r.capped = CAPPED_;
+    }
+    return r;
+  } finally { CAPPED_ = outer; QUERIED_ = outerQ; }
+}
+
 /** The everyday reads, by action. Null for anything else. */
 var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile', 'health'];
-function read_(p) {
+function readOne_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
   if (p.action === 'tasks') return tasks_(String(p.day || ''));
@@ -755,6 +777,7 @@ function toTask_(pg) {
 /** Several queries on one data source, their first pages fetched in parallel (UrlFetchApp.fetchAll);
     any further pages follow one by one. Returns one result list per query. */
 function queryFirstPages_(ds, queries) {
+  QUERIED_++;
   if (typeof UrlFetchApp.fetchAll !== 'function') return queries.map(function (q) { return queryAll_(ds, q.filter, q.maxPages || 1, q.sorts); });
   var token = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
   if (!token) { var e0 = new Error('No NOTION_TOKEN in Script Properties'); e0.notion = 'notion_not_configured'; throw e0; }
@@ -778,13 +801,15 @@ function queryFirstPages_(ds, queries) {
       body = notion_('post', '/data_sources/' + ds + '/query', more);
       out = out.concat(body.results || []); cursor = body.next_cursor;
     }
+    if (body.has_more && !queries[i].enough) capped_(out.length);   /* 1.50 (A3) */
     return out;
   });
 }
 
 /** Query with pagination; maxPages x 100 rows at most. */
-function queryAll_(ds, filter, maxPages, sorts) {
-  var out = [], cursor = null;
+function queryAll_(ds, filter, maxPages, sorts, enough) {
+  var out = [], cursor = null, more = false;
+  QUERIED_++;
   for (var i = 0; i < (maxPages || 3); i++) {
     var body = { page_size: 100 };
     if (filter) body.filter = filter;
@@ -792,9 +817,11 @@ function queryAll_(ds, filter, maxPages, sorts) {
     if (cursor) body.start_cursor = cursor;
     var r = notion_('post', '/data_sources/' + ds + '/query', body);
     out = out.concat(r.results || []);
-    if (!r.has_more) break;
+    more = !!r.has_more;
+    if (!more) break;
     cursor = r.next_cursor;
   }
+  if (more && !enough) capped_(out.length);   /* 1.50 (A3): stopped at the limit with rows still to come */
   return out;
 }
 
@@ -1003,7 +1030,7 @@ function reviews_(limit) {
   limit = Math.max(1, Math.min(104, Math.floor(Number(limit)) || 60));
   var cache = CacheService.getScriptCache(), key = 'reviews:' + (cache.get('rgen') || '0') + ':' + limit, hit = cache.get(key);
   if (hit) return JSON.parse(hit);
-  var rows = queryAll_(reviewsSource_(), null, Math.ceil(limit / 100), [{ property: 'Week Start', direction: 'descending' }])
+  var rows = queryAll_(reviewsSource_(), null, Math.ceil(limit / 100), [{ property: 'Week Start', direction: 'descending' }], true)
     .map(toReview_).filter(function (r) { return r.week; }).slice(0, limit);
   var out = { ok: true, version: VERSION, reviews: rows };
   try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
@@ -1893,7 +1920,7 @@ function logInsightSave_(ins) {
   return { ok: true, version: VERSION, insight: { id: pg.id, title: title, url: pg.url || '', created: pg.created_time || new Date().toISOString() } };
 }
 function logInsights_() {
-  var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_INSIGHT } }, 1, [{ timestamp: 'created_time', direction: 'descending' }]);
+  var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_INSIGHT } }, 1, [{ timestamp: 'created_time', direction: 'descending' }], true);   /* the latest 100, on purpose */
   return { ok: true, version: VERSION, insights: pages.map(function (pg) { return { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title) || 'Insight', url: pg.url || '', created: pg.created_time || null }; }) };
 }
 function logInsight_(id) {

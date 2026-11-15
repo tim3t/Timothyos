@@ -6,6 +6,7 @@ const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const fam = q => fetch(B + '&action=familymode&' + q).then(r => r.json());
 const stats = () => fetch(B + '&action=stats').then(r => r.json());
@@ -38,7 +39,7 @@ const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT
 
   // ---- linked
   await fam('on=1');
-  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k === "tos.cache.v1") localStorage.removeItem(k); });
+  await deep.drop(p, 'tos.cache.v1');
   await p.reload(); await settled(p, 2500);
   await p.click('#status'); await until(async () => /FAMILY Family OK/.test(await txt(p, '.calrow.a-family')));
   assert.ok(/WORK \+ FAMILY READ-ONLY · /.test(await txt(p, '.sys')), 'read-only, like Work');

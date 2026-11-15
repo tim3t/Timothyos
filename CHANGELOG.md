@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.85.0 · 2026-11-15 (needs bridge 1.50)
+- **A read cut short says so** (bridge 1.50). Each Notion read stops at a set number of rows (300 to 2,000, generous today), and until now a station that reached its limit would simply have shown less, with no sign. Now the bridge says when a read stopped with rows still to come, and the station it feeds shows a muted line at its foot ("Bridge read the first 1,000 rows for this screen and stopped at its limit"); **COPY DIAGNOSTICS** lists it under READS CUT SHORT. A later read that comes back whole clears it. SICKBAY and the Ship's Year are the likeliest to reach theirs first.
+- **The deep store: big copies out of the 5 MB.** Meals and their photos, recipes, calendars, health days, the year, week summaries, the library, tarot, ON THIS DAY and AUDIO's artwork now live in the browser's database, which has far more room, leaving the 5 MB store to your settings and the changes on their way to Notion (HUB was at 58% on 13 Nov, with the meal photos growing fastest). It moves in by itself on the first start; nothing to do. **SYSTEMS → THIS IPAD'S STORAGE** shows a **DEEP STORE** line, and CLEAR SAVED COPIES empties it too. A browser that can't offer it keeps everything in the 5 MB store, as before.
+- **Bridge 1.50:** every read answers with `capped` when one of its Notion lists stopped at the limit, remembered while Google's cache answers for it.
+
 ## 2.84.1 · 2026-11-15
 - **WEEK: an event carried over from last week shows its dates again.** Its bar carried the class `cl` ("continues left"), which is also the Captain's Log's page layout, a two-column grid; that rule reached in and pushed the date label out of the bar. Found by the new guard below, not by eye.
 - More names that belonged to another screen, harmless today but one rule-order change from breaking, now carry their station's prefix: TAROT's reversed mark (REVIEW's `rv`), ASTROMETRICS' KEY DATES row (DATES' `kd`), SCIENCE's landmarks on the scope (LOOM's `lm`) and its landmark editor (LOOM's `lm-` prefix, now `sci-lm-`), LEDGER's pull-to-refresh.

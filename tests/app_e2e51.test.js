@@ -7,6 +7,7 @@
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const D = __dirname + '/out/', K = 'k'.repeat(64), U = 'http://127.0.0.1:' + P8105 + '/macros/s/test/exec', B = U + '?key=' + K;
 const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim();
 const astro = q => fetch(B + '&action=astromode&' + q).then(r => r.json());
@@ -101,7 +102,7 @@ const loaded = p => p.waitForFunction(() => !document.querySelector('.as-cell.wa
   const logT = await txt(p, '.as-tile[data-asrow="log"]');
   assert.ok(/^LOG DAYS \d+ COUNTS ONLY$/.test(logT) && !logT.includes(' 0 '), logT);
   assert.ok((await txt(p, '.as-panel >> nth=1')).includes('SECTOR · LOG'));
-  assert.ok(!(await p.evaluate(() => localStorage.getItem('tos.astro.v1'))).includes('"log"'), 'the Log days are not stored');
+  assert.ok(!(await deep.read(p, 'tos.astro.v1')).includes('"log"'), 'the Log days are not stored');
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { value: false, configurable: true }); });
   await p.click('.as-rowlab[data-asrow="log"]');

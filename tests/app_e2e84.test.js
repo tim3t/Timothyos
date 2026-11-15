@@ -9,6 +9,7 @@
 const { chromium } = require('playwright');
 const { quiet, settled } = require('./lib/settle');
 const assert = require('assert');
+const deep = require('./lib/deep');   // 2.85 (A4): saved copies live in the deep store
 const { reachIns } = require('./lib/classguard');   // B2: rules from elsewhere reaching into a station
 const K = 'k'.repeat(64), U = 'http://127.0.0.1:8106/macros/s/test/exec', CTL = 'http://127.0.0.1:8106/?action=';
 const until = require('./lib/explain').until(10000, 150);   // B3: a timeout says what the page showed
@@ -165,7 +166,7 @@ const until = require('./lib/explain').until(10000, 150);   // B3: a timeout say
 
   // ---- nothing new from Health for three days: Condition says so
   await fetch(CTL + 'skmode&stale=1');
-  await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
+  await deep.drop(p, 'tos.sickbay.v1');
   await p.reload(); await settled(p, 1200);
   await p.click('.elbow[data-screen="bridge"]');
   await until(async () => /No health data for 3 days/.test(await txt('#content')), 15000).catch(async e => { console.log('BRIDGE TEXT:', (await txt('#content')).slice(0, 600)); console.log('SCREEN', await p.evaluate(() => document.querySelector('#title').textContent), 'ERRS', JSON.stringify(errs), 'CACHE', await p.evaluate(() => (localStorage.getItem('tos.sickbay.v1') || 'none').slice(0, 120)), 'Q', await p.evaluate(() => localStorage.getItem('tos.sickbayq.v1'))); throw e; });
@@ -173,7 +174,7 @@ const until = require('./lib/explain').until(10000, 150);   // B3: a timeout say
 
   // ---- 2.80.1: days before the shortcut's first send are BEFORE SICKBAY, not missed, and the banner leaves them out
   await fetch(CTL + 'skmode&young=1');
-  await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
+  await deep.drop(p, 'tos.sickbay.v1');
   await p.reload(); await settled(p, 1200);
   await p.click('[data-screen="sickbay"].nav'); await p.click('[data-sktab="days"]'); await p.waitForSelector('.sk-strip');
   const marks2 = await p.$$eval('.sk-dchip i', l => l.map(x => x.className.replace('sk-s-', '')));
@@ -185,7 +186,7 @@ const until = require('./lib/explain').until(10000, 150);   // B3: a timeout say
   assert.ok(/BEFORE SICKBAY/.test(await txt('.sk-day')) && /first sent on/.test(await txt('.sk-day')) && /nothing is waiting/.test(await txt('.sk-day')), await txt('.sk-day'));
   await p.screenshot({ path: 'out/e84-before.png' });
   await fetch(CTL + 'skmode&young=0');
-  await p.evaluate(() => localStorage.removeItem('tos.sickbay.v1'));
+  await deep.drop(p, 'tos.sickbay.v1');
 
   // ---- phone width: nothing wider than the screen, on every tab
   await p.setViewportSize({ width: 400, height: 860 });
