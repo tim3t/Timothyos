@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.83.0 · 2026-11-15 (needs bridge 1.49)
+- **Evening Walk is now Exercise**, everywhere: HABITS, the Bridge's habit chips, ON THIS DAY, the Ship's Year and its write-up, and the station's description (COMPUTER still finds it by "walk").
+- **Every past day keeps its tick.** The change is a rename of the Notion column, which keeps its history. Bridge 1.49 reads and writes either name (Exercise or Evening Walk) and finds the one the database has, so deploying the bridge and renaming the column can happen in either order; a rename between two saves is picked up on the next one. SYSTEMS' column check counts either name as present.
+
 ## 2.82.2 · 2026-11-14
 - **RESSIKAN: the playing bar stays in the loop.** While the loop played, the bar playing jumped out of its place (about 50 px right), and its labels piled into a white chip over the chord name (Timothy's screenshots). The cause: the bar was marked with the class `now`, which the app already uses for TODAY's current-time line (positioned absolutely, with white labels). 2.82.1 blamed an iPadOS drag; that guard stays, but this was the real fault. Every state class in RESSIKAN now carries its `rs-` prefix, and the RESSIKAN test fails if any class inside it could match a rule from elsewhere in the app.
 - **HOLODECK answers a tap at once again.** Opening a channel's details took about 0.6 s with a big Commercials folder (over 2 s on the busy test machine, which held this release back): a network channel's schedule was walked from 6:00 on every question, many times per redraw. It now keeps checkpoints along the day and resumes from the nearest one: 16 ms, with the same answers (checked against the old walk on every HOLODECK test, 4,906 answers in one).

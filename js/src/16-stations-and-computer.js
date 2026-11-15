@@ -12,7 +12,7 @@
     { id: "inbox", name: "INBOX", g: "TIME", sub: "Notes to sort into tasks, dates, events or the queue" },
     { id: "review", name: "REVIEW", g: "REFLECT", sub: "Weekly reviews and trends" },
     { id: "log", name: "LOG", g: "REFLECT", sub: "Captain's Log, PIN locked" },
-    { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, walk, water, debit card" },
+    { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, exercise, water, debit card" },
     { id: "tarot", name: "TAROT", g: "REFLECT", sub: "This week's card, readings and patterns" },
     { id: "astrometrics", name: "ASTROMETRICS", g: "REFLECT", sub: "The year at a glance, and the Ship's Year" },
     { id: "ressikan", name: "RESSIKAN", g: "REFLECT", sub: "Play with sound: chords over a beat, and a solo on top" },
@@ -117,7 +117,7 @@
   var CMD_WORDS = {
     bridge: "home overview condition dashboard", today: "day calendar schedule agenda priorities", week: "calendar schedule",
     month: "calendar", loom: "infinity timeline calendar days", dates: "key dates birthdays anniversaries holidays countdown",
-    review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated walk debit card",
+    review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated exercise workout walk debit card",
     tarot: "cards reading deck", ressikan: "music sound chords chord progression loop synth synthesizer beat beats lofi drums solo melody lead play instrument flute midi garageband", science: "sky aircraft planes flights radar iss space station satellites aurora space weather shortwave earthquakes quakes air quality alerts moon planets stars night meteors asteroids birds nature sensors", inbox: "notes note capture sort ideas thoughts later jot", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
     storage: "storage nas podcasts podcast audio music files listen radio audiobooks", holodeck: "tv television video videos music videos channel watch broadcast mtv vh1 cartoons shows", engineering: "home assistant lights devices thermostat upkeep maintenance",
     apiary: "bees hives beekeeping honey mites", systems: "settings setup health sync connection"

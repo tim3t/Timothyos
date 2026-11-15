@@ -1,11 +1,14 @@
 // Habits + Library (bridge 1.14): a day's habits written whole (created once, then updated in
 // place), ranges read back, bad values refused; books added (cid makes a retry harmless),
 // changed field by field, refused when they aren't on the shelf, and moved to Notion's trash.
-// All titles are sample data.
+// All titles are sample data. 1.49: "Evening Walk" became "Exercise": either column name is read and written, so the
+// bridge and the Notion column can change in either order, and a rename between writes is picked up at once.
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = { ACCESS_KEY: 'k'.repeat(64), NOTION_TOKEN: 'ntn_test' }; const cache = {};
 const HDB = '441619b34ada41d49e05bed92372589b', LDB = '47fdad1d1217402fa84731a8aa146cba', HDS = 'ds-habits', LDS = 'ds-library';
-const pages = { [HDS]: [], [LDS]: [] }; let n = 0, calls = [];
+const pages = { [HDS]: [], [LDS]: [] }; let n = 0, calls = [], EX = 'Evening Walk';   // the habit column's name in the simulated Notion
+const exName = k => k === 'Exercise' || k === 'Evening Walk';
+function renameCol(to) { pages[HDS].forEach(p => { if (p.properties[EX]) { p.properties[to] = p.properties[EX]; delete p.properties[EX]; } }); EX = to; }   // Notion keeps every day's value
 const id = p => p + String(++n).padStart(30, '0');
 const val = v => v.title ? { title: v.title.map(t => ({ plain_text: t.text.content })) } : v.rich_text ? { rich_text: v.rich_text.map(t => ({ plain_text: t.text.content })) } : v;
 function mock(url, opts) {
@@ -14,6 +17,8 @@ function mock(url, opts) {
   const res = (code, b) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(b) });
   if (m === 'get' && path === '/databases/' + HDB) return res(200, { data_sources: [{ id: HDS }] });
   if (m === 'get' && path === '/databases/' + LDB) return res(200, { data_sources: [{ id: LDS }] });
+  if (m === 'get' && path === '/data_sources/' + HDS) return res(200, { properties: { Name: { type: 'title' }, Date: { type: 'date' }, Meditated: { type: 'checkbox' }, [EX]: { type: 'checkbox' }, 'Water (L)': { type: 'number' }, 'Debit Card': { type: 'select' } } });
+  if (body && body.properties && Object.keys(body.properties).some(k => exName(k) && k !== EX)) return res(400, { object: 'error', code: 'validation_error', message: 'not a property that exists' });
   let mm = path.match(/^\/data_sources\/([^/]+)\/query$/);
   if (mm && m === 'post') {
     const f = body.filter; let r = pages[mm[1]].filter(p => !p.in_trash);
@@ -82,6 +87,18 @@ assert.strictEqual(get({ action: 'habits', from: '2024-01-01', to: '2026-10-08' 
 // batched with the other reads
 r = get({ action: 'batch', calls: JSON.stringify([{ action: 'habits', from: '2026-10-01', to: '2026-10-08' }, { action: 'library' }]) });
 assert.ok(r.results[0].ok && r.results[1].ok);
+
+// ---- 1.49: the column renamed to Exercise in Notion: past days read the same, the next write lands in Exercise
+r = get({ action: 'habits', from: '2026-10-01', to: '2026-10-08' }); const before = JSON.stringify(r.days);
+assert.ok(pages[HDS].every(p => 'Evening Walk' in p.properties), 'written under the old name while Notion still had it');
+renameCol('Exercise');
+post({ action: 'habitset', day: { date: '2026-10-05', med: false, walk: true, water: 1, card: null } });   // the name looked up 10 minutes ago is stale: refused once, looked up again
+assert.strictEqual(pages[HDS].find(p => p.properties.Date.date.start === '2026-10-05').properties.Exercise.checkbox, true);
+r = get({ action: 'habits', from: '2026-10-01', to: '2026-10-08' });
+assert.strictEqual(JSON.stringify(r.days.filter(d => d.date !== '2026-10-05')), before, 'every past day reads the same after the rename');
+assert.strictEqual(r.days.find(d => d.date === '2026-10-05').walk, true);
+r = post({ action: 'habitset', day: { date: '2026-10-08', med: true, walk: false, water: 3, card: 'kept' } });
+assert.ok(r.ok && r.day.walk === false && pages[HDS].every(p => !('Evening Walk' in p.properties)));
 
 // ---- Library
 r = post({ action: 'booksave', book: { cid: 'cid-book-0001', title: 'A Sample Novel', author: 'Pat Example', status: 'reading', started: '2026-10-01', cover: 'https://covers.openlibrary.org/b/id/123-M.jpg', ol: 'https://openlibrary.org/works/OL1W', year: 2021 } });

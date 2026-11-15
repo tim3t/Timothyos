@@ -1,11 +1,11 @@
   /* ---------- Habits ---------- */
-  /* One page per day in the Habits database (bridge 1.14): Meditated, Evening Walk, Water in litres
+  /* One page per day in the Habits database (bridge 1.14): Meditated, Exercise (Evening Walk until 2.83), Water in litres
      (half-bottle steps of a 1 L bottle) and the debit card (Did Not Swipe / Swiped). A tap changes the
      day here at once; the whole day is sent a moment later and kept on this iPad until it lands. */
   var LS_HABITS = "tos.habits.v1", LS_HABITQ = "tos.habitq.v1", LS_HABITCFG = "tos.habitcfg.v1";
   var HABITS = [
     { id: "med", name: "MEDITATED", c: "chrome-c" },
-    { id: "walk", name: "EVENING WALK", c: "personal" },
+    { id: "walk", name: "EXERCISE", c: "personal" },   /* 2.83: renamed from EVENING WALK; the data key stays "walk" */
     { id: "water", name: "WATER", c: "work" },
     { id: "card", name: "NO CARD SWIPE", c: "chrome-b" }
   ];
@@ -195,7 +195,7 @@
        12-week grid shades a part-day); light text stays readable up to 50%. At the goal it fills solid, as before. */
     var wTint = w > 0 && w < goal ? "; background: color-mix(in srgb, var(--work) " + Math.round(10 + 40 * w / goal) + "%, transparent); border-color: color-mix(in srgb, var(--work) 60%, var(--line))" : "";
     return phead("HABITS · TODAY", habitMeta()) + '<div class="hb-strip">' +
-      chip('data-hbool="med"', "chrome-c", !!(d && d.med), "MEDITATED") + chip('data-hbool="walk"', "personal", !!(d && d.walk), "EVENING WALK") +
+      chip('data-hbool="med"', "chrome-c", !!(d && d.med), "MEDITATED") + chip('data-hbool="walk"', "personal", !!(d && d.walk), "EXERCISE") +
       chip('data-hstep="0.5"', "work", w >= goal, "WATER " + litres(w) + " / " + litres(goal) + " · + ½", wTint) +
       chip('data-hcycle="1"', c === "swiped" ? "warn" : "chrome-b", c !== null, c === "kept" ? "DID NOT SWIPE" : c === "swiped" ? "SWIPED" : "DEBIT CARD · NOT YET") + "</div>" +
       (hb.err && hb.err.write ? '<div class="err" style="margin-top:10px">' + esc(hb.err.msg) + "</div>" : "");

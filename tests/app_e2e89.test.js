@@ -53,7 +53,7 @@ const TODAY = ymdIn(new Date()), Y1 = (+TODAY.slice(0, 4) - 1) + TODAY.slice(4);
   let sh = await txt(p, '#detailSheet');
   assert.ok(/◆ ON THIS DAY A YEAR AGO/.test(sh) && /WEATHER 41°F/.test(sh), sh);
   for (const want of ['FARM Sample hay delivery, 10:00', 'PERSONAL Sample dentist, 15:30', 'TASKS DONE 3 finished: Clean the gutters · Order winter feed · Swap the furnace filter', 'DINNER Sample white chili',
-    'HIVE CHECK Hive One: Winter wrap on', 'HABITS Walk · Water 2.5 L · Meditation missed', 'Nothing here goes to ASK or the briefing'])
+    'HIVE CHECK Hive One: Winter wrap on', 'HABITS Exercise · Water 2.5 L · Meditation missed', 'Nothing here goes to ASK or the briefing'])
     assert.ok(sh.includes(want), 'the sheet has "' + want + '": ' + sh);
   assert.strictEqual(await p.$$eval('#detailSheet [data-otd]', l => l.length), 3, 'year tabs');
   await p.click('#detailSheet [data-otd="1"]');

@@ -165,7 +165,7 @@ After connecting, **run setup**: the log shows `OK` for each connected database 
 - **Key Dates:** Name, Date (one day, or a start and end for windows), Life Area, Type, Repeats Yearly, Notes.
 - **Weekly Reviews:** one page per week with the reflection, the week's numbers (including Hours Hobbies, used for GROWTH) and your intent lines.
 - **Captain's Log:** Name, Date, Source, and **Search Text** (added by setup for LOG search). The entry is the page body.
-- **Habits:** one page per day: Meditated, Evening Walk, Water (L), Debit Card.
+- **Habits:** one page per day: Meditated, Exercise, Water (L), Debit Card. (Exercise was called Evening Walk until 2.83; bridge 1.49 reads either name, so rename the column whenever suits: Notion keeps every past day.)
 - **Library:** Title, Author, Status, Started, Finished, Rating, Notes, Cover, Open Library, Published.
 - **Tarot:** Title, Date, Kind, Weekly, Spread, Cards, Interpretation, Card, Data.
 - **Apiary:** Name, Kind (Yard, Hive, Check), Date, Hive, the text columns (Queen, Frames, Feed, Did, Next…), Mites (%), Honey (lb), Data. Edit the text columns freely; leave **Data** to the app.
@@ -571,7 +571,7 @@ Limits, checked by the Google bridge: 62 entries, about 60K tokens and two month
 
 ### HABITS
 
-- **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EVENING WALK**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
+- **HABITS** (or the strip on the Bridge): tap **MEDITATED**, **EXERCISE**, the **water bottles** (1 L each; tap a full bottle again for half, or **+ ½ BOTTLE** / **− ½**) and **DID NOT SWIPE** / **SWIPED**. Tap again to undo.
 - It saves to Notion a moment after your last tap. Without a connection it waits on the iPad and goes when you're back.
 - **Water goal:** the chips under the tiles (2 to 4 L). Streaks and the grid count a day as won at the goal or more. A new goal counts from the day you choose it; earlier days keep the goal they had, so raising it never turns past days into misses. The note under the chips lists recent changes; the history is kept on this iPad.
 - Earlier days: the arrows beside the title, or tap a square in **LAST 12 WEEKS**. **REVIEW** shows the week's habits day by day; **ALL REVIEWS** week by week.

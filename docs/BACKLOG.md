@@ -8,7 +8,7 @@ Last reviewed: 2026-11-11 (app 2.77.0, bridge 1.44.1).
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.48.1 | Apps Script (README → Updating the Google bridge) | ON THIS DAY's tasks and tarot (1.48.0's filters were refused by Notion) |
+| Deploy bridge 1.49.0, then rename a Notion column | Apps Script; Notion: Habits → the **Evening Walk** column → rename to **Exercise** | Either order works; past days keep their ticks (app 2.83). 1.49 also carries 1.48.1 (ON THIS DAY's tasks and tarot) |
 | SICKBAY trial verdict | After a few days of the four daily automations, plus the Sleep Focus morning run (README → SICKBAY, 2.81.2). 13 Nov: three runs in a row didn't arrive (HUB likely locked) | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |

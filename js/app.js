@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var VERSION = "2.82.2";
+  var VERSION = "2.83.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_SYNC = "tos.sync.v1";
@@ -1400,8 +1400,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.48.1";
-  var BRIDGE_FEATURES = [["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.49.0";
+  var BRIDGE_FEATURES = [["1.49.0", "HABITS: Evening Walk is now Exercise (either Notion column name works)"], ["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -6473,7 +6473,7 @@
     { id: "inbox", name: "INBOX", g: "TIME", sub: "Notes to sort into tasks, dates, events or the queue" },
     { id: "review", name: "REVIEW", g: "REFLECT", sub: "Weekly reviews and trends" },
     { id: "log", name: "LOG", g: "REFLECT", sub: "Captain's Log, PIN locked" },
-    { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, walk, water, debit card" },
+    { id: "habits", name: "HABITS", g: "REFLECT", sub: "Meditation, exercise, water, debit card" },
     { id: "tarot", name: "TAROT", g: "REFLECT", sub: "This week's card, readings and patterns" },
     { id: "astrometrics", name: "ASTROMETRICS", g: "REFLECT", sub: "The year at a glance, and the Ship's Year" },
     { id: "ressikan", name: "RESSIKAN", g: "REFLECT", sub: "Play with sound: chords over a beat, and a solo on top" },
@@ -6578,7 +6578,7 @@
   var CMD_WORDS = {
     bridge: "home overview condition dashboard", today: "day calendar schedule agenda priorities", week: "calendar schedule",
     month: "calendar", loom: "infinity timeline calendar days", dates: "key dates birthdays anniversaries holidays countdown",
-    review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated walk debit card",
+    review: "weekly reflection", log: "journal diary captains entries", habits: "water meditation meditated exercise workout walk debit card",
     tarot: "cards reading deck", ressikan: "music sound chords chord progression loop synth synthesizer beat beats lofi drums solo melody lead play instrument flute midi garageband", science: "sky aircraft planes flights radar iss space station satellites aurora space weather shortwave earthquakes quakes air quality alerts moon planets stars night meteors asteroids birds nature sensors", inbox: "notes note capture sort ideas thoughts later jot", astrometrics: "year annual stats statistics star chart ships year how did the year go", ledger: "money budget ynab finances spending replicator queue", library: "books reading",
     storage: "storage nas podcasts podcast audio music files listen radio audiobooks", holodeck: "tv television video videos music videos channel watch broadcast mtv vh1 cartoons shows", engineering: "home assistant lights devices thermostat upkeep maintenance",
     apiary: "bees hives beekeeping honey mites", systems: "settings setup health sync connection"
@@ -6842,13 +6842,13 @@
   cmdSeen(state.screen);
 
   /* ---------- Habits ---------- */
-  /* One page per day in the Habits database (bridge 1.14): Meditated, Evening Walk, Water in litres
+  /* One page per day in the Habits database (bridge 1.14): Meditated, Exercise (Evening Walk until 2.83), Water in litres
      (half-bottle steps of a 1 L bottle) and the debit card (Did Not Swipe / Swiped). A tap changes the
      day here at once; the whole day is sent a moment later and kept on this iPad until it lands. */
   var LS_HABITS = "tos.habits.v1", LS_HABITQ = "tos.habitq.v1", LS_HABITCFG = "tos.habitcfg.v1";
   var HABITS = [
     { id: "med", name: "MEDITATED", c: "chrome-c" },
-    { id: "walk", name: "EVENING WALK", c: "personal" },
+    { id: "walk", name: "EXERCISE", c: "personal" },   /* 2.83: renamed from EVENING WALK; the data key stays "walk" */
     { id: "water", name: "WATER", c: "work" },
     { id: "card", name: "NO CARD SWIPE", c: "chrome-b" }
   ];
@@ -7038,7 +7038,7 @@
        12-week grid shades a part-day); light text stays readable up to 50%. At the goal it fills solid, as before. */
     var wTint = w > 0 && w < goal ? "; background: color-mix(in srgb, var(--work) " + Math.round(10 + 40 * w / goal) + "%, transparent); border-color: color-mix(in srgb, var(--work) 60%, var(--line))" : "";
     return phead("HABITS · TODAY", habitMeta()) + '<div class="hb-strip">' +
-      chip('data-hbool="med"', "chrome-c", !!(d && d.med), "MEDITATED") + chip('data-hbool="walk"', "personal", !!(d && d.walk), "EVENING WALK") +
+      chip('data-hbool="med"', "chrome-c", !!(d && d.med), "MEDITATED") + chip('data-hbool="walk"', "personal", !!(d && d.walk), "EXERCISE") +
       chip('data-hstep="0.5"', "work", w >= goal, "WATER " + litres(w) + " / " + litres(goal) + " · + ½", wTint) +
       chip('data-hcycle="1"', c === "swiped" ? "warn" : "chrome-b", c !== null, c === "kept" ? "DID NOT SWIPE" : c === "swiped" ? "SWIPED" : "DEBIT CARD · NOT YET") + "</div>" +
       (hb.err && hb.err.write ? '<div class="err" style="margin-top:10px">' + esc(hb.err.msg) + "</div>" : "");
@@ -14994,7 +14994,7 @@
     } else if (row.id === "habits") {
       F.push([big(t), "days meditated" + (yd.habits.first ? ", since " + shortDay(yd.habits.first) : "")]);
       F.push(["Longest run: " + yd.habits.run + (yd.habits.run === 1 ? " day" : " days"), "meditated, day after day"]);
-      F.push(["Evening walks: " + yd.habits.walk, "water goal met on " + yd.habits.water + (yd.habits.water === 1 ? " day" : " days")]);
+      F.push(["Exercise: " + yd.habits.walk + (yd.habits.walk === 1 ? " day" : " days"), "water goal met on " + yd.habits.water + (yd.habits.water === 1 ? " day" : " days")]);
     } else if (row.id === "log") {
       F.push([big(t), "days written"]);
       F.push(["Longest run: " + asRunW(r) + (asRunW(r) === 1 ? " week" : " weeks"), "with at least one entry"]);
@@ -15116,7 +15116,7 @@
     var r = has("review") && asRow(y, "review");
     if (r && !r.none) L.push("WEEKLY REVIEWS: " + asTotal(r) + " of " + asCount(r) + " weeks since the first this year; longest run " + asRunW(r) + " weeks.");
     var h = has("habits") && yd.habits;
-    if (h && h.first) L.push("HABITS (recorded from " + shortDay(h.first) + "): meditated " + h.med + " days, longest run " + h.run + " days; evening walk " + h.walk + " days; water goal met " + h.water + " days.");
+    if (h && h.first) L.push("HABITS (recorded from " + shortDay(h.first) + "): meditated " + h.med + " days, longest run " + h.run + " days; exercise " + h.walk + " days; water goal met " + h.water + " days.");
     var lb3 = has("library") && yd.library;
     if (lb3) L.push("BOOKS FINISHED: " + asTotal(asRow(y, "library")) + (lb3.rated ? ", average rating " + (Math.round(lb3.sum / lb3.rated * 10) / 10) + " of 5" : "") + ".");
     if (has("tarot") && lsGet(LS_AITAROT) && yd.tarot) {
@@ -15970,7 +15970,7 @@
       var cards = (r.cards || []).map(function (c) { try { return trName(c.id) + (c.rev ? " (reversed)" : ""); } catch (e) { return ""; } }).filter(Boolean);
       if (cards.length) out.push(["tarot", cards.slice(0, 3).join(", ") + (cards.length > 3 ? " and " + (cards.length - 3) + " more" : "") + (r.spread ? ", in " + r.spread : ""), r.date]);
     });
-    (y.habits || []).forEach(function (h) { out.push(["habits", [h.walk ? "Walk" : "", typeof h.water === "number" ? "Water " + h.water + " L" : "", h.med ? "Meditation" : "Meditation missed"].filter(Boolean).join(" · "), h.date]); });
+    (y.habits || []).forEach(function (h) { out.push(["habits", [h.walk ? "Exercise" : "", typeof h.water === "number" ? "Water " + h.water + " L" : "", h.med ? "Meditation" : "Meditation missed"].filter(Boolean).join(" · "), h.date]); });
     if (y.review && y.review.wentWell) out.push(["review", "Went well: " + y.review.wentWell, null]);
     return out.sort(function (a, b) { return OTD_ORDER.indexOf(a[0]) - OTD_ORDER.indexOf(b[0]) || (String(a[2] || "") < String(b[2] || "") ? -1 : String(a[2] || "") > String(b[2] || "") ? 1 : 0); });
   }

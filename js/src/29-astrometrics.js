@@ -398,7 +398,7 @@
     } else if (row.id === "habits") {
       F.push([big(t), "days meditated" + (yd.habits.first ? ", since " + shortDay(yd.habits.first) : "")]);
       F.push(["Longest run: " + yd.habits.run + (yd.habits.run === 1 ? " day" : " days"), "meditated, day after day"]);
-      F.push(["Evening walks: " + yd.habits.walk, "water goal met on " + yd.habits.water + (yd.habits.water === 1 ? " day" : " days")]);
+      F.push(["Exercise: " + yd.habits.walk + (yd.habits.walk === 1 ? " day" : " days"), "water goal met on " + yd.habits.water + (yd.habits.water === 1 ? " day" : " days")]);
     } else if (row.id === "log") {
       F.push([big(t), "days written"]);
       F.push(["Longest run: " + asRunW(r) + (asRunW(r) === 1 ? " week" : " weeks"), "with at least one entry"]);
@@ -520,7 +520,7 @@
     var r = has("review") && asRow(y, "review");
     if (r && !r.none) L.push("WEEKLY REVIEWS: " + asTotal(r) + " of " + asCount(r) + " weeks since the first this year; longest run " + asRunW(r) + " weeks.");
     var h = has("habits") && yd.habits;
-    if (h && h.first) L.push("HABITS (recorded from " + shortDay(h.first) + "): meditated " + h.med + " days, longest run " + h.run + " days; evening walk " + h.walk + " days; water goal met " + h.water + " days.");
+    if (h && h.first) L.push("HABITS (recorded from " + shortDay(h.first) + "): meditated " + h.med + " days, longest run " + h.run + " days; exercise " + h.walk + " days; water goal met " + h.water + " days.");
     var lb3 = has("library") && yd.library;
     if (lb3) L.push("BOOKS FINISHED: " + asTotal(asRow(y, "library")) + (lb3.rated ? ", average rating " + (Math.round(lb3.sum / lb3.rated * 10) / 10) + " of 5" : "") + ".");
     if (has("tarot") && lsGet(LS_AITAROT) && yd.tarot) {

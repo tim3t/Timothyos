@@ -66,7 +66,7 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 | POST | `speak` `texts[≤12]` (≤ 4,000 chars) | one base64 MP3 per text from OpenAI gpt-4o-mini-tts, voice Nova with `VOICE.STYLE`, all at once (`fetchAll`); `est`, month `spend` (estimated) | needs `OPENAI_API_KEY` (capability `voice`, 1.30); 30 a day (`voice_daily_cap`); errors `voice_unauthorized`, `voice_no_credit`, `voice_busy`, `voice_error` |
 | POST | `logask` `pin` `{scope, mode, messages, preview}` | Log Ask: `preview` returns entries, dates, tokens, cost; otherwise Claude's answer | needs capability `logask`; ≤ 62 entries, ≈ 60K tokens, two months; no tools |
 | POST | `logasksave` / `loginsights` / `loginsight` `pin` | save a Log Ask answer as an undated "Claude insight" page; list them; read one | |
-| GET | `habits` `from` `to` | one row per day (Meditated, Evening Walk, Water, Debit Card) | |
+| GET | `habits` `from` `to` | one row per day (Meditated, Exercise as `walk`, Water, Debit Card); 1.49: the Exercise column is read under either name, Exercise or Evening Walk | |
 | POST | `habitset` `day{date,…}` | create or update that day's page | only fields sent are written |
 | GET | `library` | every book | |
 | POST | `booksave` `book` / `bookremove` `id` | add or change a book; remove moves it to Notion's trash | only Library pages |

@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.48.1';
+var VERSION = '1.49.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -811,7 +811,7 @@ function schemaSpec_() {
     { key: 'reviews', name: 'Weekly Reviews', src: reviewsSource_, need: [['Week', 'title'], ['Week Start', 'date']].concat(t(vals(REVIEW_TEXT), 'rich_text'), t(vals(REVIEW_NUM), 'number')) },
     { key: 'queue', name: 'Replicator Queue', src: queueSource_, need: [['Name', 'title'], ['Cost', 'number'], ['Priority', 'number'], ['Note', 'rich_text'], ['Link', 'url'], ['Bought', 'date']] },
     { key: 'log', name: "Captain's Log", src: logSource_, need: [['Name', 'title'], ['Date', 'date'], ['Source', 'select']].concat(logSearchReady_() ? [[LOG_SEARCH_PROP, 'rich_text']] : []) },
-    { key: 'habits', name: 'Habits', src: habitsSource_, need: [['Name', 'title'], ['Date', 'date'], ['Meditated', 'checkbox'], ['Evening Walk', 'checkbox'], ['Water (L)', 'number'], ['Debit Card', 'select']] },
+    { key: 'habits', name: 'Habits', src: habitsSource_, need: [['Name', 'title'], ['Date', 'date'], ['Meditated', 'checkbox'], ['Exercise', 'checkbox', ['Evening Walk']], ['Water (L)', 'number'], ['Debit Card', 'select']] },
     { key: 'library', name: 'Library', src: librarySource_, need: [['Title', 'title'], ['Author', 'rich_text'], ['Status', 'select'], ['Started', 'date'], ['Finished', 'date'], ['Rating', 'number'], ['Notes', 'rich_text'], ['Cover', 'url'], ['Open Library', 'url'], ['Published', 'number']] },
     { key: 'tarot', name: 'Tarot', src: tarotSource_, need: [['Title', 'title'], ['Date', 'date'], ['Kind', 'select'], ['Weekly', 'checkbox'], ['Spread', 'rich_text'], ['Cards', 'rich_text'], ['Interpretation', 'rich_text'], ['Card', 'rich_text'], ['Data', 'rich_text']] },
     { key: 'tarotbooks', name: 'Tarot Books', src: tarotBooksSource_, need: [['Title', 'title'], ['Card', 'rich_text'], ['Book', 'select'], ['Source', 'rich_text'], ['Order', 'number']] },
@@ -841,7 +841,7 @@ function schema_(fresh) {
     try {
       var props = notion_('get', '/data_sources/' + d.src()).properties || {};
       d.need.forEach(function (n) {
-        var have = props[n[0]];
+        var have = props[n[0]] || (n[2] || []).map(function (k) { return props[k]; }).filter(Boolean)[0];   /* 1.49: a column's former name counts until it's renamed */
         if (!have) row.missing.push({ name: n[0], type: n[1] });
         else if (have.type !== n[1]) row.wrong.push({ name: n[0], want: n[1], got: have.type });
       });
@@ -2114,16 +2114,25 @@ function sessionsStatus_() {
 }
 
 // ---- Habits ----------------------------------------------------------------
-// One page per day in the Habits database: Meditated and Evening Walk (checkboxes),
+// One page per day in the Habits database: Meditated and Exercise (checkboxes; Exercise was Evening Walk until 1.49),
 // Water (L) in half-litre steps (a 1 L bottle), Debit Card (Did Not Swipe / Swiped).
 // The app sends the whole day at once, so a repeat is harmless.
 var HABIT_CARD = { kept: 'Did Not Swipe', swiped: 'Swiped' }, HABIT_MAX_DAYS = 400;
 function habitsSource_() { return sourceFor_(CONFIG.NOTION_HABITS_DATABASE, 'NOTION_HABITS_SOURCE'); }
+/* 1.49 (Timothy, 15 Nov): "Evening Walk" became "Exercise". Renaming the Notion column keeps every past day; until it's
+   renamed the old name is read and written, so the bridge and the column can change in either order. */
+var HABIT_EX = ['Exercise', 'Evening Walk'];
+function habitExProp_(fresh) {
+  var c = CacheService.getScriptCache(), hit = !fresh && c.get('hexprop'); if (hit) return hit;
+  var props = notion_('get', '/data_sources/' + habitsSource_()).properties || {}, name = HABIT_EX.filter(function (k) { return props[k]; })[0] || HABIT_EX[0];
+  c.put('hexprop', name, 600); return name;
+}
+function habitEx_(p) { var x = HABIT_EX.map(function (k) { return p[k]; }).filter(Boolean)[0]; return !!(x && x.checkbox); }
 function toHabit_(pg) {
   var p = pg.properties || {}, w = p['Water (L)'], card = sel_(p['Debit Card']);
   return {
     id: pg.id, date: day_(p.Date),
-    med: !!(p.Meditated && p.Meditated.checkbox), walk: !!(p['Evening Walk'] && p['Evening Walk'].checkbox),
+    med: !!(p.Meditated && p.Meditated.checkbox), walk: habitEx_(p),
     water: w && typeof w.number === 'number' ? w.number : null,
     card: card === HABIT_CARD.kept ? 'kept' : card === HABIT_CARD.swiped ? 'swiped' : null
   };
@@ -2151,19 +2160,20 @@ function habitSet_(d) {
   if (water !== null && (!isFinite(water) || water < 0 || water > 12 || Math.round(water * 2) !== water * 2)) return { ok: false, error: 'bad_request' };
   if (d.card !== null && d.card !== undefined && !HABIT_CARD[d.card]) return { ok: false, error: 'bad_request' };
   var props = {
-    Meditated: { checkbox: d.med === true }, 'Evening Walk': { checkbox: d.walk === true },
+    Meditated: { checkbox: d.med === true },
     'Water (L)': { number: water }, 'Debit Card': { select: d.card ? { name: HABIT_CARD[d.card] } : null }
   };
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
     var ds = habitsSource_(), found = queryAll_(ds, { property: 'Date', date: { equals: date } }, 1)[0], pg;
-    if (found) pg = notion_('patch', '/pages/' + found.id, { properties: props });
-    else {
-      props.Name = { title: rt_(longDay_(date)) };
-      props.Date = { date: { start: date } };
-      pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
-    }
+    var write = function (fresh) {   /* Exercise under whichever name the column has now (1.49) */
+      var pr = Object.assign({}, props); pr[habitExProp_(fresh)] = { checkbox: d.walk === true };
+      if (found) return notion_('patch', '/pages/' + found.id, { properties: pr });
+      pr.Name = { title: rt_(longDay_(date)) }; pr.Date = { date: { start: date } };
+      return notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: pr });
+    };
+    try { pg = write(false); } catch (e) { if (e.notion !== 'notion_error') throw e; pg = write(true); }   /* renamed in the last 10 minutes: look again, once */
     habitsBump_();
     return { ok: true, version: VERSION, day: toHabit_(pg) };
   } finally {

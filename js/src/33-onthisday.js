@@ -71,7 +71,7 @@
       var cards = (r.cards || []).map(function (c) { try { return trName(c.id) + (c.rev ? " (reversed)" : ""); } catch (e) { return ""; } }).filter(Boolean);
       if (cards.length) out.push(["tarot", cards.slice(0, 3).join(", ") + (cards.length > 3 ? " and " + (cards.length - 3) + " more" : "") + (r.spread ? ", in " + r.spread : ""), r.date]);
     });
-    (y.habits || []).forEach(function (h) { out.push(["habits", [h.walk ? "Walk" : "", typeof h.water === "number" ? "Water " + h.water + " L" : "", h.med ? "Meditation" : "Meditation missed"].filter(Boolean).join(" · "), h.date]); });
+    (y.habits || []).forEach(function (h) { out.push(["habits", [h.walk ? "Exercise" : "", typeof h.water === "number" ? "Water " + h.water + " L" : "", h.med ? "Meditation" : "Meditation missed"].filter(Boolean).join(" · "), h.date]); });
     if (y.review && y.review.wentWell) out.push(["review", "Went well: " + y.review.wentWell, null]);
     return out.sort(function (a, b) { return OTD_ORDER.indexOf(a[0]) - OTD_ORDER.indexOf(b[0]) || (String(a[2] || "") < String(b[2] || "") ? -1 : String(a[2] || "") > String(b[2] || "") ? 1 : 0); });
   }
