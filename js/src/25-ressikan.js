@@ -64,7 +64,7 @@
     function slotCount() { return S.bars * (16 / S.every); }
     function fitSlots() { var n = slotCount(), was = slots.slice(); for (var r = was.length; r < n; r++) slots.push(was.length ? was[r % was.length] : null); slots.length = n; }
     fitSlots();
-    var X = { on: false, play: false, rec: null, takes: [], saveT: 0, sel: null, last: null, capture: false, pos: { step: -1, slot: -1 }, touch: {}, delAsk: -1, padAt: 0, ticking: false };
+    var X = { on: false, play: false, rec: null, takes: [], saveT: 0, sel: null, last: null, capture: false, pos: { step: -1, slot: -1 }, touch: {}, delAsk: -1, padAt: 0, tickT: 0 };
     X.last = slots.filter(Boolean).pop() || null;
     function keep() {
       clearTimeout(X.saveT);
@@ -153,7 +153,6 @@
       try { recDest = A.createMediaStreamDestination(); master.connect(recDest); } catch (e) { recDest = null; }
       var vb = A.createBuffer(1, A.sampleRate * 4, A.sampleRate), vd = vb.getChannelData(0); for (var k = 0; k < vd.length; k++) vd[k] = (Math.random() * 2 - 1) * .012 + (Math.random() < .0004 ? (Math.random() * 2 - 1) * .7 : 0);
       var vs = A.createBufferSource(); vs.buffer = vb; vs.loop = true; var vf = A.createBiquadFilter(); vf.type = "bandpass"; vf.frequency.value = 2400; vf.Q.value = .4; vinylG = A.createGain(); vinylG.gain.value = 0; vs.connect(vf); vf.connect(vinylG); vinylG.connect(mix); vs.start();
-      if (!X.ticking) { X.ticking = true; setInterval(rsTick, 25); }
       return true;
     }
     function applyFx() {
@@ -172,12 +171,12 @@
       X.on = on; X.lost = false;
       if (A) {
         master.gain.setTargetAtTime(on ? .85 : 0, A.currentTime, .05);
-        if (!on) { soloAllOff(); X.play = false; X.quiet = true; var a = A; setTimeout(function () { X.quiet = false; if (a === A && !X.on) try { a.suspend(); } catch (e) { /* closed */ } }, 300); }   /* hand the iPad's sound back */
+        if (!on) { soloAllOff(); X.play = false; clock(false); X.quiet = true; var a = A; setTimeout(function () { X.quiet = false; if (a === A && !X.on) try { a.suspend(); } catch (e) { /* closed */ } }, 300); }   /* hand the iPad's sound back */
       }
       applyFx(); paint();
     }
     function lost() {   /* iPadOS took the sound away mid-play */
-      X.on = false; X.play = false; X.lost = true; X.touch = {}; soloV = null;
+      X.on = false; X.play = false; X.lost = true; X.touch = {}; soloV = null; clock(false);
       if (X.rec) X.rec.mr.stop();
       if (state.screen === "ressikan") draw();
     }
@@ -269,15 +268,19 @@
       }
       setTimeout(function () { X.pos = { step: stp, slot: si, n: n, at: performance.now() }; paintPlay(); }, Math.max(0, (t - A.currentTime) * 1000));
     }
+    /* 2.84 (C2): the 25 ms clock runs only while the loop plays. It used to start with the first SOUND ON and run for the
+       rest of the session, 40 times a second, on an iPad that never sleeps (HUB); now STOP, SOUND OFF, an interruption
+       by iPadOS and leaving the station all stop it. */
+    function clock(on) { clearInterval(X.tickT); X.tickT = on ? setInterval(rsTick, 25) : 0; }
     function rsTick() {
-      if (!A || !X.play || !X.on) return;
+      if (!A || !X.play || !X.on) { clock(false); return; }
       var now = A.currentTime, ahead = document.hidden ? 1.5 : .12;
       if (bt.nextAt < now - .2) bt.nextAt = now + .05;
       while (bt.nextAt < now + ahead) { schedule(bt.step, bt.nextAt + (bt.step % 2 ? six() * S.k.swing * .6 * .66 : 0)); bt.step++; bt.nextAt += six(); }
     }
     function setPlay(on) {
       if (on && !X.on) setPower(true); if (!X.on) return;
-      X.play = on; lastV = null;
+      X.play = on; lastV = null; clock(on);
       if (on) { bt.step = 0; bt.nextAt = A.currentTime + .08; } else X.pos = { step: -1, slot: -1 };
       applyFx(); rsTick();
     }
@@ -404,7 +407,7 @@
     }
     function be32(n) { return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]; }
     function vlq(n) { var b = [n & 127]; while ((n >>= 7)) b.unshift((n & 127) | 128); return b; }
-    function mtrack(ev) {   /* [rsTick, bytes, order]: note-offs before note-ons at the same rsTick */
+    function mtrack(ev) {   /* [tick, bytes, order]: note-offs before note-ons at the same tick */
       var out = [], last = 0;
       ev.sort(function (a, b) { return a[0] - b[0] || a[2] - b[2]; }).forEach(function (e) { out.push.apply(out, vlq(e[0] - last)); out.push.apply(out, e[1]); last = e[0]; });
       out.push(0, 255, 47, 0);

@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.84.0 · 2026-11-15
+- **The error log tells a recovered request from a failure.** A request that failed once and went through on Bridge's own retry now reads **RECOVERED**, dimmed, in SYSTEMS → ERROR LOG and RECENT REQUESTS, and no longer counts as trouble: it leaves the "IN 24 H" count and BRIDGE TODAY's failures. Before, it read "1 retried", which looked like a lost request. A request that fails for good still counts as before.
+- **BRIDGE TODAY's "slowest" is the bridge's time, not the iPad's nap.** A request still open when iPadOS froze the app (983.7 s on 13 Nov) no longer counts as the slowest of the day; if it fails, its line says **app paused**.
+- **RESSIKAN's clock runs only while the loop plays.** It ticked every 25 ms from the first SOUND ON to the end of the session; it now stops with STOP, SOUND OFF and leaving, which spares the battery.
+
 ## 2.83.0 · 2026-11-15 (needs bridge 1.49)
 - **Evening Walk is now Exercise**, everywhere: HABITS, the Bridge's habit chips, ON THIS DAY, the Ship's Year and its write-up, and the station's description (COMPUTER still finds it by "walk").
 - **Every past day keeps its tick.** The change is a rename of the Notion column, which keeps its history. Bridge 1.49 reads and writes either name (Exercise or Evening Walk) and finds the one the database has, so deploying the bridge and renaming the column can happen in either order; a rename between two saves is picked up on the next one. SYSTEMS' column check counts either name as present.

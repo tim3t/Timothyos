@@ -24,6 +24,9 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block', acceptDownloads: true });
   await lane(ctx);
   await ctx.addInitScript(() => { const C = window.AudioContext; window.__acs = []; window.AudioContext = class extends C { constructor(o) { super(o); window.__acs.push(this); } }; });   // to see each sound engine
+  await ctx.addInitScript(() => { const si = window.setInterval, ci = window.clearInterval, live = new Set(); window.__rsClocks = () => live.size;   // the loop's 25 ms clock (2.84, C2)
+    window.setInterval = function (f, ms, ...r) { const id = si.call(window, f, ms, ...r); if (ms === 25) live.add(id); return id; };
+    window.clearInterval = function (id) { live.delete(id); return ci.call(window, id); }; });
   const acs = p => p.evaluate(() => window.__acs.map(a => a.state));
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
   await p.goto('http://localhost:8080/');
@@ -51,6 +54,7 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   await p.click('[data-rsact="power"]');
   await until(async () => (await acs(p)).join() === 'running');
   assert.strictEqual(await txt(p, '[data-rsread]'), 'STOPPED · F MAJOR');
+  assert.strictEqual(await p.evaluate(() => window.__rsClocks()), 0, 'no clock while the loop is stopped (C2)');
   await p.evaluate(() => window.__acs[0].suspend());
   await p.waitForFunction(() => document.querySelector('[data-rsact="power"]').getAttribute('aria-pressed') === 'false');
   assert.strictEqual(await txt(p, '[data-rsread]'), 'IPADOS PAUSED THE SOUND · TAP TO START AGAIN');
@@ -60,6 +64,7 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   await until(async () => (await acs(p)).join() === 'closed,running');
   await p.waitForSelector('.rs-slot.rs-playing', { timeout: 5000 }); await p.waitForSelector('.rs-cell.rs-head', { timeout: 5000 });
   assert.ok(/^BAR [1-4] OF 4$/.test(await txt(p, '[data-rsread]')), await txt(p, '[data-rsread]'));
+  assert.strictEqual(await p.evaluate(() => window.__rsClocks()), 1, 'one clock while the loop plays (C2)');
   // the playing bar stays in the loop, level with the others, its labels in place (2.82.2)
   const geo = await p.$$eval('.rs-slot', l => l.map(x => { const r = x.getBoundingClientRect(); return [x.classList.contains('rs-playing'), Math.round(r.top), Math.round(r.height), getComputedStyle(x).position, getComputedStyle(x.querySelector('.rs-nm')).position]; }));
   assert.ok(geo.some(g => g[0]) && geo.every(g => g[1] === geo[0][1] && g[2] === geo[0][2] && g[3] === 'static' && g[4] === 'static'), JSON.stringify(geo));
@@ -173,6 +178,13 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   await p.click('[data-rsoct="1"]'); assert.strictEqual(await txt(p, '.rs-key b'), '+1');
   await p.screenshot({ path: D + 'ressikan-solo.png' });
 
+  // ---- STOP ends the clock; PLAY starts one again, from SOLO too (2.84, C2)
+  await p.click('[data-rsact="play"]');
+  await until(async () => /^STOPPED/.test(await txt(p, '[data-rsread]')));
+  assert.strictEqual(await p.evaluate(() => window.__rsClocks()), 0, 'STOP ends the clock');
+  await p.click('[data-rsact="play"]'); await p.waitForSelector('[data-rsact="play"][aria-pressed="true"]', { timeout: 5000 });
+  assert.strictEqual(await p.evaluate(() => window.__rsClocks()), 1, 'PLAY again: one clock, not two');
+
   // ---- RECORD a take, SAVE TO FILES
   await p.click('[data-rsact="rec"]'); await p.waitForTimeout(1200); await p.click('[data-rsact="rec"]');
   await p.waitForSelector('[data-rssave="0"]', { timeout: 5000 });
@@ -183,6 +195,7 @@ const slotsText = p => p.$$eval('.rs-slot', l => l.map(b => b.querySelector('.rs
   await p.click('.elbow');
   await p.waitForFunction(() => window.__acs[window.__acs.length - 1].state === 'suspended', null, { timeout: 5000 }).catch(() => {});   // suspend() settles a moment later under load
   assert.strictEqual((await acs(p)).pop(), 'suspended', 'the iPad\'s sound handed back');
+  assert.strictEqual(await p.evaluate(() => window.__rsClocks()), 0, 'leaving ends the clock (C2)');
   await p.reload(); await p.waitForSelector('#allBtn');
   await p.click('#allBtn'); await p.click('[data-station="ressikan"]'); await p.waitForSelector('[data-rssolo]');
   assert.strictEqual(await p.getAttribute('[data-rsscale="blues"]', 'aria-pressed'), 'true');

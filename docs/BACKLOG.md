@@ -43,9 +43,6 @@ What the sweep found healthy: every station opens with no page error, no request
 **Sharper on the iPad**
 
 - **C1. SYSTEMS is eleven screens long** (8,900 px in landscape, 14 sections). A row of section chips at the top, or sections that fold. Mockup first.
-- **C2. RESSIKAN's clock never stops.** After the first SOUND ON it ticks every 25 ms for the rest of the session, and HUB is always on. Stop it with the sound.
-- **C3. "Slowest today" counts a frozen request** (983.7 s on 13 Nov: the app was frozen, the bridge wasn't slow). Leave out anything that ran past its own time limit.
-- **C4. The error log reads a recovered request as a failure.** A first try that fails and a retry that succeeds leaves "1 retried" and nothing else. Mark it RECOVERED, or drop it once the retry lands.
 - **C5. Fields with only grey hint text** in place of a label: ten in SYSTEMS (the NAS and Home Assistant addresses and tokens among them) and APIARY's list field. The hint vanishes once you type, and VoiceOver has nothing to read.
 - **C6. Small targets** (carried, with numbers): HABITS' year grid (17 px cells), ASTROMETRICS' grid (12 × 22 px), RESSIKAN's beat steps in portrait (34 px wide), WEEK's blocks (34 px tall). Only where he mis-taps.
 - **C7. TAROT stalls for a quarter of a second on opening** (two long tasks, 190 to 260 ms): the only station with any.
@@ -118,4 +115,4 @@ What the sweep found healthy: every station opens with no page error, no request
 
 ## Done since the last review (2026-11-11), for the record
 
-2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy. Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).
+2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy · 2.84 RECOVERED in the error log, "slowest" without frozen requests, RESSIKAN's clock only while playing (C2 to C4). Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).

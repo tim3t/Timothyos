@@ -649,7 +649,7 @@
     return "<section>" + phead("RECENT REQUESTS", hour.length ? hour.length + " IN THE LAST HOUR · " + (bad.length ? bad.length + " FAILED" : "NONE FAILED") + (again.length ? " · " + again.length + " RETRIED" : "") + " · TYPICAL " + median : "TYPICAL " + median) +
       '<div class="netlog tnum">' + netlog.slice(-12).reverse().map(function (n) {
         return '<span>' + hm(new Date(n.t)) + "</span><span>" + esc(String(n.a).toUpperCase()) + "</span><span>" + (n.ms / 1000).toFixed(1) + " s</span>" +
-          '<span class="' + (n.r === "ok" ? "okmsg" : n.retried ? "warntxt" : "errtxt") + '">' + esc(n.r === "ok" ? "OK" : n.r.toUpperCase() + (n.retried ? " · RETRIED" : "")) + "</span>";
+          '<span class="' + (n.r === "ok" ? "okmsg" : n.retried ? "warntxt" : "errtxt") + '">' + esc(n.r === "ok" ? "OK" : n.r.toUpperCase() + (n.rec ? " · RECOVERED" : n.retried ? " · RETRIED" : "")) + "</span>";
       }).join("") + '</div><small class="muted">RETRIED: that attempt failed and was tried again on its own; the next line for it shows how it ended. HTTP_404: Google ran the request but lost the answer on the way back, a known Google quirk. DROPPED: the connection was cut. TIMEOUT: no answer in 45 s. IN BACKGROUND: the iPad slept or switched apps mid-request. SYNC: several reads sent together as one request. Only red lines are real failures.</small></section>';
   }
 
