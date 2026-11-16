@@ -123,7 +123,7 @@ LANES=(
   "tarot-apiary-1|RELAY_PORT=8112 PORT_8105=8105|app_e2e38.test.js app_e2e39.test.js app_e2e40.test.js app_e2e41.test.js app_e2e42.test.js app_e2e43.test.js app_e2e44.test.js app_e2e46.test.js app_e2e47.test.js app_e2e67.test.js"
   "tarot-apiary-2|RELAY_PORT=8122 PORT_8105=8113|app_e2e48.test.js app_e2e49.test.js app_e2e50.test.js app_e2e51.test.js app_e2e52.test.js app_e2e53.test.js app_e2e55.test.js app_e2e58.test.js app_e2e65.test.js app_e2e66.test.js app_e2e68.test.js app_e2e71.test.js"
   "meals|RELAY_PORT=8123 PORT_8105=8114|app_e2e72.test.js app_e2e73.test.js app_e2e85.test.js app_e2e86.test.js app_e2e87.test.js app_e2e88.test.js app_e2e89.test.js app_e2e75.test.js"
-  "tarot-apiary-4|RELAY_PORT=8124 PORT_8105=8115|app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js app_e2e91.test.js app_e2e92.test.js app_e2e93.test.js"
+  "tarot-apiary-4|RELAY_PORT=8124 PORT_8105=8115|app_e2e77.test.js app_e2e78.test.js app_e2e80.test.js app_e2e81.test.js app_e2e91.test.js app_e2e92.test.js app_e2e93.test.js app_e2e94.test.js"
   "log-storage-1|RELAY_PORT=8110 PORT_8103=8103 PORT_8105=8119|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js"
   "log-storage-2|RELAY_PORT=8127 PORT_8103=8120 PORT_8105=8121|app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
@@ -195,6 +195,8 @@ LANES=(
 #   app_e2e86      A FULL STORE (2.77; mock :8105): SYSTEMS' storage section; the store filled to the brim: a setting makes room by dropping saved copies; with nothing to drop it is held in memory, the Condition turns red, the fix card names it, a dinner still reaches the bridge; MAKE ROOM AND SAVE once there is room, there after a reload; CLEAR SAVED COPIES; COMPUTER; phone width
 #   app_e2e87      DIAGNOSTICS (2.78; mock :8105): the section after CONNECTION; COPY DIAGNOSTICS's report has versions, bridge, features, sync, Condition, waiting, storage, links, errors; never a key, a token, an address or a title; COMPUTER copies it; phone width
 #   app_e2e88      RECIPE PHOTOS KEPT SMALL (2.79, bridge 1.46; mock :8105): older meals get their small copy once in the background, a missing picture not asked again, a pasted link, COOK; no image from a recipe site
+#   app_e2e94      THE SYSTEMS INDEX (2.86, C1; mock :8105): six groups, one at a time; counts add up; opens on STATUS or the first red group;
+#                  kept while you stay; yellow and red lights (a 24-hour error, a lost calendar); COMPUTER and ENGINEERING jump in; phone width
 #   app_e2e93      READS CUT SHORT AND THE DEEP STORE (2.85, bridge 1.50; mock :8105): a capped read noted on LIBRARY only and in COPY DIAGNOSTICS,
 #                  cleared by a whole read; copies in IndexedDB under the mark, read with the bridge out of reach, moved in, ignored once
 #                  the 5 MB store is cleared, emptied by CLEAR SAVED COPIES; no IndexedDB: the 5 MB store as before

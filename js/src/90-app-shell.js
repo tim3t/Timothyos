@@ -78,6 +78,7 @@
   function go(screen, anchor) {
     if (state.screen === "ressikan" && screen !== "ressikan") rs.leave();   /* RESSIKAN goes quiet when you leave it */
     if (state.screen === "holodeck" && screen !== "holodeck") holo.leave();   /* the HOLODECK TV turns off */
+    if (screen === "systems" && state.screen !== "systems") sysView.g = null;   /* SYSTEMS opens on STATUS, or the first group with a red light (2.86) */
     if (screen === "holodeck") holo.arch();   /* entering HOLODECK, or tapping it again: the arch, every time (Timothy, 2.47) */
     if (screen === "log" || state.screen === "log") lockLog();   /* opening LOG always asks for the PIN */
     if (screen === "loom" && state.screen !== "loom") { lm.t = calm() ? 0 : -5; lm.target = null; lm.vel = 0; lm.base = 0; }   /* arrive with a short glide into today */
@@ -248,6 +249,7 @@
     }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
+    else if (b.dataset.sysg) sysPick(b.dataset.sysg);   /* the SYSTEMS index (2.86) */
     else if ((b.dataset.elf || /^err(all|clear|copy)$/.test(b.dataset.act || "")) && errClick(b)) { /* the error log (2.62) */ }
     else if (b.dataset.logai) { if (b.dataset.logai === "1") lsSet(LS_LOGAI, true); else lsDel(LS_LOGAI); render(true); }
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); askReshare(); render(true); }

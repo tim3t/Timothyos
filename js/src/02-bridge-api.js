@@ -72,8 +72,14 @@
      read as 983.7 s and became BRIDGE TODAY's "slowest". Such a request is marked "app paused" and left out of slowest. */
   var PAUSED_SLACK = 5000;
   function frozen(started, limit) { return !!limit && Date.now() - started > limit + PAUSED_SLACK; }
+  /* 2.86: a request the page itself cut off (a reload: an update, PROFILE SYNC, a restore) isn't a failure, and no
+     longer leaves a "dropped" line in the error log of the page that comes next. */
+  var pageGone = false;
+  window.addEventListener("pagehide", function () { pageGone = true; });
+  window.addEventListener("pageshow", function () { pageGone = false; });   /* back from the back-forward cache */
   function logged(action, started, p, limit) {
     return p.then(function (j) { note(action, started, "ok"); netDay(started, false, frozen(started, limit)); return j; }, function (err) {
+      if (pageGone) throw err;
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error", fz = frozen(started, limit);
       var bg = document.hidden || lastHidden >= started ? " · in background" : fz ? " · app paused" : "";
       if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
@@ -175,7 +181,7 @@
       '<small class="muted">Kept on this iPad for 30 days (200 lines at most), never in backups or sent anywhere. Each line: when, where, what failed and the reason. ×3 means the same failure three times within 10 minutes; RETRIED means Bridge tried again on its own (dimmed when every one was); RECOVERED means the try again went through, so nothing was lost. COPY REPORT copies it all with the app and bridge versions, to paste into a message to Claude.</small></section>';
     return h;
   }
-  function errPaint() { var s = $("sec-errlog"); if (s && state.screen === "systems") s.outerHTML = errSection(); }
+  function errPaint() { var s = $("sec-errlog"); if (s && state.screen === "systems") { s.outerHTML = errSection(); sysIndex(); } }   /* 2.86: the index keeps its group and its lights */
   function errReport() {
     var day = lsGet(LS_NETDAY);
     return ["TimothyOS ERROR LOG · copied " + new Date().toISOString(), "App " + VERSION + " · bridge " + (state.bridgeVersion || "unknown") + " · " + errScrub(navigator.userAgent),

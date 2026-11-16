@@ -18,7 +18,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-Nothing: everything Timothy has agreed is built and live. An item moves here from the sections below when he says go.
+**Next, in this order (Timothy, 16 Nov):** A1 and A2 together, then B1 (all three are below). A1 and A2 each need a Notion column: ask before changing a schema.
 
 ## From the diagnostic (2026-11-15), not yet agreed
 
@@ -38,7 +38,6 @@ What the sweep found healthy: every station opens with no page error, no request
 
 **Sharper on the iPad**
 
-- **C1. SYSTEMS is eleven screens long** (8,900 px in landscape, 14 sections). A row of section chips at the top, or sections that fold. Mockup first.
 - **C5. Fields with only grey hint text** in place of a label: ten in SYSTEMS (the NAS and Home Assistant addresses and tokens among them) and APIARY's list field. The hint vanishes once you type, and VoiceOver has nothing to read.
 - **C6. Small targets** (carried, with numbers): HABITS' year grid (17 px cells), ASTROMETRICS' grid (12 × 22 px), RESSIKAN's beat steps in portrait (34 px wide), WEEK's blocks (34 px tall). Only where he mis-taps.
 - **C7. TAROT stalls for a quarter of a second on opening** (two long tasks, 190 to 260 ms): the only station with any.
@@ -66,7 +65,7 @@ What the sweep found healthy: every station opens with no page error, no request
 | **READY ROOM** (new) | One task, one timer: a focus session that ends with a line for the Log and adds its minutes to the task's Life Area. Could bring back DRIFT's ambient sound as its room tone | BALANCE counts Work in calendar hours only; RESSIKAN's DRIFT was retired in 2.82 |
 | **MEMORY ALPHA** (new) | The household's reference: manuals, serial numbers, warranty dates, paint colours, filter and part sizes, where things are kept. Searchable, kept in Notion | UPKEEP knows when a job is due but not which part it needs; pairs with QUARTERMASTER |
 | **QUARTERMASTER** | One stock list for bee, farm and household supplies; running low moves an item to the Replicator Queue | LEDGER's queue, APIARY, MEALS' pantry |
-| **TACTICAL** | The system's own upkeep: age of each key, last backup, last export, bridge deployment, refused requests, rotation reminders | Could be a SYSTEMS section rather than a station (see C1, D2, D6) |
+| **TACTICAL** | The system's own upkeep: age of each key, last backup, last export, bridge deployment, refused requests, rotation reminders | Could be a SYSTEMS section rather than a station (SYSTEMS now has its index, 2.86; see D2, D6) |
 | **TEN FORWARD** | People and hospitality: birthdays and anniversaries from Key Dates, gift ideas sent to the Replicator Queue, hosting menus from MEALS. Names stay in Notion, never in the repo | Key Dates, the Family calendar, MEALS |
 | **ACADEMY** | Practice and learning: RESSIKAN practice minutes, courses, Growth calendar hours against a target | RESSIKAN keeps no record of practice |
 | **TRANSPORTER ROOM** | Trips: itineraries, packing lists that learn from the last trip, a countdown | Calendars, Key Dates |
@@ -111,4 +110,4 @@ What the sweep found healthy: every station opens with no page error, no request
 
 ## Done since the last review (2026-11-11), for the record
 
-2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy · 2.84 RECOVERED in the error log, "slowest" without frozen requests, RESSIKAN's clock only while playing (C2 to C4) · 2.84.1 the class guard on every station, which found WEEK's lost date label (B2), and timeouts that say what they saw (B3) · 2.85 reads cut short say so (A3, bridge 1.50) and the deep store for big copies (A4). Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).
+2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy · 2.84 RECOVERED in the error log, "slowest" without frozen requests, RESSIKAN's clock only while playing (C2 to C4) · 2.84.1 the class guard on every station, which found WEEK's lost date label (B2), and timeouts that say what they saw (B3) · 2.85 reads cut short say so (A3, bridge 1.50) and the deep store for big copies (A4) · 2.86 the SYSTEMS index (C1). Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).

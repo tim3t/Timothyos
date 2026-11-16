@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.85.0";
+  var VERSION = "2.86.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -399,8 +399,14 @@
      read as 983.7 s and became BRIDGE TODAY's "slowest". Such a request is marked "app paused" and left out of slowest. */
   var PAUSED_SLACK = 5000;
   function frozen(started, limit) { return !!limit && Date.now() - started > limit + PAUSED_SLACK; }
+  /* 2.86: a request the page itself cut off (a reload: an update, PROFILE SYNC, a restore) isn't a failure, and no
+     longer leaves a "dropped" line in the error log of the page that comes next. */
+  var pageGone = false;
+  window.addEventListener("pagehide", function () { pageGone = true; });
+  window.addEventListener("pageshow", function () { pageGone = false; });   /* back from the back-forward cache */
   function logged(action, started, p, limit) {
     return p.then(function (j) { note(action, started, "ok"); netDay(started, false, frozen(started, limit)); return j; }, function (err) {
+      if (pageGone) throw err;
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error", fz = frozen(started, limit);
       var bg = document.hidden || lastHidden >= started ? " · in background" : fz ? " · app paused" : "";
       if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
@@ -502,7 +508,7 @@
       '<small class="muted">Kept on this iPad for 30 days (200 lines at most), never in backups or sent anywhere. Each line: when, where, what failed and the reason. ×3 means the same failure three times within 10 minutes; RETRIED means Bridge tried again on its own (dimmed when every one was); RECOVERED means the try again went through, so nothing was lost. COPY REPORT copies it all with the app and bridge versions, to paste into a message to Claude.</small></section>';
     return h;
   }
-  function errPaint() { var s = $("sec-errlog"); if (s && state.screen === "systems") s.outerHTML = errSection(); }
+  function errPaint() { var s = $("sec-errlog"); if (s && state.screen === "systems") { s.outerHTML = errSection(); sysIndex(); } }   /* 2.86: the index keeps its group and its lights */
   function errReport() {
     var day = lsGet(LS_NETDAY);
     return ["TimothyOS ERROR LOG · copied " + new Date().toISOString(), "App " + VERSION + " · bridge " + (state.bridgeVersion || "unknown") + " · " + errScrub(navigator.userAgent),
@@ -1237,7 +1243,62 @@
       "<dt>RUNNING AS</dt><dd>" + (standalone ? "Home screen app" : "Browser tab. In Safari, tap Share, then Add to Home Screen.") + "</dd>" +
       "</dl></section></div>";
     $("content").innerHTML = html;
+    sysIndex();
   }
+
+  /* ---------- The SYSTEMS index (2.86, C1) ----------
+     SYSTEMS had grown to 25 sections and about 8,900 px. Timothy chose option A of the 16 Nov mockup: six groups in a
+     sticky LCARS tab bar, one group shown at a time. Each tab has its count and a light: red when a section in it
+     needs attention (its heading turned red, a red pill or an error inside), yellow when one is still to be set up
+     or out of date. SYSTEMS opens on STATUS, unless another group has a red light: then the first such group. A tab
+     picked stays picked while you stay in SYSTEMS (sysView.g, cleared by go() on the way in). NEEDS YOU stays above
+     the tabs. COMPUTER (sysJump), a NEEDS YOU card (fixJump), AUDIO and ENGINEERING open the group they point into.
+     A new section goes in one group's list here; app_e2e94 fails on a section in none. */
+  var SYS_GROUPS = [
+    { k: "status", n: "STATUS", c: "hero", about: "Is Bridge reaching Google, what went wrong, and the report for Claude", s: ["CONNECTION", "DIAGNOSTICS", "RECENT REQUESTS", "ERROR LOG", "APP"] },
+    { k: "ipad", n: "THIS IPAD", c: "chrome-d", about: "What this iPad keeps, its backup, and keeping your iPads alike", s: ["THIS IPAD'S STORAGE", "BACKUP AND RESTORE", "PROFILE SYNC"] },
+    { k: "sources", n: "GOOGLE + NOTION", c: "chrome-c", about: "The calendars, the Notion databases, Claude and YNAB", s: ["CALENDARS", "NOTION", "ASK CLAUDE", "LEDGER"] },
+    { k: "stations", n: "STATIONS", c: "chrome-a", about: "Each station's own Notion database and settings", s: ["CAPTAIN'S LOG", "TAROT", "APIARY", "SICKBAY", "MEALS", "INBOX", "SCIENCE"] },
+    { k: "home", n: "HOME NETWORK", c: "water", about: "The NAS relay for HOLODECK and AUDIO, and Home Assistant", s: ["NAS RELAY", "HOME ASSISTANT"] },
+    { k: "prefs", n: "PREFERENCES", c: "chrome-b", about: "How the Bridge, CAPTURE, Standby and BALANCE behave on this iPad", s: ["BRIDGE", "CAPTURE", "STANDBY", "BALANCE TARGETS"] }
+  ];
+  var sysView = { g: null };
+  function sysTitle(sec) { var h = sec.querySelector(".phead h2"); return h ? h.textContent.trim() : ""; }
+  function sysGroupOf(sec) { var t = sysTitle(sec); for (var i = 0; i < SYS_GROUPS.length; i++) if (SYS_GROUPS[i].s.indexOf(t) > -1) return SYS_GROUPS[i]; return null; }
+  function sysState(sec) {
+    var ph = sec.querySelector(".phead"), st = (ph && ph.getAttribute("style")) || "", meta = ((ph && ph.querySelector(".meta")) || {}).textContent || "";
+    var red = Array.prototype.some.call(sec.querySelectorAll(".pill.bad, .err"), function (e) { return !e.closest(".el-list") && !e.hidden && e.textContent.trim(); });   /* the error log's rows stay red for 30 days (its heading says the last 24 hours); an empty message slot is nothing */
+    if (/--bad\b/.test(st) || red) return "bad";
+    if (/--warn\b/.test(st) || sec.querySelector(".pill.warn") || /\b(SETUP|NOT SET)\b/.test(meta)) return "warn";
+    return "";
+  }
+  function sysSections() { var box = document.querySelector("#content .sys"); return box ? Array.prototype.filter.call(box.children, function (e) { return e.tagName === "SECTION" && e.id !== "fixPanel"; }) : []; }
+  function sysIndex() {
+    var box = document.querySelector("#content .sys"); if (!box || state.screen !== "systems") return;
+    var old = $("sysIndex"); if (old) old.remove();
+    var secs = sysSections(), info = SYS_GROUPS.map(function (g) {
+      var mine = secs.filter(function (s) { return sysGroupOf(s) === g; }), sts = mine.map(sysState);
+      return { g: g, secs: mine, st: sts.indexOf("bad") > -1 ? "bad" : sts.indexOf("warn") > -1 ? "warn" : "", setup: sts.filter(function (x) { return x === "warn"; }).length };
+    }).filter(function (x) { return x.secs.length; });
+    if (!info.length) return;
+    if (!sysView.g || !info.some(function (x) { return x.g.k === sysView.g; })) { var red = info.filter(function (x) { return x.st === "bad"; })[0]; sysView.g = red ? red.g.k : info[0].g.k; }
+    var cur = info.filter(function (x) { return x.g.k === sysView.g; })[0];
+    secs.forEach(function (s) { var g = sysGroupOf(s); s.hidden = g !== cur.g; if (g) s.dataset.sysg = g.k; });
+    var nav = document.createElement("nav"); nav.className = "sys-ix"; nav.id = "sysIndex"; nav.setAttribute("aria-label", "SYSTEMS sections");
+    nav.innerHTML = '<div class="sys-tabs" role="tablist">' + info.map(function (x) {
+      var on = x === cur;
+      return '<button type="button" class="sys-tab" role="tab" data-sysg="' + x.g.k + '" style="--c: var(--' + x.g.c + ')" aria-selected="' + on + '"><span class="sys-tn">' + x.g.n + '</span><span class="sys-n tnum">' + x.secs.length + "</span>" +
+        (x.st ? '<span class="sys-light sys-' + x.st + '" role="img" aria-label="' + (x.st === "bad" ? "needs attention" : "something to set up") + '"></span>' : "") + "</button>";
+    }).join("") + '</div><p class="sys-about"><b>' + cur.g.n + "</b><span>" + cur.g.about + "</span>" + (cur.setup ? '<span class="warntxt">' + cur.setup + (cur.setup === 1 ? " needs setting up" : " need setting up") + "</span>" : "") + "</p>";
+    box.insertBefore(nav, secs[0] || null);
+  }
+  function sysPick(k) {
+    sysView.g = k; sysIndex();
+    var c = $("content"), ix = $("sysIndex");
+    if (c) c.scrollTop = 0;
+    if (ix && ix.getBoundingClientRect().top < 0) ix.scrollIntoView({ block: "start" });   /* portrait: the page itself scrolls */
+  }
+  function sysShow(sec) { if (sec && sec.hidden) { var g = sysGroupOf(sec); if (g) { sysView.g = g.k; sysIndex(); } } }
 
   /* ---------- PROFILE SYNC (2.54, bridge 1.36) ---------- */
   /* Timothy works on two iPads, HUB and MOBILE. What each kept only on itself (HOLODECK's channels, AUDIO's places,
@@ -1455,7 +1516,7 @@
         }).join("") + "</div>" + '<p class="muted">Keys, AI switches and drafts are never part of this. You can pause sync on either iPad later.</p>' +
         '<div class="btnrow pf-end"><button type="button" class="btn ghost" data-pf="joincancel">NOT NOW</button><button type="button" class="btn" data-pf="join">' + esc(J.pick === "merge" ? "MERGE AND SYNC" : J.pick === "cloud" ? "USE " + from.toUpperCase() + "'S AND SYNC" : "USE THIS IPAD'S AND SYNC") + "</button></div></div></div>";
     }
-    function paint() { var el = $("sec-sync"); if (el && state.screen === "systems") el.outerHTML = section(); topbar(); }   /* only this section: nothing being typed elsewhere in SYSTEMS is lost */
+    function paint() { var el = $("sec-sync"); if (el && state.screen === "systems") { el.outerHTML = section(); sysIndex(); } topbar(); }   /* only this section: nothing being typed elsewhere in SYSTEMS is lost */
     function topbar() { var t = document.querySelector(".topbar > span"); if (!t) return; var base = t.textContent.replace(/ · (HUB|MOBILE)$/, ""); t.textContent = base + (M.name ? " · " + M.name : ""); }
     function click(b) {
       var d = b.dataset;
@@ -1773,6 +1834,7 @@
   function fixJump(id) {
     var el = $(id);
     if (!el) return;
+    sysShow(el);   /* 2.86: open its group first */
     el.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
     restartClass(el, "flash");
   }
@@ -6702,7 +6764,7 @@
   function sysJump(title) {
     go("systems");
     var sec = Array.prototype.filter.call(document.querySelectorAll("#content section"), function (s) { var h = s.querySelector(".phead h2"); return h && h.textContent.trim().indexOf(title) === 0; })[0];
-    if (sec) { sec.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" }); restartClass(sec, "flash"); }
+    if (sec) { sysShow(sec); sec.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" }); restartClass(sec, "flash"); }   /* 2.86: its group first */
   }
   function cmdClick(sel) { var b = document.querySelector(sel); if (b && !b.disabled) { b.click(); return true; } return false; }
   function cmdHive(h, then) {
@@ -8188,7 +8250,7 @@
     else if (k === "back") skip(-15);
     else if (k === "fwd") skip(30);
     else if (k === "open") { nas.view = "now"; render(false); renderHeader(); }
-    else if (k === "systems") go("systems");
+    else if (k === "systems") sysJump("NAS RELAY");   /* 2.86: straight to its group */
     else if (k === "hide" && nas.dir !== "/") {
       var hid = nasHidden(); if (hid.indexOf(nas.dir) < 0) hid.push(nas.dir); lsSet(LS_NASHIDE, hid);
       toast("Hidden: " + baseName(nas.dir) + ". Unhide in Systems → NAS RELAY");
@@ -8910,7 +8972,7 @@
     if (!d.eng) return false;
     if (d.eng === "add") openAddDevice();
     else if (d.eng === "newitem") openUpkeepItem(null);
-    else if (d.eng === "systems") go("systems");
+    else if (d.eng === "systems") sysJump("HOME ASSISTANT");   /* 2.86: straight to its group */
     else if (d.eng === "groups") openGroups();
     return true;
   }
@@ -16230,6 +16292,7 @@
   function go(screen, anchor) {
     if (state.screen === "ressikan" && screen !== "ressikan") rs.leave();   /* RESSIKAN goes quiet when you leave it */
     if (state.screen === "holodeck" && screen !== "holodeck") holo.leave();   /* the HOLODECK TV turns off */
+    if (screen === "systems" && state.screen !== "systems") sysView.g = null;   /* SYSTEMS opens on STATUS, or the first group with a red light (2.86) */
     if (screen === "holodeck") holo.arch();   /* entering HOLODECK, or tapping it again: the arch, every time (Timothy, 2.47) */
     if (screen === "log" || state.screen === "log") lockLog();   /* opening LOG always asks for the PIN */
     if (screen === "loom" && state.screen !== "loom") { lm.t = calm() ? 0 : -5; lm.target = null; lm.vel = 0; lm.base = 0; }   /* arrive with a short glide into today */
@@ -16400,6 +16463,7 @@
     }
     else if (b.dataset.standby !== undefined) { lsSet(LS_STANDBY, +b.dataset.standby); if (+b.dataset.standby) holdAwake(); else letSleep(); noteTouch(); render(true); }
     else if (b.dataset.act === "standbynow") enterStandby();
+    else if (b.dataset.sysg) sysPick(b.dataset.sysg);   /* the SYSTEMS index (2.86) */
     else if ((b.dataset.elf || /^err(all|clear|copy)$/.test(b.dataset.act || "")) && errClick(b)) { /* the error log (2.62) */ }
     else if (b.dataset.logai) { if (b.dataset.logai === "1") lsSet(LS_LOGAI, true); else lsDel(LS_LOGAI); render(true); }
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); askReshare(); render(true); }

@@ -719,7 +719,7 @@
     else if (k === "back") skip(-15);
     else if (k === "fwd") skip(30);
     else if (k === "open") { nas.view = "now"; render(false); renderHeader(); }
-    else if (k === "systems") go("systems");
+    else if (k === "systems") sysJump("NAS RELAY");   /* 2.86: straight to its group */
     else if (k === "hide" && nas.dir !== "/") {
       var hid = nasHidden(); if (hid.indexOf(nas.dir) < 0) hid.push(nas.dir); lsSet(LS_NASHIDE, hid);
       toast("Hidden: " + baseName(nas.dir) + ". Unhide in Systems → NAS RELAY");

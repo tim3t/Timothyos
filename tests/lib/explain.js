@@ -62,12 +62,47 @@ function annotate(err, seen) {
   return err;
 }
 
-function wrap(proto, pageOf) {
+/* SYSTEMS shows one group at a time (2.86, C1). A test that reaches for something in a group not shown taps that
+   group's tab first, as a person would: before a call that names a selector, if it matches something inside a hidden
+   SYSTEMS section (each carries data-sysg, its group), the tab is clicked. The index itself, its lights and its
+   jumps are tested directly by app_e2e94; this only saves every other test from knowing which tab holds what. */
+const SEL_CALLS = new Set(['waitForSelector', 'click', 'dblclick', 'tap', 'fill', 'press', 'type', 'hover', 'check', 'uncheck', 'selectOption', 'setInputFiles', 'focus', 'dispatchEvent',
+  'textContent', 'innerText', 'innerHTML', 'getAttribute', 'inputValue', 'waitFor']);
+let rawFind = null;
+async function sysTab(page, sel) {
+  if (!rawFind || !page || typeof sel !== 'string' || page.isClosed()) return;
+  let h = null;
+  try { h = await rawFind.call(page, sel); } catch (e) { return; }
+  if (!h) return;
+  try { await h.evaluate(el => { const sec = el.closest('#content .sys > section[hidden]'); const t = sec && sec.dataset.sysg && document.querySelector('.sys-tab[data-sysg="' + sec.dataset.sysg + '"]'); if (t) t.click(); }); } catch (e) { /* gone meanwhile */ }
+  try { await h.dispose(); } catch (e) { /* gone */ }
+}
+
+function wrap(proto, pageOf, selOf) {
   for (const name of WAITS) {
     const orig = proto[name];
     if (typeof orig !== 'function' || orig.__explained) continue;
     const fn = async function (...args) {
-      try { return await orig.apply(this, args); } catch (err) {
+      let slices = null;
+      if (selOf && SEL_CALLS.has(name)) {
+        let pg = null, sel = null; try { pg = pageOf(this); sel = selOf(this, args); } catch (e) { /* none */ }
+        if (pg && sel) {
+          const isWait = name === 'waitForSelector' || name === 'waitFor', oi = name === 'waitFor' ? 0 : 1, o = (args[oi] && typeof args[oi] === 'object') ? args[oi] : {};
+          if (isWait && (!o.state || o.state === 'visible')) slices = { pg, sel, oi, o, t0: Date.now(), lim: o.timeout != null ? o.timeout : 30000 };
+          else await sysTab(pg, sel);
+        }
+      }
+      try {
+        if (!slices) return await orig.apply(this, args);
+        /* a wait for something to show: in slices of a second, each after tapping its SYSTEMS tab if it's in a hidden
+           group (it may be drawn a moment later, or SYSTEMS drawn again on STATUS), until the test's own limit */
+        for (;;) {
+          await sysTab(slices.pg, slices.sel);
+          const left = slices.lim ? slices.lim - (Date.now() - slices.t0) : 1000, a = args.slice();
+          a[slices.oi] = Object.assign({}, slices.o, { timeout: Math.max(1, Math.min(1000, left)) });
+          try { return await orig.apply(this, a); } catch (e) { if (!(e && e.name === 'TimeoutError') || (slices.lim && Date.now() - slices.t0 >= slices.lim)) throw e; }
+        }
+      } catch (err) {
         if (err && err.name === 'TimeoutError') { let pg = null; try { pg = pageOf(this); } catch (e) { /* none */ } annotate(err, pg ? await describe(pg) : await describeAll()); }
         throw err;
       }
@@ -83,8 +118,9 @@ function track(page) {
   pages.add(page); page.on('close', () => pages.delete(page));
   if (!patchedPage) {
     patchedPage = true;
-    wrap(Object.getPrototypeOf(page), pg => pg);
-    wrap(Object.getPrototypeOf(page.locator('body')), loc => loc.page());
+    rawFind = Object.getPrototypeOf(page).$;
+    wrap(Object.getPrototypeOf(page), pg => pg, (pg, args) => (typeof args[0] === 'string' ? args[0] : null));   // SEL_CALLS all take the selector first
+    wrap(Object.getPrototypeOf(page.locator('body')), loc => loc.page(), loc => loc._selector || null);
     wrap(Object.getPrototypeOf(page.keyboard), () => null);
   }
   return page;

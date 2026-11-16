@@ -633,7 +633,7 @@
     if (!d.eng) return false;
     if (d.eng === "add") openAddDevice();
     else if (d.eng === "newitem") openUpkeepItem(null);
-    else if (d.eng === "systems") go("systems");
+    else if (d.eng === "systems") sysJump("HOME ASSISTANT");   /* 2.86: straight to its group */
     else if (d.eng === "groups") openGroups();
     return true;
   }

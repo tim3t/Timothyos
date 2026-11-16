@@ -126,7 +126,7 @@ const reset = () => Promise.all([brief('cap=0&fail=0&shape=0'), voice('cap=0&fai
   // ---- an older bridge (no voice): Systems says what it needs
   await voice('cap=0');
   await p.click('#refreshBtn'); await p.waitForTimeout(1500);
-  assert.ok((await txt(p, '#content')).includes("AI voice: off. Add OPENAI_API_KEY to the Google bridge's Script Properties and update it to 1.30"));
+  assert.ok((await txt(p, 'section:has(.phead h2:text-is("ASK CLAUDE"))')).includes("AI voice: off. Add OPENAI_API_KEY to the Google bridge's Script Properties and update it to 1.30"));
 
   await reset();
   console.log('errors', errs);

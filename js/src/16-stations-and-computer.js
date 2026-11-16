@@ -133,7 +133,7 @@
   function sysJump(title) {
     go("systems");
     var sec = Array.prototype.filter.call(document.querySelectorAll("#content section"), function (s) { var h = s.querySelector(".phead h2"); return h && h.textContent.trim().indexOf(title) === 0; })[0];
-    if (sec) { sec.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" }); restartClass(sec, "flash"); }
+    if (sec) { sysShow(sec); sec.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" }); restartClass(sec, "flash"); }   /* 2.86: its group first */
   }
   function cmdClick(sel) { var b = document.querySelector(sel); if (b && !b.disabled) { b.click(); return true; } return false; }
   function cmdHive(h, then) {

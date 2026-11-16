@@ -1407,6 +1407,25 @@ textarea:not(.cl-text) { overflow-y: hidden; }   /* 2.26.1: they grow with their
 /* changing screens: content rises in */
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
 #content.enter > * { animation: rise 200ms var(--ease-out) both; }
+/* 2.86 (C1): the SYSTEMS index, six groups, one shown at a time */
+.sys-ix { position: sticky; top: -16px; z-index: 6; background: var(--bg); margin: -16px 0 -12px; padding: 16px 0 10px; display: grid; gap: 10px; }
+.sys-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.sys-tab { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-height: 52px; min-width: 0; flex: 1 1 120px; padding: 6px 14px 7px 16px;
+  border: 0; border-radius: 0; background: var(--panel-2); color: var(--c); font-family: var(--display); font-size: 15px; letter-spacing: .12em; text-align: left; box-shadow: inset 6px 0 0 var(--c); }
+.sys-tab:first-child { border-radius: 26px 0 0 26px; padding-left: 26px; box-shadow: none; }
+.sys-tab:last-child { border-radius: 0 26px 26px 0; padding-right: 24px; }
+.sys-tab .sys-n { font-size: 13px; color: var(--dim); }
+.sys-tab[aria-selected="true"] { background: var(--c); color: var(--ink); box-shadow: none; }
+.sys-tab[aria-selected="true"] .sys-n { color: var(--ink); opacity: .7; }
+.sys-light { position: absolute; top: 7px; right: 10px; width: 10px; height: 10px; border-radius: 50%; }
+.sys-light.sys-bad { background: var(--bad); box-shadow: 0 0 0 3px rgba(255, 122, 122, .25); }
+.sys-light.sys-warn { background: var(--warn); }
+.sys-tab[aria-selected="true"] .sys-light { box-shadow: 0 0 0 2px var(--ink); }
+.sys-about { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin: 0; font-size: 15px; color: var(--dim); }
+.sys-about b { font-family: var(--display); font-weight: 400; letter-spacing: .12em; color: var(--fg); }
+@media (max-width: 860px) { .sys-ix { top: 0; margin-top: 0; padding-top: 6px; } }
+@media (max-width: 600px) { .sys-tab { flex: 1 1 calc(33% - 6px); font-size: 13px; padding: 6px 10px 7px 12px; } .sys-tab:first-child, .sys-tab:last-child { border-radius: 0; padding-left: 12px; } }
+@media (prefers-reduced-motion: no-preference) { .sys-tab { transition: background .15s, color .15s; } }
 .cut-note { margin: 22px 0 0; max-width: 760px; font-size: 14px; }   /* 2.85 (A3): a read cut short at its row limit */
 
 /* bars grow from their baseline when a screen opens (never on a background sync) */

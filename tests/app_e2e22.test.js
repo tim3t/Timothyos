@@ -177,7 +177,7 @@ const stored = p => p.evaluate(() => Object.keys(localStorage).map(k => k + '=' 
 
   // Systems: status, no entry text
   await p.click('#status'); await p.waitForTimeout(400);
-  const sys = await txt(p, '#content');
+  const sys = await txt(p, `section:has(.phead h2:text-is("CAPTAIN'S LOG"))`);   // 2.86: in SYSTEMS' STATIONS group
   assert.ok(sys.includes("CAPTAIN'S LOG PIN-LOCKED") && sys.includes('The ASK button never sees the log'));
 
   // phone width
