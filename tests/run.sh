@@ -34,6 +34,7 @@ echo "== Lint (D79: bug rules only; tools/lint.js names the js/src part)"
 if lint_out=$(node ../tools/lint.js 2>&1); then echo "PASS  lint  ($(echo "$lint_out" | tail -1 | sed 's/^LINT: //'))"; else echo "FAIL  lint"; echo "$lint_out" | sed 's/^/      /'; fail=1; fi
 
 echo "== Bridge (Apps Script, simulated Google + Notion)"
+run notion_sim.test.js       # B1: the strict simulated Notion and the Apps Script harness the bridge tests share
 run bridge_calendar.test.js
 run bridge_notion.test.js
 run bridge_ask.test.js

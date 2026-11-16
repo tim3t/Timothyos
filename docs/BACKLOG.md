@@ -8,7 +8,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.49.0, then rename a Notion column | Apps Script; Notion: Habits → the **Evening Walk** column → rename to **Exercise** | Either order works; past days keep their ticks (app 2.83). 1.49 also carries 1.48.1 (ON THIS DAY's tasks and tarot) |
+| Rename a Notion column | Notion: Habits → the **Evening Walk** column → rename to **Exercise** | Bridge 1.51.0 is deployed (confirmed 16 Nov), so this can go any time; past days keep their ticks (app 2.83) |
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | SICKBAY trial verdict | After a few mornings with the Sleep Focus run (README → SICKBAY, 2.81.2). 13 Nov: three runs in a row didn't arrive (HUB likely locked) | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
@@ -18,7 +18,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-**Next (Timothy, 16 Nov):** Timothy shares Lauren Tan's optimization tactics, then B1 (below).
+**Next (Timothy, 16 Nov):** B1 (below): the pilot is done; the remaining batches wait for Timothy's go after the pilot report.
 
 ## From the diagnostic (2026-11-15), not yet agreed
 
@@ -29,7 +29,7 @@ What the sweep found healthy: every station opens with no page error, no request
 
 **Tests that would have caught this week's bugs**
 
-- **B1. One strict simulated Notion for the bridge tests.** 20 of the 23 bridge tests each carry their own hand-written Notion; only 4 refuse a property that doesn't exist, none hand results back in pages (so `queryAll_`'s paging is untested), and until 13 Nov none refused a filter nested too deep, which is how 1.48.0 shipped two failing reads. One shared, strict simulator (filter depth, unknown properties, wrong types, pages of 100, the 2,000-character text limit, a 429) would replace them. This absorbs the earlier "contract test" and "one shared simulated bridge" items.
+- **B1. One strict simulated Notion for the bridge tests** (agreed 16 Nov, P1 to P10; in progress). Built: `tests/lib/notion.js` and `tests/lib/gas.js` with `notion_sim.test.js`; moved onto it: `bridge_notion`, `bridge_capped`, `bridge_onthisday` (the pilot). Next: the other 19 bridge tests that reach Notion, in batches of about 6, each a commit with no file losing an `assert`; their hand-written Notion is deleted as each moves. A real bridge bug the strict simulator finds is reported to Timothy before any `Code.gs` fix (a fix needs his deploy).
 - **B4. Fixed waits in the frozen-clock tests** (carried: about a minute of the suite's time; e13, e16 to e25, e28 to e31, e37).
 - **B5. Tests named for what they cover** (carried: `app_e2e55` says nothing; the index in run.sh is the only map).
 - **B6. Tooling refresh** (carried): Playwright 1.63 → 1.65, ESLint 10.13 → 10.15 (a moderate advisory in a sub-dependency, test-only). Each quarter.
