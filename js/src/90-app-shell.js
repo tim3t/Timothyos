@@ -255,7 +255,6 @@
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); askReshare(); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") { if (canLogAsk()) openSummaryAuth(); else writeSummary(); }
-    else if (b.dataset.act === "balsave") balSave();
     else if (b.dataset.act === "brksave") { setBreaks($("brkIn").value.split("\n")); toast(breakList.length ? "Breaks: " + breakList.join(", ") : "No breaks"); render(true); }
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));

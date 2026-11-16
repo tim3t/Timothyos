@@ -49,7 +49,7 @@
     html += '<label class="ov-sub" for="brkIn">BREAKS</label>' +
       '<textarea id="brkIn" rows="2" placeholder="One word per line, e.g. Lunch">' + esc(breakList.join("\n")) + "</textarea>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="brksave">SAVE BREAKS</button></div>' +
-      '<small class="muted">A timed event whose whole title is one of these (capitals aside, and also with Out of office in front) is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings, BALANCE or Review hours. Saved on this iPad.</small>';
+      '<small class="muted">A timed event whose whole title is one of these (capitals aside, and also with Out of office in front) is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings or Review hours. Saved on this iPad.</small>';
     html += "</section>";
 
     html += aiSection();
@@ -61,7 +61,6 @@
     html += storageSection();
     html += haSection();
     html += logSection();
-    html += balanceSection();
     html += standbySection();
     html += bridgeSection();
     html += captureSection();
@@ -91,7 +90,7 @@
     { k: "sources", n: "GOOGLE + NOTION", c: "chrome-c", about: "The calendars, the Notion databases, Claude and YNAB", s: ["CALENDARS", "NOTION", "ASK CLAUDE", "LEDGER"] },
     { k: "stations", n: "STATIONS", c: "chrome-a", about: "Each station's own Notion database and settings", s: ["CAPTAIN'S LOG", "TAROT", "APIARY", "SICKBAY", "MEALS", "INBOX", "SCIENCE"] },
     { k: "home", n: "HOME NETWORK", c: "water", about: "The NAS relay for HOLODECK and AUDIO, and Home Assistant", s: ["NAS RELAY", "HOME ASSISTANT"] },
-    { k: "prefs", n: "PREFERENCES", c: "chrome-b", about: "How the Bridge, CAPTURE, Standby and BALANCE behave on this iPad", s: ["BRIDGE", "CAPTURE", "STANDBY", "BALANCE TARGETS"] }
+    { k: "prefs", n: "PREFERENCES", c: "chrome-b", about: "How the Bridge, CAPTURE and Standby behave on this iPad", s: ["BRIDGE", "CAPTURE", "STANDBY"] }
   ];
   var sysView = { g: null };
   function sysTitle(sec) { var h = sec.querySelector(".phead h2"); return h ? h.textContent.trim() : ""; }
@@ -148,7 +147,7 @@
     ["AUDIO", [["plays", "Resume points and finished episodes", ["tos.plays.v1"]], ["nashide", "Hidden folders and sort order", ["tos.nashide.v1", "tos.nassort.v1"]], ["naspref", "Speed, autoplay and last folder", ["tos.naspref.v1", "tos.nasdir.v1"]]]],
     ["HOLODECK", [["holo", "Channels, styles, BREAKS, Commercials folder, look", ["tos.holo.v1"]]]],
     ["BRIDGE AND TODAY", [["log", "Intent lines (30 days) and bearings", ["tos.log.v1", "tos.bearings.v1"]], ["pins", "Pins, start screen, open panels", ["tos.pins.v1", "tos.start.v1", "tos.bopen.v1"]], ["hidden", "Calendars hidden on Today", ["tos.hidden.v1"]]]],
-    ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
+    ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Ledger range", ["tos.lrange.v1"]]]],
     ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups, scene order", ["tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
     ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
     ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],

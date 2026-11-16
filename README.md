@@ -142,7 +142,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 
 | Database | Powers | The bridge may |
 |---|---|---|
-| 🎯 Master Task List | PLAN DAY, Priorities, Balance, Review, Ask | Read; add tasks; set Focus Date, Status and Completed (bridge 1.51: `setup` adds the **Completed** date column once; it holds when each task was finished) |
+| 🎯 Master Task List | PLAN DAY, Priorities, Review, Ask | Read; add tasks; set Focus Date, Status and Completed (bridge 1.51: `setup` adds the **Completed** date column once; it holds when each task was finished) |
 | 🗓️ Key Dates | DATES, Key Dates panel, markers, Capture | Read; add |
 | 🧭 Weekly Reviews | REVIEW | Read; add and update a week's page |
 | 🛸 Replicator Queue | LEDGER | Read; add; reorder; mark bought; remove (moves the page to Notion's trash, bridge 1.47) |
@@ -201,7 +201,7 @@ The bridge also keeps its own working values there (spend counters, the log's lo
 
 ### Farm and Growth calendars
 
-Two extra Google calendars in the same personal account: **farm** (farm and bee work, amber, labelled with the calendar's own name) and **Growth** (personal growth and hobbies, coral, labelled GROWTH). Once linked, each sits beside Work and Personal everywhere (Today, Week, Month, Horizon, Balance, Review hours), and **CAPTURE** and **ASK** can add to it. Work stays read-only. Tasks in a Notion Life Area whose name mentions Farm or Bee count toward the farm; Growth, Creative or Hobby toward GROWTH; Work toward work.
+Two extra Google calendars in the same personal account: **farm** (farm and bee work, amber, labelled with the calendar's own name) and **Growth** (personal growth and hobbies, coral, labelled GROWTH). Once linked, each sits beside Work and Personal everywhere (Today, Week, Month, Review hours), and **CAPTURE** and **ASK** can add to it. Work stays read-only. Tasks in a Notion Life Area whose name mentions Farm or Bee count toward the farm; Growth, Creative or Hobby toward GROWTH; Work toward work.
 
 1. **Create the calendar:** **calendar.google.com** → **Other calendars +** → **Create new calendar** → a name (**Growth** for the second), your time zone, **Create calendar**.
 2. **Copy its ID:** **Settings** → the new calendar → **Integrate calendar** → **Calendar ID** (ends in `@group.calendar.google.com`).
@@ -478,7 +478,7 @@ The app opens here (or on Today; **SYSTEMS → BRIDGE → Opens on**). Since 2.6
 | **BODY + HOME** | Today's habits (tap to record), **TONIGHT** (COOK, and from 4 PM what dinner was), and the **weather** with **hive check** (GO when it's 60°F+, wind under 12 mph and dry, between 10:00 and 17:00) and **frost watch**; its **+** shows wind, rain, sunrise and sunset |
 | **COMMS** | One row each, always in this order: **BRIEFING**, **INBOX**, **SCIENCE**, **KEY DATE** (the next one, with its countdown), **BEARING** (tap to rotate) and **TAROT** (this week's card). A row with nothing to report stays in place, dimmed; one whose station isn't set up, or is switched off in SYSTEMS, is left out |
 
-HORIZON and BALANCE left the Bridge in 2.63; their numbers still feed ASK and REVIEW, and the balance targets stay in **SYSTEMS → BALANCE TARGETS**. The weather remembers whether its details are open.
+HORIZON and BALANCE left the Bridge in 2.63, and the rest of BALANCE (its targets and its task counts) in 2.88. The weather remembers whether its details are open.
 
 **ON THIS DAY** (bridge 1.48)
 - **Where:** under the Bridge's three columns, a card for each of the last five years with something on today's date, nearest first. When the date itself is empty, the card says **THAT WEEK** and shows the three days either side.
@@ -967,7 +967,7 @@ Tap the **SYNCED** status in the bottom-left corner; it lights up while Systems 
 - **ALL / BRIDGE / HOLODECK / PAGE…** narrow the list. **COPY REPORT** copies the whole log with the app and bridge versions and the iPadOS version, ready to paste into a message to Claude. **CLEAR** asks twice.
 - Kept 30 days (200 lines at most), never sent anywhere and never in backups. Keys, tokens and PINs are blanked out of every line.
 
-**PROFILE SYNC** (2.54, bridge 1.36) keeps HUB and MOBILE alike: HOLODECK's channels, AUDIO's places, pins, intent lines and bearings, ignored events, balance targets, Home Assistant devices, the ARBORETUM garden, session topic lists, landmarks, Standby and the rest of the iPad-only settings. It goes through your Google bridge and is kept in the bridge's own private storage in your Google account.
+**PROFILE SYNC** (2.54, bridge 1.36) keeps HUB and MOBILE alike: HOLODECK's channels, AUDIO's places, pins, intent lines and bearings, ignored events, Home Assistant devices, the ARBORETUM garden, session topic lists, landmarks, Standby and the rest of the iPad-only settings. It goes through your Google bridge and is kept in the bridge's own private storage in your Google account.
 
 1. On the iPad you use most: **SYSTEMS → PROFILE SYNC → THIS IPAD IS → HUB**, then **TURN ON**. Its settings become the profile.
 2. On the other: **MOBILE**, **TURN ON**. It lists where the two iPads differ: **MERGE** (recommended: channels, landmarks and ignored events from both, otherwise the newer change), **USE HUB'S** or **USE THIS IPAD'S**. It reloads with the result.

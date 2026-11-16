@@ -13,7 +13,7 @@
   /* ---------- Breaks (2.23) ---------- */
   /* Protected time booked on a calendar, like lunch held as an Out of Office on the Work calendar.
      A timed event whose title contains a word on this list is always shown, even if it also matches
-     an ignored title, as its own "break" area: never Work hours, meetings, BALANCE or Review hours.
+     an ignored title, as its own "break" area: never Work hours, meetings or Review hours.
      The "Out of office —" prefix is dropped from its label. The list stays on this iPad. */
   var LS_BREAKS = "tos.breaks.v1";
   var breakList = lsGet(LS_BREAKS) || ["Lunch"];
@@ -203,7 +203,7 @@
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
       flushInbox();

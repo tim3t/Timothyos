@@ -10,7 +10,6 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 |---|---|---|
 | Rename a Notion column | Notion: Habits → the **Evening Walk** column → rename to **Exercise** | Bridge 1.51.0 is deployed (confirmed 16 Nov), so this can go any time; past days keep their ticks (app 2.83) |
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
-| BALANCE: keep or remove what's left | Decide (raised 16 Nov from his SYSTEMS screenshot: GOOGLE + NOTION showed Balance ERROR "Google took too long") | The panel left the Bridge in 2.63 at his request. Still there: the `done` read on every Bridge open (shown only as that SYSTEMS row) and SYSTEMS → BALANCE TARGETS (read by nothing; synced and backed up). Notes said both feed ASK and REVIEW; the code shows neither reads them. Recommended: remove both from the app (no bridge deploy needed) |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | SICKBAY trial verdict | After a few mornings with the Sleep Focus run (README → SICKBAY, 2.81.2). 13 Nov: three runs in a row didn't arrive (HUB likely locked) | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
@@ -18,6 +17,8 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 | First weekly export: report how it went | Google Drive, Sunday about 03:00 | Bridge 1.41 |
 
 ## Agreed, not started
+
+**At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`.
 
 **Next (Timothy, 16 Nov):** B1 (below): the pilot is done; the remaining batches wait for Timothy's go after the pilot report.
 

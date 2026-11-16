@@ -23,8 +23,10 @@ function weather() {
   const ctx = await b.newContext({ viewport: { width: 1180, height: 820 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   let wxCalls = 0, wxUrl = '';
   await ctx.route('https://api.open-meteo.com/**', r => { wxCalls++; wxUrl = r.request().url(); r.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(weather()) }); });
-  await ctx.addInitScript(() => { if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
+  await ctx.addInitScript(() => { localStorage.setItem('tos.done.v1', '{"fetched":1,"done":[]}'); localStorage.setItem('tos.baltarget.v1', '{"work":45}'); if (!localStorage.getItem('tos.pins.v1')) localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'week', 'month', 'dates', 'review', 'ledger', 'log'])); });   // the bar as it was before 2.7
   const p = await ctx.newPage(); p.on('pageerror', e => errs.push(e.message));
+  let doneReads = 0;
+  p.on('request', r => { if (/action\\?":\\?"done/.test(r.postData() || '')) doneReads++; });
   await p.clock.setFixedTime(new Date('2026-10-06T07:40:00-05:00'));
   await p.goto('http://localhost:8080/');
 
@@ -106,11 +108,12 @@ function weather() {
   assert.ok(env.includes('Low 31°F') && env.includes('FROST'));
 
   await p.screenshot({ path: D + 'bridge-ipad.png', fullPage: true });
-  // ---- BALANCE's targets stay in Systems (ASK and REVIEW still use them)
-  await p.click('#status'); await p.waitForSelector('#balT-work');
-  assert.strictEqual(await p.inputValue('#balT-work'), '45');
-  await p.fill('#balT-work', '60'); await p.fill('#balT-personal', '5'); await p.click('[data-act="balsave"]');
-  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.baltarget.v1'))), { work: 60, personal: 5, farm: 6, hobby: 3 });
+  // ---- 2.88: BALANCE is gone entirely: no targets in Systems, no Balance row, no task-count read, its old copies cleared
+  await p.click('#status'); await p.waitForSelector('[data-sysg]', { state: 'attached' });
+  assert.strictEqual(await p.locator('#sec-balance, #balT-work, [data-act="balsave"]').count(), 0, 'no BALANCE TARGETS');
+  assert.ok(!/BALANCE|<b>Balance<\/b>/.test(await p.evaluate(() => document.getElementById('content').innerHTML)), 'Balance named nowhere in SYSTEMS, in any group');
+  assert.strictEqual(doneReads, 0, 'the Bridge never asks for the done counts');
+  assert.deepStrictEqual(await p.evaluate(() => [localStorage.getItem('tos.done.v1'), localStorage.getItem('tos.baltarget.v1')]), [null, null], 'old copies removed at start-up');
   await p.click('[data-screen="bridge"]'); await p.waitForSelector('.rb-ribbon');
   // no emoji anywhere in the interface (Notion labels are shown as plain text; ✓ and ✕ are text marks)
   const emojiIn = () => p.evaluate(() => (document.body.innerText.match(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{2712}\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/gu) || []).join(''));

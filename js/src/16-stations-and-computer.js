@@ -240,7 +240,6 @@
     S("Make a backup", "BACKUP AND RESTORE", "restore save file");
     S("Ignored events and breaks", "CALENDARS", "hide lunch out of office");
     S("Location, bearings and start screen", "BRIDGE", "weather opens on");
-    S("Balance targets", "BALANCE TARGETS", "hours areas");
     S("Standby timer", "STANDBY", "dim clock screen");
     S("Standby now", "STANDBY", "dim clock sleep", function () { enterStandby(); });
     S("Edit pins", "ALL STATIONS · EDIT PINS", "bar sidebar stations", function () { openLaunch(true); state.pinEdit = true; renderLaunch(); });

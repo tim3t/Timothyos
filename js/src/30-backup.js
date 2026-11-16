@@ -7,7 +7,7 @@
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
      writes only keys on BK_KEYS, then reloads. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
-    "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
+    "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",

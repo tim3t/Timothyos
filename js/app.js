@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.87.0";
+  var VERSION = "2.88.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -51,7 +51,8 @@
   var LS_START = "tos.start.v1";       /* screen the app opens on: "bridge" or "today" */
   var LS_PLACE = "tos.place.v1";       /* { lat, lon } rounded, for weather */
   var LS_WX = "tos.wx.v1";             /* last Open-Meteo forecast */
-  var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
+  var LS_DONE = "tos.done.v1";         /* retired in 2.88 with BALANCE's last pieces (tasks finished in the last 30 days) */
+  var LS_BALT = "tos.baltarget.v1";    /* retired in 2.88: BALANCE's hour targets */
   var LS_LOG = "tos.log.v1";           /* Bridge: one intent line per day, last 30 days (the journal itself is the LOG screen) */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
   var LS_WEEKS = "tos.weeks.v1";       /* Review: last few weeks fetched (finished + picked tasks, saved review) */
@@ -100,7 +101,7 @@
      again every 30 seconds and when the app is left, and the Bridge's Condition turns red (lsFull). A saved copy
      that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
      notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
-  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
+  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
     "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1", "tos.otd.v1"];
   var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
   var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1", "tos.capped.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
@@ -295,9 +296,6 @@
     hols: lsGet("tos.hols.v1"),            /* holidays (bridge 1.23): { fetched, calendar, list[{d, t}] }; key is LS_HOLS */
     datesErr: null,
     datesInflight: false,
-    done: lsGet(LS_DONE),                  /* { fetched, done: [{ area, at }] } */
-    doneErr: null,
-    doneInflight: false,
     wx: lsGet(LS_WX),                      /* { fetched, key, data } */
     wxErr: null,
     wxInflight: false,
@@ -536,11 +534,11 @@
   /* Reads asked for at the same moment (returning to the app, REFRESH NOW) travel together as one
      request (bridge 1.13), so Google runs one execution instead of five. Fewer requests, fewer of
      Google's lost answers (HTTP 404). An older bridge doesn't know "batch": then each goes alone. */
-  var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger", "habits", "library", "tarot", "apiary", "meals", "year", "sciencefeeds", "sciencelog"];
+  var BATCHABLE = ["aispend", "events", "tasks", "dates", "week", "reviews", "ledger", "habits", "library", "tarot", "apiary", "meals", "year", "sciencefeeds", "sciencelog"];
   /* Google answers a batch one read after another, so a long batch keeps everything waiting.
      What's on screen first (calendars, tasks, key dates, habits) travels in one batch; the rest
-     (balance, reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
-  var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library", "tarot", "apiary", "meals"];
+     (reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
+  var BATCH_LATER = ["aispend", "week", "reviews", "ledger", "library", "tarot", "apiary", "meals"];
   var batchQ = null, batchOk = true;
   function api(params, conn) {
     var p = conn || !batchOk || BATCHABLE.indexOf(params.action) === -1 ? tracked(withRetry(function () { return apiOnce(params, conn); })) : tracked(new Promise(function (res, rej) {
@@ -686,7 +684,7 @@
   /* ---------- Breaks (2.23) ---------- */
   /* Protected time booked on a calendar, like lunch held as an Out of Office on the Work calendar.
      A timed event whose title contains a word on this list is always shown, even if it also matches
-     an ignored title, as its own "break" area: never Work hours, meetings, BALANCE or Review hours.
+     an ignored title, as its own "break" area: never Work hours, meetings or Review hours.
      The "Out of office —" prefix is dropped from its label. The list stays on this iPad. */
   var LS_BREAKS = "tos.breaks.v1";
   var breakList = lsGet(LS_BREAKS) || ["Lunch"];
@@ -876,7 +874,7 @@
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadDone(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
+      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
       flushInbox();
@@ -1219,7 +1217,7 @@
     html += '<label class="ov-sub" for="brkIn">BREAKS</label>' +
       '<textarea id="brkIn" rows="2" placeholder="One word per line, e.g. Lunch">' + esc(breakList.join("\n")) + "</textarea>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="brksave">SAVE BREAKS</button></div>' +
-      '<small class="muted">A timed event whose whole title is one of these (capitals aside, and also with Out of office in front) is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings, BALANCE or Review hours. Saved on this iPad.</small>';
+      '<small class="muted">A timed event whose whole title is one of these (capitals aside, and also with Out of office in front) is always shown, even if it matches an ignored title, as a break: never counted as Work hours, meetings or Review hours. Saved on this iPad.</small>';
     html += "</section>";
 
     html += aiSection();
@@ -1231,7 +1229,6 @@
     html += storageSection();
     html += haSection();
     html += logSection();
-    html += balanceSection();
     html += standbySection();
     html += bridgeSection();
     html += captureSection();
@@ -1261,7 +1258,7 @@
     { k: "sources", n: "GOOGLE + NOTION", c: "chrome-c", about: "The calendars, the Notion databases, Claude and YNAB", s: ["CALENDARS", "NOTION", "ASK CLAUDE", "LEDGER"] },
     { k: "stations", n: "STATIONS", c: "chrome-a", about: "Each station's own Notion database and settings", s: ["CAPTAIN'S LOG", "TAROT", "APIARY", "SICKBAY", "MEALS", "INBOX", "SCIENCE"] },
     { k: "home", n: "HOME NETWORK", c: "water", about: "The NAS relay for HOLODECK and AUDIO, and Home Assistant", s: ["NAS RELAY", "HOME ASSISTANT"] },
-    { k: "prefs", n: "PREFERENCES", c: "chrome-b", about: "How the Bridge, CAPTURE, Standby and BALANCE behave on this iPad", s: ["BRIDGE", "CAPTURE", "STANDBY", "BALANCE TARGETS"] }
+    { k: "prefs", n: "PREFERENCES", c: "chrome-b", about: "How the Bridge, CAPTURE and Standby behave on this iPad", s: ["BRIDGE", "CAPTURE", "STANDBY"] }
   ];
   var sysView = { g: null };
   function sysTitle(sec) { var h = sec.querySelector(".phead h2"); return h ? h.textContent.trim() : ""; }
@@ -1318,7 +1315,7 @@
     ["AUDIO", [["plays", "Resume points and finished episodes", ["tos.plays.v1"]], ["nashide", "Hidden folders and sort order", ["tos.nashide.v1", "tos.nassort.v1"]], ["naspref", "Speed, autoplay and last folder", ["tos.naspref.v1", "tos.nasdir.v1"]]]],
     ["HOLODECK", [["holo", "Channels, styles, BREAKS, Commercials folder, look", ["tos.holo.v1"]]]],
     ["BRIDGE AND TODAY", [["log", "Intent lines (30 days) and bearings", ["tos.log.v1", "tos.bearings.v1"]], ["pins", "Pins, start screen, open panels", ["tos.pins.v1", "tos.start.v1", "tos.bopen.v1"]], ["hidden", "Calendars hidden on Today", ["tos.hidden.v1"]]]],
-    ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Balance targets and Ledger range", ["tos.baltarget.v1", "tos.lrange.v1"]]]],
+    ["CALENDAR AND LEDGER", [["ignore", "Ignored events and break names", ["tos.ignore.v1", "tos.breaks.v1"]], ["bal", "Ledger range", ["tos.lrange.v1"]]]],
     ["ENGINEERING", [["ha", "Home Assistant devices, rooms, groups, scene order", ["tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1"]], ["engview", "Tabs, rooms and views (UPKEEP's too)", ["tos.engtab.v1", "tos.haroom.v1", "tos.haview.v1", "tos.upview.v1"]]]],
     ["LOG", [["sntopics", "Session topic lists", ["tos.sntopics.v1"]], ["review", "Review: saved weeks and last patterns answer", ["tos.rsaved.v1", "tos.rpatterns.v1"]]]],
     ["APIARY", [["rhythm", "Hive check rhythm", ["tos.hiverhythm.v1"]]]],
@@ -2250,7 +2247,7 @@
   var DATES_FRESH_MS = 5 * 60 * 1000;
   function canDates() { return state.caps.indexOf("dates") > -1; }
   /* Holidays (bridge 1.23): read from Google's holidays calendar, shown beside Key Dates as HOLIDAY.
-     Never written anywhere, never counted in hours, meetings or BALANCE (they aren't calendar events
+     Never written anywhere, never counted in hours or meetings (they aren't calendar events
      here). A title on the IGNORED EVENTS list hides that holiday. */
   var LS_HOLS = "tos.hols.v1";
   function canHolidays() { return state.caps.indexOf("holidays") > -1; }
@@ -2385,7 +2382,7 @@
       $("detailSheet").style.setProperty("--c", "var(--chrome-c)");
       $("detailSheet").innerHTML = '<div class="sbar"><span>◆ HOLIDAY</span><span>' + esc((state.hols && state.hols.calendar) || "HOLIDAYS").toUpperCase() + "</span></div>" +
         '<div class="sbody"><h3 id="detailTitle">' + esc(d.title) + '</h3><div class="tnum">' + esc(when) + " · " + countdown(o, ref) + "</div>" +
-        '<div class="muted">From Google\'s holidays calendar, read-only. Not counted in hours or BALANCE.</div></div>' +
+        '<div class="muted">From Google\'s holidays calendar, read-only. Not counted in hours.</div></div>' +
         '<div class="sfoot btnrow"><button type="button" class="btn ghost" data-ignore="' + esc(d.title) + '">HIDE THIS HOLIDAY</button><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
       showSheet("detailScrim"); $("detailClose").focus();
       return;
@@ -2566,14 +2563,6 @@
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small>' +
         (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
         '</small></span><span class="pill ok">OK</span></div>';
-    }
-    if (canBalance()) {
-      html += state.doneErr
-        ? '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small class="errtxt">' + esc(state.doneErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
-        : '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small>' + (state.done ? state.done.done.length + " tasks finished in the last 30 days · synced " + esc(stamp(state.done.fetched)) : "Not loaded yet") +
-          '</small></span><span class="pill ok">OK</span></div>';
-    } else if (canPlan()) {
-      html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canReviews()) {
       var lw = state.weeks[ymd(sow(new Date()))] || state.weeks[ymd(addDays(sow(new Date()), -7))];
@@ -2797,15 +2786,13 @@
   $("planScrim").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "planNew") { e.preventDefault(); addPlanTask(); } });
 
   /* ---------- Bridge (overview) ---------- */
-  /* One screen above the calendars: what needs you now, what's coming, and
-     whether the week is in balance. Everything here is read from data the app
-     already loads, plus weather (Open-Meteo) and the bridge's "done" counts. */
+  /* One screen above the calendars: what needs you now and what's coming. Everything here is read from data
+     the app already loads, plus weather (Open-Meteo). */
   var HEAVY_HOURS = 7, KD_WARN_DAYS = 3, PICK_BY_HOUR = 10, STALE_SYNC_MS = 6 * 3600 * 1000;
   var HIGH = "🔴 High";
   var HIVE = { minF: 60, maxWind: 12, maxRain: 30, from: 10, to: 17 };
-  var WX_FRESH_MS = 30 * 60 * 1000, DONE_FRESH_MS = 10 * 60 * 1000;
+  var WX_FRESH_MS = 30 * 60 * 1000;
 
-  function canBalance() { return state.caps.indexOf("done") > -1; }
   function durLabel(min) {
     min = Math.max(0, Math.round(min));
     var h = Math.floor(min / 60), m = min % 60;
@@ -3030,43 +3017,6 @@
     return html + '<div class="ov-foot ov-extra">Weather by Open-Meteo · updated ' + esc(stamp(state.wx.fetched)) + "</div>";
   }
 
-  /* --- balance: tasks finished per area, hours per calendar, quiet areas --- */
-  function loadDone(force) {
-    if (!state.conn || !canBalance() || state.doneInflight) return;
-    if (!force && state.done && Date.now() - state.done.fetched < DONE_FRESH_MS) return;
-    if (!force && state.doneErr && Date.now() - state.doneErr.at < FRESH_MS) return;
-    state.doneInflight = true;
-    api({ action: "done", days: 30 }).then(function (j) {
-      state.done = { fetched: Date.now(), done: j.done || [] };
-      state.doneErr = null;
-      lsSet(LS_DONE, state.done);
-    }).catch(function (err) {
-      state.doneErr = { at: Date.now(), msg: describeTasks(err) };
-    }).then(function () {
-      state.doneInflight = false;
-      if (state.screen === "bridge") render(true);
-    });
-  }
-  /* BALANCE (2.19): Work is time to contain, everything else is attention to keep up.
-     Work: calendar hours over the last 7 days against a ceiling. Other areas: seven dots, one per
-     day, lit when the area got attention (a task finished that day, or time on its calendar), plus
-     hours against a minimum where the area has a calendar. Targets are set in Systems (0 = none). */
-  var LS_BALT = "tos.baltarget.v1";
-  var BAL_DEF = { work: 45, personal: 0, farm: 6, hobby: 3 };
-  function balTargets() { var t = lsGet(LS_BALT) || {}, o = {}; Object.keys(BAL_DEF).forEach(function (k) { o[k] = typeof t[k] === "number" && t[k] >= 0 ? t[k] : BAL_DEF[k]; }); return o; }
-
-  function balanceSection() {
-    var t = balTargets(), row = function (k, label) { return "<dt>" + label + '</dt><dd class="bal-in"><input type="number" inputmode="decimal" min="0" max="168" step="0.5" id="balT-' + k + '" value="' + t[k] + '"><span class="muted">HOURS / 7 DAYS</span></dd>'; };
-    return '<section id="sec-balance">' + phead("BALANCE TARGETS", "SAVED ON THIS IPAD") + '<dl class="kv">' +
-      row("work", "WORK CEILING") + row("personal", "PERSONAL AT LEAST") + row("farm", AREAS.farm.name + " AT LEAST") + row("hobby", AREAS.hobby.name + " AT LEAST") +
-      '</dl><div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="balsave">SAVE TARGETS</button></div>' +
-      '<small class="muted">Counted over the last 7 days on the Bridge\'s BALANCE panel. 0 turns a target off. Areas without their own calendar show attention dots only.</small></section>';
-  }
-  function balSave() {
-    var o = {};
-    Object.keys(BAL_DEF).forEach(function (k) { var v = parseFloat(($("balT-" + k) || {}).value); o[k] = isFinite(v) && v >= 0 ? Math.min(168, Math.round(v * 2) / 2) : BAL_DEF[k]; });
-    lsSet(LS_BALT, o); toast("Balance targets saved"); render(true);
-  }
 
   /* --- captain's log + bearing (both stay on this iPad) --- */
   function bearings() { return lsGet(LS_BEARINGS) || []; }
@@ -3092,8 +3042,8 @@
   function pnl(key, inner) { return '<section class="ov-pnl' + (bridgeOpen[key] ? " open" : "") + '" data-panel="' + key + '">' + inner + "</section>"; }   /* a panel whose extras open behind its + (REVIEW's TRENDS, LEDGER's spend) */
 
   /* ---------- BRIDGE (2.63, Timothy's pick of three mockups: B, the TIME RIBBON; his nine postulates) ----------
-     HORIZON and BALANCE left the Bridge ("I don't reference Horizon or Balance basically at all"); what feeds ASK and
-     REVIEW stays. The header carries the condition as a pill (#condSlot, filled here; renderHeader hides it on other
+     HORIZON and BALANCE left the Bridge ("I don't reference Horizon or Balance basically at all"); BALANCE's
+     task-count read and targets followed in 2.88 (nothing read them). The header carries the condition as a pill (#condSlot, filled here; renderHeader hides it on other
      screens): GREEN alone (a tap shows the nominal line), YELLOW or RED with a count and what needs you in a strip under
      the header (.rb-alerts, the same .ov-alert buttons as before). An unread briefing prints above the ribbon; folded,
      it is COMMS' first row. The ribbon: NOW / NEXT, the day 07-21 with names on the blocks, pins under it (what's due,
@@ -3152,7 +3102,6 @@
     briefLoop();
     loadTasks(today, false);
     loadDates(false);
-    loadDone(false);
     loadWeather(false);
     var rdue = reviewDue(now);
     if (rdue && canReviews() && !reviewSaved(ymd(rdue))) loadWeek(rdue, false);
@@ -6872,7 +6821,6 @@
     S("Make a backup", "BACKUP AND RESTORE", "restore save file");
     S("Ignored events and breaks", "CALENDARS", "hide lunch out of office");
     S("Location, bearings and start screen", "BRIDGE", "weather opens on");
-    S("Balance targets", "BALANCE TARGETS", "hours areas");
     S("Standby timer", "STANDBY", "dim clock screen");
     S("Standby now", "STANDBY", "dim clock sleep", function () { enterStandby(); });
     S("Edit pins", "ALL STATIONS · EDIT PINS", "bar sidebar stations", function () { openLaunch(true); state.pinEdit = true; renderLaunch(); });
@@ -7510,7 +7458,7 @@
   /* Panels (ASK, CAPTURE, details) sit inside the part of the screen you can actually see: below the
      status bar and, while typing, above the keyboard. iPadOS shrinks the visual viewport for the keyboard
      and may scroll it; the scrims follow it through --vv-top and --vv-h. */
-  lsDel(LS_TOPGAP);
+  lsDel(LS_TOPGAP); lsDel(LS_DONE); lsDel(LS_BALT);
   /* 2.51.5: only while a text field has the keyboard. With audio playing the app keeps running in the background, and
      iPadOS reports a tiny visual viewport during the app switcher or lock screen and sends no resize on the way back:
      the stored height (77 px once) left every panel as a sliver under the top bar. So a hidden page changes nothing,
@@ -15428,7 +15376,7 @@
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
      writes only keys on BK_KEYS, then reloads. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
-    "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.baltarget.v1", "tos.habitcfg.v1",
+    "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
@@ -16470,7 +16418,6 @@
     else if (b.dataset.aifin) { if (b.dataset.aifin === "1") lsSet(LS_AIFIN, true); else lsDel(LS_AIFIN); askReshare(); render(true); }
     else if (b.dataset.act === "savereview") submitReview();
     else if (b.dataset.act === "writesummary") { if (canLogAsk()) openSummaryAuth(); else writeSummary(); }
-    else if (b.dataset.act === "balsave") balSave();
     else if (b.dataset.act === "brksave") { setBreaks($("brkIn").value.split("\n")); toast(breakList.length ? "Breaks: " + breakList.join(", ") : "No breaks"); render(true); }
     else if (b.dataset.act === "ignsave") {
       setIgnore($("ignIn").value.split("\n"));

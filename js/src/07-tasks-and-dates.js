@@ -2,7 +2,7 @@
   var DATES_FRESH_MS = 5 * 60 * 1000;
   function canDates() { return state.caps.indexOf("dates") > -1; }
   /* Holidays (bridge 1.23): read from Google's holidays calendar, shown beside Key Dates as HOLIDAY.
-     Never written anywhere, never counted in hours, meetings or BALANCE (they aren't calendar events
+     Never written anywhere, never counted in hours or meetings (they aren't calendar events
      here). A title on the IGNORED EVENTS list hides that holiday. */
   var LS_HOLS = "tos.hols.v1";
   function canHolidays() { return state.caps.indexOf("holidays") > -1; }
@@ -137,7 +137,7 @@
       $("detailSheet").style.setProperty("--c", "var(--chrome-c)");
       $("detailSheet").innerHTML = '<div class="sbar"><span>◆ HOLIDAY</span><span>' + esc((state.hols && state.hols.calendar) || "HOLIDAYS").toUpperCase() + "</span></div>" +
         '<div class="sbody"><h3 id="detailTitle">' + esc(d.title) + '</h3><div class="tnum">' + esc(when) + " · " + countdown(o, ref) + "</div>" +
-        '<div class="muted">From Google\'s holidays calendar, read-only. Not counted in hours or BALANCE.</div></div>' +
+        '<div class="muted">From Google\'s holidays calendar, read-only. Not counted in hours.</div></div>' +
         '<div class="sfoot btnrow"><button type="button" class="btn ghost" data-ignore="' + esc(d.title) + '">HIDE THIS HOLIDAY</button><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>';
       showSheet("detailScrim"); $("detailClose").focus();
       return;
@@ -318,14 +318,6 @@
       html += '<div class="calrow a-personal"><span class="st"></span><span><b>Master Task List</b><small>' +
         (data ? data.open.length + " open tasks · " + data.focus.length + " picked for today · synced " + esc(stamp(data.fetched)) : "Not loaded yet") +
         '</small></span><span class="pill ok">OK</span></div>';
-    }
-    if (canBalance()) {
-      html += state.doneErr
-        ? '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small class="errtxt">' + esc(state.doneErr.msg) + '</small></span><span class="pill bad">ERROR</span></div>'
-        : '<div class="calrow a-hobby"><span class="st"></span><span><b>Balance</b><small>' + (state.done ? state.done.done.length + " tasks finished in the last 30 days · synced " + esc(stamp(state.done.fetched)) : "Not loaded yet") +
-          '</small></span><span class="pill ok">OK</span></div>';
-    } else if (canPlan()) {
-      html += '<div class="calrow a-hobby" style="opacity:.6"><span class="st"></span><span><b>Balance</b><small>Needs the Google bridge updated. Steps are in the README under <b>Updating the Google bridge</b>.</small></span><span class="pill">SETUP</span></div>';
     }
     if (canReviews()) {
       var lw = state.weeks[ymd(sow(new Date()))] || state.weeks[ymd(addDays(sow(new Date()), -7))];

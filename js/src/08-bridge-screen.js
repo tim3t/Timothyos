@@ -1,13 +1,11 @@
   /* ---------- Bridge (overview) ---------- */
-  /* One screen above the calendars: what needs you now, what's coming, and
-     whether the week is in balance. Everything here is read from data the app
-     already loads, plus weather (Open-Meteo) and the bridge's "done" counts. */
+  /* One screen above the calendars: what needs you now and what's coming. Everything here is read from data
+     the app already loads, plus weather (Open-Meteo). */
   var HEAVY_HOURS = 7, KD_WARN_DAYS = 3, PICK_BY_HOUR = 10, STALE_SYNC_MS = 6 * 3600 * 1000;
   var HIGH = "🔴 High";
   var HIVE = { minF: 60, maxWind: 12, maxRain: 30, from: 10, to: 17 };
-  var WX_FRESH_MS = 30 * 60 * 1000, DONE_FRESH_MS = 10 * 60 * 1000;
+  var WX_FRESH_MS = 30 * 60 * 1000;
 
-  function canBalance() { return state.caps.indexOf("done") > -1; }
   function durLabel(min) {
     min = Math.max(0, Math.round(min));
     var h = Math.floor(min / 60), m = min % 60;
@@ -232,43 +230,6 @@
     return html + '<div class="ov-foot ov-extra">Weather by Open-Meteo · updated ' + esc(stamp(state.wx.fetched)) + "</div>";
   }
 
-  /* --- balance: tasks finished per area, hours per calendar, quiet areas --- */
-  function loadDone(force) {
-    if (!state.conn || !canBalance() || state.doneInflight) return;
-    if (!force && state.done && Date.now() - state.done.fetched < DONE_FRESH_MS) return;
-    if (!force && state.doneErr && Date.now() - state.doneErr.at < FRESH_MS) return;
-    state.doneInflight = true;
-    api({ action: "done", days: 30 }).then(function (j) {
-      state.done = { fetched: Date.now(), done: j.done || [] };
-      state.doneErr = null;
-      lsSet(LS_DONE, state.done);
-    }).catch(function (err) {
-      state.doneErr = { at: Date.now(), msg: describeTasks(err) };
-    }).then(function () {
-      state.doneInflight = false;
-      if (state.screen === "bridge") render(true);
-    });
-  }
-  /* BALANCE (2.19): Work is time to contain, everything else is attention to keep up.
-     Work: calendar hours over the last 7 days against a ceiling. Other areas: seven dots, one per
-     day, lit when the area got attention (a task finished that day, or time on its calendar), plus
-     hours against a minimum where the area has a calendar. Targets are set in Systems (0 = none). */
-  var LS_BALT = "tos.baltarget.v1";
-  var BAL_DEF = { work: 45, personal: 0, farm: 6, hobby: 3 };
-  function balTargets() { var t = lsGet(LS_BALT) || {}, o = {}; Object.keys(BAL_DEF).forEach(function (k) { o[k] = typeof t[k] === "number" && t[k] >= 0 ? t[k] : BAL_DEF[k]; }); return o; }
-
-  function balanceSection() {
-    var t = balTargets(), row = function (k, label) { return "<dt>" + label + '</dt><dd class="bal-in"><input type="number" inputmode="decimal" min="0" max="168" step="0.5" id="balT-' + k + '" value="' + t[k] + '"><span class="muted">HOURS / 7 DAYS</span></dd>'; };
-    return '<section id="sec-balance">' + phead("BALANCE TARGETS", "SAVED ON THIS IPAD") + '<dl class="kv">' +
-      row("work", "WORK CEILING") + row("personal", "PERSONAL AT LEAST") + row("farm", AREAS.farm.name + " AT LEAST") + row("hobby", AREAS.hobby.name + " AT LEAST") +
-      '</dl><div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="balsave">SAVE TARGETS</button></div>' +
-      '<small class="muted">Counted over the last 7 days on the Bridge\'s BALANCE panel. 0 turns a target off. Areas without their own calendar show attention dots only.</small></section>';
-  }
-  function balSave() {
-    var o = {};
-    Object.keys(BAL_DEF).forEach(function (k) { var v = parseFloat(($("balT-" + k) || {}).value); o[k] = isFinite(v) && v >= 0 ? Math.min(168, Math.round(v * 2) / 2) : BAL_DEF[k]; });
-    lsSet(LS_BALT, o); toast("Balance targets saved"); render(true);
-  }
 
   /* --- captain's log + bearing (both stay on this iPad) --- */
   function bearings() { return lsGet(LS_BEARINGS) || []; }
@@ -294,8 +255,8 @@
   function pnl(key, inner) { return '<section class="ov-pnl' + (bridgeOpen[key] ? " open" : "") + '" data-panel="' + key + '">' + inner + "</section>"; }   /* a panel whose extras open behind its + (REVIEW's TRENDS, LEDGER's spend) */
 
   /* ---------- BRIDGE (2.63, Timothy's pick of three mockups: B, the TIME RIBBON; his nine postulates) ----------
-     HORIZON and BALANCE left the Bridge ("I don't reference Horizon or Balance basically at all"); what feeds ASK and
-     REVIEW stays. The header carries the condition as a pill (#condSlot, filled here; renderHeader hides it on other
+     HORIZON and BALANCE left the Bridge ("I don't reference Horizon or Balance basically at all"); BALANCE's
+     task-count read and targets followed in 2.88 (nothing read them). The header carries the condition as a pill (#condSlot, filled here; renderHeader hides it on other
      screens): GREEN alone (a tap shows the nominal line), YELLOW or RED with a count and what needs you in a strip under
      the header (.rb-alerts, the same .ov-alert buttons as before). An unread briefing prints above the ribbon; folded,
      it is COMMS' first row. The ribbon: NOW / NEXT, the day 07-21 with names on the blocks, pins under it (what's due,
@@ -354,7 +315,6 @@
     briefLoop();
     loadTasks(today, false);
     loadDates(false);
-    loadDone(false);
     loadWeather(false);
     var rdue = reviewDue(now);
     if (rdue && canReviews() && !reviewSaved(ymd(rdue))) loadWeek(rdue, false);

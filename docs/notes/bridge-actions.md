@@ -14,7 +14,7 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 | GET | `dates` | all key dates + Life Area and Type options | app computes yearly repeats and countdowns |
 | GET | `week` `week` (Monday yyyy-mm-dd) `from` `to` (local midnights, ISO) | tasks finished (last edit in range), tasks picked (Focus Date in week), saved review | `reviewsError` set if Weekly Reviews isn't connected; the rest still returns |
 | GET | `aispend` | this month's Ask spend `{month, usd, calls, budget, cap, cont}` and `log` (last 25 calls: time, mode, model, tokens, usd; never text) | |
-| GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; feeds the Bridge's Balance panel |
+| GET | `done` `days` (1 to 60) | Life Area + last-edit time of tasks marked Done | no titles; unused by the app since 2.88 (BALANCE removed); drop at the next bridge release |
 | GET | `inbox` | `waiting[]` (Status New, oldest first) and `kept[]` (newest first, ≤ 200): `{id, url, text, at, status, as}`, `url` | batchable; cached 2 min per inbox generation (1.33) |
 | POST | `inboxadd` `note{cid, text ≤ 2000, at}` | one page: Note, Captured (script time zone), Status New | repeat-safe by cid (1.33) |
 | POST | `inboxset` `id` `status` (new / sorted / kept) `as` (task / date / event / queue, only with sorted) | sets Status and Sorted As | only Inbox pages (`inboxOwn_`), set-to-value (1.33) |

@@ -1,5 +1,5 @@
 
-  var VERSION = "2.87.0";
+  var VERSION = "2.88.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -12,7 +12,8 @@
   var LS_START = "tos.start.v1";       /* screen the app opens on: "bridge" or "today" */
   var LS_PLACE = "tos.place.v1";       /* { lat, lon } rounded, for weather */
   var LS_WX = "tos.wx.v1";             /* last Open-Meteo forecast */
-  var LS_DONE = "tos.done.v1";         /* tasks finished in the last 30 days (area + date only) */
+  var LS_DONE = "tos.done.v1";         /* retired in 2.88 with BALANCE's last pieces (tasks finished in the last 30 days) */
+  var LS_BALT = "tos.baltarget.v1";    /* retired in 2.88: BALANCE's hour targets */
   var LS_LOG = "tos.log.v1";           /* Bridge: one intent line per day, last 30 days (the journal itself is the LOG screen) */
   var LS_BEARINGS = "tos.bearings.v1"; /* guiding words, one shown per day */
   var LS_WEEKS = "tos.weeks.v1";       /* Review: last few weeks fetched (finished + picked tasks, saved review) */
@@ -61,7 +62,7 @@
      again every 30 seconds and when the app is left, and the Bridge's Condition turns red (lsFull). A saved copy
      that doesn't fit is simply not kept: it never pushes anything else out. The same goes for this iPad's running
      notes (LS_QUIET: recent requests, the error log): not kept when there's no room, and never an alarm. */
-  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.done.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
+  var LS_COPIES = ["tos.cache.v1", "tos.tasks.v1", "tos.dates.v1", "tos.weeks.v1", "tos.rlog.v1", "tos.habits.v1", "tos.library.v1", "tos.tarot.v1", "tos.apiary.v1",
     "tos.inbox.v1", "tos.ledger.v1", "tos.hols.v1", "tos.schema.v1", "tos.astro.v1", "tos.wx.v1", "tos.export.v1", "tos.sickbay.v1", "tos.meals.v1", "tos.mealrc.v1", "tos.otd.v1"];
   var LS_REMADE = ["tos.nasart.v1", "tos.nastags.v1", "tos.naslen.v1", "tos.hololen.v1", "tos.holoadlen.v1", "tos.hololoud.v1"];   /* slow to measure again: dropped only when the copies weren't enough */
   var LS_QUIET = ["tos.netlog.v1", "tos.netday.v1", "tos.errlog.v1", "tos.visits.v1", "tos.sync.v1", "tos.capped.v1"];   /* this iPad's own running notes: never dropped for room, and no alarm when one doesn't fit */
@@ -256,9 +257,6 @@
     hols: lsGet("tos.hols.v1"),            /* holidays (bridge 1.23): { fetched, calendar, list[{d, t}] }; key is LS_HOLS */
     datesErr: null,
     datesInflight: false,
-    done: lsGet(LS_DONE),                  /* { fetched, done: [{ area, at }] } */
-    doneErr: null,
-    doneInflight: false,
     wx: lsGet(LS_WX),                      /* { fetched, key, data } */
     wxErr: null,
     wxInflight: false,

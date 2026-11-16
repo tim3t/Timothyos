@@ -1005,8 +1005,6 @@ input:focus { border-color: var(--chrome-b); outline: none; }
 .bal-dots i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--c); opacity: .45; flex: none; }
 .bal-dots i.on { background: var(--c); opacity: 1; }
 .bal-dots i.today { outline: 2px solid var(--line); outline-offset: 2px; }
-.bal-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.bal-in input { width: 96px; }
 
 .ov-log { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
 .ov-log .ov-sub { margin-top: 0; }

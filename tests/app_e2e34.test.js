@@ -38,7 +38,7 @@ const txt = async (p, sel) => (await p.innerText(sel)).replace(/\s+/g, ' ').trim
   await p.click('#status'); await p.waitForTimeout(400);
   const cal = await txt(p, 'section:has(.phead:has-text("CALENDARS"))');
   assert.ok(cal.includes('TAKE CAPTURES') && cal.includes('GROWTH'), cal.slice(0, 200));
-  assert.ok((await txt(p, '#sec-balance')).includes('GROWTH AT LEAST'));
+  assert.strictEqual(await p.locator('#sec-balance').count(), 0, 'BALANCE TARGETS left in 2.88');
 
   // --- Capture to Growth
   await p.click('#capBtn'); await p.waitForTimeout(200);

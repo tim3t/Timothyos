@@ -7,7 +7,7 @@ const all = [...new Set(s.match(/"tos\.[a-z0-9]+\.v\d"/g).map(x => x.slice(1, -1
 const bk = new Set(s.match(/var BK_KEYS = \[([\s\S]*?)\];/)[1].match(/"tos\.[a-z0-9]+\.v\d"/g).map(x => x.slice(1, -1)));
 const LEFT_OUT = {
   // copies of what the bridge, Notion, YNAB, the relay or the web give back on the next sync
-  cache: ['tos.cache.v1', 'tos.dates.v1', 'tos.done.v1', 'tos.tasks.v1', 'tos.weeks.v1', 'tos.rlog.v1', 'tos.habits.v1', 'tos.library.v1', 'tos.tarot.v1', 'tos.apiary.v1',
+  cache: ['tos.cache.v1', 'tos.dates.v1', 'tos.tasks.v1', 'tos.weeks.v1', 'tos.rlog.v1', 'tos.habits.v1', 'tos.library.v1', 'tos.tarot.v1', 'tos.apiary.v1',
     'tos.inbox.v1', 'tos.ledger.v1', 'tos.hols.v1', 'tos.schema.v1', 'tos.astro.v1', 'tos.brief.v1', 'tos.sci.v1', 'tos.scilog.v1', 'tos.wx.v1',
     'tos.nasart.v1', 'tos.naslen.v1', 'tos.nastags.v1', 'tos.hololen.v1', 'tos.holoadlen.v1', 'tos.hololoud.v1', 'tos.hascenes.v1', 'tos.hascnchk.v1', 'tos.errlog.v1', 'tos.netday.v1', 'tos.export.v1', 'tos.otd.v1', 'tos.sickbay.v1', 'tos.meals.v1', 'tos.mealrc.v1'],
   // writes on their way: they belong to this iPad and go out with their capture ids; a restore elsewhere must not resend them
@@ -18,7 +18,7 @@ const LEFT_OUT = {
   local: ['tos.sync.v1', 'tos.netlog.v1', 'tos.visits.v1', 'tos.bkat.v1', 'tos.ask.v1', 'tos.aispend.v1', 'tos.voicespend.v1', 'tos.profile.v1',
     'tos.capped.v1', 'tos.deep.v1'],   // 2.85: reads cut short (refilled by the next read); this browser's deep-store mark (never another iPad's)
   // retired, no longer read
-  retired: ['tos.topgap.v1'],
+  retired: ['tos.topgap.v1', 'tos.done.v1', 'tos.baltarget.v1'],   // 2.88: BALANCE's task counts and targets
 };
 const out = new Set([].concat(...Object.values(LEFT_OUT)));
 const unknown = all.filter(k => !bk.has(k) && !out.has(k));

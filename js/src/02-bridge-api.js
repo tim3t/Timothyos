@@ -209,11 +209,11 @@
   /* Reads asked for at the same moment (returning to the app, REFRESH NOW) travel together as one
      request (bridge 1.13), so Google runs one execution instead of five. Fewer requests, fewer of
      Google's lost answers (HTTP 404). An older bridge doesn't know "batch": then each goes alone. */
-  var BATCHABLE = ["aispend", "events", "tasks", "dates", "done", "week", "reviews", "ledger", "habits", "library", "tarot", "apiary", "meals", "year", "sciencefeeds", "sciencelog"];
+  var BATCHABLE = ["aispend", "events", "tasks", "dates", "week", "reviews", "ledger", "habits", "library", "tarot", "apiary", "meals", "year", "sciencefeeds", "sciencelog"];
   /* Google answers a batch one read after another, so a long batch keeps everything waiting.
      What's on screen first (calendars, tasks, key dates, habits) travels in one batch; the rest
-     (balance, reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
-  var BATCH_LATER = ["aispend", "done", "week", "reviews", "ledger", "library", "tarot", "apiary", "meals"];
+     (reviews, ledger, library, Ask's spend) in a second, at the same time (2.12.1). */
+  var BATCH_LATER = ["aispend", "week", "reviews", "ledger", "library", "tarot", "apiary", "meals"];
   var batchQ = null, batchOk = true;
   function api(params, conn) {
     var p = conn || !batchOk || BATCHABLE.indexOf(params.action) === -1 ? tracked(withRetry(function () { return apiOnce(params, conn); })) : tracked(new Promise(function (res, rej) {

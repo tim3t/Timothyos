@@ -496,7 +496,7 @@
   /* Panels (ASK, CAPTURE, details) sit inside the part of the screen you can actually see: below the
      status bar and, while typing, above the keyboard. iPadOS shrinks the visual viewport for the keyboard
      and may scroll it; the scrims follow it through --vv-top and --vv-h. */
-  lsDel(LS_TOPGAP);
+  lsDel(LS_TOPGAP); lsDel(LS_DONE); lsDel(LS_BALT);
   /* 2.51.5: only while a text field has the keyboard. With audio playing the app keeps running in the background, and
      iPadOS reports a tiny visual viewport during the app switcher or lock screen and sends no resize on the way back:
      the stored height (77 px once) left every panel as a sliver under the top bar. So a hidden page changes nothing,
