@@ -1,42 +1,21 @@
 // Ask Claude in the bridge: tool loop, proposals (never executed), spend tracking,
 // the monthly budget, repeat-safe replies, error mapping, and partial review saves; the tools' descriptions
 // against their handlers (1.27): Monday-only weeks, the Growth label, Life Area and type options.
-const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
-const props = { NOTION_TOKEN: 'ntn_test' }, cache = {};
-const DS = 'ds-1111', DB = '6c4a440d571e49e0b4076c18d5712c1f', DS2 = 'ds-2222', DB2 = '8184db37aacb4d96943b2067558b92ab';
-const task = { id: 'a'.repeat(32), url: 'u', last_edited_time: '2026-10-05T15:00:00.000Z', parent: { type: 'data_source_id', data_source_id: DS }, properties: {
-  Task: { title: [{ plain_text: 'Order spring bulbs' }] }, Status: { select: { name: '⬜ To Do' } }, Priority: { select: { name: '🔴 High' } },
-  'Life Area': { select: { name: '🌿 Hollow Oak Farm' } }, 'Due Date': { date: { start: '2026-10-04' } }, 'Focus Date': { date: null } } };
+const assert = require('assert');
+const { bridge, formatDate } = require('./lib/gas');
+const AREAS = ['🌱 Sample Growth', '🏠 Sample Home'];
 let script = [], sent = [], anthropicHeaders = [];
-function fetchMock(url, opts) {
-  const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
-  if (url === 'https://api.anthropic.com/v1/messages') {
-    anthropicHeaders.push(opts.headers); const body = JSON.parse(opts.payload); sent.push(body);
-    const next = script.shift(); return typeof next === 'function' ? next(body) : res(200, next);
-  }
-  const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase();
-  if (m === 'get' && path === '/databases/' + DB) return res(200, { data_sources: [{ id: DS }] });
-  if (m === 'get' && path === '/databases/' + DB2) return res(200, { data_sources: [{ id: DS2 }] });
-  if (m === 'get' && path.indexOf('/data_sources/') === 0) return res(200, { title: [{ plain_text: 'x' }], properties: { 'Life Area': { select: { options: [] } }, Type: { select: { options: [] } } } });
-  if (m === 'post' && path === '/data_sources/' + DS + '/query') return res(200, { results: [task], has_more: false });
-  if (m === 'post' && path === '/data_sources/' + DS2 + '/query') return res(200, { results: [], has_more: false });
-  return res(400, { message: 'unexpected ' + m + ' ' + path });
+function fetch(url, opts, res) {
+  if (url !== 'https://api.anthropic.com/v1/messages') return;
+  anthropicHeaders.push(opts.headers); const body = JSON.parse(opts.payload); sent.push(body);
+  const next = script.shift(); return typeof next === 'function' ? next(body) : res(200, next);
 }
-const ctx = {
-  console: { log: (...a) => console.log('   log:', ...a) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-  Utilities: { getUuid: () => require('crypto').randomUUID(), formatDate: (d, tz, f) => f === 'yyyy-MM' ? '2026-10' : d.toISOString().slice(0, 16).replace('T', ' '), parseDate: s => new Date(s + 'T05:00:00Z') },
-  Session: { getScriptTimeZone: () => 'America/Chicago' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  UrlFetchApp: { fetch: fetchMock },
-  CalendarApp: { GuestStatus: { NO: 'NO' }, getDefaultCalendar: () => ({ getName: () => 'me', getTimeZone: () => 'UTC', getEvents: () => [] }), getCalendarById: () => null, getAllCalendars: () => [] },
-};
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
+const br = bridge({ props: { NOTION_TOKEN: 'ntn_test', ACCESS_KEY: null }, notion: { options: { tasks: { 'Life Area': AREAS }, dates: { Type: ['Deadline'] } } }, fetch }), { ctx, props, nx } = br;
+const TID = nx.add('tasks', { Task: 'Order spring bulbs', Status: '⬜ To Do', Priority: '🔴 High', 'Life Area': AREAS[0], 'Due Date': '2026-10-04' }, { last_edited_time: '2026-10-05T15:00:00.000Z' });
+const MONTH = formatDate(new Date(), 'America/Chicago', 'yyyy-MM'), [Y, M] = MONTH.split('-').map(Number);
+const PREV = M === 1 ? (Y - 1) + '-12' : Y + '-' + String(M - 1).padStart(2, '0');
 ctx.setup(); const key = props.ACCESS_KEY;
-const get = p => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(p) } }).text);
-const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
+const get = br.call, post = br.call;
 const ask = (extra) => post(Object.assign({ key, action: 'ask', cid: 'ask-' + Math.random().toString(36).slice(2, 10), mode: 'fast', messages: [{ role: 'user', text: 'What should I do first today?' }], context: 'NOW: Tue 06 Oct 2026 07:40', ignore: ['away block'] }, extra || {}));
 
 console.log('without key:', JSON.stringify(ask()), '| caps', JSON.stringify(get({ action: 'ping', key }).capabilities));
@@ -48,8 +27,8 @@ assert.ok(get({ action: 'ping', key }).capabilities.includes('ask'));
 const usage = { input_tokens: 3000, output_tokens: 200, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 script = [
   { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-1' }, { type: 'text', text: 'Checking.' }, { type: 'tool_use', id: 'tu1', name: 'get_tasks', input: { day: '2026-10-06' } }] },
-  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: '🌿 Hollow Oak Farm', focus_day: '2026-10-06' } },
-    { type: 'tool_use', id: 'tu3', name: 'propose_set_focus', input: { task_id: 'a'.repeat(32), task_title: 'Order spring bulbs', day: '2026-10-06' } }] },
+  { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu2', name: 'propose_add_task', input: { title: 'Call the co-op', life_area: AREAS[0], focus_day: '2026-10-06' } },
+    { type: 'tool_use', id: 'tu3', name: 'propose_set_focus', input: { task_id: TID, task_title: 'Order spring bulbs', day: '2026-10-06' } }] },
   { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage, content: [{ type: 'thinking', thinking: '', signature: 'sig-3' }, { type: 'text', text: 'Order spring bulbs first, Captain. It is overdue. I proposed picking it and adding a call to the co-op.' }] }
 ];
 const cid = 'ask-fixed-0001';
@@ -68,7 +47,7 @@ assert.ok(sent[0].system[0].text.includes('never change anything directly'));
 assert.ok(sent[0].tools.every(t => !/work/i.test(t.name)) && !sent[0].tools.some(t => /web/.test(t.name)), 'no web tool, no work-calendar tool');
 const tr = sent[1].messages[2].content[0];
 console.log('tool result sent back:', tr.content.split('\n').slice(0, 3).join(' / '));
-assert.ok(tr.content.includes('[' + 'a'.repeat(32) + '] Order spring bulbs'));
+assert.ok(tr.content.includes('[' + TID + '] Order spring bulbs'));
 assert.ok(sent[2].messages[4].content[0].content.includes('Nothing changes until he taps CONFIRM'));
 assert.strictEqual(anthropicHeaders[0]['x-api-key'], 'sk-ant-test'); assert.strictEqual(anthropicHeaders[0]['anthropic-version'], '2023-06-01');
 const expected = 3 * (3000 * 2 + 200 * 10) / 1e6;
@@ -164,7 +143,7 @@ assert.strictEqual(ask({ messages: [{ role: 'assistant', text: 'hi' }] }).error,
 assert.strictEqual(post({ action: 'ask', cid: 'ask-nokey-01', messages: [{ role: 'user', text: 'x' }] }).error, 'no_key', 'refused without a key');
 
 // budget: pause at the monthly limit without calling the model
-props.AI_SPEND = JSON.stringify({ month: '2026-10', usd: 7.999, calls: 400 });
+props.AI_SPEND = JSON.stringify({ month: MONTH, usd: 7.999, calls: 400 });
 script = [{ model: 'claude-haiku-4-5', stop_reason: 'end_turn', usage: { input_tokens: 2000, output_tokens: 100 }, content: [{ type: 'text', text: 'ok' }] }];
 const r5 = ask(); assert.ok(r5.ok, 'just under budget still answers');
 sent = []; const r6 = ask();
@@ -179,12 +158,12 @@ assert.strictEqual(post({ key, action: 'aispendset', usd: 'lots' }).error, 'bad_
 const rm = post({ key, action: 'aispendset', usd: 0.01 }); assert.ok(rm.ok); assert.strictEqual(rm.spend.usd, 0.01);
 assert.strictEqual(get({ action: 'aispend', key }).log[0].mode, 'matched');
 props.AI_BUDGET_USD = '20'; assert.strictEqual(get({ action: 'aispend', key }).ai.budget, 20);
-props.AI_SPEND = JSON.stringify({ month: '2026-09', usd: 9.5, calls: 900 });
+props.AI_SPEND = JSON.stringify({ month: PREV, usd: 9.5, calls: 900 });
 assert.strictEqual(get({ action: 'aispend', key }).ai.usd, 0, 'a new month starts at zero');
-props.AI_CONTINUE = '2026-09'; assert.strictEqual(get({ action: 'aispend', key }).ai.cont, false, 'CONTINUE lasts one month');
+props.AI_CONTINUE = PREV; assert.strictEqual(get({ action: 'aispend', key }).ai.cont, false, 'CONTINUE lasts one month');
 console.log('setup log with AI on:'); ctx.setup();
 // compareModels (editor): five questions on three setups, each request shaped for its model
-props.AI_SPEND = JSON.stringify({ month: '2026-10', usd: 0, calls: 0 }); sent = [];
+props.AI_SPEND = JSON.stringify({ month: MONTH, usd: 0, calls: 0 }); sent = [];
 script = []; for (let i = 0; i < 15; i++) script.push(body => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify({ model: body.model, stop_reason: 'end_turn', usage: { input_tokens: 1500, output_tokens: 120 }, content: [{ type: 'text', text: 'Answer from ' + body.model }] }) }));
 ctx.compareModels();
 assert.strictEqual(sent.length, 15, 'fifteen model calls');
@@ -255,12 +234,6 @@ assert.ok(T.propose_add_event.description.includes('propose_add_key_date') && T.
 assert.ok(sent[0].tools.every(t => !/—/.test(t.description + JSON.stringify(t.input_schema))), 'no em dashes');
 assert.deepStrictEqual(T.propose_add_event.input_schema.properties.minutes, { type: 'integer', minimum: 5, maximum: 600, description: 'Length in minutes, default 30' });
 // a Life Area or type that isn't one of the database's options comes back as an error listing them
-const AREAS = ['🌱 Sample Growth', '🏠 Sample Home'];
-const realFetch = ctx.UrlFetchApp.fetch;
-ctx.UrlFetchApp.fetch = (url, opts) => (opts.method || 'get').toLowerCase() === 'get' && url.indexOf('/data_sources/') > -1
-  ? { getResponseCode: () => 200, getContentText: () => JSON.stringify({ properties: { 'Life Area': { select: { options: AREAS.map(n => ({ name: n })) } }, Type: { select: { options: [{ name: 'Deadline' }] } } } }) }
-  : realFetch(url, opts);
-Object.keys(cache).filter(k => k.indexOf('opts:') === 0).forEach(k => delete cache[k]);
 sent = []; script = [
   { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'la1', name: 'propose_add_task', input: { title: 'Sample', life_area: 'Growth' } }] },
   { model: 'claude-sonnet-5-5', stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'la2', name: 'propose_add_task', input: { title: 'Sample', life_area: '🌱 Sample Growth', priority: '🟢 Low' } }] },
@@ -273,5 +246,5 @@ assert.ok(!toolResult(2).is_error, 'an exact Life Area is accepted');
 assert.strictEqual(toolResult(3).content, 'type must be exactly one of: Deadline (or left out).');
 assert.ok(toolResult(4).is_error && toolResult(4).content.includes('HH:MM'));
 assert.deepStrictEqual(rla.proposals.map(p => p.kind), ['add_task'], 'only the valid one became a proposal');
-ctx.UrlFetchApp.fetch = realFetch;
+assert.deepStrictEqual(nx.refused(), [], 'the bridge sent nothing Notion refuses');
 console.log('ALL ASK CHECKS PASSED');

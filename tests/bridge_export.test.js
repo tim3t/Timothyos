@@ -3,50 +3,10 @@
 // exactly (no page twice, none missed) with parts merged, JSON (every field, page text and blocks) and CSV (BOM, quoting),
 // unchanged page text reused next week, Notion asking to slow down, a database not shared, Drive full, the newest 12 kept,
 // and Notion only ever read. Invented data only.
-const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
-const props = { NOTION_TOKEN: 'ntn_test' }, cache = {};
+const vm = require('vm'); const assert = require('assert');
+const { bridge } = require('./lib/gas');
 let clock = Date.parse('2026-11-08T09:00:00Z');
 const tick = ms => { clock += ms; };
-
-// ---- simulated Notion: Tasks (3 pages) and Captain's Log (12 pages, 5 per query page, with text); the rest not shared
-const LOGN = 12;
-const page = (ds, i, extra) => Object.assign({ id: ds + '-p' + i, url: 'https://www.notion.so/' + ds + i, created_time: '2026-10-01T10:00:00.000Z', last_edited_time: '2026-10-02T10:00:00.000Z',
-  properties: ds === 'log' ? { Name: { type: 'title', title: [{ plain_text: 'Sample entry ' + i }] }, Date: { type: 'date', date: { start: '2026-10-' + String(i + 1).padStart(2, '0') } }, Source: { type: 'select', select: { name: 'Typed' } } }
-    : { Task: { type: 'title', title: [{ plain_text: 'Sample task "' + i + '", with a comma' }] }, Status: { type: 'select', select: { name: '⬜ To Do' } }, Tags: { type: 'multi_select', multi_select: [{ name: 'a' }, { name: 'b' }] },
-      Done: { type: 'checkbox', checkbox: i === 0 }, Hours: { type: 'number', number: i ? i * 1.5 : null }, Link: { type: 'relation', relation: [{ id: 'rel-1' }] } } }, extra || {});
-let logPages = Array.from({ length: LOGN }, (_, i) => page('log', i));
-const taskPages = [0, 1, 2].map(i => page('tasks', i));
-let notionCalls = [], blockReads = [], busyOnce = 0;
-function notion(url, opts) {
-  const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase();
-  notionCalls.push(m + ' ' + path); tick(1000);
-  const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(body) });
-  if (busyOnce && m === 'get' && path.startsWith('/blocks/')) { busyOnce--; return res(429, { message: 'slow down' }); }
-  if (m === 'get' && path.startsWith('/databases/')) {
-    const id = path.split('/')[2];
-    if (id === ctx.CONFIG.NOTION_TASKS_DATABASE) return res(200, { data_sources: [{ id: 'tasks' }] });
-    if (id === ctx.CONFIG.NOTION_LOG_DATABASE) return res(200, { data_sources: [{ id: 'log' }] });
-    return res(404, { message: 'not shared' });
-  }
-  if (m === 'post' && /^\/data_sources\/(tasks|log)\/query$/.test(path)) {
-    const ds = path.split('/')[2], body = JSON.parse(opts.payload), all = ds === 'log' ? logPages : taskPages;
-    const at = body.start_cursor ? Number(body.start_cursor.slice(1)) : 0, n = ds === 'log' ? 5 : 100;
-    return res(200, { results: all.slice(at, at + n), has_more: at + n < all.length, next_cursor: at + n < all.length ? 'c' + (at + n) : null });
-  }
-  let mb = /^\/blocks\/([^/]+)\/children/.exec(path);
-  if (m === 'get' && mb) {
-    const id = mb[1]; blockReads.push(id);
-    if (id.endsWith('-kids')) return res(200, { results: [{ id: 'x', type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'nested line' }] }, has_children: false }], has_more: false });
-    if (id.startsWith('tasks')) return res(200, { results: [], has_more: false });
-    const p = logPages.find(x => x.id === id);
-    return res(200, { results: [
-      { id: id + '-h', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Heading ' + id }] }, has_children: false },
-      { id: id + '-kids', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ plain_text: 'point' }] }, has_children: true },
-      { id: id + '-t', type: 'to_do', to_do: { rich_text: [{ plain_text: 'done thing' }], checked: true }, has_children: false },
-      { id: id + '-p', type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'Body of ' + id + (p && p.v ? ' v' + p.v : '') }] }, has_children: false }], has_more: false });
-  }
-  return res(400, { message: 'unexpected ' + m + ' ' + path });
-}
 
 // ---- simulated Drive (only what the bridge made exists for it, as with drive.file)
 let files = {}, nid = 0, driveMode = 'ok', driveCalls = [];
@@ -81,95 +41,101 @@ function drive(url, opts) {
   return res(400, 'unexpected ' + m + ' ' + url);
 }
 
-// ---- Apps Script
+// ---- Apps Script, and Notion: Tasks (3 pages) and Captain's Log (105 pages with text, so more than one page of query
+// results); the rest not shared
 let triggers = [];
 const trig = h => { const t = { h, getHandlerFunction: () => h }; return t; };
-const ctx = {
-  console: { log: (...a) => logLines.push(a.join(' ')) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] === undefined ? null : props[k], setProperty: (k, v) => { assert.ok(String(v).length < 9000, k + ' fits a Script Property'); props[k] = String(v); }, deleteProperty: k => { delete props[k]; } }), getUserProperties: () => ({ getProperty: () => null }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-  Utilities: { getUuid: () => require('crypto').randomUUID(), sleep: () => {}, newBlob: s => ({ getBytes: () => Buffer.from(s, 'utf8') }),
-    formatDate: (d, tz, f) => f === 'yyyy-MM-dd HH.mm' ? new Date(d).toISOString().slice(0, 16).replace('T', ' ').replace(':', '.') : new Date(d).toISOString().slice(0, 10), parseDate: s => new Date(s + 'T05:00:00Z') },
-  Session: { getScriptTimeZone: () => 'America/Chicago' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  UrlFetchApp: { fetch: (u, o) => u.startsWith('https://api.notion.com') ? notion(u, o) : u.startsWith('https://www.googleapis.com') ? drive(u, o) : { getResponseCode: () => 404, getContentText: () => '' } },
-  ScriptApp: { getOAuthToken: () => 'oauth-token', WeekDay: { SUNDAY: 'SUNDAY' }, getProjectTriggers: () => triggers.slice(), deleteTrigger: t => { triggers = triggers.filter(x => x !== t); },
-    newTrigger: h => ({ timeBased: () => { const s = { h }; const c = { after: ms => { s.after = ms; return c; }, onWeekDay: d => { s.day = d; return c; }, atHour: n => { s.hour = n; return c; }, create: () => { const t = trig(h); Object.assign(t, s); triggers.push(t); return t; } }; return c; } }) },
-  CalendarApp: { GuestStatus: { NO: 'NO' }, getDefaultCalendar: () => ({ getName: () => 'me', getTimeZone: () => 'UTC', getEvents: () => [] }), getCalendarById: () => null, getAllCalendars: () => [] },
-};
-let logLines = [];
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
+const ScriptApp = { getOAuthToken: () => 'oauth-token', WeekDay: { SUNDAY: 'SUNDAY' }, getProjectTriggers: () => triggers.slice(), deleteTrigger: t => { triggers = triggers.filter(x => x !== t); },
+  newTrigger: h => ({ timeBased: () => { const s = { h }; const c = { after: ms => { s.after = ms; return c; }, onWeekDay: d => { s.day = d; return c; }, atHour: n => { s.hour = n; return c; }, create: () => { const t = trig(h); Object.assign(t, s); triggers.push(t); return t; } }; return c; } }) };
+const br = bridge({ props: { NOTION_TOKEN: 'ntn_test', ACCESS_KEY: null }, notion: {}, globals: { ScriptApp }, fetch: (u, o) => (u.startsWith('https://www.googleapis.com') ? drive(u, o) : undefined) }), { ctx, props, nx } = br;
+const send = ctx.UrlFetchApp.fetch;
+ctx.UrlFetchApp.fetch = (u, o) => { if (u.startsWith('https://api.notion.com/')) tick(1000); return send(u, o); };
 vm.runInContext('Date.now = function () { return __clock(); }', Object.assign(ctx, { __clock: () => clock }));
-ctx.EXPORT.BUDGET_MS = 9000;   // about nine Notion reads a run here, so the log takes several runs
-const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(b) } }).text);
+const notShared = ctx.schemaSpec_().map(d => d.key).filter(k => k !== 'tasks' && k !== 'log');
+notShared.forEach(k => nx.unshare(k));
+const LOGN = 105, REL = '0b5e1c6a-3d2f-4e8a-9c71-5a2b8d4e6f10', seen = { created_time: '2026-10-01T10:00:00.000Z', last_edited_time: '2026-10-02T10:00:00.000Z' };
+const rich = t => [{ text: { content: t } }];
+const logIds = Array.from({ length: LOGN }, (_, i) => nx.add('log', { Name: 'Sample entry ' + i, Date: new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10), Source: 'Typed' }, Object.assign({ blocks: [
+  { type: 'heading_2', heading_2: { rich_text: rich('Heading ' + i) } },
+  { type: 'bulleted_list_item', bulleted_list_item: { rich_text: rich('point'), children: [{ type: 'paragraph', paragraph: { rich_text: rich('nested line') } }] } },
+  { type: 'to_do', to_do: { rich_text: rich('done thing'), checked: true } },
+  { type: 'paragraph', paragraph: { rich_text: rich('Body of entry ' + i) } }] }, seen)));
+[['Tags', 'multi_select'], ['Done', 'checkbox'], ['Hours', 'number'], ['Link', 'relation']].forEach(c => nx.column('tasks', c[0], c[1]));   // columns the bridge never uses: the export copies every column
+[0, 1, 2].forEach(i => nx.add('tasks', { Task: 'Sample task "' + i + '", with a comma', Status: '⬜ To Do', Tags: ['a', 'b'], Done: i === 0, Hours: i ? i * 1.5 : null, Link: [REL] }, Object.assign({}, seen)));
+ctx.EXPORT.BUDGET_MS = 30000;   // about thirty Notion reads a run here, so the log takes several runs
+const post = br.call, lines = () => br.log.splice(0);
 const inFolder = (folder, name) => Object.keys(files).map(id => Object.assign({ id }, files[id])).filter(f => f.parents.includes(folder) && !f.trashed && (!name || f.name === name));
 const runTriggers = () => { let n = 0; while (triggers.some(t => t.h === 'exportContinue')) { assert.ok(++n < 40, 'finishes'); tick(60000); ctx.exportContinue(); } return n; };
 
 // ---- 1.41.1: the Drive API switched off (Google says PERMISSION_DENIED) is told apart, with Google's own words
-driveMode = 'apioff'; logLines = [];
+driveMode = 'apioff'; lines();
 ctx.setup();
-const offLine = logLines.find(l => l.startsWith('Weekly Notion export:'));
+const offLine = lines().find(l => l.startsWith('Weekly Notion export:'));
 console.log(offLine);
 assert.ok(/NEEDS THE DRIVE API: in the script editor, Services \(\+ beside Services\) → Drive API → Add, then run setup again \(Google said: Google Drive API has not been used/.test(offLine), offLine);
 assert.strictEqual(triggers.length, 0);
 // ---- setup without the drive.file permission: says what to do, installs nothing
-driveMode = 'scope'; logLines = [];
+driveMode = 'scope';
 ctx.setup(); const key = props.ACCESS_KEY;
-const exLine = logLines.find(l => l.startsWith('Weekly Notion export:'));
+const exLine = lines().find(l => l.startsWith('Weekly Notion export:'));
 console.log(exLine);
 assert.ok(/NEEDS DRIVE ACCESS: add the oauthScopes block.*\(Google said: Request had insufficient authentication scopes\.\)/.test(exLine), exLine); assert.strictEqual(triggers.length, 0);
 assert.strictEqual(post({ key, action: 'exportnow' }).error, 'drive_scope', 'EXPORT NOW names the missing permission');
 assert.strictEqual(post({ key, action: 'ping' }).export.last.error, 'drive_scope');
 
 // ---- with it: one root folder, one weekly trigger (setup again adds none)
-driveMode = 'ok'; logLines = []; ctx.setup(); ctx.setup();
-console.log(logLines.find(l => l.startsWith('Weekly Notion export:')));
+driveMode = 'ok'; lines(); ctx.setup(); ctx.setup();
+console.log(lines().find(l => l.startsWith('Weekly Notion export:')));
 assert.deepStrictEqual(triggers.map(t => [t.h, t.day, t.hour]), [['exportWeekly', 'SUNDAY', 3]]);
 const root = props.EXPORT_ROOT; assert.strictEqual(files[root].name, 'TimothyOS Notion export'); assert.deepStrictEqual(files[root].parents, ['root']);
 let ping = post({ key, action: 'ping' });
 assert.ok(ping.capabilities.includes('export') && ping.export.weekly === true && ping.export.keep === 12);
 
 // ---- EXPORT NOW: answers at once, a trigger does the work
-notionCalls = [];
+let mark = nx.calls.length;
 const now1 = post({ key, action: 'exportnow' });
-assert.ok(now1.ok && now1.export.running && notionCalls.length === 0, 'nothing read inside the app\'s request');
+assert.ok(now1.ok && now1.export.running && nx.calls.length === mark, 'nothing read inside the app\'s request');
 assert.deepStrictEqual(triggers.filter(t => t.h === 'exportContinue').map(t => t.after), [1000]);
 assert.ok(post({ key, action: 'exportnow' }).export.running, 'a second tap joins the same run');
 assert.strictEqual(triggers.filter(t => t.h === 'exportContinue').length, 1);
-busyOnce = 1;   // Notion asks to slow down once along the way
+nx.fail({ status: 429, match: 'get /blocks/', times: 1 });   // Notion asks to slow down once along the way
 const runs = runTriggers();
 const last = JSON.parse(props.EXPORT_LAST), folder = last.folder;
 console.log('first export:', runs, 'runs ·', JSON.stringify({ pages: last.pages, dbs: last.dbs, of: last.of, failed: last.failed.length, runs: last.runs, name: last.name }));
 assert.ok(runs >= 3, 'several runs: the budget is honoured');
 assert.ok(last.ok && last.pages === LOGN + 3 && last.dbs === 2 && last.of === 17 && last.failed.length === 15 && /not shared|notion_not_shared/.test(last.failed[0]));
 assert.ok(!props.EXPORT_JOB && triggers.filter(t => t.h === 'exportContinue').length === 0, 'job and its trigger cleared');
-assert.ok(notionCalls.every(c => /^get \/(databases|blocks)\/|^post \/data_sources\/[^/]+\/query$/.test(c)), 'Notion only read: ' + notionCalls.filter(c => !/^get \/(databases|blocks)\/|query$/.test(c)).join(', '));
+const reads = nx.calls.slice(mark).map(c => c.method + ' ' + c.path);
+assert.ok(reads.every(c => /^get \/(databases|blocks)\/|^post \/data_sources\/[^/]+\/query$/.test(c)), 'Notion only read: ' + reads.filter(c => !/^get \/(databases|blocks)\/|query$/.test(c)).join(', '));
+assert.ok(nx.calls.slice(mark).some(c => c.path === '/data_sources/' + nx.ds('log') + '/query' && c.body.start_cursor), 'the second page of results asked for by its cursor');
 const names = inFolder(folder).map(f => f.name).sort();
 assert.deepStrictEqual(names, ["Captain's Log.csv", "Captain's Log.json", 'Master Task List.csv', 'Master Task List.json', '_export.json'], 'parts tidied away: ' + names);
 const lj = JSON.parse(inFolder(folder, "Captain's Log.json")[0].body);
-assert.strictEqual(lj.count, LOGN); assert.deepStrictEqual(lj.pages.map(p => p.id), logPages.map(p => p.id), 'every page once, in order');
+assert.strictEqual(lj.count, LOGN); assert.deepStrictEqual(lj.pages.map(p => p.id), logIds, 'every page once, in order');
 const p3 = lj.pages[3];
 assert.strictEqual(p3.values.Name, 'Sample entry 3'); assert.strictEqual(p3.properties.Date.date.start, '2026-10-04', 'raw properties kept');
-assert.strictEqual(p3.text, '## Heading log-p3\n- point\n  nested line\n[x] done thing\nBody of log-p3', 'page text readable, nested lines indented');
+assert.strictEqual(p3.text, '## Heading 3\n- point\n  nested line\n[x] done thing\nBody of entry 3', 'page text readable, nested lines indented');
 assert.strictEqual(p3.blocks[1].children[0].paragraph.rich_text[0].plain_text, 'nested line', 'blocks kept for a restore');
 const csv = inFolder(folder, 'Master Task List.csv')[0].body;
 console.log('CSV:', csv.split('\r\n').slice(0, 2).join(' / '));
-assert.ok(csv.startsWith('﻿"Notion ID","Notion link","Created","Last edited","Task","Status","Tags","Done","Hours","Link","Page text"'));
-assert.ok(csv.includes('"Sample task ""1"", with a comma","⬜ To Do","a; b","false","1.5","rel-1",""'), 'quoted, flattened');
+assert.ok(csv.startsWith('﻿"Notion ID","Notion link","Created","Last edited","Task","Status","Priority","Life Area","Due Date","Focus Date","Completed","Tags","Done","Hours","Link","Page text"'));
+assert.ok(csv.includes('"Sample task ""1"", with a comma","⬜ To Do","","","","","","a; b","false","1.5","' + REL + '",""'), 'quoted, flattened');
 assert.strictEqual(files[folder].parents[0], root); assert.ok(/^\d{4}-\d\d-\d\d \d\d\.\d\d$/.test(files[folder].name), 'a dated folder');
 ping = post({ key, action: 'ping' });
 assert.ok(ping.export.last.ok && ping.export.running === null && !('files' in ping.export.last), 'status is small');
 
 // ---- next week: unchanged text reused, only the edited page read again
-logPages[5] = page('log', 5, { last_edited_time: '2026-11-10T10:00:00.000Z', v: 2 });
-blockReads = []; tick(7 * 864e5); triggers = triggers.filter(t => t.h !== 'exportContinue');
+const edited = nx.blocks(logIds[5])[3].id;
+nx.fetch('https://api.notion.com/v1/blocks/' + edited, { method: 'patch', headers: { Authorization: 'Bearer ntn_test', 'Notion-Version': '2025-09-03' }, payload: JSON.stringify({ paragraph: { rich_text: rich('Body of entry 5 v2') } }) });
+nx.edit(logIds[5], {}, { last_edited_time: '2026-11-10T10:00:00.000Z' });   // as Notion does when a page's text changes
+mark = nx.calls.length; tick(7 * 864e5); triggers = triggers.filter(t => t.h !== 'exportContinue');
 ctx.exportWeekly(); runTriggers();
 const l2 = JSON.parse(props.EXPORT_LAST);
 assert.ok(l2.ok && l2.folder !== folder);
-assert.deepStrictEqual(blockReads.filter(b => b.startsWith('log')), ['log-p5', 'log-p5-kids'], 'only the edited page read again: ' + blockReads.join(','));
+const blockReads = nx.calls.slice(mark).filter(c => c.method === 'get' && /\/children$/.test(c.path)).map(c => c.path.split('/')[2]);
+assert.deepStrictEqual(blockReads, [logIds[5], nx.blocks(logIds[5])[1].id], 'only the edited page read again: ' + blockReads.join(','));
 const lj2 = JSON.parse(inFolder(l2.folder, "Captain's Log.json")[0].body);
-assert.ok(lj2.pages[5].text.endsWith('Body of log-p5 v2') && lj2.pages[4].text === lj.pages[4].text);
+assert.ok(lj2.pages[5].text.endsWith('Body of entry 5 v2') && lj2.pages[4].text === lj.pages[4].text);
 
 // ---- a run in progress isn't started twice; the weekly trigger leaves it alone
 post({ key, action: 'exportnow' }); const j1 = props.EXPORT_JOB;
@@ -201,4 +167,7 @@ assert.ok(post({ key, action: 'ping' }).export.running.stalled);
 post({ key, action: 'exportnow' });
 assert.strictEqual(JSON.parse(props.EXPORT_JOB).at, at); runTriggers();
 assert.ok(JSON.parse(props.EXPORT_LAST).ok);
+const unshared = new Set(notShared.map(k => '/databases/' + nx.dbId(k)));
+assert.deepStrictEqual(nx.refused().filter(c => !(c.method === 'get' && /^404 object_not_found/.test(c.refused) && unshared.has(c.path))).map(c => c.method + ' ' + c.refused.slice(0, 3)), ['get 429'],
+  'Notion refused only the databases not shared and the one slow-down the test asked for');
 console.log('ALL EXPORT CHECKS PASSED');

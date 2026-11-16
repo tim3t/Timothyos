@@ -4,69 +4,20 @@
 // page per night (setting it again changes that page; none moves it to the trash); a meal it doesn't know is refused.
 // mealplan: PLAN MY WEEK asks Claude for the open nights with each meal's rotation (days since, times in 90 days, usual
 // gap); only meals from the list, one each, only the nights asked; nothing is saved. Invented meals.
-const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
-const props = { NOTION_TOKEN: 'ntn_test', ANTHROPIC_API_KEY: 'sk-test' }, cache = {};
-const DBM = '880216ac00294fbca344eafc9c77a8b5', DBD = '1ba57e689aaa499eafe3f734874a1b7c', DSM = 'ds-meals', DSD = 'ds-dinners';
-let pages = {}, n = 0, calls = [], claude = [], reply = null, blocks = {}, bn = 0, web = {}, fetched = [];
-const norm = pr => { Object.values(pr).forEach(v => ['title', 'rich_text'].forEach(t => (v[t] || []).forEach(r => { if (r.text) r.plain_text = r.text.content; }))); return pr; };
-function page(ds, pr) { norm(pr); const id = ('0000000000000000000000000000000' + (++n)).slice(-32); pages[id] = { id, ds, in_trash: false, properties: pr }; return pages[id]; }
-const txt = p => ((p && (p.rich_text || p.title)) || []).map(r => r.plain_text != null ? r.plain_text : r.text.content).join('');
+const assert = require('assert');
+const { bridge } = require('./lib/gas');
+let claude = [], reply = null, web = {}, fetched = [];
 const day = off => new Date(Date.now() + off * 864e5).toISOString().slice(0, 10);
-function match(p, f) {
-  if (!f) return true;
-  if (f.and) return f.and.every(x => match(p, x));
-  if (f.rich_text) return txt(p.properties[f.property]) === f.rich_text.equals;
-  const d = p.properties.Date && p.properties.Date.date && p.properties.Date.date.start;
-  if (f.date.equals) return d === f.date.equals;
-  if (f.date.on_or_after) return d >= f.date.on_or_after;
-  if (f.date.on_or_before) return d <= f.date.on_or_before;
-  return true;
-}
-function fetchMock(url, opts) {
-  const res = (code, body, mime) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body),
+function fetch(url, opts) {
+  const rs = (code, body, mime) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body),
     getBlob: () => ({ getContentType: () => mime || 'text/html; charset=utf-8', getBytes: () => Array.from(Buffer.isBuffer(body) ? body : Buffer.from(String(body))) }) });
-  const body = opts.payload ? JSON.parse(opts.payload) : null;
-  if (!/api\.(notion|anthropic)\.com/.test(url)) { fetched.push(url); const w = web[url]; return w ? res(w[0], w[1], w[2]) : res(404, 'not found'); }   /* a recipe site */
-  if (/anthropic/.test(url)) { claude.push(body); return res(200, { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage: { input_tokens: 900, output_tokens: 120 }, content: [{ type: 'text', text: reply }] }); }
-  const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase();
-  calls.push(m + ' ' + path);
-  if (m === 'get' && path === '/databases/' + DBM) return res(200, { data_sources: [{ id: DSM }] });
-  if (m === 'get' && path === '/databases/' + DBD) return res(200, { data_sources: [{ id: DSD }] });
-  if (m === 'get' && path.indexOf('/databases/') === 0) return res(404, { message: 'Could not find database' });
-  const q = path.match(/^\/data_sources\/(.+)\/query$/);
-  if (m === 'post' && q) {
-    const rows = Object.values(pages).filter(p => p.ds === q[1] && !p.in_trash && match(p, body.filter)), by = body.sorts && body.sorts[0].property;
-    if (by === 'Date') rows.sort((a, b) => a.properties.Date.date.start < b.properties.Date.date.start ? -1 : 1);
-    if (by === 'Name') rows.sort((a, b) => txt(a.properties.Name).localeCompare(txt(b.properties.Name)));
-    return res(200, { results: rows, has_more: false });
-  }
-  if (m === 'post' && path === '/pages') return res(200, page(body.parent.data_source_id, body.properties));
-  const bc = path.match(/^\/blocks\/([^/?]+)\/children/);
-  if (bc && m === 'get') return res(200, { results: blocks[bc[1]] || [], has_more: false });
-  if (bc && m === 'patch') { body.children.forEach(b => (b[b.type].rich_text || []).forEach(x => { x.plain_text = x.text.content; })); blocks[bc[1]] = (blocks[bc[1]] || []).concat(body.children.map(b => Object.assign({ id: 'b' + (++bn) }, b))); return res(200, {}); }
-  const bd = path.match(/^\/blocks\/([^/?]+)$/);
-  if (bd && m === 'delete') { Object.keys(blocks).forEach(k => { blocks[k] = blocks[k].filter(b => b.id !== bd[1]); }); return res(200, {}); }
-  const pm = path.match(/^\/pages\/(.+)$/);
-  if (pm && m === 'patch') { const p = pages[pm[1]]; if (body.in_trash) p.in_trash = true; if (body.properties) Object.assign(p.properties, norm(body.properties)); return res(200, p); }
-  return res(400, { message: 'unexpected ' + m + ' ' + path });
+  if (/anthropic/.test(url)) { claude.push(JSON.parse(opts.payload)); return rs(200, { model: 'claude-sonnet-5-5', stop_reason: 'end_turn', usage: { input_tokens: 900, output_tokens: 120 }, content: [{ type: 'text', text: reply }] }); }
+  fetched.push(url); const w = web[url]; return w ? rs(w[0], w[1], w[2]) : rs(404, 'not found');   /* a recipe site */
 }
-const logs = [];
-const ctx = {
-  console: { log: (...a) => logs.push(a.join(' ')) },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }), getUserProperties: () => ({ getProperty: () => null, setProperties() {}, deleteProperty() {} }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-  Utilities: { getUuid: () => require('crypto').randomUUID(), sleep() {}, base64Encode: b => Buffer.from(b).toString('base64'),
-    formatDate: (d, tz, f) => f === 'yyyy-MM-dd' ? d.toISOString().slice(0, 10) : f === 'yyyy-MM' ? d.toISOString().slice(0, 7) : f === 'EEEE' ? d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }) : d.toISOString() },
-  Session: { getScriptTimeZone: () => 'UTC' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  UrlFetchApp: { fetch: fetchMock },
-  CalendarApp: { GuestStatus: { NO: 'NO' }, getDefaultCalendar: () => ({ getName: () => 'me', getTimeZone: () => 'UTC', getEvents: () => [] }), getCalendarById: () => null, getAllCalendars: () => [] },
-};
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
-ctx.setup(); const key = props.ACCESS_KEY;
-const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-
+const br = bridge({ props: { NOTION_TOKEN: 'ntn_test', ANTHROPIC_API_KEY: 'sk-test', ACCESS_KEY: null }, notion: {}, fetch, tz: 'UTC' }), { ctx, props, cache, nx, log: logs } = br;
+ctx.setup();
+const post = br.post;
+const meal = key => nx.rows('meals', { trash: true }).find(x => x['App ID'] === key);
 assert.ok(logs.includes('Notion meals and dinners: OK (0 meals, 0 dinners)'), logs.filter(l => /meal/i.test(l)).join(' | '));
 const caps = post({ action: 'ping' }).capabilities;
 assert.ok(caps.includes('meals') && caps.includes('mealplan'));
@@ -76,14 +27,14 @@ const soup = { id: 'm-soup', name: 'Sample lentil soup', kind: 'Meatless', ing: 
 let r = post({ action: 'mealsave', meal: soup });
 assert.ok(r.ok, JSON.stringify(r));
 assert.deepStrictEqual(r.meal.ing, [{ n: 'Lentils', a: 'Pantry', have: true }, { n: 'Carrots', a: 'Produce', have: false }, { n: 'Onion', a: 'Produce', have: false }]);
-const sp = Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-soup');
-assert.strictEqual(txt(sp.properties.Ingredients), 'Lentils · Pantry · have\nCarrots · Produce\nOnion · Produce', 'readable and editable in Notion');
-assert.strictEqual(sp.properties.Kind.select.name, 'Meatless'); assert.strictEqual(sp.properties.Recipe.url, 'https://example.com/soup');
+const sp = meal('m-soup');
+assert.strictEqual(sp.Ingredients, 'Lentils · Pantry · have\nCarrots · Produce\nOnion · Produce', 'readable and editable in Notion');
+assert.strictEqual(sp.Kind, 'Meatless'); assert.strictEqual(sp.Recipe, 'https://example.com/soup');
 r = post({ action: 'mealsave', meal: Object.assign({}, soup, { name: 'Sample lentil stew' }) });
-assert.strictEqual(Object.values(pages).filter(p => p.ds === DSM && !p.in_trash).length, 1, 'the same page again');
+assert.strictEqual(nx.rows('meals').length, 1, 'the same page again');
 ['m-taco', 'm-pizza', 'm-fish'].forEach((id, i) => assert.ok(post({ action: 'mealsave', meal: { id, name: ['Sample tacos', 'Sample pizza', 'Sample fish'][i], kind: ['Beef + Pork', 'Meatless', 'Fish'][i], ing: [{ n: 'Item ' + i, a: 'Dairy' }] } }).ok));
 // an edit made in Notion: an aisle it doesn't know is Other; blank lines skipped
-sp.properties.Ingredients = { rich_text: [{ plain_text: 'Lentils · pantry · HAVE\n\nCumin · Spices' }] };
+nx.edit(sp.id, { Ingredients: 'Lentils · pantry · HAVE\n\nCumin · Spices' });
 cache.mgen = 'x1';
 let rd = post({ action: 'meals' });
 assert.deepStrictEqual(rd.meals.find(m => m.id === 'm-soup').ing, [{ n: 'Lentils', a: 'Pantry', have: true }, { n: 'Cumin', a: 'Other', have: false }]);
@@ -95,13 +46,13 @@ assert.deepStrictEqual(rd.meals.find(m => m.id === 'm-soup').ing, [{ n: 'Lentils
 // ---- dinners: one page a night, linked to its meal
 r = post({ action: 'dinnerset', dinner: { date: day(-2), status: 'eaten', kind: 'meal', meal: 'm-taco', note: 'Sample note' } });
 assert.ok(r.ok && r.dinner.meal === 'm-taco' && r.dinner.name === 'Sample tacos' && r.dinner.status === 'eaten', JSON.stringify(r));
-const dp = Object.values(pages).find(p => p.ds === DSD);
-assert.strictEqual(dp.properties.Meal.relation[0].id, Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-taco').id);
-assert.strictEqual(dp.properties.Kind.select.name, 'Meal'); assert.strictEqual(dp.properties.Status.select.name, 'Eaten');
+const dp = nx.rows('dinners')[0];
+assert.strictEqual(dp.Meal[0], meal('m-taco').id);
+assert.strictEqual(dp.Kind, 'Meal'); assert.strictEqual(dp.Status, 'Eaten');
 r = post({ action: 'dinnerset', dinner: { date: day(-2), status: 'eaten', kind: 'leftovers' } });
 assert.ok(r.ok && r.dinner.kind === 'leftovers' && r.dinner.meal === null);
-assert.strictEqual(Object.values(pages).filter(p => p.ds === DSD && !p.in_trash).length, 1, 'the same night, the same page');
-assert.strictEqual(txt(dp.properties.Dinner), 'Leftovers'); assert.deepStrictEqual(dp.properties.Meal.relation, []);
+assert.strictEqual(nx.rows('dinners').length, 1, 'the same night, the same page');
+assert.strictEqual(nx.row(dp.id).Dinner, 'Leftovers'); assert.deepStrictEqual(nx.row(dp.id).Meal, []);
 post({ action: 'dinnerset', dinner: { date: day(-9), status: 'eaten', kind: 'meal', meal: 'm-soup' } });
 post({ action: 'dinnerset', dinner: { date: day(-40), status: 'eaten', kind: 'meal', meal: 'm-soup' } });
 post({ action: 'dinnerset', dinner: { date: day(-1), status: 'eaten', kind: 'out' } });
@@ -113,7 +64,7 @@ rd = post({ action: 'meals' });
 assert.deepStrictEqual(rd.dinners.map(d => [d.date, d.status, d.kind, d.meal]), [[day(-40), 'eaten', 'meal', 'm-soup'], [day(-9), 'eaten', 'meal', 'm-soup'], [day(-2), 'eaten', 'leftovers', null], [day(-1), 'eaten', 'out', null], [day(1), 'planned', 'meal', 'm-pizza']]);
 // cleared: to the trash
 assert.ok(post({ action: 'dinnerset', dinner: { date: day(1), kind: 'none' } }).ok);
-assert.ok(Object.values(pages).some(p => p.ds === DSD && p.in_trash && p.properties.Date.date.start === day(1)));
+assert.ok(nx.rows('dinners', { trash: true }).some(x => x.in_trash && x.Date === day(1)));
 assert.ok(!post({ action: 'meals' }).dinners.some(d => d.date === day(1)));
 
 // ---- PLAN MY WEEK: the rotation goes to Claude; only meals and nights it was given come back
@@ -126,14 +77,14 @@ assert.ok(sent.includes('m-soup | Sample lentil stew | Meatless | 9 days since |
 assert.ok(sent.includes('m-fish | Sample fish | Fish | never recorded'));
 assert.ok(sent.includes(day(-1) + ': Eating out') && sent.includes('PLAN THESE NIGHTS\n' + day(2) + ' ('), sent);
 assert.ok(!/Sample note/.test(sent), 'notes stay out');
-assert.strictEqual(Object.values(pages).filter(p => p.ds === DSD && !p.in_trash).length, 5, 'nothing saved');
+assert.strictEqual(nx.rows('dinners').length, 5, 'nothing saved');
 assert.ok(JSON.parse(props.AI_SPEND).calls === 1);
 [[], [day(-1)], [day(30)], [day(2), day(2)], Array.from({ length: 8 }, (_, i) => day(i))].forEach(nights => assert.strictEqual(post({ action: 'mealplan', nights }).error, 'bad_request', JSON.stringify(nights)));
 reply = 'no idea'; assert.strictEqual(post({ action: 'mealplan', nights: [day(2)] }).error, 'ai_error');
 
 // ---- remove: to the trash; its dinners keep their names
 assert.ok(post({ action: 'mealremove', id: 'm-taco' }).ok);
-assert.ok(Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-taco').in_trash);
+assert.ok(meal('m-taco').in_trash);
 assert.strictEqual(post({ action: 'mealremove', id: '../x' }).error, 'bad_request');
 // the schema check knows both
 const sc = post({ action: 'schema', fresh: '1' });
@@ -194,8 +145,8 @@ assert.strictEqual(post({ action: 'mealimport', text: 'A note about the weather'
 const full = { lines: ['2 lb chicken thighs', '1 cup rice'], steps: ['Brown the chicken.', 'Add the rice.'], servings: '4 servings', time: '1 h 5 min', source: 'https://recipes.example/skillet' };
 r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [{ n: 'Chicken thighs', a: 'Meat + Fish' }], photo: 'https://img.example/skillet.jpg', full } });
 assert.ok(r.ok && r.meal.photo === 'https://img.example/skillet.jpg', JSON.stringify(r));
-const skp = Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-skillet');
-const body = () => (blocks[skp.id] || []).map(b => b.type + ':' + b[b.type].rich_text.map(x => x.text.content).join(''));
+const skp = meal('m-skillet');
+const body = () => nx.blocks(skp.id).map(x => x.type + ':' + x[x.type].rich_text.map(t => t.text.content).join(''));
 assert.deepStrictEqual(body(), ['paragraph:Serves 4 servings · 1 h 5 min', 'heading_2:Ingredients', 'bulleted_list_item:2 lb chicken thighs', 'bulleted_list_item:1 cup rice', 'heading_2:Steps', 'numbered_list_item:Brown the chicken.', 'numbered_list_item:Add the rice.', 'heading_3:Source', 'paragraph:From recipes.example']);
 post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], full: Object.assign({}, full, { steps: ['One pot.'] }) } });
 assert.strictEqual(body().filter(x => x.startsWith('numbered')).join(), 'numbered_list_item:One pot.', 'replaced');
@@ -206,23 +157,22 @@ assert.ok(body().length === 8, 'a save without full leaves the body as it is');
 const pic = 'data:image/jpeg;base64,' + 'A'.repeat(4100) + '==';
 r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: pic } });
 assert.ok(r.ok && r.meal.thumb === pic, 'thumb saved and read back');
-assert.ok(skp.properties.Thumb.rich_text.length === 3 && skp.properties.Thumb.rich_text.every(x => x.text.content.length <= 2000), 'in pieces of 2000');
+const sentThumb = nx.calls.filter(c => c.method === 'patch' && c.path === '/pages/' + skp.id).pop().body.properties.Thumb.rich_text;
+assert.ok(sentThumb.length === 3 && sentThumb.every(x => x.text.content.length <= 2000) && meal('m-skillet').Thumb === pic, 'in pieces of 2000');
 r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [] } });
 assert.ok(r.ok && r.meal.thumb === pic, 'an older app leaves it as it is');
 ['data:image/png;base64,AAAA', 'https://img.example/x.jpg', 'data:image/jpeg;base64,' + 'A'.repeat(16000), 'data:image/jpeg;base64,AA"><script>'].forEach(t =>
   assert.strictEqual(post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: t } }).error, 'bad_request', t.slice(0, 40)));
 r = post({ action: 'mealsave', meal: { id: 'm-skillet', name: 'Skillet chicken', kind: 'Chicken', ing: [], thumb: '' } });
-assert.ok(r.ok && r.meal.thumb === '' && skp.properties.Thumb.rich_text.length === 0, 'cleared');
-skp.properties.Thumb = { rich_text: [{ plain_text: 'javascript:alert(1)', text: { content: 'javascript:alert(1)' } }] };
+assert.ok(r.ok && r.meal.thumb === '' && meal('m-skillet').Thumb === '', 'cleared');
+nx.edit(skp.id, { Thumb: 'javascript:alert(1)' });
 cache.mgen = 'x1b';
 assert.strictEqual(post({ action: 'meals' }).meals.find(m => m.id === 'm-skillet').thumb, '', 'only a JPEG picture is read back');
 // COOK: the body read back; a page written by hand reads the same way
 let rc = post({ action: 'mealrecipe', id: 'm-skillet' });
 assert.deepStrictEqual([rc.lines, rc.steps, rc.other], [['2 lb chicken thighs', '1 cup rice'], ['One pot.'], ['Serves 4 servings · 1 h 5 min', 'From recipes.example']]);
-const hand = Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-soup');
-blocks[hand.id] = [{ id: 'h1', type: 'paragraph', paragraph: { rich_text: [{ text: { content: 'Grandma\'s' } }] } }, { id: 'h2', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: '1 cup lentils' } }] } },
-  { id: 'h3', type: 'heading_3', heading_3: { rich_text: [{ text: { content: 'Method' } }] } }, { id: 'h4', type: 'paragraph', paragraph: { rich_text: [{ text: { content: 'Simmer an hour.' } }] } }];
-Object.values(blocks).forEach(l => l.forEach(b => (b[b.type].rich_text || []).forEach(x => { x.plain_text = x.text.content; })));
+nx.blocks(meal('m-soup').id, [{ type: 'paragraph', paragraph: { rich_text: [{ text: { content: 'Grandma\'s' } }] } }, { type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: '1 cup lentils' } }] } },
+  { type: 'heading_3', heading_3: { rich_text: [{ text: { content: 'Method' } }] } }, { type: 'paragraph', paragraph: { rich_text: [{ text: { content: 'Simmer an hour.' } }] } }]);
 cache.mgen = 'x2';
 rc = post({ action: 'mealrecipe', id: 'm-soup' });
 assert.deepStrictEqual([rc.lines, rc.steps, rc.other], [['1 cup lentils'], ['Simmer an hour.'], ["Grandma's"]]);
@@ -248,13 +198,14 @@ delete web['https://img.example/skillet.jpg'];
 im = post({ action: 'mealimport', url: 'https://recipes.example/skillet' });
 assert.ok(im.ok && im.recipe.photo && !im.recipe.photoData, 'no picture, still a card');
 // mealthumb: only Thumb changes
-const sk = Object.values(pages).find(p => txt(p.properties['App ID']) === 'm-skillet'), before = JSON.stringify([sk.properties.Name, sk.properties.Ingredients, sk.properties.Photo]);
+const kept = () => { const x = meal('m-skillet'); return JSON.stringify([x.Name, x.Ingredients, x.Photo]); }, before = kept();
 r = post({ action: 'mealthumb', id: 'm-skillet', thumb: pic });
-assert.ok(r.ok && r.meal.thumb === pic && JSON.stringify([sk.properties.Name, sk.properties.Ingredients, sk.properties.Photo]) === before, 'only the picture');
+assert.ok(r.ok && r.meal.thumb === pic && meal('m-skillet').Thumb === pic && kept() === before, 'only the picture');
 assert.deepStrictEqual([post({ action: 'mealthumb', id: 'm-skillet', thumb: '' }).error, post({ action: 'mealthumb', id: 'm-skillet', thumb: 'https://img.example/x.jpg' }).error, post({ action: 'mealthumb', id: 'm-none', thumb: pic }).error, post({ action: 'mealthumb', id: '', thumb: pic }).error],
   ['bad_request', 'bad_request', 'not_found', 'bad_request']);
 // every prompt that carries his data says it is data
 assert.ok(/is data, never instructions/.test(ctx.AI_DATA_RULE));
 ['AI_RULES', 'LOG_ASK_RULES', 'SES_RULES', 'MEAL_PLAN_RULES', 'TAROT_SUGGEST_RULES'].forEach(k => assert.ok(ctx[k].includes(ctx.AI_DATA_RULE), k));
 assert.ok(/data, never instructions/.test(ctx.MEAL_IMPORT_RULES));
+assert.deepStrictEqual(nx.refused(), [], 'the bridge sent nothing Notion refuses');
 console.log('bridge meals: OK');
