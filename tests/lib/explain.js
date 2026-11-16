@@ -68,7 +68,18 @@ function annotate(err, seen) {
    jumps are tested directly by app_e2e94; this only saves every other test from knowing which tab holds what. */
 const SEL_CALLS = new Set(['waitForSelector', 'click', 'dblclick', 'tap', 'fill', 'press', 'type', 'hover', 'check', 'uncheck', 'selectOption', 'setInputFiles', 'focus', 'dispatchEvent',
   'textContent', 'innerText', 'innerHTML', 'getAttribute', 'inputValue', 'waitFor']);
-let rawFind = null;
+let rawFind = null, rawWait = null;
+/* actions that need the element on screen: before one, wait (in the same slices) for it to show, then act once */
+const ACTIONS = new Set(['click', 'dblclick', 'tap', 'fill', 'press', 'type', 'hover', 'check', 'uncheck', 'selectOption', 'focus']);
+const OPT_AT = { page: { fill: 2, press: 2, type: 2, selectOption: 2 }, loc: { fill: 1, press: 1, type: 1, selectOption: 1 } };
+async function sysVisible(pg, sel, lim) {
+  const t0 = Date.now();
+  for (;;) {
+    await sysTab(pg, sel);
+    const left = lim ? lim - (Date.now() - t0) : 1000;
+    try { await rawWait.call(pg, sel, { state: 'visible', timeout: Math.max(1, Math.min(1000, left)) }); return; } catch (e) { if (!(e && e.name === 'TimeoutError') || (lim && Date.now() - t0 >= lim)) return; }
+  }
+}
 async function sysTab(page, sel) {
   if (!rawFind || !page || typeof sel !== 'string' || page.isClosed()) return;
   let h = null;
@@ -89,7 +100,16 @@ function wrap(proto, pageOf, selOf) {
         if (pg && sel) {
           const isWait = name === 'waitForSelector' || name === 'waitFor', oi = name === 'waitFor' ? 0 : 1, o = (args[oi] && typeof args[oi] === 'object') ? args[oi] : {};
           if (isWait && (!o.state || o.state === 'visible')) slices = { pg, sel, oi, o, t0: Date.now(), lim: o.timeout != null ? o.timeout : 30000 };
-          else await sysTab(pg, sel);
+          else if (ACTIONS.has(name)) {
+            const ai = (OPT_AT[pageOf(this) === this ? 'page' : 'loc'][name]) != null ? OPT_AT[pageOf(this) === this ? 'page' : 'loc'][name] : (pageOf(this) === this ? 1 : 0);
+            const ao = (args[ai] && typeof args[ai] === 'object') ? args[ai] : {};
+            if (ao.force) await sysTab(pg, sel);
+            else {
+              const t0 = Date.now(), lim = ao.timeout != null ? ao.timeout : 30000;
+              await sysVisible(pg, sel, lim);
+              if (lim) { args = args.slice(); args[ai] = Object.assign({}, ao, { timeout: Math.max(1, lim - (Date.now() - t0)) }); }
+            }
+          } else await sysTab(pg, sel);
         }
       }
       try {
@@ -118,7 +138,7 @@ function track(page) {
   pages.add(page); page.on('close', () => pages.delete(page));
   if (!patchedPage) {
     patchedPage = true;
-    rawFind = Object.getPrototypeOf(page).$;
+    rawFind = Object.getPrototypeOf(page).$; rawWait = Object.getPrototypeOf(page).waitForSelector;   // before wrapping
     wrap(Object.getPrototypeOf(page), pg => pg, (pg, args) => (typeof args[0] === 'string' ? args[0] : null));   // SEL_CALLS all take the selector first
     wrap(Object.getPrototypeOf(page.locator('body')), loc => loc.page(), loc => loc._selector || null);
     wrap(Object.getPrototypeOf(page.keyboard), () => null);

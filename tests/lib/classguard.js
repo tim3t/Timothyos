@@ -29,8 +29,8 @@ const SHARED = [
 
 const STATIONS = {
   bridge: { root: '.rb', own: ['rb-', 'clash', 'dim', 'red', 'ic', 'st', 'tx', 'pin-due', 'tick'], borrows: ['hb-'] },
-  today: { root: '.bridge', own: ['bridge', 'tl', 'tlpanel', 'tlwrap', 'ev', 'hour', 'now', 'quietband', 'quiet', 'rcol', 'arow', 'arows', 'kd', 'dt', 'tt', 'st', 'soon', 'past', 'tall', 'tm', 'lbl', 't', 'nm', 'ct', 'sw', 'prio'] },
-  week: { root: '.wkpanel', own: ['wk', 'wk-', 'wkpanel', 'wka', 'wkb', 'wkads', 'wkband', 'wkbody', 'wkcol', 'wkgut', 'wkh', 'wkhead', 'wkline', 'wknow', 'wkscroll', 'wkspan', 'one', 'past', 'tall', 'tm', 'lbl', 'quiet', 'today'] },
+  today: { root: '.bridge', own: ['bridge', 'tl', 'tlpanel', 'tlwrap', 'ev', 'hour', 'now', 'allday', 'adchip', 'kdchip', 'quietband', 'quiet', 'rcol', 'arow', 'arows', 'kd', 'dt', 'tt', 'st', 'soon', 'past', 'tall', 'tm', 'lbl', 't', 'nm', 'ct', 'sw', 'prio'] },
+  week: { root: '.wkpanel', own: ['wk', 'wk-', 'wkpanel', 'wka', 'wkb', 'kdspan', 'wkads', 'wkband', 'wkbody', 'wkcol', 'wkgut', 'wkh', 'wkhead', 'wkline', 'wknow', 'wkscroll', 'wkspan', 'one', 'past', 'tall', 'tm', 'lbl', 'quiet', 'today'] },
   month: { root: '.mo', own: ['mo', 'moc', 'moh', 'mo-', 'li', 'kdli', 'more', 'n', 'out', 'dots', 'top1', 'today'] },
   loom: { root: '.lm', own: ['lm-', 'kd', 'dt', 'tt', 'st', 'soon'] },
   dates: { root: '.kdscreen', own: ['kdscreen', 'kdtools', 'dgroup', 'kd', 'dt', 'tt', 'st', 'soon'] },
