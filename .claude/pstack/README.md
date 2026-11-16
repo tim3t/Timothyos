@@ -7,3 +7,5 @@ Lauren Tan's pstack (MIT, `LICENSE` here, copyright Lauren Tan), copied from the
 - **Left out:** `statechart`, `create-formal-verification-skill`, `maintain-formal-verification-skill` (TLA+ tooling that installs Java; about 4 MB), `make-bot-ui` (binds every network interface and installs software with sudo), `typescript-best-practices` (no TypeScript here), `ketchup-video`, and the guide's images. Plugin hooks and settings are not copied: nothing runs on its own.
 - **Changed here:** a "TimothyOS overrides" section at the top of `skills/poteto-mode/SKILL.md` and `skills/automate-me/SKILL.md`, and an "In TimothyOS" section at the end of the adapter. Nothing else is edited.
 - **Updating:** clone `cursor/plugins` at a newer commit, copy the same set over, put the three local sections back, update the commit above, and read the diff before committing. Never copy hooks or `settings.json` from upstream without asking Timothy.
+
+- **Also here, not from pstack:** `.claude/skills/timothy-mode/`, Timothy's own working style, drafted by `automate-me` on 16 Nov 2026 from his messages and answers, checked for private details, and approved for the repo.
