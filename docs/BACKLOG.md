@@ -8,7 +8,6 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 | Item | Where | Notes |
 |---|---|---|
-| Rename a Notion column | Notion: Habits → the **Evening Walk** column → rename to **Exercise** | Bridge 1.51.0 is deployed (confirmed 16 Nov), so this can go any time; past days keep their ticks (app 2.83) |
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | SICKBAY trial verdict | After a few mornings with the Sleep Focus run (README → SICKBAY, 2.81.2). 13 Nov: three runs in a row didn't arrive (HUB likely locked) | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
