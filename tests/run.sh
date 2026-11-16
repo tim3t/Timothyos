@@ -69,6 +69,7 @@ run bridge_profile.test.js
 run bridge_news.test.js
 run bridge_export.test.js
 run bridge_capped.test.js     # 1.50 (A3): a read that stops at its row limit says so (pages of 100, cached, batched)
+run bridge_a1a2.test.js      # 1.51 (A1, A2): a write never twice after the cache; Completed added, filled, kept, set, cleared
 fi
 [ "${1:-}" = "bridge" ] && exit $fail
 

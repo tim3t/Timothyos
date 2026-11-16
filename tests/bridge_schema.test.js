@@ -6,7 +6,7 @@ const props = { NOTION_TOKEN: 'ntn_test' }, cache = {};
 const DB = { tasks: '6c4a440d571e49e0b4076c18d5712c1f', dates: '8184db37aacb4d96943b2067558b92ab', library: '47fdad1d1217402fa84731a8aa146cba' };
 const col = type => ({ type });
 const sources = {
-  'ds-tasks': { Task: col('title'), Status: col('select'), Priority: col('select'), 'Life Area': col('select'), 'Due Date': col('date'), 'Focus Date': col('date'), Extra: col('people') },
+  'ds-tasks': { Task: col('title'), Status: col('select'), Priority: col('select'), 'Life Area': col('select'), 'Due Date': col('date'), 'Focus Date': col('date'), Completed: col('date'), Extra: col('people') },   // Completed: 1.51
   'ds-dates': { Name: col('title'), When: col('date'), 'Life Area': col('select'), Type: col('select'), 'Repeats Yearly': col('checkbox'), Notes: col('rich_text') },   // Date renamed to When
   'ds-library': { Title: col('title'), Author: col('rich_text'), Status: col('select'), Started: col('date'), Finished: col('date'), Rating: col('rich_text'),         // Rating made text
     Notes: col('rich_text'), Cover: col('url'), 'Open Library': col('url'), Published: col('number') }

@@ -7,7 +7,7 @@ function mkEv(title, s, e, opts={}) {
     getAllDayStartDate:()=>new Date(s), getAllDayEndDate:()=>new Date(e), setDescription(){}, setTag(){} };
 }
 const personal = { getName:()=>'personal@example.com', getTimeZone:()=>'America/Chicago', getId:()=>'personal@example.com',
-  getEvents:()=>created.slice(),
+  getEvents:()=>created.slice(), getEventById:id=>created.find(x => x.getId() === id) || null,
   createEvent:(t,s,e)=>{ const ev = mkEv(t,s,e); created.push(ev); return ev; },
   createAllDayEvent:(t,d)=>{ const ev = mkEv(t,d,new Date(d.getTime()+864e5),{allDay:true}); created.push(ev); return ev; } };
 const farmEvents = [];
@@ -31,7 +31,7 @@ const work = { getName:()=>'Work', getTimeZone:()=>'America/Chicago', getId:()=>
   createEvent:()=>{ throw new Error('WORK WRITE ATTEMPTED'); } };
 const ctx = {
   console: { log(){} },
-  PropertiesService: { getScriptProperties: ()=>({ getProperty:k=>props[k]||null, setProperty:(k,v)=>{props[k]=v}, deleteProperty:k=>{delete props[k]} }) },
+  PropertiesService: { getScriptProperties: ()=>({ getProperty:k=>props[k]||null, getProperties:()=>Object.assign({}, props), setProperty:(k,v)=>{props[k]=v}, deleteProperty:k=>{delete props[k]} }) },
   CacheService: { getScriptCache: ()=>({ get:k=>cache[k]||null, put:(k,v)=>{cache[k]=v}, remove:k=>{delete cache[k]} }) },
   ContentService: { MimeType:{JSON:'json'}, createTextOutput: t=>({ text:t, setMimeType(){ return this; } }) },
   Utilities: { getUuid: ()=>require('crypto').randomUUID(), formatDate: (d)=> d.toISOString().slice(0,10), parseDate: (s)=> new Date(s+'T05:00:00Z') },
@@ -56,6 +56,10 @@ A.strictEqual(post({ key:'x', action:'create', item }).error, 'unauthorized', 'a
 A.strictEqual(post({ key, action:'create', item: Object.assign({}, item, { area:'work', cid:'abc12345-0002' }) }).error, 'not_writable', 'the Work calendar is read-only forever');
 A.strictEqual(created.length, 0, 'nothing created by refused requests');
 const c1 = post({ key, action:'create', item }); A.ok(c1.ok && c1.event.title === 'Pick up bee feeder' && c1.event.area === 'personal', JSON.stringify(c1));
+// 1.51 (A1): sent again after Google's cache let go (a reply lost overnight): the same event, not a second one
+{ const n0 = created.length; delete cache['cid:' + item.cid];
+  const again = post({ key, action:'create', item }); A.ok(again.ok && again.duplicate === true && again.event.title === 'Pick up bee feeder', JSON.stringify(again));
+  A.strictEqual(created.length, n0, 'made once, found by its capture id in the 30-day record'); cache['cid:' + item.cid] = JSON.stringify(c1); }
 const c2 = post({ key, action:'create', item }); A.ok(c2.ok && c2.event.id === c1.event.id, 'a resend returns the same event');
 A.strictEqual(created.length, 1, 'the same capture id twice makes one calendar event');
 A.strictEqual(post({ key, action:'create', item: Object.assign({}, item, { title:'  ', cid:'abc12345-0003' }) }).error, 'bad_title');

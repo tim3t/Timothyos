@@ -18,7 +18,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-**Next, in this order (Timothy, 16 Nov):** A1 and A2 together, then B1 (all three are below). A1 and A2 each need a Notion column: ask before changing a schema.
+**Next (Timothy, 16 Nov):** Timothy shares Lauren Tan's optimization tactics, then B1 (below).
 
 ## From the diagnostic (2026-11-15), not yet agreed
 
@@ -26,8 +26,6 @@ What the sweep found healthy: every station opens with no page error, no request
 
 **Data that could go wrong quietly (most worth doing)**
 
-- **A1. A write repeated after six hours can land twice.** New events, tasks, key dates, queue items, inbox notes, sessions, books and APIARY records are protected from a repeat only by a note the bridge keeps for 6 hours. A write whose reply is lost when the iPad sleeps, and is sent again the next morning, would be made a second time. The Health and MEALS writes are safe (they look the record up by its App ID). Fix: when the 6-hour note is gone, look for the capture's id on the calendar event (already tagged `tosCid`) or in a Notion column before creating. A Notion column is a schema change: ask first.
-- **A2. "When a task was finished" is Notion's last-edited time.** Fixing a typo on a finished task, changing its Life Area, or a bulk change in Notion moves it to today. BALANCE, REVIEW, the Ship's Year and ON THIS DAY all read it. Fix: a **Completed** date the bridge sets when a task goes to Done, read with last-edited as the fallback (the same either-name pattern as Exercise). Schema change: ask first.
 
 **Tests that would have caught this week's bugs**
 
@@ -110,4 +108,4 @@ What the sweep found healthy: every station opens with no page error, no request
 
 ## Done since the last review (2026-11-11), for the record
 
-2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy · 2.84 RECOVERED in the error log, "slowest" without frozen requests, RESSIKAN's clock only while playing (C2 to C4) · 2.84.1 the class guard on every station, which found WEEK's lost date label (B2), and timeouts that say what they saw (B3) · 2.85 reads cut short say so (A3, bridge 1.50) and the deep store for big copies (A4) · 2.86 the SYSTEMS index (C1). Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).
+2.78 COPY DIAGNOSTICS and the Health shortcut's check mode · 2.79 recipe photos kept small, and the security tidy-ups · 2.80 SICKBAY's DAYS, activity rings and LEDGER's REMOVE · 2.80.2 the lint check on every run, and tests safe from the calendar · the weekly CI run 60 days ahead · 2.81 ON THIS DAY, then OPEN THIS DAY IN LOG · 2.81.2 SICKBAY's honest ARRIVED, NO SEND SINCE, and a quieter wake · 2.81.3 ON THIS DAY's tasks and tarot (bridge 1.48.1) · 2.82 RESSIKAN as CHORDS and SOLO · 2.82.2 the playing bar, and HOLODECK's instant tap · 2.83 Evening Walk became Exercise (bridge 1.49) · the HOLODECK and sync tests traced and steadied · the `lint-option-a` branch deleted by Timothy · 2.84 RECOVERED in the error log, "slowest" without frozen requests, RESSIKAN's clock only while playing (C2 to C4) · 2.84.1 the class guard on every station, which found WEEK's lost date label (B2), and timeouts that say what they saw (B3) · 2.85 reads cut short say so (A3, bridge 1.50) and the deep store for big copies (A4) · 2.86 the SYSTEMS index (C1) · 2.87 a capture never made twice (A1) and the Completed date for finished tasks (A2), bridge 1.51. Earlier work is in CHANGELOG.md and docs/DESIGN.md (D1 to D82).

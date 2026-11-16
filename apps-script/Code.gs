@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.50.0';
+var VERSION = '1.51.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -253,8 +253,8 @@ function onThisDay_(today, years) {
   });
   if (props_('NOTION_TOKEN')) {
     tryIt('tasks', function () {
-      queryAll_(tasksSource_(), { or: ranges.map(function (r) { return { and: [{ property: 'Status', select: { equals: '✅ Done' } }, { timestamp: 'last_edited_time', last_edited_time: { on_or_after: r.from + 'T00:00:00Z' } }, { timestamp: 'last_edited_time', last_edited_time: { before: otdShift_(r.to, 1) + 'T12:00:00Z' } }] }; }) }, 3).forEach(function (pg) {
-        var t = toTask_(pg), day = String(pg.last_edited_time || '').slice(0, 10), r = inR(day);
+      doneTasks_(ranges.map(function (r) { return { from: r.from + 'T00:00:00Z', to: otdShift_(r.to, 1) + 'T12:00:00Z' }; }), 3).forEach(function (pg) {
+        var t = toTask_(pg), day = String(doneAt_(pg) || '').slice(0, 10), r = inR(day);   /* 1.51: Completed, else the last edit */
         if (r) r.tasks.push({ date: day, title: t.title.slice(0, 120), area: t.area });
       });
     });
@@ -414,6 +414,7 @@ function setup() {
   if (!familyCalendarId_()) console.log('TimothyOS Family calendar: OFF. Add FAMILY_CALENDAR_ID in Script Properties (the ID from the list above) to show it, read-only');
   var n = notionStatus_();
   console.log('Notion tasks: ' + (n.ok ? 'OK (' + n.name + ', ' + n.open + ' open tasks)' : 'NOT READY: ' + n.error + (n.help ? '. ' + n.help : '')));
+  if (n.ok) { try { console.log('Notion tasks, finished date: ' + completedColumn_()); } catch (e) { console.log('Notion tasks, finished date: NOT ADDED: ' + (e.notion || e.message)); } }
   var kd = n.dates || {};
   console.log('Notion key dates: ' + (kd.ok ? 'OK (' + kd.name + ', ' + kd.count + ' dates)' : 'NOT READY: ' + (kd.error || n.error) + (kd.help ? '. ' + kd.help : '')));
   var wr = n.reviews || {};
@@ -665,6 +666,8 @@ function create_(item) {
 
     var o = openCalendar_(WRITABLE[item.area]());
     if (!o.cal) return { ok: false, error: o.error };
+    var evId = cidFind_('event', item.cid);   /* 1.51 (A1): made more than 6 hours ago */
+    if (evId) { try { var ev0 = o.cal.getEventById(evId); if (ev0) return { ok: true, version: VERSION, event: toItem_(ev0, item.area, o.cal.getTimeZone()), duplicate: true }; } catch (x) { /* gone: make it again */ } }
     var ev, now = Date.now();
     if (item.allDay) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(item.start || ''))) return { ok: false, error: 'bad_time' };
@@ -681,6 +684,7 @@ function create_(item) {
 
     var out = { ok: true, version: VERSION, event: toItem_(ev, item.area, o.cal.getTimeZone()) };
     cache.put('cid:' + item.cid, JSON.stringify(out), 21600);   // remember for 6 hours
+    try { cidKeep_('event', item.cid, ev.getId()); } catch (x) { /* the cache still covers a quick retry */ }
     cache.put('gen', String(now), 21600);                         // fresh reads include the new event
     return out;
   } finally {
@@ -774,6 +778,91 @@ function toTask_(pg) {
   };
 }
 
+/* ---------- A write never lands twice (1.51, A1) ----------
+   Every new event, task, key date, queue item, inbox note, session, book, tarot reading and APIARY record carries
+   the capture id (cid) the app gave it. Google's cache remembers each for 6 hours, so a retry soon after is answered
+   with the first result; a reply lost as the iPad slept and sent again next morning used to be made a second time.
+   Now the bridge also keeps cid -> page (or event) id for 30 days in its own Script Properties, one entry per day
+   ('cids:YYYY-MM-DD', a second ':1' when a day passes 8,500 characters), and older days are dropped as new ones are
+   written. Nothing about the item itself is kept: only the two ids. A record the bridge can't read or write is no
+   reason to fail the write: it falls back to the 6-hour cache as before. */
+var CID_DAYS = 30;
+function cidDay_(d) { return Utilities.formatDate(d || new Date(), 'UTC', 'yyyy-MM-dd'); }
+function cidFind_(kind, cid) {
+  try {
+    var all = PropertiesService.getScriptProperties().getProperties() || {}, k = kind + ':' + cid;
+    for (var name in all) if (name.indexOf('cids:') === 0) { var m = JSON.parse(all[name] || '{}'); if (m[k]) return m[k]; }
+  } catch (x) { /* no record to read: the cache alone, as before 1.51 */ }
+  return null;
+}
+function cidKeep_(kind, cid, id) {
+  try {
+    var props = PropertiesService.getScriptProperties(), all = props.getProperties() || {}, cut = cidDay_(new Date(Date.now() - CID_DAYS * 86400000)), day = cidDay_();
+    Object.keys(all).forEach(function (n) { if (n.indexOf('cids:') === 0 && n.slice(5, 15) < cut) props.deleteProperty(n); });
+    for (var i = 0; i < 20; i++) {
+      var name = 'cids:' + day + (i ? ':' + i : ''), m = JSON.parse(all[name] || '{}');
+      m[kind + ':' + cid] = id;
+      var text = JSON.stringify(m);
+      if (text.length <= 8500 || !all[name]) { props.setProperty(name, text); return; }
+    }
+  } catch (x) { /* the 6-hour cache still covers a quick retry */ }
+}
+/** The page a cid already made, if the 30-day record has it and Notion still answers for it; null otherwise. */
+function cidPage_(kind, cid) {
+  var id = cidFind_(kind, cid);
+  if (!id) return null;
+  try { return notion_('get', '/pages/' + id); } catch (x) { return null; }
+}
+
+/* ---------- When a task was finished (1.51, A2) ----------
+   Notion has no finish date of its own, so until 1.51 the last edit stood in for it, and fixing a typo on a finished
+   task, changing its Life Area or a bulk edit in Notion moved it to today in BALANCE, REVIEW, the Ship's Year and
+   ON THIS DAY. Now the Master Task List has a Date column, Completed (Timothy approved it on 16 Nov; setup adds it).
+   setStatus_ sets it to now when a task goes to Done and clears it when one leaves Done. A task finished in Notion
+   itself has none: the first read that finds it Done without one writes its last edit in (at most 25 a read), and
+   from then on an edit doesn't move it. Readers ask doneTasks_: Completed in the range, or no Completed and the last
+   edit in it (two queries, as one filter would nest a level deeper than Notion allows). Without the column, all of
+   this is as before. */
+var TASK_DONE = '✅ Done';
+function completedOn_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get('tcompleted');
+  if (hit) return hit === '1';
+  var on = false;
+  try { var c = (notion_('get', '/data_sources/' + tasksSource_()).properties || {}).Completed; on = !!c && c.type === 'date'; } catch (x) { on = false; }
+  cache.put('tcompleted', on ? '1' : '0', 1800);
+  return on;
+}
+function doneAt_(pg) { var c = (pg.properties || {}).Completed; return (c && c.date && c.date.start) || pg.last_edited_time || null; }
+function doneTasks_(ranges, maxPages) {
+  var ds = tasksSource_(), DONE = { property: 'Status', select: { equals: TASK_DONE } };
+  var one = function (list) { return list.length === 1 ? list[0] : { or: list }; };
+  var byEdit = function (r, extra) { return { and: [DONE].concat(extra || [], [{ timestamp: 'last_edited_time', last_edited_time: { on_or_after: r.from } }, { timestamp: 'last_edited_time', last_edited_time: { before: r.to } }]) }; };
+  if (!completedOn_()) return queryAll_(ds, one(ranges.map(function (r) { return byEdit(r); })), maxPages);
+  var got = queryFirstPages_(ds, [
+    { filter: one(ranges.map(function (r) { return { and: [DONE, { property: 'Completed', date: { on_or_after: r.from } }, { property: 'Completed', date: { before: r.to } }] }; })), maxPages: maxPages },
+    { filter: one(ranges.map(function (r) { return byEdit(r, [{ property: 'Completed', date: { is_empty: true } }]); })), maxPages: maxPages }
+  ]);
+  completedFill_(got[1]);
+  var seen = {}, out = [];
+  got[0].concat(got[1]).forEach(function (pg) { if (!seen[pg.id]) { seen[pg.id] = true; out.push(pg); } });
+  return out;
+}
+function completedFill_(pages) {
+  var n = 0;
+  (pages || []).forEach(function (pg) {
+    if (n >= 25 || !pg.last_edited_time) return;
+    try { notion_('patch', '/pages/' + pg.id, { properties: { Completed: { date: { start: pg.last_edited_time } } } }); n++; } catch (x) { /* the next read tries again */ }
+  });
+}
+/** setup: the Completed column, added once (Timothy approved, 16 Nov). */
+function completedColumn_() {
+  var ds = tasksSource_(), c = (notion_('get', '/data_sources/' + ds).properties || {}).Completed;
+  if (c) return c.type === 'date' ? 'OK (Completed is there)' : 'PROBLEM: a column named Completed is ' + c.type + ', not a date. Rename it in Notion, then run setup again';
+  notion_('patch', '/data_sources/' + ds, { properties: { Completed: { date: {} } } });
+  CacheService.getScriptCache().remove('tcompleted');
+  return 'ADDED Completed (a Date column); finished tasks fill it in as Bridge reads them';
+}
+
 /** Several queries on one data source, their first pages fetched in parallel (UrlFetchApp.fetchAll);
     any further pages follow one by one. Returns one result list per query. */
 function queryFirstPages_(ds, queries) {
@@ -833,7 +922,7 @@ function schemaSpec_() {
   var t = function (names, type) { return names.map(function (n) { return [n, type]; }); };
   var vals = function (o) { return Object.keys(o).map(function (k) { return o[k]; }); };
   return [
-    { key: 'tasks', name: 'Master Task List', src: tasksSource_, need: [['Task', 'title'], ['Status', 'select'], ['Priority', 'select'], ['Life Area', 'select'], ['Due Date', 'date'], ['Focus Date', 'date']] },
+    { key: 'tasks', name: 'Master Task List', src: tasksSource_, need: [['Task', 'title'], ['Status', 'select'], ['Priority', 'select'], ['Life Area', 'select'], ['Due Date', 'date'], ['Focus Date', 'date'], ['Completed', 'date']] },   // Completed: 1.51 (A2), added by setup
     { key: 'dates', name: 'Key Dates', src: datesSource_, need: [['Name', 'title'], ['Date', 'date'], ['Life Area', 'select'], ['Type', 'select'], ['Repeats Yearly', 'checkbox'], ['Notes', 'rich_text']] },
     { key: 'reviews', name: 'Weekly Reviews', src: reviewsSource_, need: [['Week', 'title'], ['Week Start', 'date']].concat(t(vals(REVIEW_TEXT), 'rich_text'), t(vals(REVIEW_NUM), 'number')) },
     { key: 'queue', name: 'Replicator Queue', src: queueSource_, need: [['Name', 'title'], ['Cost', 'number'], ['Priority', 'number'], ['Note', 'rich_text'], ['Link', 'url'], ['Bought', 'date']] },
@@ -921,13 +1010,9 @@ function done_(days) {
   var key = 'done:' + (cache.get('tgen') || '0') + ':' + days;
   var hit = cache.get(key);
   if (hit) return JSON.parse(hit);
-  var ds = tasksSource_();
   var since = new Date(Date.now() - days * 86400000).toISOString();
-  var done = queryAll_(ds, { and: [
-    { property: 'Status', select: { equals: '✅ Done' } },
-    { timestamp: 'last_edited_time', last_edited_time: { on_or_after: since } }
-  ] }, 3).map(function (pg) {
-    return { area: sel_((pg.properties || {})['Life Area']), at: pg.last_edited_time || null };
+  var done = doneTasks_([{ from: since, to: new Date(Date.now() + 86400000).toISOString() }], 3).map(function (pg) {   /* 1.51 (A2) */
+    return { area: sel_((pg.properties || {})['Life Area']), at: doneAt_(pg) };
   });
   var out = { ok: true, version: VERSION, days: days, done: done };
   try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
@@ -935,8 +1020,8 @@ function done_(days) {
 }
 
 /**
- * ASTROMETRICS (app 2.40): a year's finished tasks (Life Area and last edit only, no titles; the last edit stands
- * in for the day it was finished, as in done_) and Replicator Queue items bought (day and cost only). from and to
+ * ASTROMETRICS (app 2.40): a year's finished tasks (Life Area and finish only, no titles; 1.51: Completed, else
+ * the last edit, as in done_) and Replicator Queue items bought (day and cost only). from and to
  * are local midnights (ISO), at most 400 days apart. Read-only; each part reports its own error.
  */
 function year_(from, to) {
@@ -945,11 +1030,7 @@ function year_(from, to) {
   if (hit) return JSON.parse(hit);
   var out = { ok: true, version: VERSION, from: from, to: to, done: [], bought: [] };
   try {
-    out.done = queryAll_(tasksSource_(), { and: [
-      { property: 'Status', select: { equals: '✅ Done' } },
-      { timestamp: 'last_edited_time', last_edited_time: { on_or_after: from } },
-      { timestamp: 'last_edited_time', last_edited_time: { before: to } }
-    ] }, 20).map(function (pg) { return { area: sel_((pg.properties || {})['Life Area']), at: pg.last_edited_time || null }; });
+    out.done = doneTasks_([{ from: from, to: to }], 20).map(function (pg) { return { area: sel_((pg.properties || {})['Life Area']), at: doneAt_(pg) }; });   /* 1.51 (A2) */
   } catch (e) { if (!e.notion) throw e; out.doneError = e.notion; }
   try {
     out.bought = queryAll_(queueSource_(), { and: [
@@ -1003,11 +1084,7 @@ function week_(week, from, to) {
   var hit = cache.get(key);
   if (hit) return JSON.parse(hit);
   var ds = tasksSource_(), next = addDaysYmd_(week, 7);
-  var done = queryAll_(ds, { and: [
-    { property: 'Status', select: { equals: '✅ Done' } },
-    { timestamp: 'last_edited_time', last_edited_time: { on_or_after: from } },
-    { timestamp: 'last_edited_time', last_edited_time: { before: to } }
-  ] }, 3).map(function (pg) { var t = toTask_(pg); t.at = pg.last_edited_time || null; return t; });
+  var done = doneTasks_([{ from: from, to: to }], 3).map(function (pg) { var t = toTask_(pg); t.at = doneAt_(pg); return t; });   /* 1.51 (A2) */
   var picked = queryAll_(ds, { and: [
     { property: 'Focus Date', date: { on_or_after: week } },
     { property: 'Focus Date', date: { before: next } }
@@ -1084,7 +1161,9 @@ function setFocus_(id, day) {
 function setStatus_(id, status) {
   if (TASK_STATUSES.indexOf(status) === -1) return { ok: false, error: 'bad_request' };
   if (!ownTask_(id)) return { ok: false, error: 'not_writable' };
-  var pg = notion_('patch', '/pages/' + id, { properties: { Status: { select: { name: status } } } });
+  var props = { Status: { select: { name: status } } };
+  if (completedOn_()) props.Completed = { date: status === TASK_DONE ? { start: new Date().toISOString() } : null };   /* 1.51 (A2) */
+  var pg = notion_('patch', '/pages/' + id, { properties: props });
   touched_();
   return { ok: true, task: toTask_(pg) };
 }
@@ -1101,6 +1180,7 @@ function addTask_(task) {
   try {
     var cache = CacheService.getScriptCache(), seen = cache.get('tcid:' + task.cid);
     if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var was = cidPage_('task', task.cid); if (was) return { ok: true, version: VERSION, task: toTask_(was), duplicate: true };   /* 1.51 (A1) */
     var ds = tasksSource_();
     var props = { Task: { title: [{ text: { content: title } }] }, Status: { select: { name: '⬜ To Do' } } };
     if (task.area) {
@@ -1115,7 +1195,7 @@ function addTask_(task) {
     if (task.due) props['Due Date'] = { date: { start: task.due } };   // 1.33: a due date (INBOX sorting)
     var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
     var out = { ok: true, version: VERSION, task: toTask_(pg) };
-    cache.put('tcid:' + task.cid, JSON.stringify(out), 21600);
+    cache.put('tcid:' + task.cid, JSON.stringify(out), 21600); cidKeep_('task', task.cid, pg.id);
     touched_();
     return out;
   } finally {
@@ -1164,6 +1244,7 @@ function addDate_(date) {
   try {
     var cache = CacheService.getScriptCache(), seen = cache.get('dcid:' + date.cid);
     if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var was = cidPage_('date', date.cid); if (was) return { ok: true, version: VERSION, date: toDate_(was), duplicate: true };   /* 1.51 (A1) */
     var ds = datesSource_();
     var props = {
       Name: { title: [{ text: { content: title } }] },
@@ -1182,7 +1263,7 @@ function addDate_(date) {
     if (notes) props.Notes = { rich_text: [{ text: { content: notes } }] };
     var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
     var out = { ok: true, version: VERSION, date: toDate_(pg) };
-    cache.put('dcid:' + date.cid, JSON.stringify(out), 21600);
+    cache.put('dcid:' + date.cid, JSON.stringify(out), 21600); cidKeep_('date', date.cid, pg.id);
     cache.put('dgen', String(Date.now()), 21600);
     return out;
   } finally {
@@ -1339,6 +1420,7 @@ function queueAdd_(item) {
   try {
     var cache = CacheService.getScriptCache(), seen = cache.get('qcid:' + item.cid);
     if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var was = cidPage_('queue', item.cid); if (was) return { ok: true, version: VERSION, item: toQueue_(was), duplicate: true };   /* 1.51 (A1) */
     var q = queueRows_(), last = q.items.reduce(function (m, r) { return Math.max(m, r.priority || 0); }, 0);
     var props = { Name: { title: rt_(title) }, Priority: { number: last + 10 } };
     if (cost !== null) props.Cost = { number: Math.round(cost * 100) / 100 };
@@ -1346,7 +1428,7 @@ function queueAdd_(item) {
     if (link) props.Link = { url: link.slice(0, 1000) };
     var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: queueSource_() }, properties: props });
     var out = { ok: true, version: VERSION, item: toQueue_(pg) };
-    cache.put('qcid:' + item.cid, JSON.stringify(out), 21600);
+    cache.put('qcid:' + item.cid, JSON.stringify(out), 21600); cidKeep_('queue', item.cid, pg.id);
     return out;
   } finally {
     lock.releaseLock();
@@ -2045,11 +2127,11 @@ function sessionSave_(raw) {
       if (body.length) logNotion_('patch', '/blocks/' + pg.id + '/children', { children: body });
     } else {
       if (!/^[A-Za-z0-9-]{8,64}$/.test(String(raw.cid || ''))) return { ok: false, error: 'bad_request' };
-      var prior = cache.get('scid:' + raw.cid);   // only the new page's id is kept, never its text
+      var prior = cache.get('scid:' + raw.cid) || cidFind_('session', raw.cid);   // only the new page's id is kept, never its text (1.51: 30 days)
       if (prior) pg = sesOwn_(prior, ds);
       if (pg) return { ok: true, version: VERSION, session: toSession_(pg), duplicate: true };
       pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: sesProps_(s), children: body });
-      cache.put('scid:' + raw.cid, pg.id, 21600);
+      cache.put('scid:' + raw.cid, pg.id, 21600); cidKeep_('session', raw.cid, pg.id);
     }
     return { ok: true, version: VERSION, session: toSession_(pg) };
   } finally {
@@ -2271,7 +2353,9 @@ function bookSave_(b) {
       if (!/^[A-Za-z0-9-]{8,64}$/.test(String(b.cid || ''))) return { ok: false, error: 'bad_request' };
       var seen = cache.get('bcid:' + b.cid);
       if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+      var was = cidPage_('book', b.cid); if (was) return { ok: true, version: VERSION, book: toBook_(was), duplicate: true };   /* 1.51 (A1) */
       pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+      cidKeep_('book', b.cid, pg.id);
     }
     cache.put('lgen', Utilities.getUuid().slice(0, 8), 21600);
     var out = { ok: true, version: VERSION, book: toBook_(pg) };
@@ -2337,12 +2421,13 @@ function inboxAdd_(n) {
   try {
     var cache = CacheService.getScriptCache(), seen = cache.get('icid:' + n.cid);
     if (seen) { var prior = JSON.parse(seen); prior.duplicate = true; return prior; }
+    var was = cidPage_('note', n.cid); if (was) return { ok: true, version: VERSION, note: toNote_(was), duplicate: true };   /* 1.51 (A1) */
     var tz = Session.getScriptTimeZone();
     var pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: inboxSource_() }, properties: {
       Note: { title: rt_(text) }, Captured: { date: { start: Utilities.formatDate(at, tz, "yyyy-MM-dd'T'HH:mm:ss"), time_zone: tz } }, Status: { select: { name: 'New' } } } });
     inboxBump_();
     var out = { ok: true, version: VERSION, note: toNote_(pg) };
-    cache.put('icid:' + n.cid, JSON.stringify(out), 21600);
+    cache.put('icid:' + n.cid, JSON.stringify(out), 21600); cidKeep_('note', n.cid, pg.id);
     return out;
   } finally {
     lock.releaseLock();
@@ -3393,7 +3478,9 @@ function tarotSave_(r) {
       if (!/^[A-Za-z0-9-]{8,64}$/.test(String(r.cid || ''))) return { ok: false, error: 'bad_request' };
       var prior = cache.get('tcid:' + r.cid);
       if (prior) { var p0 = JSON.parse(prior); p0.duplicate = true; return p0; }
+      var was = cidPage_('reading', r.cid); if (was) return { ok: true, version: VERSION, reading: toTarot_(was), duplicate: true };   /* 1.51 (A1) */
       pg = notion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: props });
+      cidKeep_('reading', r.cid, pg.id);
     }
     if (r.weekly) {   /* one card for the week: any other in the same Monday-to-Sunday week is unmarked */
       var d0 = new Date(String(r.day) + 'T12:00:00Z'), mon = new Date(d0.getTime() - ((d0.getUTCDay() + 6) % 7) * 864e5), sun = new Date(mon.getTime() + 6 * 864e5);
@@ -3816,6 +3903,7 @@ function apiarySave_(it) {
       if (!/^[A-Za-z0-9-]{8,64}$/.test(String(it.cid || ''))) return { ok: false, error: 'bad_request' };
       var prior = cache.get('acid:' + it.cid);
       if (prior) { var p0 = JSON.parse(prior); p0.duplicate = true; return p0; }
+      var was = cidPage_('apiary', it.cid); if (was) return { ok: true, version: VERSION, item: toApiary_(was), hive: null, duplicate: true };   /* 1.51 (A1) */
       if (kind === 'yard') {   /* one yard: a second save without its id lands on the first */
         var have = queryAll_(ds, { property: 'Kind', select: { equals: 'Yard' } }, 1)[0];
         if (have) pg = notion_('patch', '/pages/' + have.id, { properties: props });
@@ -3830,7 +3918,7 @@ function apiarySave_(it) {
     }
     apiaryBump_();
     var out = { ok: true, version: VERSION, item: toApiary_(pg), hive: hiveOut };
-    if (!it.id) cache.put('acid:' + it.cid, JSON.stringify(out), 21600);
+    if (!it.id) { cache.put('acid:' + it.cid, JSON.stringify(out), 21600); cidKeep_('apiary', it.cid, pg.id); }
     return out;
   } finally {
     lock.releaseLock();

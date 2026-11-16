@@ -142,7 +142,7 @@ The Google bridge reaches Notion through one integration, which sees only the da
 
 | Database | Powers | The bridge may |
 |---|---|---|
-| 🎯 Master Task List | PLAN DAY, Priorities, Balance, Review, Ask | Read; add tasks; set Focus Date and Status |
+| 🎯 Master Task List | PLAN DAY, Priorities, Balance, Review, Ask | Read; add tasks; set Focus Date, Status and Completed (bridge 1.51: `setup` adds the **Completed** date column once; it holds when each task was finished) |
 | 🗓️ Key Dates | DATES, Key Dates panel, markers, Capture | Read; add |
 | 🧭 Weekly Reviews | REVIEW | Read; add and update a week's page |
 | 🛸 Replicator Queue | LEDGER | Read; add; reorder; mark bought; remove (moves the page to Notion's trash, bridge 1.47) |
