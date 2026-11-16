@@ -123,5 +123,12 @@ assert.strictEqual(parseDate('2026-10-06', 'America/Chicago', 'yyyy-MM-dd').toIS
 assert.strictEqual(parseDate('2026-12-06', 'America/Chicago', 'yyyy-MM-dd').toISOString(), '2026-12-06T06:00:00.000Z', 'after the clocks change');
 assert.throws(() => b.ctx.CacheService.getScriptCache().put('big', 'x'.repeat(100 * 1024 + 1)), /too large/);
 assert.throws(() => b.ctx.UrlFetchApp.fetch('https://example.invalid/x', {}), /no simulated service answers/);
+const up = b.ctx.PropertiesService.getUserProperties();
+assert.strictEqual(up.setProperties({ a: 'x'.repeat(9 * 1024), b: 2 }), up, 'setProperties sets several at once');
+assert.deepStrictEqual([b.user.a.length, up.getProperty('b'), up.getProperties().b], [9 * 1024, '2', '2'], 'kept as strings, a 9 KB value too');
+assert.throws(() => up.setProperty('c', 'x'.repeat(9 * 1024 + 1)), /too large/, 'a property value over 9 KB is refused, as Google does');
+assert.throws(() => b.ctx.PropertiesService.getScriptProperties().setProperties({ d: 'é'.repeat(5000) }), /too large/, 'counted in bytes');
+up.setProperties({ e: '1' }, true);
+assert.deepStrictEqual(up.getKeys(), ['e'], 'deleteAllOthers');
 
 console.log('STRICT SIMULATED NOTION: depth, unknown, types, pages, 2,000, 100, 429, 404, auth, blocks, harness: ok');

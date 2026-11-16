@@ -3,73 +3,15 @@
 // converted, nonsense and duplicates left out); HEALTH_KEY sends and does nothing else, and the main key can't send;
 // a day sent again merges with what it holds; medicines, readings and notes saved, read back and removed; Day pages
 // never touched by the app's own saves; the schema spec, the capability and setup's key. All values invented.
-const fs = require('fs'); const vm = require('vm');
-const fmt = (d, tz, pat) => {   // Apps Script's formatDate, for the three patterns the bridge uses here
-  const o = new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short' }).formatToParts(d).reduce((a, x) => (a[x.type] = x.value, a), {});
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  if (pat === 'yyyy-MM-dd') return o.year + '-' + o.month + '-' + o.day;
-  if (pat === 'HH:mm') return o.hour + ':' + o.minute;
-  if (pat === 'EEE d MMM yyyy') return o.weekday + ' ' + Number(o.day) + ' ' + MON[Number(o.month) - 1] + ' ' + o.year;
-  return d.toISOString();
-}; const assert = require('assert');
-const props = { ACCESS_KEY: 'k'.repeat(64), NOTION_TOKEN: 'ntn_test' }; const cache = {};
-const TDB = '247132153b624a71ab5fb20492e98b7c', TDS = 'ds-sickbay', ODS = 'ds-other';
-const pages = { [TDS]: [], [ODS]: [] }; let n = 0;
-const id = p => p + String(++n).padStart(30, '0');
-const val = v => v.title ? { title: v.title.map(t => ({ plain_text: t.text.content })) } : v.rich_text ? { rich_text: v.rich_text.map(t => ({ plain_text: t.text.content })) } : v;
-const txt = r => (r || []).map(t => t.plain_text).join('');
-function match(pg, f) {
-  if (!f) return true;
-  if (f.and) return f.and.every(g => match(pg, g));
-  if (f.or) return f.or.some(g => match(pg, g));
-  const p = pg.properties[f.property];
-  if (f.select) return f.select.does_not_equal !== undefined ? !(p && p.select && p.select.name === f.select.does_not_equal) : !!(p && p.select && p.select.name === f.select.equals);
-  if (f.checkbox) return !!(p && p.checkbox) === f.checkbox.equals;
-  if (f.rich_text) return !!p && txt(p.rich_text) === f.rich_text.equals;
-  if (f.date) { const d = p && p.date && p.date.start; if (!d) return false; if (f.date.on_or_after && d < f.date.on_or_after) return false; if (f.date.on_or_before && d > f.date.on_or_before) return false; return true; }
-  throw new Error('filter ' + JSON.stringify(f));
-}
-function mock(url, opts) {
-  const path = url.replace('https://api.notion.com/v1', ''), m = (opts.method || 'get').toLowerCase(), body = opts.payload ? JSON.parse(opts.payload) : null;
-  const res = (code, b) => ({ getResponseCode: () => code, getContentText: () => JSON.stringify(b) });
-  if (m === 'get' && path === '/databases/' + TDB) return res(200, { data_sources: [{ id: TDS }] });
-  let mm = path.match(/^\/data_sources\/([^/]+)\/query$/);
-  if (mm && m === 'post') return res(200, { results: pages[mm[1]].filter(p => !p.in_trash && match(p, body.filter)), has_more: false });
-  if (m === 'post' && path === '/pages') {
-    const ds = body.parent.data_source_id, pr = {};
-    Object.keys(body.properties).forEach(k => { pr[k] = val(body.properties[k]); });
-    const pg = { id: id('p'), url: 'https://notion.so/x', parent: { type: 'data_source_id', data_source_id: ds }, created_time: '2026-10-19T12:00:00.000Z', properties: pr };
-    pages[ds].push(pg); return res(200, pg);
-  }
-  mm = path.match(/^\/pages\/([^/]+)$/);
-  if (mm) {
-    const pg = pages[TDS].concat(pages[ODS]).find(p => p.id === mm[1]);
-    if (!pg) return res(404, { message: 'not found' });
-    if (m === 'get') return res(200, pg);
-    if (m === 'patch') { if (body.in_trash) pg.in_trash = true; Object.keys(body.properties || {}).forEach(k => { pg.properties[k] = val(body.properties[k]); }); return res(200, pg); }
-  }
-  return res(400, { message: 'unexpected ' + m + ' ' + path });
-}
-const ctx = {
-  console: { log: () => {} },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: k => { delete props[k]; } }) },
-  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; }, remove: k => { delete cache[k]; } }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) },
-  Utilities: { getUuid: () => require('crypto').randomUUID(), sleep: () => {}, formatDate: fmt },
-  Session: { getScriptTimeZone: () => 'America/New_York' }, LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  UrlFetchApp: { fetch: mock },
-  CalendarApp: { getDefaultCalendar: () => ({ getName: () => 'me', getTimeZone: () => 'UTC', getEvents: () => [] }), getCalendarById: () => null, getAllCalendars: () => [] },
-};
-vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8'), ctx);
-const key = props.ACCESS_KEY;
-const post = b => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, b)) } }).text);
-const get = q => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(Object.assign({ key }, q)) } }).text);
-
+const assert = require('assert');
+const { bridge, formatDate } = require('./lib/gas');
+const br = bridge({ tz: 'America/New_York', props: { NOTION_TOKEN: 'ntn_test' }, notion: {} }), { ctx, props, cache, nx } = br;
+const key = props.ACCESS_KEY, post = br.post, get = br.post;
+const writes = () => nx.calls.filter(c => c.method === 'patch' || (c.method === 'post' && c.path === '/pages')).length;
 
 const HK = 'h'.repeat(64);
 let r0;
-const health = (k, lines) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: k, action: 'healthput', lines: lines }) } }).text);
+const health = (k, lines) => br.call({ key: k, action: 'healthput', lines: lines });
 
 // ---- before setup: no health key, nothing accepted
 let caps = get({ action: 'ping' }).capabilities;
@@ -82,15 +24,15 @@ props.HEALTH_KEY = HK;
 assert.ok(get({ action: 'ping' }).capabilities.includes('healthkey'));
 r0 = health(key, 'rhr|58|2026-11-08T08:00:00-05:00|2026-11-08T08:00:00-05:00');
 assert.strictEqual(r0.error, 'unauthorized', 'the main key cannot send health data'); assert.ok(/didn't match/.test(r0.message));
-assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: HK, action: 'health' }) } }).text).error, 'unauthorized', 'the health key reads nothing');
-assert.strictEqual(JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: HK, action: 'sickbaysave', item: { kind: 'note', id: 'n1', name: 'x' } }) } }).text).error, 'unauthorized', 'and writes nothing else');
+assert.strictEqual(br.call({ key: HK, action: 'health' }).error, 'unauthorized', 'the health key reads nothing');
+assert.strictEqual(br.call({ key: HK, action: 'sickbaysave', item: { kind: 'note', id: 'n1', name: 'x' } }).error, 'unauthorized', 'and writes nothing else');
 r0 = health(HK, '');
 assert.strictEqual(r0.error, 'nothing_to_send'); assert.ok(/Health had nothing to send yet/.test(r0.message), 'an empty send explains itself (1.43.1)');
 r0 = health(HK, 'steps|6840|9 Nov 2026 at 3:24 PM|9 Nov 2026 at 3:24 PM');
 assert.ok(r0.ok && !r0.days.length && /ISO 8601/.test(r0.message), 'dates not in ISO 8601: said so: ' + r0.message);
 
 // ---- a morning's lines, as the shortcut sends them (dates relative to now, so the 14-day window holds)
-const D = cnt => { const d = new Date(Date.now() - cnt * 864e5); return fmt(d, 'America/New_York', 'yyyy-MM-dd'); };
+const D = cnt => formatDate(new Date(Date.now() - cnt * 864e5), 'America/New_York', 'yyyy-MM-dd');
 // New York's own offset on that day (-05:00 in winter, -04:00 in summer; a fixed -05:00 put every time an hour out in summer, D79)
 const nyOff = ymd => new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(ymd + 'T12:00:00Z')).find(x => x.type === 'timeZoneName').value.replace('GMT', '') || '+00:00';
 const at = (cnt, hm) => D(cnt) + 'T' + hm + ':00' + nyOff(D(cnt));
@@ -114,8 +56,8 @@ assert.ok(r.ok, JSON.stringify(r));
 assert.deepStrictEqual(r.days, [y, t]);
 assert.strictEqual(r.skipped, 5, 'the out-of-range, unknown, unreadable and repeated lines');
 assert.strictEqual(r.message, 'Sent 2 days to SICKBAY. (6 lines left out: 1 the same line again, 1 a number out of range, 1 a code it does not know (pulse), 1 no number, 1 no date it could read, 1 older than two weeks.)', 'each left-out line says why (1.45)');
-const day = d => pages[TDS].find(p => p.properties['App ID'] && txt(p.properties['App ID'].rich_text) === 'day-' + d);
-const data = d => JSON.parse(txt(day(d).properties.Data.rich_text));
+const day = d => nx.rows('sickbay').find(p => p['App ID'] === 'day-' + d);
+const data = d => JSON.parse(day(d).Data);
 let Y = data(y), T = data(t);
 assert.deepStrictEqual([Y.rhr, Y.hrv, Y.steps, Y.active, Y.exercise, Y.stand, Y.vo2], [58, 50, 8040, 412, 22, 9, 38.4], JSON.stringify(Y));
 assert.strictEqual(Y.temp, undefined, 'wrist temperature belongs to the morning the night ended');
@@ -123,9 +65,9 @@ const segs = T.sleep.segs; delete T.sleep.segs;
 assert.deepStrictEqual(T.sleep, { asleep: 420, deep: 60, rem: 50, core: 310, awake: 10, bed: '23:10', wake: '06:20', len: 430 }, JSON.stringify(T.sleep));
 assert.deepStrictEqual(segs, [['c', 0, 90], ['d', 90, 60], ['r', 150, 50], ['a', 200, 10], ['c', 210, 220]], "the night's stages in order, for the lanes");
 assert.strictEqual(T.temp, 36, '96.8 °F in °C'); assert.strictEqual(T.weight, 185.2, '84 kg in lb'); assert.strictEqual(T.resp, 14.2);
-assert.strictEqual(day(t).properties.Kind.select.name, 'Day');
-assert.strictEqual(day(t).properties['Sleep (h)'].number, 7); assert.strictEqual(day(y).properties['Resting HR'].number, 58); assert.strictEqual(day(y).properties.Steps.number, 8040);
-assert.ok(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} \d{4}$/.test(txt(day(t).properties.Name.title)), txt(day(t).properties.Name.title));
+assert.strictEqual(day(t).Kind, 'Day'); assert.strictEqual(day(t).Date, t);
+assert.strictEqual(day(t)['Sleep (h)'], 7); assert.strictEqual(day(y)['Resting HR'], 58); assert.strictEqual(day(y).Steps, 8040);
+assert.ok(/^[A-Z][a-z]{2} \d{1,2} [A-Z][a-z]{2} \d{4}$/.test(day(t).Name), day(t).Name);
 assert.ok(props.HEALTH_LAST, 'the last send is kept');
 
 // ---- sent again with a new reading for today: merged, nothing lost, no second page
@@ -134,7 +76,7 @@ assert.strictEqual(r.message, 'Sent 1 day to SICKBAY.');
 assert.deepStrictEqual(r.days, [t]);
 T = data(t);
 assert.strictEqual(T.rhr, 61); assert.strictEqual(T.sleep.asleep, 420, 'what was there stays');
-assert.strictEqual(pages[TDS].filter(p => p.properties.Kind.select.name === 'Day').length, 2);
+assert.strictEqual(nx.rows('sickbay').filter(p => p.Kind === 'Day').length, 2);
 
 // ---- the app reads days and records with the main key
 let h = get({ action: 'health', from: D(10) });
@@ -147,7 +89,7 @@ assert.deepStrictEqual(h.items, []);
 r = post({ action: 'sickbaysave', item: { kind: 'medicine', id: 'm-test-1', name: 'Sample vitamin', data: { when: 'Morning', left: 30, taken: [t] } } });
 assert.ok(r.ok, JSON.stringify(r)); assert.strictEqual(r.item.kind, 'medicine'); assert.strictEqual(r.item.data.left, 30);
 r = post({ action: 'sickbaysave', item: { kind: 'medicine', id: 'm-test-1', name: 'Sample vitamin', data: { when: 'Morning', left: 29, taken: [t] } } });
-assert.strictEqual(pages[TDS].filter(p => p.properties.Kind.select.name === 'Medicine').length, 1, 'saved again: changed in place');
+assert.strictEqual(nx.rows('sickbay').filter(p => p.Kind === 'Medicine').length, 1, 'saved again: changed in place');
 post({ action: 'sickbaysave', item: { kind: 'reading', id: 'r-test-1', name: 'Blood pressure', date: t, data: { v: '120/80', unit: 'mmHg' } } });
 post({ action: 'sickbaysave', item: { kind: 'note', id: 'n-test-1', name: 'A sample note', date: y, data: { tag: 'GOOD' } } });
 cache.skgen = 'z2';
@@ -161,16 +103,16 @@ assert.strictEqual(post({ action: 'sickbaysave', item: { kind: 'note', id: 'n2',
 assert.strictEqual(post({ action: 'sickbaysave', item: { kind: 'note', id: 'n2', name: '' } }).error, 'bad_request');
 assert.strictEqual(post({ action: 'sickbayremove', id: 'day-' + t }).error, 'bad_request', 'a day is never removed from the app');
 r = post({ action: 'sickbayremove', id: 'n-test-1' });
-assert.ok(r.ok); assert.ok(pages[TDS].find(p => txt(p.properties['App ID'].rich_text) === 'n-test-1').in_trash);
+assert.ok(r.ok); assert.ok(nx.rows('sickbay', { trash: true }).find(p => p['App ID'] === 'n-test-1').in_trash);
 assert.ok(post({ action: 'sickbayremove', id: 'n-gone' }).ok, 'removing what is gone is fine');
 
 // ---- 1.45: check mode reads the lines and says how, line by line, and saves nothing
-const pagesBefore = JSON.stringify(pages[TDS]);
-const chk = (k, lines, check) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key: k, action: 'healthput', lines, check }) } }).text);
+const pagesBefore = JSON.stringify(nx.rows('sickbay', { trash: true })), writesBefore = writes();
+const chk = (k, lines, check) => br.call({ key: k, action: 'healthput', lines, check });
 r = chk(HK, ['steps|4210|' + at(1, '00:00') + '|' + at(1, '23:59'), 'Rhr|61|' + at(0, '07:00') + '|' + at(0, '07:00'), 'sleep|Asleep Deep|' + at(0, '01:00') + '|' + at(0, '01:45'),
   'pulse|60|' + at(0, '08:00') + '|' + at(0, '08:00'), 'hrv|48|' + D(0) + '|' + D(0), 'steps|900|' + at(30, '12:00') + '|' + at(30, '12:30')].join('\n'), 'yes');
 assert.ok(r.ok && r.check === true, JSON.stringify(r));
-assert.strictEqual(JSON.stringify(pages[TDS]), pagesBefore, 'nothing saved');
+assert.strictEqual(JSON.stringify(nx.rows('sickbay', { trash: true })), pagesBefore, 'nothing saved'); assert.strictEqual(writes(), writesBefore, 'nothing sent to Notion');
 assert.deepStrictEqual(r.days, [y, t]);
 assert.strictEqual(r.message, 'Check only, nothing saved. Read steps 1, rhr 1, sleep 1, hrv 1 (' + y + ' to ' + t + '). 2 left out: 1 a code it does not know (pulse), 1 older than two weeks. 1 date has no time: turn on Include ISO 8601 Time in the shortcut. Take the check field out to send for real.');
 assert.deepStrictEqual(r.lines, ['1: steps 4210 → ' + y, '2: rhr 61 → ' + t, '3: sleep deep 45 min → ' + t, '4: pulse, left out: a code it does not know', '5: hrv 48 → ' + t + ' (no time)', '6: steps, left out: older than two weeks']);
@@ -214,6 +156,7 @@ r = health(HK, 'standmin|540|' + at(2, '00:00') + '|' + at(2, '23:59'));
 assert.strictEqual(data(D(2)).stand, 9, 'a whole day of Stand Minutes is still read as minutes ÷ 60');
 
 // ---- the schema check knows the database; setup reports it
-assert.ok(vm.runInContext('schemaSpec_()', ctx).some(s => s.key === 'sickbay'));
-assert.ok(/^OK \(4 days, 2 records\)/.test(vm.runInContext('sickbayStatus_()', ctx)), vm.runInContext('sickbayStatus_()', ctx));
+assert.ok(ctx.schemaSpec_().some(s => s.key === 'sickbay'));
+assert.ok(/^OK \(4 days, 2 records\)/.test(ctx.sickbayStatus_()), ctx.sickbayStatus_());
+assert.deepStrictEqual(nx.refused(), [], 'the bridge sent nothing Notion refuses');
 console.log('bridge sickbay: OK');

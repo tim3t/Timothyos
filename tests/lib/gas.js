@@ -5,6 +5,7 @@
 //   const b = bridge({ props: { NOTION_TOKEN: 'ntn_test' }, notion: {}, fetch: (url, opts, res) => ... });
 //   b.post({ action: 'tasks', day: '2026-10-06' })   the key is added; b.call(body) sends the body as it is
 //   b.nx                                              the strict simulated Notion (lib/notion.js) when `notion` is given
+//   b.props, b.user                                   Script and User Properties, as plain objects
 //
 // Requests to api.notion.com go to the simulated Notion; any other address goes to `fetch`, which returns a response
 // (build one with its third argument, res(code, body, headers)) or undefined, which fails the test with the address.
@@ -12,7 +13,20 @@ const fs = require('fs'), vm = require('vm'), path = require('path'), zlib = req
 const { notion } = require('./notion');
 
 const CODE = fs.readFileSync(path.join(__dirname, '..', '..', 'apps-script', 'Code.gs'), 'utf8');
-const CACHE_MAX = 100 * 1024;
+const CACHE_MAX = 100 * 1024, PROP_MAX = 9 * 1024;   // Google's quotas: 100 KB a cached value, 9 KB a property value
+
+// A Properties store (Script or User) over a plain object, refusing a value over 9 KB as Apps Script does.
+function propStore(map) {
+  const put = (k, v) => { v = String(v); if (Buffer.byteLength(v) > PROP_MAX) throw new Error('Argument too large: value'); map[k] = v; };
+  const store = {
+    getProperty: k => (k in map ? String(map[k]) : null),
+    setProperty: (k, v) => { put(k, v); return store; },
+    setProperties: (o, deleteAllOthers) => { if (deleteAllOthers) Object.keys(map).forEach(k => { delete map[k]; }); Object.keys(o).forEach(k => put(k, o[k])); return store; },
+    deleteProperty: k => { delete map[k]; return store; },
+    getProperties: () => Object.assign({}, map), getKeys: () => Object.keys(map),
+  };
+  return store;
+}
 
 function res(code, body, headers) {
   const text = typeof body === 'string' ? body : JSON.stringify(body === undefined ? {} : body);
@@ -45,7 +59,7 @@ function parseDate(s, tz, pattern) {
 }
 
 function bridge(o = {}) {
-  const props = Object.assign({ ACCESS_KEY: 'k'.repeat(64) }, o.props);
+  const props = Object.assign({ ACCESS_KEY: 'k'.repeat(64) }, o.props), user = {};
   Object.keys(props).forEach(k => { if (props[k] == null) delete props[k]; });
   const cache = {}, ttl = {};
   const tz = o.tz || 'America/Chicago';
@@ -59,9 +73,7 @@ function bridge(o = {}) {
     if (!r) throw new Error('gas: no simulated service answers ' + (opts.method || 'get') + ' ' + url);
     return r;
   }
-  const scriptProps = { getProperty: k => (k in props ? String(props[k]) : null), setProperty: (k, v) => { props[k] = String(v); return scriptProps; },
-    deleteProperty: k => { delete props[k]; return scriptProps; }, getProperties: () => Object.assign({}, props) };
-  const userProps = {}, userStore = { getProperty: k => userProps[k] || null, setProperty: (k, v) => { userProps[k] = String(v); }, deleteProperty: k => { delete userProps[k]; } };
+  const scriptProps = propStore(props), userStore = propStore(user);
   Object.assign(ctx, {
     console: { log: (...a) => { log.push(a.join(' ')); if (o.verbose) console.log('   log:', ...a); }, error: (...a) => log.push(a.join(' ')) },
     PropertiesService: { getScriptProperties: () => scriptProps, getUserProperties: () => userStore },
@@ -91,7 +103,7 @@ function bridge(o = {}) {
 
   const call = body => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(body) } }).text);
   return {
-    ctx, props, cache, ttl, nx, log, res,
+    ctx, props, user, cache, ttl, nx, log, res,
     get key() { return props.ACCESS_KEY; },
     call,
     post: body => call(Object.assign({ key: props.ACCESS_KEY }, body)),
