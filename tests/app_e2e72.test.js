@@ -47,7 +47,7 @@ const lastPost = async act => (await mode('')).posts.filter(x => x[0] === act).p
   assert.deepStrictEqual(await reachIns(p, 'meals'), [], 'no rule from elsewhere reaches into MEALS (B2)');
   assert.ok((await txt(p, '#mlDayBar')).includes('Tap a meal to record it.'));
   await p.click('[data-mlcard="m-curry"]');
-  assert.deepStrictEqual((await until(() => lastPost('dinnerset')))[1], { date: TODAY, status: 'eaten', kind: 'meal', meal: 'm-curry' });
+  assert.deepStrictEqual((await until(async () => { const x = await lastPost('dinnerset'); return x && x[1].kind !== 'none' && x; }))[1], { date: TODAY, status: 'eaten', kind: 'meal', meal: 'm-curry' });   // not the UNDO before it, still the last one sent for a moment
   assert.ok((await txt(p, `.ml-day[data-mlday="${TODAY}"]`)).includes('Sample curry EATEN ✓'));
 
   // ---- the MEAL LIBRARY (2.76): a row per meal, longest ago first, flagged

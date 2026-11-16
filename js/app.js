@@ -403,6 +403,7 @@
      longer leaves a "dropped" line in the error log of the page that comes next. */
   var pageGone = false;
   window.addEventListener("pagehide", function () { pageGone = true; });
+  window.addEventListener("beforeunload", function () { pageGone = true; });   /* Chrome cancels the old page's requests as the reload starts, before pagehide */
   window.addEventListener("pageshow", function () { pageGone = false; });   /* back from the back-forward cache */
   function logged(action, started, p, limit) {
     return p.then(function (j) { note(action, started, "ok"); netDay(started, false, frozen(started, limit)); return j; }, function (err) {

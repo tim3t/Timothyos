@@ -65,12 +65,19 @@ const tabs = p => p.$$eval('.sys-tab', l => l.map(b => ({ n: b.querySelector('.s
   await p.reload(); await p.waitForSelector('#status'); await p.click('#status'); await p.waitForSelector('#sysIndex');
   t = await tabs(p);
   assert.strictEqual(t.find(x => x.n === 'STATUS').light, 'sys-bad');
-  // an old one (two days) no longer counts, though its row stays red in the log
+  // an old one (two days) no longer counts, though its row stays red in the log; and a request the reload itself cuts
+  // off (held open here, so the reload always finds one on its way) leaves nothing behind (2.86)
+  let hold = true, held = 0;
+  await ctx.route(new RegExp('127\\.0\\.0\\.1:' + P8105 + '/macros'), async route => { if (hold) { held++; return; } return route.fallback(); });
+  await p.click('#refreshBtn');
+  await until(async () => held > 0, 5000, 'a request held open');
   await p.evaluate(() => { const t0 = Date.now() - 2 * 864e5; localStorage.setItem('tos.errlog.v1', JSON.stringify([{ t: t0, s: 'bridge', a: 'sync: tasks', m: 'timeout', d: '45.0 s', v: '2.86.0', n: 1 }])); });
+  hold = false;
   await p.reload(); await p.waitForSelector('#status:has-text("SYNCED")', { timeout: 20000 }); await p.click('#status'); await p.waitForSelector('#sysIndex');
   const why = () => p.evaluate(() => [...document.querySelectorAll('#content .sys > section[data-sysg="status"]')].map(x => x.querySelector('.phead h2').textContent + ': ' + ((x.querySelector('.phead').getAttribute('style') || '') + ' ' + [...x.querySelectorAll('.pill.bad, .err')].filter(e => !e.closest('.el-list') && e.textContent.trim()).map(e => e.textContent.trim()).join(', '))).join(' | ') + ' · log ' + localStorage.getItem('tos.errlog.v1'));
   assert.strictEqual((await tabs(p)).find(x => x.n === 'STATUS').light, '', 'a row from two days ago does not light STATUS: ' + await why());
   assert.ok(await p.$('#sec-errlog .el-row .pill.bad'), 'the row itself is still red');
+  assert.strictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]').length), 1, 'the request the reload cut off is not in the log');
 
   // ---- a calendar that can't be found: GOOGLE + NOTION is red, and SYSTEMS opens there
   lostCal = true;

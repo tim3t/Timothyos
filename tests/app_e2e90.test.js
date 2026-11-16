@@ -56,8 +56,10 @@ const dayBack = n => { const [y, m, d] = ymdIn(new Date()).split('-').map(Number
   // ---- a wake: the first requests are dropped while the network reconnects; they wait, try again, and log nothing
   const errsBefore = await p.evaluate(() => (JSON.parse(localStorage.getItem('tos.errlog.v1') || '[]')).length);
   let drop = 3, dropped = 0;
-  await ctx.route(/127\.0\.0\.1:8106\/macros/, r => { if (drop > 0) { drop--; dropped++; return r.abort('internetdisconnected'); } return r.continue(); });
+  // asleep first, then the network goes: a request already on its way when the test set this up was cut off by the
+  // sleep, not the wake, and counts as "in background" (the race CI found on 16 Nov)
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+  await ctx.route(/127\.0\.0\.1:8106\/macros/, r => { if (drop > 0) { drop--; dropped++; return r.abort('internetdisconnected'); } return r.continue(); });
   await p.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); });
   await until(async () => dropped === 3, 10000);
   await until(async () => /SYNCED/.test(await txt('#status')), 30000);
