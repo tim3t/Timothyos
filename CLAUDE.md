@@ -32,6 +32,8 @@ Personal, LCARS-inspired life dashboard for Timothy, installed as a home-screen 
 | ARBORETUM | `docs/notes/arboretum.md` | The garden map, zones, Quick Glance |
 | Known quirks | `docs/notes/quirks.md` | Things that look wrong and are deliberate: read before "fixing" odd behaviour |
 
+**pstack** (Lauren Tan's agent skills, MIT) is copied into `.claude/` (skills, agents, adapter; source and exclusions in `.claude/pstack/README.md`), because cloud sessions don't load plugins. `/poteto-mode` and the others run only when Timothy types them; their TimothyOS overrides keep his approvals first.
+
 ## Architecture
 
 ```
