@@ -18,9 +18,9 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-**At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`.
+**At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
-**Next (Timothy, 16 Nov):** B1 (below): the pilot is done; the remaining batches wait for Timothy's go after the pilot report.
+**Next (Timothy, 16 Nov):** B1 (below): engaged; the batches run one after another, a short report after each.
 
 ## From the diagnostic (2026-11-15), not yet agreed
 
@@ -31,7 +31,7 @@ What the sweep found healthy: every station opens with no page error, no request
 
 **Tests that would have caught this week's bugs**
 
-- **B1. One strict simulated Notion for the bridge tests** (agreed 16 Nov, P1 to P10; in progress). Built: `tests/lib/notion.js` and `tests/lib/gas.js` with `notion_sim.test.js`; moved onto it: `bridge_notion`, `bridge_capped`, `bridge_onthisday` (the pilot). Next: the other 19 bridge tests that reach Notion, in batches of about 6, each a commit with no file losing an `assert`; their hand-written Notion is deleted as each moves. A real bridge bug the strict simulator finds is reported to Timothy before any `Code.gs` fix (a fix needs his deploy).
+- **B1. One strict simulated Notion for the bridge tests** (agreed 16 Nov, P1 to P10; in progress). Built: `tests/lib/notion.js` and `tests/lib/gas.js` with `notion_sim.test.js`; moved onto it: `bridge_notion`, `bridge_capped`, `bridge_onthisday` (the pilot); batch 1 (`schema`, `year`, `inbox`, `habits`, `tarot`, `a1a2`). Next (Timothy: engage, 16 Nov): the other 13, in batches of about 6, each a commit with no file losing an `assert`; their hand-written Notion is deleted as each moves. A real bridge bug the strict simulator finds is reported to Timothy before any `Code.gs` fix (a fix needs his deploy).
 - **B4. Fixed waits in the frozen-clock tests** (carried: about a minute of the suite's time; e13, e16 to e25, e28 to e31, e37).
 - **B5. Tests named for what they cover** (carried: `app_e2e55` says nothing; the index in run.sh is the only map).
 - **B6. Tooling refresh** (carried): Playwright 1.63 → 1.65, ESLint 10.13 → 10.15 (a moderate advisory in a sub-dependency, test-only). Each quarter.
