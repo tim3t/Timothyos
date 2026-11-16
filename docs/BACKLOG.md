@@ -10,7 +10,6 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 |---|---|---|
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
-| SICKBAY trial verdict | After a few mornings with the Sleep Focus run (README → SICKBAY, 2.81.2). 13 Nov: three runs in a row didn't arrive (HUB likely locked) | Pass marks: each run sends by itself, sleep shows each morning, HUB stays responsive. Otherwise: keep RECORDS only, or remove the station. Review the paired iPhone's trial settings at the same time |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |
 | First weekly export: report how it went | Google Drive, Sunday about 03:00 | Bridge 1.41 |
@@ -72,11 +71,11 @@ What the sweep found healthy: every station opens with no page error, no request
 
 ### Ideas for the stations he has
 
-- **HABITS:** habits he can name, add and retire himself (the Exercise rename needed a release: the two tick-boxes are fixed in code). Each day's water goal kept in Notion (schema change: ask). **EXERCISE offered a tick** when Health reports enough exercise minutes for the day (offered, never written silently; needs SICKBAY to pass its trial).
+- **HABITS:** habits he can name, add and retire himself (the Exercise rename needed a release: the two tick-boxes are fixed in code). Each day's water goal kept in Notion (schema change: ask). **EXERCISE offered a tick** when Health reports enough exercise minutes for the day (offered, never written silently). Needs same-day Health data, which SICKBAY doesn't promise: it is a historical record, a day or two behind (Timothy, 16 Nov), so this is likely not worth building.
 - **RESSIKAN:** record a SOLO phrase into the loop; two fingers, two notes; a wider range; a count-in and a click for CAPTURE; tap tempo; A and B sections chained into a song; a loop rendered straight to an audio file (no real-time RECORD); a knob for how widely chords are spread. Held from before, raise as he refines: POCKET GRID (punch-in effects), TILT (gyroscope filter), VOICE GRAINS (mic, stays on the iPad), SKY SONATA (SCIENCE's aircraft as sound), "compose from a mood" by Claude (about 1¢), sound that carries on outside the station. Paid AI music generators only if he asks where it can go. Safari has no Web MIDI.
 - **LOG:** "a year ago today you wrote…" shown inside LOG once it's unlocked (the private half of ON THIS DAY, where it's allowed to be). Log italics: paused by him.
 - **ON THIS DAY:** "this week in past years" as a section of the weekly REVIEW; a way to keep one memory (pin it to the Log or Key Dates).
-- **SICKBAY** (after the verdict): the remaining measure is Sleeping Wrist Temperature (optional); weight stays a RECORDS reading by his choice.
+- **SICKBAY** (trial closed 16 Nov): the remaining measure is Sleeping Wrist Temperature (optional); weight stays a RECORDS reading by his choice.
 - **MEALS:** the shopping list handed to Reminders through a shortcut; "what we ate this week last year" while planning; leftovers as a dinner.
 - **LEDGER** (YNAB stays read-only): scheduled transactions due this week on the Bridge; where the month will end at this pace.
 - **APIARY:** mite counts and honey as a chart per hive across years; flying hours from ATMOSPHERICS; a hive nudge after 10 days when the weather is GO.
@@ -99,6 +98,8 @@ What the sweep found healthy: every station opens with no page error, no request
 - **A type check on the bridge alone** (option B from the lint decision, D79): kept for later.
 
 ## Decided against
+
+- **A SICKBAY reliability trial and verdict** (Timothy, 2026-11-16): SICKBAY stays as it is. It is a historical record, not a live feed; an occasional manual run to true up the data, and a day or two of lag, are fine (Apple keeps Health data close). No pass marks to meet.
 
 - **Requiring the CI check before anything lands on `main`** (a pull request per release): too clunky for one person working from an iPad (Timothy, 2026-11-11). The deploy gate (D72) already keeps an untested version off the iPads, and `main` is protected against force-pushes and deletion.
 - **A Scriptable home-screen widget:** set aside by Timothy (2026-10-21); don't raise it again unless he does.
