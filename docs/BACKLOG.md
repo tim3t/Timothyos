@@ -93,7 +93,7 @@ What the sweep found healthy: every station opens with no page error, no request
 
 ## Put off, to return to
 
-- **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
+- **yt-fetch: rename channel folders fetched before 2026-11-16.** The new compose (given in chat 2026-11-16) names a channel's videos by upload date (`2026-11-12 - title [id].mp4`); folders fetched earlier from a `/@name/videos` link are numbered newest first (`001` = newest), so new videos sort after them. Offered: a one-time step that renames the old files by their upload dates. Not started.
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
