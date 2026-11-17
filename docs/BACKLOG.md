@@ -16,7 +16,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-**Next (Timothy, 17 Nov):** MEALS: infrastructure changes he wants to make; start by asking him what they are.
+**Next (Timothy, 17 Nov):** MEALS: remove COOK (buggy, unused), and make the editor hold the whole recipe: ingredient lines with amounts, steps, serves and time, seen and edited for imported meals and written from scratch for new ones. Proposed as M1 to M7 on 17 Nov; waiting for his go. The bridge already saves a full recipe (`mealFull_`, `mealBody_`, bridge 1.40), so likely app-only.
 
 **At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
