@@ -64,7 +64,7 @@ iPad app, directly (no bridge): Open-Meteo (weather), Open Library (book search)
 On the NAS, run by hand: tools/ia_fetch.py (public access TV from archive.org into a HOLODECK folder).
 ```
 
-Current versions: **app 2.88.0**, **bridge 1.51.0** (release checklist step 2 keeps this line current).
+Current versions: **app 2.88.1**, **bridge 1.51.0** (release checklist step 2 keeps this line current).
 
 ## Rules
 
@@ -115,7 +115,7 @@ Current versions: **app 2.88.0**, **bridge 1.51.0** (release checklist step 2 ke
 
 **Waits (D76):** `tests/lib/settle.js`. `await quiet(ctx)` after `newContext`, then `await settled(p, ms)` in place of `p.waitForTimeout(ms)`: it goes on as soon as nothing more can happen within `ms` (no request in flight, no app timer due within it, no media playing, the DOM still for 100 ms) and never waits longer than `ms`. Used in the real-clock tests. **Keep a fixed wait** where time itself is the point: a hold between `mouse.down()` and `mouse.up()`, "after 3 seconds", standby, a toast's lifetime; and in tests that freeze the page clock (`setFixedTime`: the app's tick timers re-arm at 0 ms, so the page never looks quiet). `SETTLE_DEBUG=1` prints why a wait ran to its limit. A test that compares a clock-driven screen twice starts the page clock away from the boundary instead of freezing it (`page.clock.install({time}); page.clock.resume()`, as e62 does).
 
-**Lint (D79):** `node tools/lint.js` (run first by `tests/run.sh`, so CI too; suite also checked at +30, +60, +200 and +330 days on 12 Nov): ESLint 10.13.0 (a test tool, pinned in package.json; `npm ci` installs it) with bug rules only (`eslint.config.js`: undefined and unused names, one name hiding another, duplicate keys and cases, unreachable code, self-comparison). It checks `js/app.js` as built and names the `js/src` part and line. **One name never hides another** (`no-shadow`): a local `render`, `go`, `pl`, `html`… would hide the app's own; pick a distinct name. A finding fails the run like a failing test.
+**Lint (D79):** `node tools/lint.js` (run first by `tests/run.sh`, so CI too; suite also checked at +30, +60, +200 and +330 days on 12 Nov): ESLint 10.15.0 (a test tool, pinned in package.json; `npm ci` installs it) with bug rules only (`eslint.config.js`: undefined and unused names, one name hiding another, duplicate keys and cases, unreachable code, self-comparison). It checks `js/app.js` as built and names the `js/src` part and line. **One name never hides another** (`no-shadow`): a local `render`, `go`, `pl`, `html`… would hide the app's own; pick a distinct name. A finding fails the run like a failing test.
 
 **Dates in tests (D79):** a test on the real clock must not depend on a fixed calendar date that real time will reach. Simulated bridges set dates still ahead from today (`_KDAHEAD(n)` in mock_v14 to v24); mock_v13 keeps fixed ones because KEY DATES (e11) freezes its clock on 6 Oct 2026. Before a test-only release that touches dates, run the suite in the future too: `NO_FAKE_STAT=1 FAKETIME_FORCE_MONOTONIC_FIX=1 faketime -f "+60d" tests/run.sh` (needs the `faketime` package; NO_FAKE_STAT keeps file times real, which `fix_videos --selftest` needs).
 

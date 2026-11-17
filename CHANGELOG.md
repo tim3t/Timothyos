@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.88.1 · 2026-11-17
+- **Old Bridge styles removed** (C8). 41 lines of styling for panels the Bridge no longer has (HORIZON's week bars, its legend and heavy-day note, BALANCE's bars and dots, the old two-column grid and the Log panel's layout) are gone. Nothing on screen changes; the app's stylesheet is a little smaller.
+- **Test tools** (B6): ESLint 10.13.0 → 10.15.0, which also clears the moderate advisory in one of its sub-dependencies (`npm audit`: 0). Playwright stays at 1.63.0, the version the test machine has with its browser (CLAUDE.md, Release checklist); it moves when that machine's copy does.
+
 ## 2.88.0 · 2026-11-16
 - **BALANCE is gone entirely.** The panel left the Bridge in 2.63; what stayed behind is gone now too: the read of the last 30 days' finished tasks that the Bridge made every time it opened (its only use was the **Balance** row in SYSTEMS → GOOGLE + NOTION, which showed a timeout on 16 Nov), and **SYSTEMS → BALANCE TARGETS**, which nothing read (the notes said ASK and REVIEW used both; neither did). One less Notion request each time the Bridge opens. The saved copies are cleared at start-up, PROFILE SYNC's row is now just **Ledger range**, and backups no longer carry the targets. The bridge's own `done` read stays until its next release; nothing calls it.
 

@@ -31,14 +31,13 @@ What the sweep found healthy: every station opens with no page error, no request
 
 - **B4. Fixed waits in the frozen-clock tests** (carried: about a minute of the suite's time; e13, e16 to e25, e28 to e31, e37).
 - **B5. Tests named for what they cover** (carried: `app_e2e55` says nothing; the index in run.sh is the only map).
-- **B6. Tooling refresh** (carried): Playwright 1.63 → 1.65, ESLint 10.13 → 10.15 (a moderate advisory in a sub-dependency, test-only). Each quarter.
+- **B6. Tooling refresh** (each quarter): ESLint went to 10.15.0 in 2.88.1 (the advisory cleared). **Playwright stays at 1.63.0**: the cloud test machine comes with 1.63.0 and its browser, and a newer Playwright looks for a browser it can't install there. Move it when that machine's copy moves (or by passing the installed browser's path to every test's launch, a larger change).
 
 **Sharper on the iPad**
 
 - **C5. Fields with only grey hint text** in place of a label: ten in SYSTEMS (the NAS and Home Assistant addresses and tokens among them) and APIARY's list field. The hint vanishes once you type, and VoiceOver has nothing to read.
 - **C6. Small targets** (carried, with numbers): HABITS' year grid (17 px cells), ASTROMETRICS' grid (12 × 22 px), RESSIKAN's beat steps in portrait (34 px wide), WEEK's blocks (34 px tall). Only where he mis-taps.
 - **C7. TAROT stalls for a quarter of a second on opening** (two long tasks, 190 to 260 ms): the only station with any.
-- **C8. Eight old Bridge styles look unused** (`ov-grid`, `ov-load`, `ov-wk`, `ov-day`, `ov-legend`, `ov-heavy` and two more, from before the Time Ribbon). Remove after a check.
 
 **Safety and upkeep (carried from 11 and 13 Nov, still open)**
 
