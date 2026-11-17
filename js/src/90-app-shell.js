@@ -87,8 +87,7 @@
     if (state.launch) openLaunch(false);
     if (screen !== "systems") { state.fixSeen = false; state.fixFocus = null; }
     if (screen === "systems" && state.screen !== "systems") { loadLedger(false); loadApiary(false); loadTarot(false); loadMeals(false); loadSickbay(false); }
-    if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; ml.imp = null; if (ml.cook) { ml.cook = null; mlWake(false); } }
-    if (state.screen === "meals" && screen !== "meals" && ml.cook) { ml.cook = null; mlWake(false); }   /* COOK ends when you leave MEALS */   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
+    if (screen === "meals" && state.screen === "meals") { ml.sel = null; ml.form = null; ml.editing = false; ml.imp = null; ml.view = null; }   /* tapping MEALS again: the week, nothing selected */   /* 2.58: its rows read for themselves (after a restore they sat at WAITING until LEDGER or APIARY was opened); each skips what is fresh */
     if (screen === "storage" && state.screen === "storage") { nas.view = "home"; nas.dir = "/"; }
     if (screen === "arboretum" && state.screen === "arboretum") arb.home();
     if (screen === "sickbay" && state.screen === "sickbay") { skSet({ tab: "vitals" }); sk.form = null; }   /* tapping SICKBAY again: VITALS */   /* tapping ARBORETUM again: back to the map */

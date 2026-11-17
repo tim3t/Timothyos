@@ -160,6 +160,7 @@ def meal_seed():
         {"id": "m-fish", "page": "pg-fish", "name": "Sample fish", "kind": "Fish", "ing": I(("Cod", "Meat + Fish"), ("Lemons", "Produce")), "recipe": "", "notes": "", "retired": False},
         {"id": "m-pasta", "page": "pg-pasta", "name": "Sample pasta", "kind": "Beef + Pork", "ing": I(("Spaghetti", "Pantry"), ("Ground beef", "Meat + Fish")), "recipe": "", "notes": "", "retired": False},
         {"id": "m-curry", "page": "pg-curry", "name": "Sample curry", "kind": "Chicken", "ing": I(("Chicken thighs", "Meat + Fish"), ("Coconut milk", "Pantry")), "recipe": "", "notes": "", "retired": False}]
+    MEAL["full"]["m-curry"] = {"lines": ["1 lb chicken thighs", "1 can coconut milk"], "steps": ["Brown the chicken.", "Add the coconut milk and simmer."], "servings": "4", "time": "40 min", "source": "https://curry.example/sample", "extra": ["A sample note kept in the page"]}   # 2.89: a page with a recipe, and other text
     ate = [(-2, "m-tacos"), (-9, "m-tacos"), (-16, "m-tacos"), (-60, "m-soup"), (-90, "m-soup"), (-5, "m-fish"), (-20, "m-pasta"), (-3, "out")]
     MEAL["dinners"] = sorted([meal_dinner(meal_day(o), "eaten", "out" if m == "out" else "meal", None if m == "out" else m) for o, m in ate] + [meal_dinner(meal_day(1), "planned", "meal", "m-fish")], key=lambda d: d["date"])
 def meal_dinner(date, status, kind, meal):
@@ -580,7 +581,7 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "mealrecipe" and MEAL["cap"]:
             m = next((x for x in MEAL["meals"] if x["id"] == q.get("id")), None); fu = MEAL["full"].get(q.get("id")) or {}
             body = {"ok": False, "error": "not_found"} if not m else {"ok": True, "version": VER["v"], "id": m["id"], "lines": fu.get("lines", []), "steps": fu.get("steps", []),
-                    "other": ([("Serves " + fu["servings"]) if fu.get("servings") else ""] if fu else []), "recipe": m.get("recipe", ""), "photo": m.get("photo", "")}
+                    "other": ([" · ".join([x for x in [("Serves " + fu["servings"]) if fu.get("servings") else "", fu.get("time", "")] if x])] + (["From " + fu["source"].split("//")[-1].split("/")[0]] if fu.get("source") else []) + list(fu.get("extra", [])) if fu else []), "recipe": m.get("recipe", ""), "photo": m.get("photo", "")}   # as mealBody_ writes it (2.89)
             body["other"] = [x for x in body.get("other", []) if x] if body["ok"] else None
         elif q.get("action") == "meals" and MEAL["cap"]:
             body = {"ok": True, "version": VER["v"], "meals": sorted(MEAL["meals"], key=lambda x: x["name"]), "dinners": MEAL["dinners"], "url": "https://www.notion.so/meals", "dinnersUrl": "https://www.notion.so/dinners"}

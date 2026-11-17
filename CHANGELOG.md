@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.89.0 · 2026-11-17
+- **A meal holds its whole recipe** (Timothy, 17 Nov). The meal editor has a **RECIPE** section: **SERVES**, **TIME**, **INGREDIENTS WITH AMOUNTS** and numbered **STEPS** you can add, remove and reorder. A recipe brought in from a link, text or photo arrives filled in, so you can see and correct what was found; a meal of your own can be written from scratch. **FILL SHOPPING LIST** turns the recipe's lines into shopping items to check. **SAVE** writes the recipe into the meal's Notion page only when you changed it, and an empty RECIPE never clears a page. If the page holds other text written in Notion, the editor says that a changed recipe would replace it.
+- **Tap a meal to read its recipe.** With no night chosen, a meal in the MEAL LIBRARY (or NOT IN A WHILE) opens its recipe to read: ingredients with amounts, the steps, the recipe's own page, and **EDIT**.
+- **COOK is gone**, from TONIGHT, a chosen night and the editor, with its step-by-step screen and its keep-the-screen-on. The recipes it read stay in Notion.
+- No bridge update needed.
+
 ## 2.88.1 · 2026-11-17
 - **Old Bridge styles removed** (C8). 41 lines of styling for panels the Bridge no longer has (HORIZON's week bars, its legend and heavy-day note, BALANCE's bars and dots, the old two-column grid and the Log panel's layout) are gone. Nothing on screen changes; the app's stylesheet is a little smaller.
 - **Test tools** (B6): ESLint 10.13.0 → 10.15.0, which also clears the moderate advisory in one of its sub-dependencies (`npm audit`: 0). Playwright stays at 1.63.0, the version the test machine has with its browser (CLAUDE.md, Release checklist); it moves when that machine's copy does.

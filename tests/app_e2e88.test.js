@@ -2,7 +2,7 @@
 // a recipe site: the bridge fetches the picture (mealimg) and the iPad makes the small square copy (Thumb) it already
 // makes for its own photos. A meal from before, with only a link, gets its copy once, in the background (mealthumb
 // changes only the picture); a picture that can't be had shows the initials and isn't asked for again for two weeks.
-// A pasted image link becomes a copy too, or says it couldn't. COOK shows the copy.
+// A pasted image link becomes a copy too, or says it couldn't. The RECIPE view shows the copy.
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
 const assert = require('assert');
@@ -57,11 +57,12 @@ const JPEG = /^data:image\/jpeg;base64,/;
   const saved = (await until(async () => (await posts('mealsave')).filter(x => x[1].id === 'm-pic2' && x[1].photo === 'https://img.example/stirfry.jpg').pop()))[1];
   assert.ok(JPEG.test(saved.thumb), 'saved with its copy');
 
-  // ---- COOK shows the copy
-  await p.click('[data-ml="edit"]');
-  await p.click('[data-ml="edit"]'); await p.click('[data-mlcard="m-pic1"]');
-  await p.click('[data-mlcook="m-pic1"]'); await p.waitForSelector('.ml-cookhead');
-  assert.ok(JPEG.test(await p.getAttribute('.ml-cookhead img', 'src')));
+  // ---- the RECIPE view shows the copy (2.89: COOK removed)
+  if (await p.$('.ml-form')) await p.click('[data-ml="cancel"]');
+  if ((await p.getAttribute('[data-ml="edit"]', 'aria-pressed')) === 'true') await p.click('[data-ml="edit"]');
+  if (await p.$('#mlDayBar')) await p.click('[data-ml="unsel"]');
+  await p.click('[data-mlcard="m-pic1"]'); await p.waitForSelector('.ml-viewhead');
+  assert.ok(JPEG.test(await p.getAttribute('.ml-viewhead img', 'src')));
 
   // ---- nothing was ever asked of a recipe site
   assert.deepStrictEqual(outside.filter(u => /img\.example/.test(u)), [], 'no image from a recipe site: ' + outside.join(' '));
@@ -69,5 +70,5 @@ const JPEG = /^data:image\/jpeg;base64,/;
   assert.deepStrictEqual(errs, []);
   await b.close();
   await mode('reset=1&seed=1');
-  console.log('RECIPE PHOTOS: copies made in the background and kept, not asked again, a pasted link, COOK, no site images: ok');
+  console.log('RECIPE PHOTOS: copies made in the background and kept, not asked again, a pasted link, the RECIPE view, no site images: ok');
 })().catch(e => { console.error(e); process.exit(1); });

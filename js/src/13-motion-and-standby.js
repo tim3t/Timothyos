@@ -104,7 +104,7 @@
   function typing() { var a = document.activeElement; return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName); }
   function checkIdle() {
     var mins = standbyMins();
-    if (sb.on || !mins || !state.conn || document.hidden || typing() || holoHold() || (state.screen === "meals" && ml.cook)) return;   /* no Standby while COOK is open (2.60) */
+    if (sb.on || !mins || !state.conn || document.hidden || typing() || holoHold()) return;
     if (Date.now() - sb.last >= mins * 60000) enterStandby();
   }
   setInterval(checkIdle, 15000);

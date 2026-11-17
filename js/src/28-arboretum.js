@@ -338,20 +338,6 @@
   })();
   function renderArboretum() { arb.render(); }
   function arbGo(view, zid) { if (state.screen !== "arboretum") go("arboretum"); arb.show(view, zid); render(false); $("content").scrollTop = 0; }   /* COMPUTER: go() alone would send a second tap to the map */
-  function mlCookHtml() {
-    var C = ml.cook, m = mlMeal(C.id), D = C.data, big = !!mlView.big;
-    var lines = D && D.lines.length ? D.lines : m.ing.map(function (x) { return x.n; }), steps = D ? D.steps : [];
-    var html = '<section class="ml-cook' + (big ? " big" : "") + '" aria-label="Cook ' + esc(m.name) + '"><div class="ml-cookhead">' + (m.thumb ? '<img src="' + esc(m.thumb) + '" alt="">' : "") + "<span><small>COOK · " + esc(m.kind.toUpperCase()) + "</small><b>" + esc(m.name) + "</b>" +
-      (D && D.other.length ? "<small>" + esc(D.other.filter(function (x) { return !/^From /.test(x); }).join(" · ")) + "</small>" : "") + '</span><span class="btnrow"><button type="button" class="chip sm" data-ml="cookbig" aria-pressed="' + big + '">' + (big ? "A−" : "A+") + "</button>" +
-      ((D && D.recipe) || m.recipe ? '<a class="chip sm" href="' + esc((D && D.recipe) || m.recipe) + '" target="_blank" rel="noopener">THE RECIPE PAGE</a>' : "") + '<button type="button" class="chip" data-ml="cookx">DONE</button></span></div>';
-    if (C.err && !D) html += '<div class="err">' + esc(C.err) + "</div>";
-    else if (!D) html += '<div class="empty">Reading the recipe…</div>';
-    html += '<div class="ml-cookbody"><div><h3>INGREDIENTS</h3>' + lines.map(function (l, i) { return '<button type="button" class="ml-tick' + (C.got[i] ? " got" : "") + '" data-mltick="' + i + '" aria-pressed="' + !!C.got[i] + '"><i aria-hidden="true">' + (C.got[i] ? "✓" : "") + "</i><span>" + esc(l) + "</span></button>"; }).join("") + "</div>";
-    html += "<div><h3>STEPS" + (steps.length ? " · " + (C.step + 1) + " OF " + steps.length : "") + "</h3>" + (steps.length ? steps.map(function (x, i) { return '<button type="button" class="ml-step' + (i === C.step ? " now" : i < C.step ? " done" : "") + '" data-mlstep="' + i + '" aria-current="' + (i === C.step) + '"><b>' + (i + 1) + "</b><span>" + esc(x) + "</span></button>"; }).join("") +
-      '<div class="btnrow ml-stepnav"><button type="button" class="btn ghost" data-ml="cookprev"' + (C.step ? "" : " disabled") + '>◀ STEP</button><button type="button" class="btn capture" data-ml="cooknext"' + (C.step < steps.length - 1 ? "" : " disabled") + ">NEXT STEP ▶</button></div>"
-      : '<p class="muted">' + (D ? "No steps in this meal's Notion page yet. Add them there as a numbered list (or under a Steps heading), or bring the recipe in with + FROM A RECIPE." : "") + "</p>") + "</div></div></section>";
-    return html;
-  }
 
   /* TONIGHT, on TODAY and the Bridge: what's planned, and from 4 PM, what it was */
   function mealLine() {
@@ -363,7 +349,6 @@
     var acts = eve && (!dn || dn.status === "planned")
       ? (dn && dn.kind === "meal" ? '<button type="button" class="chip sm" data-mlnow="had" style="--c: var(--ok)">✓ HAD IT</button>' : "") + '<button type="button" class="chip sm" data-mlnow="leftovers">LEFTOVERS</button><button type="button" class="chip sm" data-mlnow="out">EATING OUT</button><button type="button" class="chip sm" data-mlnow="else">SOMETHING ELSE</button>'
       : dn && dn.status === "eaten" ? '<button type="button" class="chip sm" data-mlnow="undo">UNDO</button>' : '<button type="button" class="chip sm" data-mlnow="open">' + (dn ? "MEALS" : "PLAN") + "</button>";
-    if (dn && dn.kind === "meal" && mlMeal(dn.meal) && canRecipes()) acts = '<button type="button" class="chip sm" data-mlcook="' + esc(dn.meal) + '" style="--c: var(--chrome-d)">COOK</button>' + acts;
     return '<div class="ml-line" id="mlLine"><span class="ml-lt"><small>TONIGHT · DINNER</small><b>' + esc(dn ? mlDName(dn) : eve ? "Not recorded" : "Nothing planned") + "</b><small>" + esc(sub) +
       (tm ? " · tomorrow: " + esc(mlDName(tm)) : "") + (G.left ? " · " + G.left + " to buy" : "") + '</small></span><span class="btnrow">' + acts + "</span></div>";
   }
