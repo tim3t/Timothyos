@@ -16,6 +16,8 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
+**Next (Timothy, 17 Nov):** MEALS: infrastructure changes he wants to make; start by asking him what they are.
+
 **At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
 **Done 16 Nov (tests only, no version):** B1. Every bridge test that reaches Notion runs on one strict simulated Notion (`tests/lib/notion.js`, `tests/lib/gas.js`); `bridge_meals`, never in `run.sh` before, now runs, and `run_index.test.js` fails on any test file the suite doesn't name.
@@ -88,6 +90,8 @@ What the sweep found healthy: every station opens with no page error, no request
 - **Voice capture through Shortcuts** (from the 2026-10-21 brainstorm).
 
 ## Put off, to return to
+
+- **The Morning Briefing is made once per iPad** (asked 17 Nov; no change chosen). Each iPad compiles its own the first time the Bridge is in front after 06:00 (a Sonnet call), and fetches its own Nova audio when the voice is on; HUB's, made later, picks up changes made on MOBILE. Offered: A leave it; B one briefing a day shared through the bridge (HUB reads MOBILE's, REFRESH makes a new one); C a per-iPad switch so one iPad compiles only on REFRESH or COMPILE NOW; D no Nova audio fetched on an iPad until READ IT TO ME is tapped. Cost is about a cent or two a day for the second one.
 
 - **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
