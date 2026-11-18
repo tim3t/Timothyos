@@ -8,7 +8,7 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 | Item | Where | Notes |
 |---|---|---|
-| ENGINEERING after the power cut (18 Nov) | Bridge 2.89.1 → ENGINEERING, then SYSTEMS → HOME NETWORK → SAVE AND TEST | Reopening didn't help. With 2.89.1 the devices show their states, or NO ANSWER with the reason; if every device says NO ANSWER, Home Assistant itself isn't answering through the relay (check the HA app, restart HA, then the relay) |
+| ENGINEERING after the power cut (18 Nov) | Three checks: HOLODECK plays? the Home Assistant app shows its devices? HA's LAN address vs the relay's `HA_URL` | 2.89.1 is live: every Home Assistant request times out, SAVE AND TEST's `/api/` too, so Home Assistant isn't answering through the relay (Bridge is fine). Likely: HA still starting or stuck after the unclean shutdown, or HA's LAN address changed (DHCP) and the relay's `HA_URL` points at the old one. If so: a DHCP reservation for HA in the router keeps it from recurring |
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
