@@ -3,7 +3,7 @@ Read-only, token by Bearer header or ?k=, CORS for the test origin, JSON folder 
 (Accept: application/json, like Caddy's file_server browse), byte ranges for audio.
 Files are generated silence; names are invented.
 /ha/* is a simulated Home Assistant behind the relay (2.24): relay token by ?k=, HA token by Bearer."""
-import io, json, struct, wave, re
+import io, json, struct, wave, re, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -177,7 +177,7 @@ HA = {
 }
 HACFG = {"nightly": {"id": "nightly", "alias": "Nightly Routine", "trigger": [{"platform": "time", "at": "02:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.barn_porch"}}]}}   # 2.64: automations' configs by id; "nightly" is Timothy's own, never Bridge's
 HA["automation.nightly"]["attributes"]["id"] = "nightly"
-HAOPT = {"admin": True, "delete": False}   # tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
+HAOPT = {"admin": True, "delete": False, "hang": []}   # hang: entity ids (or "all") whose reads never answer, as after a power cut (2.89.1); tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
 def ha_slug(alias): return "automation." + re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")
 def ha_state(eid):
     v = HA[eid]; return {"entity_id": eid, "state": v["state"], "attributes": v["attributes"], "last_changed": "2026-10-15T12:00:00+00:00"}
@@ -221,6 +221,8 @@ class H(BaseHTTPRequestHandler):
         if self.headers.get("Authorization") != "Bearer " + HA_TOKEN:
             STATS["ha_denied"] += 1; return self.send_json(401, {"message": "Unauthorized"})
         api = path[3:]
+        if method == "GET" and any(api in ("/api/states/" + h, "/api/states") or (h == "all" and api.startswith("/api/")) for h in HAOPT["hang"]):
+            time.sleep(25); return   # never answered in time: the app's own limit is 15 s
         m = re.match(r"^/api/config/automation/config/([A-Za-z0-9_]+)$", api)
         if m:   # 2.64: Home Assistant's automation editor API (admin only)
             if not HAOPT["admin"]: return self.send_json(401, {"message": "Unauthorized"})
@@ -305,11 +307,13 @@ class H(BaseHTTPRequestHandler):
             HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
             for c in [c for c in HACFG if c != "nightly"]: del HACFG[c]
             for e in [e for e in HA if e.startswith("automation.") and e != "automation.nightly"]: del HA[e]
-            HAOPT.update(admin=True, delete=False)
+            HAOPT.update(admin=True, delete=False, hang=[])
             STATS["calls"] = []; return self.send_json(200, {})
         if path == "/__haopt":   # tests: ?admin=0|1&delete=0|1
             for k in ("admin", "delete"):
                 if k in q: HAOPT[k] = q[k][0] == "1"
+            hq = parse_qs(u.query, keep_blank_values=True)   # "hang=" (empty) clears it
+            if "hang" in hq: HAOPT["hang"] = [x for x in hq["hang"][0].split(",") if x]
             return self.send_json(200, HAOPT)
         if path == "/__hacfg":   # tests: what Home Assistant holds (and ?id=&alias= edits one as the Home Assistant app would: a motion trigger)
             if "id" in q:

@@ -39,7 +39,7 @@
   var SCN_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], SCN_DAYNM = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   var SCN_FADES = [[0, "AT ONCE"], [5, "5 SEC"], [60, "1 MIN"], [300, "5 MIN"], [900, "15 MIN"], [1800, "30 MIN"]];
   var SCN_WAITS = [[60, "1 MIN"], [300, "5 MIN"], [900, "15 MIN"], [1800, "30 MIN"], [3600, "1 HR"], [7200, "2 HR"]];
-  eng.scn = { list: lsGet(LS_HASCN) || [], at: 0, busy: false, err: null, d: null, pick: null, orig: "", hold: 0, held: false, msg: "", chk: false };
+  eng.scn = { list: lsGet(LS_HASCN) || [], at: 0, busy: false, busyAt: 0, chk: false, chkAt: 0, err: null, d: null, pick: null, orig: "", hold: 0, held: false, msg: "" };
   function scnById(id) { return eng.scn.list.filter(function (x) { return x.id === id; })[0] || null; }
   function scnSw() { return haDevices().filter(function (d) { return devCaps(d).sw; }); }
 
@@ -143,9 +143,9 @@
   function scnLoad(force) {
     var S = eng.scn;
     if (!haConf()) return Promise.resolve();
-    if (S.busy) return S.p;
+    if (S.busy && Date.now() - S.busyAt < HA_STUCK_MS) return S.p;
     if (!force && Date.now() - S.at < 60000) return Promise.resolve();
-    S.busy = true;
+    S.busy = true; S.busyAt = Date.now();
     return (S.p = haFetch("/api/states").then(function (all) {
       var ents = (all || []).filter(function (s) { return haDomain(s.entity_id) === "automation" && s.attributes && typeof s.attributes.id === "string" && s.attributes.id.indexOf(SCN_PRE) === 0; });
       return Promise.all(ents.map(function (e) {
@@ -441,8 +441,8 @@
   /* --- SYSTEMS: can Bridge keep scenes here? an admin token, and a relay that lets DELETE through --- */
   function scnCheck() {
     var S = eng.scn, done = function (res) { S.chk = false; lsSet(LS_HASCNCHK, { at: Date.now(), res: res }); if (state.screen === "systems") render(true); };
-    if (!haConf() || S.chk) return;
-    S.chk = true;
+    if (!haConf() || (S.chk && Date.now() - S.chkAt < 2 * HA_STUCK_MS)) return;
+    S.chk = true; S.chkAt = Date.now();
     var probe = "/api/config/automation/config/" + SCN_PRE + "probe";   /* an id no scene ever has: reading or deleting it changes nothing */
     haFetch(probe).catch(function (e) { if (e.code === "unauthorized") throw { admin: true }; if (e.code !== "http_404" && e.code !== "http_400") throw e; })
       .then(function () {

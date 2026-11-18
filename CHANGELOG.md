@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.89.1 · 2026-11-18
+- **ENGINEERING no longer jams after a power cut.** A request to Home Assistant that never answered (the NAS or Home Assistant going down mid-request, or the iPad pausing Bridge) used to leave every device showing "…" and SCENES "Checking…" until something unstuck it, while SAVE AND TEST still passed. Now every request gives up after 15 seconds: a device that doesn't answer shows **NO ANSWER** and the others show their states, the reason is written above them (and in the error log), Bridge asks again every 30 seconds, and SAVE AND TEST reads the devices and scenes again as soon as Home Assistant answers.
+
 ## 2.89.0 · 2026-11-17
 - **A meal holds its whole recipe** (Timothy, 17 Nov). The meal editor has a **RECIPE** section: **SERVES**, **TIME**, **INGREDIENTS WITH AMOUNTS** and numbered **STEPS** you can add, remove and reorder. A recipe brought in from a link, text or photo arrives filled in, so you can see and correct what was found; a meal of your own can be written from scratch. **FILL SHOPPING LIST** turns the recipe's lines into shopping items to check. **SAVE** writes the recipe into the meal's Notion page only when you changed it, and an empty RECIPE never clears a page. If the page holds other text written in Notion, the editor says that a changed recipe would replace it.
 - **Tap a meal to read its recipe.** With no night chosen, a meal in the MEAL LIBRARY (or NOT IN A WHILE) opens its recipe to read: ingredients with amounts, the steps, the recipe's own page, and **EDIT**.

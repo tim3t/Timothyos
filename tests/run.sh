@@ -131,7 +131,7 @@ LANES=(
   "log-storage-1|RELAY_PORT=8110 PORT_8103=8103 PORT_8105=8119|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js"
   "log-storage-2|RELAY_PORT=8127 PORT_8103=8120 PORT_8105=8121|app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
-  "growth-engineering-1|RELAY_PORT=8111 PORT_8104=8104 PORT_8105=8116|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e56.test.js"
+  "growth-engineering-1|RELAY_PORT=8111 PORT_8104=8104 PORT_8105=8116|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e95.test.js app_e2e56.test.js"
   "growth-engineering-2|RELAY_PORT=8126 PORT_8104=8117 PORT_8105=8118|app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js"
   "growth-engineering-3|RELAY_PORT=8130 PORT_8104=8128 PORT_8105=8129|app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js app_e2e79.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
@@ -194,6 +194,7 @@ LANES=(
 #   app_e2e35      HOLIDAYS: beside Key Dates, never counted, filter, hide, Systems row
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
+#   app_e2e95      ENGINEERING after a power cut: a 15 s limit per request, NO ANSWER, SAVE AND TEST reads again
 #   app_e2e84      SICKBAY (2.74, bridge 1.43; 2.80, bridge 1.47; mock_sickbay :8106): readiness, rings and GOALS, latest-value tiles, chart bars that open days, DAYS (arrived, partial, waiting, missed, stamps, no weight), Condition, SLEEP, RECORDS, SYSTEMS, narrow
 #   app_e2e85      MEAL LIBRARY AND PHOTOS (2.76, bridge 1.44; mock :8105): 24 rows then SHOW ALL, search by name or ingredient, kind, order, kept; a hand-entered meal's photo (square, 160 px JPEG) sent as thumb, REMOVE, a bad link refused; planning from a search clears it; LOG's picker; phone width
 #   app_e2e86      A FULL STORE (2.77; mock :8105): SYSTEMS' storage section; the store filled to the brim: a setting makes room by dropping saved copies; with nothing to drop it is held in memory, the Condition turns red, the fix card names it, a dinner still reaches the bridge; MAKE ROOM AND SAVE once there is room, there after a reload; CLEAR SAVED COPIES; COMPUTER; phone width

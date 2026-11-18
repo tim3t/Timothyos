@@ -10,22 +10,28 @@
   var HA_TOGGLE = ["switch", "light", "fan", "input_boolean"];
   var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor", "climate"]);
   var UNITS = [["days", "DAYS"], ["weeks", "WEEKS"], ["months", "MONTHS"], ["years", "YEARS"], ["miles", "MILES"], ["hours", "HOURS"]];
-  var eng = { tab: lsGet(LS_ENGTAB) === "upkeep" ? "upkeep" : "controls", states: {}, err: null, at: 0, inflight: false, pick: null, arm: null, armAt: 0, sheetKind: null, sheetId: null, sheetMode: "hs", dragging: null };
+  var eng = { tab: lsGet(LS_ENGTAB) === "upkeep" ? "upkeep" : "controls", states: {}, fail: {}, err: null, at: 0, inflight: false, inflightAt: 0, pick: null, arm: null, armAt: 0, sheetKind: null, sheetId: null, sheetMode: "hs", dragging: null };
   function haConf() { var c = lsGet(LS_HA); return c && c.url && c.token ? c : null; }
   function haViaRelay(url) { var n = nasConf(); return !!(n && url.indexOf(nasBase()) === 0); }
   function haUrl(path) {
     var c = haConf(), base = c.url.replace(/\/+$/, ""), n = nasConf();
     return base + path + (haViaRelay(base) ? (path.indexOf("?") > -1 ? "&" : "?") + "k=" + encodeURIComponent(n.token) : "");
   }
+  /* 2.89.1: every request has a time limit. Without one, a request caught by a power cut (or by iPadOS pausing the
+     app) could stay unanswered for good, and ENGINEERING, which waits for its last read, showed "…" until reopened. */
+  var HA_MS = 15000, HA_STUCK_MS = 40000;
   function haFetch(path, opts) {
     var c = haConf();
     if (!c) return Promise.reject({ code: "not_set" });
     opts = opts || {};
     var h = { Authorization: "Bearer " + c.token };
     if (opts.body) h["Content-Type"] = "application/json";
-    return fetch(haUrl(path), { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: "no-store" })
-      .catch(function () { throw { code: navigator.onLine === false ? "offline" : "unreachable" }; })
+    var ac = typeof AbortController === "function" ? new AbortController() : null, late = false;
+    var tm = setTimeout(function () { late = true; if (ac) ac.abort(); }, opts.ms || HA_MS);
+    return fetch(haUrl(path), { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined, cache: "no-store", signal: ac ? ac.signal : undefined })
+      .catch(function () { clearTimeout(tm); throw { code: late ? "timeout" : navigator.onLine === false ? "offline" : "unreachable" }; })
       .then(function (r) {
+        clearTimeout(tm);
         if (r.status === 401 || r.status === 403) throw { code: "unauthorized" };
         if (!r.ok) return r.json().then(function (j) { throw { code: "http_" + r.status, msg: j && typeof j.message === "string" ? j.message : "" }; }, function () { throw { code: "http_" + r.status }; });   /* Home Assistant says why (2.64: a scene it won't take) */
         return r.json();
@@ -37,6 +43,7 @@
     if (c === "offline") return "This iPad is offline.";
     if (c === "unreachable") return "Can't reach Home Assistant. Check Tailscale is on, and that the relay's /ha path points at Home Assistant.";
     if (c === "http_502" || c === "http_504") return "The relay is up but can't reach Home Assistant. Check HA_URL in the relay's settings on the NAS.";
+    if (c === "timeout") return "Home Assistant didn't answer within 15 seconds. After a restart it can take a few minutes; Bridge asks again every 30 seconds. If it lasts, restart Home Assistant, then the relay on the NAS.";
     if (/^http_/.test(c || "")) return "Home Assistant answered with an error (" + c.slice(5) + ").";
     return "Something went wrong talking to Home Assistant.";
   }
@@ -60,19 +67,26 @@
   var hq = {};   /* light changes on their way: { id: { data, last, t, rr } } */
   function haLoad(force) {
     var devs = haDevices();
-    if (!haConf() || eng.inflight || !devs.length) return;
+    if (!haConf() || (eng.inflight && Date.now() - eng.inflightAt < HA_STUCK_MS) || !devs.length) return;   /* a read left hanging (the app paused mid-request) never blocks the next */
     if (!force && Date.now() - eng.at < 20000) return;
-    eng.inflight = true;
+    eng.inflight = true; eng.inflightAt = Date.now();
+    var fails = {}, first = null;
     if (eng.unit === undefined && devs.some(function (d) { return haDomain(d.id) === "climate"; })) { eng.unit = null; haFetch("/api/config").then(function (j) { eng.unit = (j && j.unit_system && j.unit_system.temperature) || "°"; haRepaint(); }, function () { eng.unit = undefined; }); }
     Promise.all(devs.map(function (d) {
       return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) {
         if (eng.dragging === d.id || Date.now() - ((hq[d.id] && hq[d.id].last) || 0) < 1500) return;   /* a change of yours is still on its way */
         eng.states[d.id] = s;
       }, function (e) {
-        if (e.code === "http_404") eng.states[d.id] = { missing: true }; else throw e;
+        if (e.code === "http_404") { eng.states[d.id] = { missing: true }; return; }
+        if (e.code === "unauthorized") throw e;
+        fails[d.id] = e.code; if (!first) first = e;   /* one device that doesn't answer no longer blanks the rest */
       });
-    })).then(function () { eng.err = null; }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; })
-      .then(function () { eng.at = Date.now(); eng.inflight = false; haRepaint(); });
+    })).then(function () {
+      var n = Object.keys(fails).length;
+      eng.err = n ? { code: first.code, msg: haErrText(first) + (n < devs.length ? " (" + n + " of " + devs.length + " devices)" : "") } : null;
+      if (n) errLog("engineering", "device read", first.code, n + " of " + devs.length + " devices");
+    }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; })
+      .then(function () { eng.fail = fails; eng.at = Date.now(); eng.inflight = false; haRepaint(); });
   }
   function haRepaint() {
     if (eng.dragging) return;
@@ -114,7 +128,7 @@
     return "#ffd48a";
   }
   function haStateTxt(d, s) {
-    if (!s) return "…";
+    if (!s) return eng.fail[d.id] ? "NO ANSWER" : "…";
     if (s.missing) return "NOT FOUND";
     if (s.state === "unavailable") return "OFFLINE";
     var c = devCaps(d), a = s.attributes || {};
@@ -870,9 +884,13 @@
     if (!/^https:\/\/[^\s]+$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url)) { errEl.textContent = "Use an https address (the NAS relay's address plus /ha works)."; return; }
     if (!tok && !cur) { errEl.textContent = "Enter the long-lived access token."; return; }
     lsSet(LS_HA, { url: url, token: tok || cur.token });
-    eng.err = null; eng.states = {}; eng.at = 0; errEl.textContent = "Testing…";
+    eng.err = null; eng.states = {}; eng.fail = {}; eng.at = 0; errEl.textContent = "Testing…";
     lsDel(LS_HASCNCHK);   /* a new token: SCENES is checked again */
-    haFetch("/api/").then(function () { toast("Home Assistant connected"); }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; }).then(function () { render(true); });
+    haFetch("/api/").then(function () {
+      toast("Home Assistant connected · reading the devices");
+      eng.inflight = false; eng.scn.busy = false; eng.scn.chk = false;   /* 2.89.1: a passing test reads everything again, so ENGINEERING is up to date */
+      haLoad(true); scnLoad(true); scnCheck();
+    }, function (e) { eng.err = { code: e.code, msg: haErrText(e) }; }).then(function () { render(true); });
   }
   function haSysClick(b) {
     var a = b.dataset.act;
