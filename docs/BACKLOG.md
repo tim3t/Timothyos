@@ -16,6 +16,8 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
+**Offered 18 Nov, waiting for his go:** ENGINEERING stuck after a power outage (all devices "…", SCENES "Checking…", SAVE AND TEST fine). Cause found in code: `haFetch` has no time limit, and `haLoad` (`eng.inflight`) and `scnLoad` (`S.busy`) start no new read while one is unanswered; a request caught by the outage or by iPadOS suspending the app can stay unanswered, so every later read is skipped until the app is reopened. SAVE AND TEST checks `/api/` with a fresh request, so it passes. Fix proposed: E1 a time limit on every Home Assistant request (15 s, then the usual "can't reach" message); E2 SAVE AND TEST also re-reads the devices and scenes at once; E3 a read that comes back after the app wakes never blocks the next. App only. First he reopens Bridge (force-quit) to confirm.
+
 
 **At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
