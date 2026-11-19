@@ -2,6 +2,9 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.89.2 · 2026-11-19
+- **HOLODECK's guide stays in its frame.** Dragging past the guide's edges used to pull the whole grid away (the time row and the channel column with it, leaving empty space behind), because iPadOS still let it bounce. It now stops at its edges; scrolling inside it is unchanged.
+
 ## 2.89.1 · 2026-11-18
 - **ENGINEERING no longer jams after a power cut.** A request to Home Assistant that never answered (the NAS or Home Assistant going down mid-request, or the iPad pausing Bridge) used to leave every device showing "…" and SCENES "Checking…" until something unstuck it, while SAVE AND TEST still passed. Now every request gives up after 15 seconds: a device that doesn't answer shows **NO ANSWER** and the others show their states, the reason is written above them (and in the error log), Bridge asks again every 30 seconds, and SAVE AND TEST reads the devices and scenes again as soon as Home Assistant answers.
 

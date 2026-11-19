@@ -2822,7 +2822,7 @@ body:has(.hd-tv.big) { overflow: hidden; }
 .hd-tgb { min-height: 40px; min-width: 44px; padding: 0 12px; border-radius: 20px; border: 2px solid #3a48a8; background: transparent; color: #dfe4ff; font-family: var(--display); font-size: 13px; letter-spacing: .14em; }
 .hd-tgb[aria-pressed="true"] { background: #f6c66b; border-color: #f6c66b; color: #0a0a0d; }
 .hd-tgb:disabled { opacity: .35; }
-.hd-tgbody { max-height: min(62vh, 560px); overflow: auto; overscroll-behavior: contain; }
+.hd-tgbody { max-height: min(62vh, 560px); overflow: auto; overscroll-behavior: none; }   /* 2.89.2: "none", not "contain": on the iPad, contain still let the grid bounce past its edges, and the sticky time row and channel column slid with it */
 .hd-tgin { position: relative; min-width: 640px; --cw: 186px; }
 .hd-gempty { margin: 0; padding: 16px; color: #dfe4ff; }
 .hd-gh { display: grid; grid-template-columns: var(--cw) minmax(0, 1fr); position: sticky; top: 0; z-index: 3; background: #18216a; border-bottom: 2px solid #0d1446; }

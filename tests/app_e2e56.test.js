@@ -176,6 +176,7 @@ const vid = p => p.evaluate(() => { const v = document.getElementById('hdVideo')
   assert.ok(k2 >= 0 && k2 <= 1, g2.join(' | ')); assert.deepStrictEqual(g2, ORD.slice(k2, k2 + 4), 'episodes by number, seasons by number');
   assert.ok(/^3 seasons \+ specials · 7 episodes · 1 MKV skipped · in order · 40 s round · on air since /.test(await txt(p, '#hdInfo2')), await txt(p, '#hdInfo2'));
   assert.deepStrictEqual(await p.$$eval('.hd-gch', e => e.map(x => x.getAttribute('aria-label'))), ['Channel 1, Test Channel, tune in', 'Channel 2, Test Series, on screen']);
+  assert.deepStrictEqual(await p.$eval('.hd-tgbody', e => { const c = getComputedStyle(e); return [c.overscrollBehaviorX, c.overscrollBehaviorY]; }), ['none', 'none'], 'the guide never bounces past its edges (2.89.2: on the iPad, contain still let it, and the time row and channels slid away)');
   assert.strictEqual(await p.$$eval('.hd-grow[aria-current="true"] .hd-gc.live', e => e.length), 1, 'what plays now, lit');
 
   // ---- changing channel: CH ▼, the guide (a channel, a show), the keypad
