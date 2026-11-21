@@ -95,6 +95,7 @@ What the sweep found healthy: every station opens with no page error, no request
 
 - **yt-fetch: fetch only what's new.** Timothy asked (2026-11-10) whether re-enabling a channel's line downloads only new videos. It depends on whether yt-fetch keeps a download archive (`--download-archive`, with `--break-on-existing` to stop at the first video it has). Needs its compose file (keys blanked) to confirm and to write the one-time step that records what is already downloaded. Until then, a single video's own link is the safe way to fetch one.
 - **Weekly export:** include the synced settings (no keys). Offered, not started.
+- **The iPad backup, sent for him** (asked 21 Nov whether backups are automatic; they aren't: SYSTEMS → BACKUP AND RESTORE makes an encrypted file he saves to Files). Offered: the app sends the encrypted backup to the bridge, which keeps the last few in the export's Drive folder, so a backup needs one tap and no Files dialog; the passphrase still never leaves the iPad. Needs a bridge release. Not started.
 - **fix-videos:** show progress while it scans. Offered, not started.
 - **Download a YouTube channel by its `/videos` link** (Timothy, on the NAS): the walkthrough was given 2026-11-09.
 - **Moving hosting** to his NAS (or a Mac mini with a local model: only the bridge's `claude_()` call would change), after a hosting review.
