@@ -16,6 +16,8 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
+**Proposed 23 Nov, waiting for his go:** ASK THE LOG answers held for a session (S1 to S7 in chat): SAVE FOR SESSION on an answer keeps it in Notion as a held insight (the Log's undated insight pages, Source "Session prep"); a new or open session shows FROM THE LOG with each held one, DROP IN puts it in the session under its own heading (Data `prep`, the page body "Brought from the log"), and saving the session files it back as an ordinary insight. Needs a bridge release (the `prep` field, the Source value, a list of held ones). Private: PIN-gated like the rest of LOG, never in tests or the repo.
+
 
 
 **At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
