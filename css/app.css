@@ -2958,6 +2958,18 @@ body:has(.hd-tv.big) { overflow: hidden; }
 .sx-tin textarea { background: var(--panel); }
 .sx-carry { border: 2px dashed var(--line); border-radius: 14px; padding: 10px 14px; color: var(--dim); }
 .sx-carry b { color: var(--fg); font-weight: 600; }
+@media (max-width: 640px) { .sx-form .phead, .sx-one .phead, .sx-sg .phead { flex-wrap: wrap; row-gap: 4px; } .sx-form .phead .meta, .sx-one .phead .meta, .sx-sg .phead .meta { order: 5; width: 100%; padding-left: 32px; white-space: normal; } }   /* 2.90: at phone width the session header wraps (it held the form at 507 px) */
+.sx-prep { display: grid; gap: 6px; padding: 10px 12px; border-radius: 14px; background: var(--panel-2); }   /* 2.90: an ASK THE LOG answer brought into a session */
+.sx-prep textarea { background: var(--panel); min-height: 120px; }
+.sx-prep .btnrow { margin: 0; }
+.sx-preptitle { font-family: var(--display); font-size: 13px; letter-spacing: .12em; color: var(--c, var(--chrome-c)); text-transform: uppercase; }
+.sx-held { display: grid; gap: 6px; padding: 10px 14px; border-radius: 14px; border: 2px dashed var(--line); }
+.sx-held > b { font-weight: 600; }
+.sx-held > small { font-family: var(--display); font-size: 12px; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
+.sx-heldtext { color: var(--dim); font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.sx-held .btnrow { margin: 0; }
+.sx-prepview { display: grid; gap: 4px; padding: 10px 14px; border-radius: 14px; background: var(--panel-2); margin-top: 6px; }
+.sx-prepview > b { font-family: var(--display); font-size: 13px; letter-spacing: .12em; color: var(--c, var(--chrome-c)); text-transform: uppercase; font-weight: 400; }
 .sx-prac { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
 .sx-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; margin-top: 6px; }
 .sx-add input { background: var(--panel-2); border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; }

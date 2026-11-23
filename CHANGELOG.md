@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.90.0 · 2026-11-23 (needs bridge 1.52)
+- **Bring an ASK THE LOG answer into a counseling session.** Under an answer, **SAVE FOR SESSION** holds it in Notion. When you start or edit a session, its first step shows **FROM THE LOG** with what you've held: **DROP IN** puts it into the session under **BROUGHT FROM THE LOG**, where you can trim or add to it; **NOT NOW** sets it aside for this session; **REMOVE** sends it to Notion's trash. Saving the session keeps the answer with it (in the Notion page too) and files it as an ordinary saved insight. In a saved session, the answer's dates open those journal days. Everything stays behind your log code.
+- **SESSIONS fits a phone.** A session's header now wraps at phone width; it used to make the form wider than the screen.
+- **Bridge 1.52:** held answers (`logpreps`, `logprepset`), and a session's BROUGHT FROM THE LOG.
+
 ## 2.89.2 · 2026-11-19
 - **HOLODECK's guide stays in its frame.** Dragging past the guide's edges used to pull the whole grid away (the time row and the channel column with it, leaving empty space behind), because iPadOS still let it bounce. It now stops at its edges; scrolling inside it is unchanged.
 

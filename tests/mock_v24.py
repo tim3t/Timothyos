@@ -222,7 +222,12 @@ def sesact(act, b):
         x = ses_clean(dict(b.get("session") or {}))
         if not x: return {"ok": False, "error": "bad_request"}
         SES["posts"].append(x)
-        keep = {k: x.get(k) for k in ("type", "day", "where", "felt", "arriving", "leaving", "next", "landed", "phrase", "nextTime", "topics", "onMind", "practice", "carried")}
+        if len(x.get("prep") or []) > 5: return {"ok": False, "error": "bad_request"}
+        keep = {k: x.get(k) for k in ("type", "day", "where", "felt", "arriving", "leaving", "next", "landed", "phrase", "nextTime", "topics", "onMind", "practice", "carried", "prep")}
+        keep["prep"] = keep["prep"] or []
+        for pp in keep["prep"]:   # 2.90: filed as an ordinary insight once the session is saved
+            hx = next((i for i in INSIGHTS if i["id"] == pp.get("id")), None)
+            if hx: hx["held"] = False
         for k in ("where", "felt"): keep[k] = keep[k] or ""
         for k in ("landed", "phrase", "nextTime", "onMind"): keep[k] = keep[k] or ""
         if x.get("id"):
@@ -346,8 +351,17 @@ def logact(b):
         ins = b.get("insight") or {}
         if not ins.get("title") or not ins.get("text"): return {"ok": False, "error": "bad_request"}
         rec = {"id": "ins-" + str(len(INSIGHTS) + 1).zfill(24), "title": ins["title"], "url": "https://www.notion.so/ins", "created": "2026-10-10T21:00:00Z", "text": "Question: " + ins.get("question", "") + "\n\nEntries: " + ins.get("scope", "") + "\n\n" + ins["text"].replace("\n- ", "\n• ")}
-        INSIGHTS.insert(0, rec); return {"ok": True, "insight": {k: rec[k] for k in ("id", "title", "url", "created")}}
-    if act == "loginsights": return {"ok": True, "insights": [{k: x[k] for k in ("id", "title", "url", "created")} for x in INSIGHTS]}
+        rec["held"] = bool(ins.get("hold")); rec["question"] = ins.get("question", ""); rec["scope"] = ins.get("scope", ""); rec["answer"] = ins["text"]   # 2.90: held for a session
+        INSIGHTS.insert(0, rec); return {"ok": True, "insight": dict({k: rec[k] for k in ("id", "title", "url", "created")}, held=rec["held"])}
+    if act == "loginsights": return {"ok": True, "insights": [{k: x[k] for k in ("id", "title", "url", "created")} for x in INSIGHTS if not x.get("held")]}
+    if act == "logpreps": return {"ok": True, "preps": [{"id": x["id"], "title": x["title"], "question": x["question"], "scope": x["scope"], "text": x["answer"], "created": x["created"]} for x in INSIGHTS if x.get("held")]}
+    if act == "logprepset":
+        x = next((x for x in INSIGHTS if x["id"] == b.get("id")), None)
+        if b.get("to") not in ("trash", "insight"): return {"ok": False, "error": "bad_request"}
+        if not x: return {"ok": False, "error": "not_writable"}
+        if b["to"] == "trash": INSIGHTS.remove(x)
+        else: x["held"] = False
+        return {"ok": True, "id": x["id"], "to": b["to"]}
     if act == "loginsight":
         x = next((x for x in INSIGHTS if x["id"] == b.get("id")), None)
         return {"ok": True, "insight": x} if x else {"ok": False, "error": "not_writable"}
@@ -524,8 +538,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):

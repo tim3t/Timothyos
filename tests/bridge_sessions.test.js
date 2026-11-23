@@ -130,9 +130,47 @@ assert.ok(r.ok); assert.ok(nx.row(coupleId).in_trash);
 assert.ok(!get({ action: 'logsessions', pin }).sessions.some(s => s.id === coupleId));
 assert.strictEqual(post({ action: 'logsessionnext', pin, id: coupleId, text: 'x' }).error, 'not_writable', 'a session in the trash is not changed');
 
+// ---- 1.52: ASK THE LOG answers held for a session, dropped into one, filed as insights once it's saved (invented text)
+caps = get({ action: 'ping' }).capabilities;
+assert.ok(caps.includes('sessionprep'), 'held answers come from ASK THE LOG, so they need its key');
+assert.strictEqual(post({ action: 'logpreps' }).error, 'bad_pin', 'behind the code like the rest of LOG'); delete cache.logfail;
+const ANS = 'Threads worth raising:\n- A sample worry at bedtime [2026-11-16]\n- A calmer evening after a walk [2026-11-17]';
+const held = post({ action: 'logasksave', pin, insight: { title: 'For a session · November 2026 · topics to raise', question: 'What should I raise today?', scope: '2026-11-01 to 2026-11-23', text: ANS, hold: true } });
+const plainIns = post({ action: 'logasksave', pin, insight: { title: 'Insight · November 2026 · the week', question: 'How was the week?', scope: '2026-11-01 to 2026-11-23', text: 'A steady week.' } });
+const held2 = post({ action: 'logasksave', pin, insight: { title: 'For a session · a second one', question: 'Anything else?', scope: '2026-11-20', text: 'One more thread.', hold: true } });
+assert.ok(held.ok && held.insight.held === true && plainIns.insight.held === false);
+assert.deepStrictEqual([nx.row(held.insight.id).Source, nx.row(plainIns.insight.id).Source], ['Session prep', 'Claude insight']);
+let preps = post({ action: 'logpreps', pin }).preps;
+assert.deepStrictEqual(preps.map(x => x.id).sort(), [held.insight.id, held2.insight.id].sort(), 'only the held ones');
+const hp = preps.find(x => x.id === held.insight.id);
+assert.deepStrictEqual([hp.question, hp.scope], ['What should I raise today?', '2026-11-01 to 2026-11-23']);
+assert.ok(hp.text.startsWith('Threads worth raising:') && hp.text.includes('• A sample worry at bedtime [2026-11-16]') && !hp.text.includes('Question:'), hp.text);
+assert.ok(!post({ action: 'loginsights', pin }).insights.some(x => x.id === held.insight.id), 'a held answer is not among the saved insights yet');
+// REMOVE: to the trash; only Log pages that are held or filed answers
+assert.strictEqual(post({ action: 'logprepset', pin, id: held2.insight.id, to: 'later' }).error, 'bad_request');
+assert.strictEqual(post({ action: 'logprepset', pin, id: soloIds[0], to: 'trash' }).error, 'not_writable', 'a session page is never touched');
+assert.ok(post({ action: 'logprepset', pin, id: held2.insight.id, to: 'trash' }).ok && nx.row(held2.insight.id).in_trash);
+// dropped into a session and saved: kept in Data and the page body, then filed as an ordinary insight
+const P = { id: held.insight.id, title: 'For a session · November 2026 · topics to raise', text: hp.text + '\nAnd one line added in the session.' };
+r = post({ action: 'logsessionsave', pin, session: Object.assign({}, S1, { day: '2026-11-23', cid: 'ses-prep-0001', prep: [P] }) });
+assert.ok(r.ok, JSON.stringify(r));
+assert.deepStrictEqual(J(r.session.prep), [P], 'read back as it was sent');
+const pb = body(r.session.id);
+assert.ok(pb.includes('heading_3:Brought from the log') && pb.some(x => x.includes('A sample worry at bedtime')) && pb.some(x => x.includes('And one line added')), pb.join(' | '));
+assert.ok(pb.indexOf('heading_3:Brought from the log') > pb.indexOf('heading_3:On my mind going in'), 'after what was on my mind');
+assert.strictEqual(nx.row(held.insight.id).Source, 'Claude insight', 'filed as an ordinary insight once the session is saved');
+assert.deepStrictEqual(post({ action: 'logpreps', pin }).preps, [], 'nothing left waiting');
+assert.ok(post({ action: 'loginsights', pin }).insights.some(x => x.id === held.insight.id));
+// limits: five at most, 40,000 characters in all, real ids
+const big = 'x'.repeat(15000);
+assert.strictEqual(post({ action: 'logsessionsave', pin, session: Object.assign({}, S1, { cid: 'ses-prep-0002', prep: Array.from({ length: 6 }, () => ({ id: '', title: 't', text: 'a' })) }) }).error, 'bad_request');
+assert.strictEqual(post({ action: 'logsessionsave', pin, session: Object.assign({}, S1, { cid: 'ses-prep-0003', prep: [1, 2, 3].map(() => ({ id: '', title: 't', text: big })) }) }).error, 'bad_request', 'over 40,000 characters');
+assert.strictEqual(post({ action: 'logsessionsave', pin, session: Object.assign({}, S1, { cid: 'ses-prep-0004', prep: [{ id: '../x', title: 't', text: 'a' }] }) }).error, 'bad_request');
+post({ action: 'logsessionremove', pin, id: r.session.id });
+
 // ---- the column check knows the database
 const spec = ctx.schemaSpec_().find(d => d.key === 'sessions');
 assert.ok(spec && spec.need.some(x => x[0] === 'Topics' && x[1] === 'multi_select') && spec.need.some(x => x[0] === 'Bring Up Next Time'));
-assert.ok(ctx.sessionsStatus_().startsWith('OK (2 sessions)'));
+assert.ok(ctx.sessionsStatus_().startsWith('OK (2 sessions)'), ctx.sessionsStatus_());
 assert.deepStrictEqual(nx.refused(), [], 'the bridge sent nothing Notion refuses');
 console.log('bridge_sessions: ok');

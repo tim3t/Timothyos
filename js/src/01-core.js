@@ -1,5 +1,5 @@
 
-  var VERSION = "2.89.2";
+  var VERSION = "2.90.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */

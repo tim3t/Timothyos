@@ -302,6 +302,16 @@
       m.saved = true; toast("Saved to the Captain's Log in Notion"); if (a.insights) a.insights = null;
     }).catch(function (err) { toast("Not saved: " + logAiErr(err)); }).then(function () { m.saving = false; if (lg.ai === a) render(true); });
   }
+  /* 2.90 (Timothy, 23 Nov): an answer held in Notion until it is dropped into a session (SESSIONS → FROM THE LOG). */
+  function logAiHold(i) {
+    var a = lg.ai, m = a.msgs[i]; if (!m || m.held || m.holding) return;
+    var sc = a.scope, scopeText = sc.dates ? sc.dates.length + " entries found for " + sc.title : sc.from + " to " + sc.to;
+    m.holding = true; render(true);
+    logAiCall({ action: "logasksave", insight: { title: "For a session · " + sc.title + " · " + m.q.slice(0, 60), question: m.q, scope: scopeText, text: m.text, hold: true } }, 60000).then(function () {
+      m.held = true; toast("Held for a session: it waits in SESSIONS under FROM THE LOG");
+      if (lg.sn) lg.sn.preps = null;
+    }).catch(function (err) { toast("Not held: " + logAiErr(err)); }).then(function () { m.holding = false; if (lg.ai === a) render(true); });
+  }
   function logAiInsights() {
     var a = lg.ai; a.busy = "insights"; render(true);
     logAiCall({ action: "loginsights" }, 60000).then(function (j) { if (lg.ai === a) a.insights = j.insights || []; })
@@ -349,7 +359,8 @@
       html += '<div class="la-chat">' + a.msgs.map(function (m, i) {
         if (m.role === "user") return '<div class="la-msg q">' + esc(m.text) + "</div>";
         return '<div class="la-msg a"><div class="la-text">' + logAiText(m.text) + '</div><div class="la-meta"><span>' + modelName(m.model) + " · " + money(m.cost || 0) + "</span>" +
-          '<button type="button" class="chip" data-lasave="' + i + '"' + (m.saved || m.saving ? " disabled" : "") + ">" + (m.saved ? "SAVED ✓" : m.saving ? "SAVING…" : "SAVE TO NOTION") + "</button></div></div>";
+          '<button type="button" class="chip" data-lasave="' + i + '"' + (m.saved || m.saving ? " disabled" : "") + ">" + (m.saved ? "SAVED ✓" : m.saving ? "SAVING…" : "SAVE TO NOTION") + "</button>" +
+          (canSesPrep() ? '<button type="button" class="chip" data-lahold="' + i + '"' + (m.held || m.holding ? " disabled" : "") + ">" + (m.held ? "HELD FOR A SESSION ✓" : m.holding ? "HOLDING…" : "SAVE FOR SESSION") + "</button>" : "") + "</div></div>";
       }).join("") + (a.busy === "send" ? '<div class="la-msg a"><span class="spin" aria-hidden="true"></span> Reading the entries…</div>' : "") + "</div>" +
         '<label class="ov-sub" for="laF">FOLLOW UP</label><textarea id="laF" rows="2" maxlength="1500" placeholder="Ask more about the same entries (usually under 1¢)"></textarea>' +
         '<div class="btnrow cl-row"><button type="button" class="chip" data-lact="aideep" aria-pressed="' + a.deep + '">THINK HARDER</button><button type="button" class="btn" data-lact="aifollow"' + (busy ? " disabled" : "") + ">ASK</button>" +
@@ -703,6 +714,7 @@
   var LS_SNDRAFT = "tos.sndraft.v1", LS_SNAI = "tos.snai.v1", LS_SNTOPICS = "tos.sntopics.v1";
   var logTab = "journal";   /* the LOG tab last shown; not sensitive, so it outlives a lock */
   function canSessions() { return canLog() && state.caps.indexOf("sessions") > -1; }
+  function canSesPrep() { return canSessions() && state.caps.indexOf("sessionprep") > -1; }
   function canSesAsk() { return canSessions() && state.caps.indexOf("sessionsuggest") > -1 && !!lsGet(LS_SNAI); }
   var sess = (function () {
     var TYPES = { solo: { name: "SOLO COUNSELING", short: "SOLO", c: "chrome-c" }, couples: { name: "COUPLES COUNSELING", short: "COUPLES", c: "chrome-d" } };
@@ -714,7 +726,7 @@
     var FELT = ["Hard", "Heavy but useful", "Steady", "Lighter", "Breakthrough"], WHERE = ["In person", "Video", "Phone"];
     var STEPS = ["SESSION", "TOPICS", "INSIGHT", "PRACTICE", "WRAP UP"], QN = ["JAN – MAR", "APR – JUN", "JUL – SEP", "OCT – DEC"];
     var DID = [["y", "DONE"], ["p", "PARTLY"], ["n", "NOT YET"]];
-    function st() { return lg.sn || (lg.sn = { list: null, url: "", busy: false, err: null, view: "list", sel: null, open: {}, step: 0, saving: false, saveErr: null, del: null, drop: false, sg: null }); }
+    function st() { return lg.sn || (lg.sn = { list: null, url: "", busy: false, err: null, view: "list", sel: null, open: {}, step: 0, saving: false, saveErr: null, del: null, drop: false, sg: null, preps: null, prepBusy: false, prepErr: null, prm: null }); }
     function topics(type) { var t = lsGet(LS_SNTOPICS) || {}; return Array.isArray(t[type]) && t[type].length ? t[type] : DEF_TOPICS[type]; }
     function draft() { return lsGet(LS_SNDRAFT); }
     function setDraft(d) { if (d) lsSet(LS_SNDRAFT, d); else lsDel(LS_SNDRAFT); }
@@ -740,17 +752,53 @@
         if (state.screen === "log" && logTab === "sessions") render(true);
       });
     }
+    /* 2.90: answers held for a session (ASK THE LOG → SAVE FOR SESSION), read when a session form opens */
+    function loadPreps() {
+      var S = st(), pin = lg.pin;
+      if (!pin || S.prepBusy || !canSesPrep()) return;
+      S.prepBusy = true; S.prepErr = null;
+      apiPost({ action: "logpreps", pin: pin }).then(function (j) { if (lg.pin === pin) S.preps = j.preps || []; })
+        .catch(function (e) { if (lg.pin === pin) S.prepErr = err(e); })
+        .then(function () { if (lg.pin !== pin) return; S.prepBusy = false; if (state.screen === "log" && logTab === "sessions") render(true); });
+    }
+    function prepText(t) { return logAiText(t).replace(/class="la-date" data-laday=/g, 'class="la-date" data-sx="day" data-v='); }
+    function prepHtml(d) {
+      var S = st(), out = "", inIds = (d.prep || []).map(function (x) { return x.id; }), notNow = d.notNow || [];
+      if ((d.prep || []).length) out += '<div class="sx-field"><div class="sx-lab">BROUGHT FROM THE LOG</div>' + d.prep.map(function (x, i) {
+        return '<div class="sx-prep">' + (x.title ? '<label class="sx-preptitle" for="sxPrep-' + x.k + '">' + esc(x.title) + "</label>" : "") +
+          '<textarea id="sxPrep-' + x.k + '" rows="6" maxlength="20000" aria-label="' + esc(x.title || "Brought from the log") + '">' + esc(x.text) + "</textarea>" +
+          '<div class="btnrow"><button type="button" class="btn sm ghost" data-sx="pout" data-i="' + i + '">TAKE OUT</button></div></div>';
+      }).join("") + "</div>";
+      if (!canSesPrep()) return out;
+      var held = (S.preps || []).filter(function (x) { return inIds.indexOf(x.id) < 0 && notNow.indexOf(x.id) < 0; });
+      var aside = (S.preps || []).filter(function (x) { return inIds.indexOf(x.id) < 0 && notNow.indexOf(x.id) > -1; }).length;
+      if (S.prepErr) return out + '<div class="sx-field"><div class="sx-lab">FROM THE LOG</div><div class="errtxt">' + esc(S.prepErr) + '</div><div class="btnrow"><button type="button" class="btn sm ghost" data-sx="preload">TRY AGAIN</button></div></div>';
+      if (!S.preps) return out + (S.prepBusy ? '<div class="sx-field"><div class="sx-lab">FROM THE LOG</div><span class="muted">Looking for answers held for a session…</span></div>' : "");
+      if (held.length) out += '<div class="sx-field"><div class="sx-lab">FROM THE LOG · HELD FOR A SESSION</div>' + held.map(function (x) {
+        var armed = S.prm === x.id, prev = x.text.replace(/\s+/g, " ").replace(/\[(\d{4}-\d{2}-\d{2})\]/g, "").slice(0, 220);
+        return '<div class="sx-held"><b>' + esc(x.title) + "</b><small>" + (x.created ? "HELD " + esc(dLong(ymd(new Date(x.created)))) : "HELD") + (x.question ? " · " + esc(x.question) : "") + "</small>" +
+          '<div class="sx-heldtext">' + esc(prev) + (x.text.length > 220 ? "…" : "") + "</div>" +
+          '<div class="btnrow"><button type="button" class="btn sm" data-sx="pin" data-id="' + esc(x.id) + '"' + ((d.prep || []).length >= 5 ? " disabled" : "") + '>DROP IN</button><button type="button" class="btn sm ghost" data-sx="pnot" data-id="' + esc(x.id) + '">NOT NOW</button>' +
+          '<button type="button" class="btn sm ' + (armed ? "warn" : "ghost") + '" data-sx="prm" data-id="' + esc(x.id) + '">' + (armed ? "REMOVE IT" : "REMOVE") + "</button></div>" +
+          (armed ? '<small class="muted">Moves it to Notion\'s trash, where it can be restored.</small>' : "") + "</div>";
+      }).join("") + "</div>";
+      if (aside) out += '<div class="btnrow"><small class="muted">' + aside + (aside === 1 ? " held answer" : " held answers") + ' set aside for this session.</small><button type="button" class="btn sm ghost" data-sx="pshow">SHOW AGAIN</button></div>';
+      if (!held.length && !aside && !(d.prep || []).length) out += '<small class="muted">SAVE FOR SESSION under an ASK THE LOG answer holds it here, to drop in.</small>';
+      return out;
+    }
     /* A new session of a type carries last time's practice (to mark how it went) and shows what was to be brought up. */
     function fresh(type) {
       var last = mine(type)[0];
       return { cid: newCid(), id: null, type: type, day: ymd(new Date()), where: "", arriving: null, onMind: "", topics: [], landed: "", phrase: "",
-        practice: [], carried: last ? (last.practice || []).map(function (x) { return { text: x, did: null }; }) : [], leaving: null, felt: "", nextTime: "", next: "", step: 0 };
+        practice: [], carried: last ? (last.practice || []).map(function (x) { return { text: x, did: null }; }) : [], leaving: null, felt: "", nextTime: "", next: "", step: 0, prep: [], notNow: [] };
     }
     function fromSession(s) {
       return { cid: null, id: s.id, type: s.type, day: s.day, where: s.where || "", arriving: s.arriving, onMind: s.onMind || "", topics: (s.topics || []).map(function (t) { return { name: t.name, note: t.note || "" }; }),
         landed: s.landed || "", phrase: s.phrase || "", practice: (s.practice || []).slice(), carried: (s.carried || []).map(function (c) { return { text: c.text, did: c.did || null }; }),
-        leaving: s.leaving, felt: s.felt || "", nextTime: s.nextTime || "", next: s.next || "", step: 0 };
+        leaving: s.leaving, felt: s.felt || "", nextTime: s.nextTime || "", next: s.next || "", step: 0,
+        prep: (s.prep || []).map(function (x) { return { id: x.id || "", title: x.title || "", text: x.text, k: pkey() }; }), notNow: [] };
     }
+    function pkey() { return Math.random().toString(36).slice(2, 9); }   /* a dropped-in answer's field id: by key, never position, so a typed box keeps its text when another is taken out */
     /* What's typed goes into the draft as it's typed (and so survives a lock or a reload). */
     function keep() {
       var d = draft(); if (!d) return;
@@ -762,6 +810,7 @@
       if (v("sxNextT") != null) d.nextTime = v("sxNextT");
       if (v("sxNextD") != null) d.next = v("sxNextD");
       d.topics.forEach(function (t, i) { var n = v("sxNote-" + i); if (n != null) t.note = n; });
+      (d.prep || []).forEach(function (x) { var n = v("sxPrep-" + x.k); if (n != null) x.text = n; });
       setDraft(d);
     }
 
@@ -846,6 +895,7 @@
       if (s.felt) out += "<dt>IT FELT</dt><dd>" + esc(s.felt.toUpperCase()) + "</dd>";
       if (s.next) out += "<dt>NEXT SESSION</dt><dd>" + dLong(s.next) + "</dd>";
       out += "</dl><div>" + (s.landed ? '<div class="sx-lab">WHAT LANDED</div><div class="sx-quote">' + txt(s.landed) + "</div>" : "") + (s.phrase ? '<div class="sx-lab">A PHRASE TO KEEP</div><div class="sx-phrase">“' + esc(s.phrase) + "”</div>" : "") + "</div>";
+      if ((s.prep || []).length) out += '<div class="sx-wide"><div class="sx-lab">BROUGHT FROM THE LOG</div>' + s.prep.map(function (x) { return '<div class="sx-prepview">' + (x.title ? "<b>" + esc(x.title) + "</b>" : "") + '<div class="la-text">' + prepText(x.text) + "</div></div>"; }).join("") + "</div>";
       if (s.topics.length) out += '<div class="sx-wide"><div class="sx-lab">TOPICS</div>' + s.topics.map(function (x) { return '<div class="sx-topic"><b>' + esc(x.name) + "</b><span>" + (x.note ? txt(x.note) : '<span class="muted">No note</span>') + "</span></div>"; }).join("") + "</div>";
       if (s.carried.length) out += '<div><div class="sx-lab">LAST TIME\'S PRACTICE</div>' + s.carried.map(function (c) { return '<div class="sx-check"><span class="sx-box ' + (c.did || "") + '">' + (c.did === "y" ? "✓" : c.did === "p" ? "½" : "") + "</span><span>" + esc(c.text) + ' <span class="muted">· ' + (c.did ? DID.filter(function (x) { return x[0] === c.did; })[0][1] : "NOT MARKED") + "</span></span></div>"; }).join("") + "</div>";
       if (s.practice.length) out += '<div><div class="sx-lab">PRACTICE UNTIL NEXT TIME</div>' + s.practice.map(function (x) { return '<div class="sx-check"><span class="sx-box"></span><span>' + esc(x) + "</span></div>"; }).join("") + "</div>";
@@ -868,7 +918,7 @@
           '<div class="sx-field"><div class="sx-lab">WHERE</div>' + chips(WHERE, d.where, "dwhere") + "</div>" +
           '<div class="sx-field"><div class="sx-lab">HOW I\'M ARRIVING</div>' + chips([1, 2, 3, 4, 5], d.arriving, "din", function (v) { return v + " · " + MOODS[v]; }) + "</div>" +
           '<div class="sx-field"><label class="sx-lab" for="sxMind">ON MY MIND GOING IN</label><textarea id="sxMind" rows="2" placeholder="A line or two (optional)">' + esc(d.onMind) + "</textarea></div>" +
-          (!d.id && last && last.nextTime ? '<div class="sx-carry"><b>From ' + dLong(last.day).slice(4) + ", to bring up:</b> " + txt(last.nextTime) + "</div>" : "");
+          (!d.id && last && last.nextTime ? '<div class="sx-carry"><b>From ' + dLong(last.day).slice(4) + ", to bring up:</b> " + txt(last.nextTime) + "</div>" : "") + prepHtml(d);
       } else if (step === 1) {
         var names = d.topics.map(function (x) { return x.name; }), all = topics(d.type).concat(names.filter(function (n) { return topics(d.type).indexOf(n) < 0; }));
         out += '<div class="sx-field"><div class="sx-lab">WHAT CAME UP · TAP ANY THAT APPLY</div><div class="chips">' + all.map(function (n) { return '<button type="button" class="chip sm" data-sx="dtopic" data-v="' + esc(n) + '" aria-pressed="' + (names.indexOf(n) > -1) + '">' + esc(n) + "</button>"; }).join("") + "</div>" +
@@ -938,11 +988,14 @@
       if (!d.day) { S.saveErr = "Pick the date of the session."; render(true); return; }
       S.saving = true; S.saveErr = null; render(true);
       var body = { type: d.type, day: d.day, where: d.where || null, arriving: d.arriving, leaving: d.leaving, felt: d.felt || null, next: d.next || null, onMind: d.onMind, landed: d.landed, phrase: d.phrase, nextTime: d.nextTime,
-        topics: d.topics.map(function (x) { return { name: x.name, note: x.note }; }), practice: d.practice, carried: d.carried.map(function (c) { return { text: c.text, did: c.did }; }) };
+        topics: d.topics.map(function (x) { return { name: x.name, note: x.note }; }), practice: d.practice, carried: d.carried.map(function (c) { return { text: c.text, did: c.did }; }),
+        prep: (d.prep || []).filter(function (x) { return x.text.trim(); }).map(function (x) { return { id: x.id, title: x.title, text: x.text }; }) };
       if (d.id) body.id = d.id; else body.cid = d.cid;
       apiPost({ action: "logsessionsave", pin: pin, session: body }, 60000).then(function (j) {
         if (lg.pin !== pin) return;
         setDraft(null);
+        var gone = (body.prep || []).map(function (x) { return x.id; });
+        if (S.preps) S.preps = S.preps.filter(function (x) { return gone.indexOf(x.id) < 0; });   /* filed as insights by the bridge */
         var s = j.session, list = (S.list || []).filter(function (x) { return x.id !== s.id; });
         list.push(s); list.sort(function (a, b) { return a.day < b.day ? 1 : a.day > b.day ? -1 : 0; });
         S.list = list; S.view = "one"; S.sel = s.id;
@@ -1002,14 +1055,26 @@
       d = draft();
       if (a !== "drop" && a !== "new") S.drop = false;
       if (a !== "del") S.del = null;
+      if (a !== "prm") S.prm = null;
       if (a === "reload") { S.err = null; load(); }
+      else if (a === "day") { logTab = "journal"; if (lg.ai) lg.ai.view = false; logPick(v); render(true); window.scrollTo(0, 0); return; }   /* a date in a dropped-in answer opens that journal day */
+      else if (a === "preload") { loadPreps(); }
+      else if (a === "prm") {
+        if (S.prm !== b.dataset.id) S.prm = b.dataset.id;
+        else {
+          var rid = S.prm, pin0 = lg.pin; S.prm = null;
+          apiPost({ action: "logprepset", pin: pin0, id: rid, to: "trash" }).then(function () {
+            if (lg.pin !== pin0) return; if (S.preps) S.preps = S.preps.filter(function (x) { return x.id !== rid; }); toast("Moved to Notion's trash");
+          }).catch(function (e) { toast("Not removed: " + err(e)); }).then(function () { if (state.screen === "log" && logTab === "sessions") render(true); });
+        }
+      }
       else if (a === "tog") { var k = b.dataset.k; S.open[k] = b.getAttribute("aria-expanded") !== "true"; }
       else if (a === "open") { if (!b.dataset.id) return; S.view = "one"; S.sel = b.dataset.id; S.saveErr = null; window.scrollTo(0, 0); }
       else if (a === "list") { S.view = "list"; S.saveErr = null; S.sg = null; }
-      else if (a === "new") { if (d && !confirmNew(b)) return; setDraft(fresh(b.dataset.t)); S.view = "form"; S.saveErr = null; window.scrollTo(0, 0); }
-      else if (a === "resume") { S.view = "form"; S.saveErr = null; }
+      else if (a === "new") { if (d && !confirmNew(b)) return; setDraft(fresh(b.dataset.t)); S.view = "form"; S.saveErr = null; loadPreps(); window.scrollTo(0, 0); }
+      else if (a === "resume") { S.view = "form"; S.saveErr = null; loadPreps(); }
       else if (a === "drop") { if (S.drop !== true) S.drop = true; else { setDraft(null); S.drop = false; S.view = "list"; } }
-      else if (a === "edit") { var cur = byId(S.sel); if (!cur) return; setDraft(fromSession(cur)); S.view = "form"; S.saveErr = null; window.scrollTo(0, 0); }
+      else if (a === "edit") { var cur = byId(S.sel); if (!cur) return; setDraft(fromSession(cur)); S.view = "form"; S.saveErr = null; loadPreps(); window.scrollTo(0, 0); }
       else if (a === "del") { var s1 = byId(S.sel); if (!s1) return; if (S.del === s1.id) { remove(s1); return; } S.del = s1.id; }
       else if (a === "save") { save(); return; }
       else if (a === "suggest") { S.sg = { type: b.dataset.t, n: 3, deep: false, busy: false, preview: null, topics: null, err: null, added: {}, gone: {} }; S.view = "suggest"; window.scrollTo(0, 0); }
@@ -1022,7 +1087,14 @@
       else if (a === "sgdrop") { S.sg.gone[+b.dataset.i] = true; }
       else if (d) {
         if (a === "step") { d.step = +v; window.scrollTo(0, 0); }
-        else if (a === "dtype") { var nd = fresh(v); nd.cid = d.cid; nd.day = d.day; nd.onMind = d.onMind; d = nd; }
+        else if (a === "dtype") { var nd = fresh(v); nd.cid = d.cid; nd.day = d.day; nd.onMind = d.onMind; nd.prep = d.prep || []; nd.notNow = d.notNow || []; d = nd; }
+        else if (a === "pin") {   /* DROP IN: a copy goes into the session, to edit; the held page is filed when the session is saved */
+          var hp = (S.preps || []).filter(function (x) { return x.id === b.dataset.id; })[0]; d.prep = d.prep || [];
+          if (hp && d.prep.length < 5 && !d.prep.some(function (x) { return x.id === hp.id; })) { d.prep.push({ id: hp.id, title: hp.title, text: hp.text, k: pkey() }); toast("Dropped in. It's filed as an insight once the session is saved"); }
+        }
+        else if (a === "pout") (d.prep || []).splice(+b.dataset.i, 1);
+        else if (a === "pnot") { d.notNow = (d.notNow || []).concat([b.dataset.id]); }
+        else if (a === "pshow") d.notNow = [];
         else if (a === "dwhere") d.where = d.where === v ? "" : v;
         else if (a === "din") d.arriving = d.arriving === +v ? null : +v;
         else if (a === "dout") d.leaving = d.leaving === +v ? null : +v;

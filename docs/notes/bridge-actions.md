@@ -46,7 +46,7 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 | GET (or POST) | `logsearch` `pin` `q` `whole` | entries using the word, newest first, with snippets (bridge 1.16) | needs `LOG_SEARCH_READY` (setup); reads only the Search Text field |
 | POST | `logindex` `pin` [`run`] | fills Search Text for older entries, newest first; dry run counts | up to 20 s per call, under the script lock |
 | GET (or POST) | `logsessions` `pin` | every session, newest first: `{id, url, type solo\|couples, day, where, felt, arriving, leaving, next, landed, phrase, nextTime, topics[{name, note}], onMind, practice[], carried[{text, did y\|p\|n}]}` | log gate; nothing cached (1.35) |
-| POST | `logsessionsave` `pin` `session{cid\|id, …}` | the whole session: columns, `Data` JSON (notes, practice, carried) and a readable page body, rewritten each save | `sesClean_` bounds; cid keeps only the page id 6 h |
+| POST | `logsessionsave` `pin` `session{cid\|id, …}` | the whole session: columns, `Data` JSON (notes, practice, carried; 1.52: `prep[{id, title, text}]`) and a readable page body (1.52: "Brought from the log"), rewritten each save; then each dropped-in answer is filed as an ordinary insight | `sesClean_` bounds (prep: 5 at most, 20,000 characters each, 40,000 in all); cid keeps only the page id 6 h |
 | POST | `logsessionnext` `pin` `id` `text` | sets one session's Bring Up Next Time (ADD TO NEXT TIME / UNDO) | set-to-value |
 | POST | `logsessionremove` `pin` `id` | moves the page to Notion's trash | only Session Notes pages |
 | POST | `logsessionsuggest` `pin` `type` `ids[≤12]` `mode` `preview` | preview `{count, dates, tokens, usd}` or `topics[{title, why, dates}]` (TOPIC/WHY/FROM lines parsed, dates kept only if sent) | one type only; no tools; spend logged as `sessions` |
@@ -65,7 +65,9 @@ Working notes for Claude, moved out of `CLAUDE.md` on 2026-11-11 (the index ther
 | POST | `aispendset` `{usd}` | set this month's total to the Console's figure; logged as `matched` | |
 | POST | `speak` `texts[≤12]` (≤ 4,000 chars) | one base64 MP3 per text from OpenAI gpt-4o-mini-tts, voice Nova with `VOICE.STYLE`, all at once (`fetchAll`); `est`, month `spend` (estimated) | needs `OPENAI_API_KEY` (capability `voice`, 1.30); 30 a day (`voice_daily_cap`); errors `voice_unauthorized`, `voice_no_credit`, `voice_busy`, `voice_error` |
 | POST | `logask` `pin` `{scope, mode, messages, preview}` | Log Ask: `preview` returns entries, dates, tokens, cost; otherwise Claude's answer | needs capability `logask`; ≤ 62 entries, ≈ 60K tokens, two months; no tools |
-| POST | `logasksave` / `loginsights` / `loginsight` `pin` | save a Log Ask answer as an undated "Claude insight" page; list them; read one | |
+| POST | `logasksave` / `loginsights` / `loginsight` `pin` | save a Log Ask answer as an undated "Claude insight" page (1.52: `insight.hold` makes it Source "Session prep", held for a session); list them (held ones excluded); read one | |
+| POST | `logpreps` `pin` | 1.52: the answers held for a session, newest first (10 at most), each `{id, title, question, scope, text, created}` | |
+| POST | `logprepset` `pin` `id` `to` (`trash` \| `insight`) | 1.52: REMOVE (trash) or file a held answer as an ordinary insight; safe to repeat | Log pages of Source Session prep or Claude insight only |
 | GET | `habits` `from` `to` | one row per day (Meditated, Exercise as `walk`, Water, Debit Card); 1.49: the Exercise column is read under either name, Exercise or Evening Walk | |
 | POST | `habitset` `day{date,…}` | create or update that day's page | only fields sent are written |
 | GET | `library` | every book | |

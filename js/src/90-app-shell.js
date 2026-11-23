@@ -211,6 +211,7 @@
     else if (b.dataset.lascope) { lg.ai.scope = logAiScope(b.dataset.lascope); lg.ai.preview = null; lg.ai.msgs = []; lg.ai.err = null; if ($("laQ")) lg.ai.q = $("laQ").value; render(true); }
     else if (b.dataset.lapreset) { var pr = LOG_AI_PRESETS.filter(function (x) { return x[0] === b.dataset.lapreset; })[0]; lg.ai.preset = pr[0]; lg.ai.q = pr[2]; lg.ai.preview = null; render(true); }
     else if (b.dataset.lasave) logAiSave(+b.dataset.lasave);
+    else if (b.dataset.lahold) logAiHold(+b.dataset.lahold);
     else if (b.dataset.lains) logAiInsight(b.dataset.lains);
     else if (b.dataset.laday) { lg.ai.view = false; logPick(b.dataset.laday); var pg1 = document.querySelector(".cl-page"); if (pg1 && pg1.getBoundingClientRect().top < 0) pg1.scrollIntoView({ block: "start" }); }
     else if (b.dataset.lfound) { lg.find.view = false; logPick(b.dataset.lfound); var pg0 = document.querySelector(".cl-page"); if (pg0 && pg0.getBoundingClientRect().top < 0) pg0.scrollIntoView({ block: "start" }); }

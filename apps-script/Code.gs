@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.51.0';
+var VERSION = '1.52.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -122,7 +122,7 @@ var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'sessionprep', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -1592,6 +1592,8 @@ function logAction_(body) {
   if (body.action === 'logasksave') return logInsightSave_(body.insight || {});
   if (body.action === 'loginsights') return logInsights_();
   if (body.action === 'loginsight') return logInsight_(String(body.id || ''));
+  if (body.action === 'logpreps') return logPreps_();
+  if (body.action === 'logprepset') return logPrepSet_(String(body.id || ''), body.to);
   if (body.action === 'logsessions') return sessions_();
   if (body.action === 'logsessionsave') return sessionSave_(body.session);
   if (body.action === 'logsessionnext') return sessionNext_(String(body.id || ''), body.text);
@@ -1896,6 +1898,9 @@ function logSearchSetup_() {
 // database (Source "Claude insight"), which every date-based log view skips.
 var LOG_ASK_MAX_ENTRIES = 62, LOG_ASK_MAX_TOKENS = 60000, LOG_ASK_MAX_DAYS = 62, LOG_ASK_OUT = { fast: 900, deep: 1500, summary: 500 };
 var LOG_INSIGHT = 'Claude insight';
+/* 1.52 (Timothy, 23 Nov): an ASK THE LOG answer held for a session. The same undated insight page, Source "Session prep",
+   until it is dropped into a session and the session saved (then it becomes an ordinary insight) or removed (trash). */
+var LOG_PREP = 'Session prep', PREP_MAX = 5, PREP_TEXT = 20000;
 var LOG_ASK_RULES = [
   "You are the ship's computer inside TimothyOS, reading entries from Timothy's private journal, the Captain's Log. He chose these entries for this question. Address him as Captain.",
   "Use only the entries given (and any other context he sent). Never invent events, people, feelings or dates. If the entries don't answer the question, say so plainly.",
@@ -1998,12 +2003,37 @@ function logInsightSave_(ins) {
   if (!title || !text.trim()) return { ok: false, error: 'bad_request' };
   var paras = [{ type: 'paragraph', text: 'Question: ' + q }, { type: 'paragraph', text: 'Entries: ' + scope }].concat(logParas_(text)).filter(function (p) { return p.text.trim(); });
   var pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: logSource_() },
-    properties: logSearchProps_({ Name: { title: rt_(title) }, Source: { select: { name: LOG_INSIGHT } } }, []), children: paras.slice(0, 100).map(logBlock_) });
-  return { ok: true, version: VERSION, insight: { id: pg.id, title: title, url: pg.url || '', created: pg.created_time || new Date().toISOString() } };
+    properties: logSearchProps_({ Name: { title: rt_(title) }, Source: { select: { name: ins.hold ? LOG_PREP : LOG_INSIGHT } } }, []), children: paras.slice(0, 100).map(logBlock_) });
+  return { ok: true, version: VERSION, insight: { id: pg.id, title: title, url: pg.url || '', created: pg.created_time || new Date().toISOString(), held: !!ins.hold } };
 }
 function logInsights_() {
   var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_INSIGHT } }, 1, [{ timestamp: 'created_time', direction: 'descending' }], true);   /* the latest 100, on purpose */
   return { ok: true, version: VERSION, insights: pages.map(function (pg) { return { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title) || 'Insight', url: pg.url || '', created: pg.created_time || null }; }) };
+}
+/** 1.52: the answers held for a session, newest first (a few at most), each with its text. */
+function logPreps_() {
+  var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_PREP } }, 1, [{ timestamp: 'created_time', direction: 'descending' }], true).slice(0, 10);
+  return { ok: true, version: VERSION, preps: pages.map(function (pg) {
+    var paras = logBlocksText_(logBlocks_(pg.id)).split(/\n\n+/), q = '', scope = '';
+    if (/^Question: /.test(paras[0] || '')) q = paras.shift().slice(10);
+    if (/^Entries: /.test(paras[0] || '')) scope = paras.shift().slice(9);
+    return { id: pg.id, title: plain_(((pg.properties || {}).Name || {}).title) || 'Held answer', question: q, scope: scope, text: paras.join('\n\n').slice(0, PREP_TEXT), created: pg.created_time || null };
+  }) };
+}
+/** A held answer (or one filed already) in the Log database, or null. */
+function logPrepOwn_(id) {
+  if (!/^[0-9A-Za-z-]{20,40}$/.test(String(id || ''))) return null;
+  var pg = notion_('get', '/pages/' + String(id)), src = ((pg.parent || {}).data_source_id || '').replace(/-/g, ''), mine = String(logSource_()).replace(/-/g, '');
+  var kind = sel_((pg.properties || {}).Source);
+  return src === mine && !pg.in_trash && (kind === LOG_PREP || kind === LOG_INSIGHT) ? { pg: pg, held: kind === LOG_PREP } : null;
+}
+/** REMOVE (to Notion's trash) or file it as an ordinary insight. Safe to repeat. */
+function logPrepSet_(id, to) {
+  if (to !== 'trash' && to !== 'insight') return { ok: false, error: 'bad_request' };
+  var own = logPrepOwn_(id); if (!own) return { ok: false, error: 'not_writable' };
+  if (to === 'trash') logNotion_('patch', '/pages/' + own.pg.id, { in_trash: true });
+  else if (own.held) logNotion_('patch', '/pages/' + own.pg.id, { properties: { Source: { select: { name: LOG_INSIGHT } } } });
+  return { ok: true, version: VERSION, id: own.pg.id, to: to };
 }
 function logInsight_(id) {
   if (!/^[0-9A-Za-z-]{20,40}$/.test(id)) return { ok: false, error: 'bad_request' };
@@ -2048,6 +2078,7 @@ function toSession_(pg) {
     landed: plain_(p['What Landed'] && p['What Landed'].rich_text), phrase: plain_(p.Phrase && p.Phrase.rich_text), nextTime: plain_(p['Bring Up Next Time'] && p['Bring Up Next Time'].rich_text),
     topics: names.map(function (n) { return { name: n, note: String(notes[n] || '') }; }),
     onMind: String(d.onMind || ''), practice: Array.isArray(d.practice) ? d.practice.map(String) : [],
+    prep: Array.isArray(d.prep) ? d.prep.filter(function (x) { return x && x.text; }).map(function (x) { return { id: String(x.id || ''), title: String(x.title || ''), text: String(x.text) }; }) : [],
     carried: Array.isArray(d.carried) ? d.carried.filter(function (c) { return c && c.text; }).map(function (c) { return { text: String(c.text), did: SES_DID[c.did] ? c.did : null }; }) : [],
     saved: pg.last_edited_time || null };
 }
@@ -2083,6 +2114,10 @@ function sesClean_(s) {
     var ca = Array.isArray(s.carried) ? s.carried : [];
     if (ca.length > 12) return null;
     out.carried = ca.map(function (c) { c = c || {}; var v = str(c.text, 300); if (!v || (c.did != null && !SES_DID[c.did])) throw 0; return { text: v, did: c.did || null }; });
+    var pp = Array.isArray(s.prep) ? s.prep : [];   /* 1.52: answers brought from ASK THE LOG */
+    if (pp.length > PREP_MAX) return null;
+    out.prep = pp.map(function (x) { x = x || {}; var id = String(x.id || ''), v = str(x.text, PREP_TEXT); if (!v || (id && !/^[0-9A-Za-z-]{20,40}$/.test(id))) throw 0; return { id: id, title: str(x.title, 200), text: v }; });
+    if (out.prep.reduce(function (n, x) { return n + x.text.length; }, 0) > 2 * PREP_TEXT) return null;   /* Data holds 80,000 characters in all */
     return out;
   } catch (x) { return null; }
 }
@@ -2093,6 +2128,7 @@ function sesBody_(s) {
   var p = function (t) { logParas_(t).forEach(function (q) { out.push(logBlock_(q)); }); };
   var b = function (t) { out.push(logBlock_({ type: 'bulleted_list_item', text: t })); };
   if (s.onMind) { h('On my mind going in'); p(s.onMind); }
+  if (s.prep.length) { h('Brought from the log'); s.prep.forEach(function (x) { if (x.title) b(x.title); p(x.text); }); }
   if (s.topics.length) { h('Topics'); s.topics.forEach(function (t) { b(t.name + (t.note ? ': ' + t.note : '')); }); }
   if (s.landed) { h('What landed'); p(s.landed); }
   if (s.phrase) { h('A phrase to keep'); p(s.phrase); }
@@ -2108,7 +2144,7 @@ function sesProps_(s) {
     Topics: { multi_select: s.topics.map(function (t) { return { name: t.name }; }) } };
   Object.keys(SES_TEXT).forEach(function (k) { props[SES_TEXT[k]] = { rich_text: s[k] ? rt_(s[k]) : [] }; });
   var notes = {}; s.topics.forEach(function (t) { if (t.note) notes[t.name] = t.note; });
-  props.Data = { rich_text: rtLong_(JSON.stringify({ v: 1, onMind: s.onMind, notes: notes, practice: s.practice, carried: s.carried })) };
+  props.Data = { rich_text: rtLong_(JSON.stringify({ v: 1, onMind: s.onMind, notes: notes, practice: s.practice, carried: s.carried, prep: s.prep })) };
   return props;
 }
 /** Save a session: new (cid) or changed (id), the whole session each time, so a repeat is harmless. */
@@ -2133,6 +2169,7 @@ function sessionSave_(raw) {
       pg = logNotion_('post', '/pages', { parent: { type: 'data_source_id', data_source_id: ds }, properties: sesProps_(s), children: body });
       cache.put('scid:' + raw.cid, pg.id, 21600); cidKeep_('session', raw.cid, pg.id);
     }
+    s.prep.forEach(function (x) { if (x.id) { try { logPrepSet_(x.id, 'insight'); } catch (e) { /* the next save files it */ } } });   /* 1.52: dropped in and saved: an ordinary insight now */
     return { ok: true, version: VERSION, session: toSession_(pg) };
   } finally {
     lock.releaseLock();
