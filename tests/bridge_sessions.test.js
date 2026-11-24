@@ -12,7 +12,7 @@ function fetch(url, opts, res) {
   const body = JSON.parse(opts.payload); claudeCalls.push(body);
   return res(200, { model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: reply }], usage: { input_tokens: 900, output_tokens: 300 } });
 }
-const b = bridge({ props: { NOTION_TOKEN: 'ntn_test', LOG_PIN: 'OMEGA-1701', ANTHROPIC_API_KEY: 'sk-ant-test' }, notion: {}, fetch }), { ctx, props, cache, nx } = b;
+const b = bridge({ props: { NOTION_TOKEN: 'ntn_test', LOG_PIN: 'OMEGA-1701', ANTHROPIC_API_KEY: 'sk-ant-test' }, notion: { strictOptions: ['log.Source'] }, fetch }), { ctx, props, cache, nx } = b;   // 1.53 (F2): a filter on a Source option not there yet is refused
 const pin = 'OMEGA-1701', post = b.post, get = b.post;
 const body = id => nx.blocks(id).map(x => x.type + ':' + x[x.type].rich_text.map(t => t.plain_text).join(''));
 const J = x => JSON.parse(JSON.stringify(x));   // values from the sandbox, compared as plain data
@@ -134,6 +134,14 @@ assert.strictEqual(post({ action: 'logsessionnext', pin, id: coupleId, text: 'x'
 caps = get({ action: 'ping' }).capabilities;
 assert.ok(caps.includes('sessionprep'), 'held answers come from ASK THE LOG, so they need its key');
 assert.strictEqual(post({ action: 'logpreps' }).error, 'bad_pin', 'behind the code like the rest of LOG'); delete cache.logfail;
+// 1.53 (F2): before the first held answer, Source has no "Session prep": an empty list, nothing Notion refuses
+const ref0 = nx.refused().length;
+let none = post({ action: 'logpreps', pin });
+assert.ok(none.ok && Array.isArray(none.preps) && !none.preps.length, JSON.stringify(none));
+assert.strictEqual(nx.refused().length, ref0, 'no filter sent on an option not there yet');
+nx.fail({ status: 400, code: 'validation_error', match: 'get /data_sources', times: 1 });
+none = post({ action: 'logpreps', pin });
+assert.deepStrictEqual([none.error, none.ncode], ['notion_error', 'validation_error'], 'a refusal carries Notion\'s own code, for the error log');
 const ANS = 'Threads worth raising:\n- A sample worry at bedtime [2026-11-16]\n- A calmer evening after a walk [2026-11-17]';
 const held = post({ action: 'logasksave', pin, insight: { title: 'For a session · November 2026 · topics to raise', question: 'What should I raise today?', scope: '2026-11-01 to 2026-11-23', text: ANS, hold: true } });
 const plainIns = post({ action: 'logasksave', pin, insight: { title: 'Insight · November 2026 · the week', question: 'How was the week?', scope: '2026-11-01 to 2026-11-23', text: 'A steady week.' } });
@@ -172,5 +180,5 @@ post({ action: 'logsessionremove', pin, id: r.session.id });
 const spec = ctx.schemaSpec_().find(d => d.key === 'sessions');
 assert.ok(spec && spec.need.some(x => x[0] === 'Topics' && x[1] === 'multi_select') && spec.need.some(x => x[0] === 'Bring Up Next Time'));
 assert.ok(ctx.sessionsStatus_().startsWith('OK (2 sessions)'), ctx.sessionsStatus_());
-assert.deepStrictEqual(nx.refused(), [], 'the bridge sent nothing Notion refuses');
+assert.deepStrictEqual(nx.refused().map(c => c.refused), ['400 validation_error: Simulated 400 (validation_error).'], 'the bridge sent nothing Notion refuses, beyond the one refusal the test asked for');
 console.log('bridge_sessions: ok');

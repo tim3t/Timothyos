@@ -2,6 +2,12 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.91.0 · 2026-11-24 (needs bridge 1.53)
+- **A backup goes to Google Drive by itself** (Timothy's go, 24 Nov). **SYSTEMS → BACKUP AND RESTORE → MAKE BACKUP** now sends the locked file to Google Drive (TimothyOS Notion export → iPad backups, named for this iPad, the newest 10 kept), with **OPEN IN DRIVE**: no Files dialog. The bridge only stores it; the passphrase never leaves the iPad. **A COPY TO FILES TOO** still saves one to Files. If Drive refuses, it says why, with **SEND AGAIN**.
+- **Nova reads only when asked** (choice D). A briefing no longer asks OpenAI for its audio when it compiles, so an iPad where the briefing is only read costs nothing for the voice. The first **READ IT TO ME** of each briefing makes it (**PREPARING VOICE…**, up to about two minutes for a whole briefing); after that it starts at once.
+- **The error log keeps Notion's own reason** (validation_error and the like) when Notion refuses a request, for COPY DIAGNOSTICS.
+- **Bridge 1.53:** backups to Drive (`backupsave`); FROM THE LOG no longer fails before the first answer is held (F2: Notion refused a filter on a "Session prep" option that didn't exist yet); a refusal carries Notion's code; the unused `done` read is gone.
+
 ## 2.90.1 · 2026-11-24
 - **A failed export check no longer repeats itself.** When the bridge couldn't be reached, the weekly export's status (SYSTEMS → NOTION and the Bridge's condition) was asked again the moment the failure was shown, thousands of times over a few minutes (8,371 in 4 minutes during the 18 Nov outage, found in COPY DIAGNOSTICS). After a failure it now waits 10 minutes before asking on its own; **REFRESH NOW** asks at once.
 - No bridge update needed.

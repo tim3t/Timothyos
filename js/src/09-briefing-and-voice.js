@@ -82,7 +82,6 @@
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
       b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
       br.b = b; briefSave();
-      if (canVoice()) vaLoad(b);   /* Nova's audio, ready before READ IT TO ME */
     }).catch(function (err) {
       if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
       var msg = err && err.code === "brief_shape" ? "Claude's answer didn't come back in the briefing's shape." : describeAi(err);
@@ -150,7 +149,7 @@
     if (!b) return "";
     if (briefFolded(b, now)) return '<button type="button" class="br-fold" data-brief="open" aria-label="Open the morning briefing"><b>' + (today ? "" : "YESTERDAY'S ") + "MORNING BRIEFING · " + hm(new Date(b.at)) +
       "</b><span>" + esc(b.headline || b.paras[0].text) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
-    if (today && canVoice() && !vaReady(b) && !va.busy && vaRetryOk()) vaLoad(b);   /* Nova's audio from this iPad, or the bridge if it's missing */
+    if (today && canVoice() && !vaReady(b)) vaKept(b);   /* Nova's audio, if this iPad already has it; the bridge is asked only on READ IT TO ME (2.91) */
     if (today && !b.typed && !sb.on && !document.hidden) { b.typed = true; briefSave(); br.typeT0 = calm() ? 0 : performance.now(); }   /* prints once, the first time it's seen */
     var segs = briefSegs(b), n = br.typeT0 ? Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * briefLen(segs)) : today && !b.typed ? 0 : null;
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
@@ -236,13 +235,15 @@
 
   /* ---------- AI voice (2.37, bridge 1.30): the briefing read by OpenAI's Nova ---------- */
   /* When a briefing compiles, the bridge asks OpenAI for one MP3 per paragraph (Nova, Timothy's style line); they're
-     kept on this iPad (IndexedDB, today's only), so READ IT TO ME starts at once and costs nothing to replay. Tapped
-     before they've arrived, a silent clip unlocks the player inside the tap (iPadOS only lets a tap start sound) and
-     playback starts when they land. If OpenAI can't, Moira reads it on the next tap. Off in Systems. */
+     kept on this iPad (IndexedDB, today's only), so a replay starts at once and costs nothing. Since 2.91 (Timothy's
+     choice D, 24 Nov) the clips are asked for only when READ IT TO ME is tapped on this iPad, never when the briefing
+     compiles: an iPad whose briefing is only read pays nothing for Nova. On the tap a silent clip unlocks the player
+     (iPadOS only lets a tap start sound) and playback starts when the clips land (PREPARING meanwhile). If OpenAI
+     can't, Moira reads it on the next tap. Off in Systems. */
   var LS_VOICEOFF = "tos.voiceoff.v1", LS_VOICESPEND = "tos.voicespend.v1";
   var VA_SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=";
   var VA_TIMEOUT_MS = 300000, VA_RETRY_MS = 10 * 60000;   /* OpenAI took 130 s for a whole briefing (2026-10-23); Apps Script stops at 6 min */
-  var va = { log: [], errAt: 0, at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
+  var va = { log: [], errAt: 0, at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null, looked: "" };
   function canVoice() { return state.caps.indexOf("voice") > -1 && !lsGet(LS_VOICEOFF); }
   /* Voice log (2.37.1): each step of asking for and playing Nova, shown in Systems, so a silent failure on the iPad can be read. */
   function vaLog(m) {
@@ -292,6 +293,16 @@
   function vaKey(b) { return b ? (b.id || String(b.at)) + ":" + VA_SPEECH : ""; }   /* which briefing, read by which rules, the audio belongs to */
   function vaFree() { (va.urls || []).forEach(function (u) { URL.revokeObjectURL(u); }); va.urls = null; va.at = ""; }
   function vaUse(k, blobs) { vaFree(); va.at = k; va.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); }
+  /* The clips this iPad already kept for this briefing, if any: from IndexedDB only, looked for once a briefing. */
+  function vaKept(b) {
+    var k = vaKey(b);
+    if (!b || va.busy || va.looked === k) return;
+    va.looked = k;
+    vaGet().then(function (rec) {
+      if (va.busy || vaReady(b) || !rec || rec.at !== k || !rec.clips || !rec.clips.length) return;
+      vaUse(k, rec.clips); vaLog("Briefing audio from this iPad: " + rec.clips.length + " clips");
+    });
+  }
   function vaReady(b) { return !!(b && va.urls && va.at === vaKey(b)); }
   function b64Blob(s) { var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: "audio/mpeg" }); }
   function describeVoice(err) {
@@ -386,7 +397,7 @@
   function vaLine() {
     if (state.caps.indexOf("voice") < 0) return '<div class="br-voice"><small class="muted">AI voice: off. Add OPENAI_API_KEY to the Google bridge\'s Script Properties and update it to 1.30 to read the briefing in Nova.</small></div>';
     var off = !!lsGet(LS_VOICEOFF), sp = lsGet(LS_VOICESPEND), mo = ymd(new Date()).slice(0, 7);
-    return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), prepared when the briefing compiles, under 1¢ a day." +
+    return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), made on this iPad's first READ IT TO ME of each briefing, under 1¢ a day." +
       (sp && sp.month === mo ? " About " + money(sp.usd) + " this month (estimated; the OpenAI dashboard has the exact figure)." : "")) +
       '</small> <button type="button" class="chip sm" data-brief="' + (off ? "von" : "voff") + '">' + (off ? "TURN ON" : "TURN OFF") + "</button>" +
       (off ? "" : ' <button type="button" class="chip sm" data-brief="aitest">TEST AI VOICE</button>') + "</div>" +

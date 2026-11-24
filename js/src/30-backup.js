@@ -5,15 +5,18 @@
      Copies of Notion and Google data are left out (the next sync refills them), and so are pending saves and
      drafts: the Captain's Log draft never goes into a file. BACKUP waits until nothing is pending. RESTORE
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
-     writes only keys on BK_KEYS, then reloads. */
+     writes only keys on BK_KEYS, then reloads.
+     2.91 (bridge 1.53, Timothy's go 24 Nov): with a bridge that can, MAKE BACKUP also sends the locked file to Google
+     Drive ("iPad backups" in the export's folder, the newest 10 kept), so a backup needs no Files dialog. The bridge
+     only stores it: the passphrase never leaves the iPad. SAVE TO FILES stays for a copy on the iPad. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
     "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];
-  var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
-  var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
+  var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1", LS_BKDRIVE = "tos.bkdrive.v1";
+  var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null, dv: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
   function bkUnB64(s) { var b = atob(s), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
   function bkKey(pass, salt, iter) {
@@ -56,7 +59,32 @@
       bk.out = { name: "timothyos-backup-" + ymd(made) + "-" + p2(made.getHours()) + p2(made.getMinutes()) + ".json", text: JSON.stringify(file) };
       bk.p1 = bk.p2 = ""; lsSet(LS_BKAT, made.toISOString());
     }).catch(function () { bk.err = "This iPad couldn't lock the file. Nothing was saved."; })
-      .then(function () { bk.busy = false; render(true); });
+      .then(function () { bk.busy = false; render(true); if (bk.out && bkCanDrive()) bkDrive(); });
+  }
+  /* ---- to Google Drive through the bridge (2.91, bridge 1.53) ---- */
+  function bkCanDrive() { return !!state.conn && state.caps.indexOf("backup") > -1; }
+  var BK_DRIVE_ERR = { drive_full: "Google Drive is full. Free some space, then SEND AGAIN.", too_large: "The file is larger than the bridge takes (4 MB). SAVE TO FILES keeps it on the iPad.",
+    drive_error: "Google Drive refused the file. SEND AGAIN tries once more." };
+  function bkDriveErr(err) { var c = err && err.code; return BK_DRIVE_ERR[c] || (c === "drive_scope" || c === "drive_api_off" ? EXPORT_ERR[c] : describe(err)); }
+  function bkDrive() {
+    var o = bk.out;
+    if (!o || (bk.dv && bk.dv.busy)) return;
+    var who = (prof.me() || "").toLowerCase(), name = who ? o.name.replace(/\.json$/, "-" + who + ".json") : o.name;
+    bk.dv = { busy: true }; render(true);
+    apiPost({ action: "backupsave", backup: { name: name, file: JSON.parse(o.text) } }, 120000).then(function (j) {
+      var x = j.backup || {};
+      bk.dv = { ok: true, name: x.name || name, folder: x.folder || "", keep: x.keep || 0 };
+      lsSet(LS_BKDRIVE, { at: new Date().toISOString(), name: bk.dv.name, folder: bk.dv.folder });
+    }).catch(function (err) { bk.dv = { err: bkDriveErr(err) }; })
+      .then(function () { if (bk.out === o && state.screen === "systems") render(true); });
+  }
+  function bkDriveHtml() {
+    var d = bk.dv;
+    if (!d) return "";
+    if (d.busy) return '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn" disabled><span class="spin" aria-hidden="true"></span>SENDING TO GOOGLE DRIVE…</button></div>';
+    if (d.ok) return '<div class="ok-note">Sent to Google Drive as ' + esc(d.name) + ", in TimothyOS Notion export → iPad backups" + (d.keep ? " (the newest " + d.keep + " are kept)" : "") + ".</div>" +
+      (/^https:\/\/drive\.google\.com\//.test(d.folder) ? '<div class="btnrow" style="margin-top:8px"><a class="btn ghost" href="' + esc(d.folder) + '" target="_blank" rel="noopener">OPEN IN DRIVE</a></div>' : "");
+    return '<div class="err">Not sent to Google Drive: ' + esc(d.err) + '</div><div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="bkdrive">SEND AGAIN</button></div>';
   }
   /* The Share sheet (Save to Files) where the iPad offers it, else a download. A second tap, so iPadOS sees it as yours. */
   function bkSave() {
@@ -127,11 +155,13 @@
   function backupSection() {
     var pend = bkPending(), draftList = bkDrafts(), at = lsGet(LS_BKAT);
     var html = '<section id="sec-backup">' + phead("BACKUP AND RESTORE", at ? "LAST BACKUP " + esc(stamp(Date.parse(at))) : "NO BACKUP YET") +
-      '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>';
+      '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>' +
+      (bkCanDrive() ? '<small class="muted">MAKE BACKUP also sends the locked file to Google Drive (TimothyOS Notion export → iPad backups, the newest 10 kept); only the passphrase opens it.' +
+        (lsGet(LS_BKDRIVE) ? " Last sent " + esc(stamp(Date.parse(lsGet(LS_BKDRIVE).at))) + "." : "") + "</small>" : "");
     if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google (" + esc(bkPendingList().join(", ")) + "). Back up once they've gone.</div>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-act="bksend">SEND NOW</button></div>';
     if (draftList.length) html += '<small class="muted">Not in a backup: ' + esc(draftList.join(", ")) + ". Save or finish it first if it matters.</small>";
-    if (bk.out) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn capture" data-act="bksave">SAVE TO FILES</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
+    if (bk.out) html += bkDriveHtml() + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ' + (bk.dv ? "ghost" : "capture") + '" data-act="bksave">' + (bk.dv ? "A COPY TO FILES TOO" : "SAVE TO FILES") + '</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
     else html += '<label class="ov-sub" for="bkPass">PASSPHRASE (8 OR MORE CHARACTERS)</label><input type="password" id="bkPass" autocomplete="new-password" value="' + esc(bk.p1) + '">' +
       '<label class="ov-sub" for="bkPass2">THE SAME AGAIN</label><input type="password" id="bkPass2" autocomplete="new-password" value="' + esc(bk.p2) + '">' +
       '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="bkmake"' + (pend || bk.busy ? " disabled" : "") + ">" + (bk.busy ? "LOCKING…" : "MAKE BACKUP") + "</button></div>";
@@ -144,6 +174,7 @@
     if (a === "bkmake") { bkMake(); return true; }
     if (a === "bksend") { bkSend(); return true; }
     if (a === "bksave") { bkSave(); return true; }
+    if (a === "bkdrive") { bkDrive(); return true; }
     if (a === "bkopen") { bkOpen(); return true; }
     if (a === "bkapply") { bkApply(); return true; }
     if (a === "bkcancel") { bk.r = null; bk.err = ""; render(true); return true; }

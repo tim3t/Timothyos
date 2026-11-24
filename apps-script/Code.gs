@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.52.0';
+var VERSION = '1.53.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -122,7 +122,7 @@ var TASK_STATUSES = ['⬜ To Do', '🔄 In Progress', '✅ Done', '🚫 Blocked'
 var TASK_PRIORITIES = ['🔴 High', '🟡 Medium', '🟢 Low'];
 function capabilities_() {
   var props = PropertiesService.getScriptProperties();
-  return ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'done', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'sessionprep', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
+  return ['read', 'create', 'holidays', 'science', 'profile', 'news', 'onthisday', 'backup'].concat(props.getProperty('NOTION_TOKEN') ? ['tasks', 'dates', 'reviews', 'reviewlog', 'queue', 'log', 'habits', 'library', 'tarot', 'tarotbooks', 'apiary', 'schema', 'year', 'inbox', 'sciencelog', 'sessions', 'upkeep', 'meals', 'recipes', 'mealimg', 'export', 'sickbay'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('HEALTH_KEY') ? ['healthkey'] : [], logPin_() ? ['logpin'] : [], logPin_().indexOf('-') > -1 ? ['logcode'] : [], props.getProperty('NOTION_TOKEN') && props.getProperty('LOG_SEARCH_READY') === '1' ? ['logsearch'] : [], props.getProperty('ANTHROPIC_API_KEY') ? ['ask', 'brief', 'shipsyear', 'inboxsort'] : [], props.getProperty('ANTHROPIC_API_KEY') && props.getProperty('NOTION_TOKEN') ? ['logask', 'sessionprep', 'tarotsuggest', 'sessionsuggest', 'mealplan', 'mealimport'] : [], props.getProperty('YNAB_TOKEN') ? ['ledger'] : [], props.getProperty('OPENAI_API_KEY') ? ['voice'] : []);
 }
 var MAX_RANGE_DAYS = 62;
 var CACHE_SECONDS = 120;
@@ -178,14 +178,13 @@ function read_(p) {
 }
 
 /** The everyday reads, by action. Null for anything else. */
-var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'done', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile', 'health'];
+var BATCH_READS = ['news', 'aispend', 'events', 'tasks', 'dates', 'week', 'reviews', 'ledger', 'habits', 'library', 'tarot', 'apiary', 'year', 'inbox', 'sciencefeeds', 'sciencelog', 'upkeep', 'meals', 'profile', 'health'];
 function readOne_(p) {
   if (p.action === 'aispend') return { ok: true, version: VERSION, ai: aiKey_() ? aiSpend_() : null, log: aiKey_() ? aiLog_() : [] };
   if (p.action === 'events') return events_(Number(p.from), Number(p.to));
   if (p.action === 'tasks') return tasks_(String(p.day || ''));
   if (p.action === 'dates') return dates_();
   if (p.action === 'holidays') return holidays_(String(p.from || ''), String(p.to || ''));
-  if (p.action === 'done') return done_(p.days);
   if (p.action === 'week') return week_(String(p.week || ''), String(p.from || ''), String(p.to || ''));
   if (p.action === 'reviews') return reviews_(p.limit);
   if (p.action === 'ledger') return ledger_(p.fresh === '1' || p.fresh === 1 || p.fresh === true);
@@ -301,7 +300,7 @@ function onThisDay_(today, years) {
 /** Another request held the script lock past its wait (LockService throws "Lock timeout"): the app retries "busy" quietly. */
 function lockBusy_(err) { return /lock timeout|another process was holding the lock/i.test(String((err && err.message) || err)); }
 function readError_(err) {
-  if (err && err.notion) return { ok: false, error: err.notion, detail: err.message };
+  if (err && err.notion) return { ok: false, error: err.notion, detail: err.message, ncode: err.ncode };   // 1.53: Notion's own code, for the app's error log
   if (lockBusy_(err)) return { ok: false, error: 'busy' };
   return { ok: false, error: 'server_error', detail: String((err && err.message) || err) };
 }
@@ -341,6 +340,7 @@ function doPost(e) {
     if (body.action === 'ask') return json_(ask_(body));
     if (body.action === 'aicontinue') return json_(aiContinue_());
     if (body.action === 'exportnow') return json_(exportNow_());
+    if (body.action === 'backupsave') return json_(backupSave_(body.backup));
     if (body.action === 'aispendset') return json_(aiSpendSet_(body.usd));
     if (body.action === 'queueadd') return json_(queueAdd_(body.item || {}));
     if (body.action === 'inboxadd') return json_(inboxAdd_(body.note || {}));
@@ -378,7 +378,7 @@ function doPost(e) {
     if (body.action === 'queueremove') return json_(queueRemove_(String(body.id || ''), body.undo === true));
     return json_(read_(body) || { ok: false, error: 'unknown_action' });   // the reads (1.38)
   } catch (err) {
-    if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message });
+    if (err && err.notion) return json_({ ok: false, error: err.notion, detail: err.message, ncode: err.ncode });
     if (lockBusy_(err)) return json_({ ok: false, error: 'busy' });
     return json_({ ok: false, error: 'server_error', detail: String((err && err.message) || err) });
   }
@@ -1000,29 +1000,10 @@ function tasks_(day) {
 }
 
 /**
- * Balance: tasks marked Done in the last few days, with their Life Area only
- * (no titles). Notion has no "completed on" field, so each page's last edit
- * stands in for the day it was finished.
- */
-function done_(days) {
-  days = Math.max(1, Math.min(60, Math.floor(Number(days)) || 30));
-  var cache = CacheService.getScriptCache();
-  var key = 'done:' + (cache.get('tgen') || '0') + ':' + days;
-  var hit = cache.get(key);
-  if (hit) return JSON.parse(hit);
-  var since = new Date(Date.now() - days * 86400000).toISOString();
-  var done = doneTasks_([{ from: since, to: new Date(Date.now() + 86400000).toISOString() }], 3).map(function (pg) {   /* 1.51 (A2) */
-    return { area: sel_((pg.properties || {})['Life Area']), at: doneAt_(pg) };
-  });
-  var out = { ok: true, version: VERSION, days: days, done: done };
-  try { cache.put(key, JSON.stringify(out), 300); } catch (e) { /* too large to cache */ }
-  return out;
-}
-
-/**
  * ASTROMETRICS (app 2.40): a year's finished tasks (Life Area and finish only, no titles; 1.51: Completed, else
- * the last edit, as in done_) and Replicator Queue items bought (day and cost only). from and to
- * are local midnights (ISO), at most 400 days apart. Read-only; each part reports its own error.
+ * the last edit, as doneTasks_ reads them) and Replicator Queue items bought (day and cost only). from and to
+ * are local midnights (ISO), at most 400 days apart. Each part reports its own error. Not read-only: like every
+ * reader of finished tasks, it writes Completed into a Done task that has none (completedFill_, 1.51).
  */
 function year_(from, to) {
   if (!ISO.test(from) || !ISO.test(to) || !(Date.parse(to) > Date.parse(from)) || Date.parse(to) - Date.parse(from) > 400 * 86400000) return { ok: false, error: 'bad_request' };
@@ -2012,6 +1993,11 @@ function logInsights_() {
 }
 /** 1.52: the answers held for a session, newest first (a few at most), each with its text. */
 function logPreps_() {
+  /* 1.53 (F2): Notion refuses a select filter naming an option the column doesn't have yet, and Source has no
+     "Session prep" until the first answer is held (three notion_errors on 23 Nov). Its options are read fresh here,
+     not from selectOptions_'s 6-hour copy, so the first held answer shows at once. */
+  var src = (notion_('get', '/data_sources/' + logSource_()).properties || {}).Source;
+  if (!src || !src.select || !(src.select.options || []).some(function (o) { return o.name === LOG_PREP; })) return { ok: true, version: VERSION, preps: [] };
   var pages = queryAll_(logSource_(), { property: 'Source', select: { equals: LOG_PREP } }, 1, [{ timestamp: 'created_time', direction: 'descending' }], true).slice(0, 10);
   return { ok: true, version: VERSION, preps: pages.map(function (pg) {
     var paras = logBlocksText_(logBlocks_(pg.id)).split(/\n\n+/), q = '', scope = '';
@@ -4441,6 +4427,42 @@ function exportRoot_() {
   id = driveFolder_(EXPORT.ROOT, null);
   props.setProperty('EXPORT_ROOT', id);
   return id;
+}
+
+/* ---- iPad backups (1.53, app 2.91; Timothy's go, 24 Nov) ----
+   The app's BACKUP AND RESTORE file, already locked on the iPad (AES-GCM under his passphrase, which never leaves
+   the iPad), kept in "iPad backups" inside the export's folder, through the same drive.file permission: the bridge
+   can't open the file, and sees no other file in his Drive. The newest BACKUP.KEEP stay; older ones go to Drive's
+   trash. Only files whose names it gave are ever trashed. */
+var BACKUP = { FOLDER: 'iPad backups', KEEP: 10, MAX: 4 * 1024 * 1024 }, BACKUP_NAME = /^timothyos-backup-\d{4}-\d{2}-\d{2}-\d{4}(-(hub|mobile))?\.json$/;
+function backupFolder_() {
+  var props = PropertiesService.getScriptProperties(), root = exportRoot_(), id = props.getProperty('BACKUP_FOLDER');
+  if (id) {
+    try { var f = driveJson_('get', DRIVE + '/' + encodeURIComponent(id) + '?fields=id,trashed'); if (!f.trashed) return { root: root, id: id }; } catch (e) { if (e.drive !== 'drive_missing') throw e; }
+  }
+  id = driveFolder_(BACKUP.FOLDER, root);
+  props.setProperty('BACKUP_FOLDER', id);
+  return { root: root, id: id };
+}
+/** BACKUP AND RESTORE → MAKE BACKUP: the locked file, as made on the iPad. The bridge checks its shape, never its contents. */
+function backupSave_(b) {
+  b = b || {};
+  var name = String(b.name || ''), f = b.file, text;
+  if (!BACKUP_NAME.test(name) || !f || typeof f !== 'object' || f.format !== 'TimothyOS backup' || f.v !== 1 || !f.kdf || !f.cipher || typeof f.data !== 'string') return { ok: false, error: 'bad_request' };
+  text = JSON.stringify(f);
+  if (text.length > BACKUP.MAX) return { ok: false, error: 'too_large' };
+  try {
+    var dir = backupFolder_(), up = driveUpload_(name, dir.id, 'application/json', text), kept = 0;
+    try {   // the newest BACKUP.KEEP of its own files; anything else in the folder is left alone
+      driveList_("'" + dir.id + "' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false")
+        .filter(function (x) { return BACKUP_NAME.test(x.name); }).sort(function (a, c) { return a.createdTime < c.createdTime ? 1 : -1; })
+        .forEach(function (x, i) { if (i < BACKUP.KEEP) kept++; else driveTrash_(x.id); });
+    } catch (e2) { kept = 0; /* tidied next time */ }
+    return { ok: true, version: VERSION, backup: { name: name, id: up.id, size: up.size, kept: kept, keep: BACKUP.KEEP, folder: 'https://drive.google.com/drive/folders/' + dir.id } };
+  } catch (e) {
+    if (!e.drive) throw e;
+    return { ok: false, error: e.drive, detail: e.detail };
+  }
 }
 
 function props_(k) { return PropertiesService.getScriptProperties().getProperty(k); }

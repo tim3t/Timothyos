@@ -12,6 +12,7 @@ nx.drop('tasks', 'Completed');   // the Master Task List as it was before setup 
 const iso = ms => new Date(ms).toISOString();
 const DAY = 86400000, NOW = Date.now();
 const post = br.post;
+const finishedRead = () => post({ action: 'year', from: iso(NOW - 30 * DAY), to: iso(NOW + DAY) });   // the finished tasks, as ASTROMETRICS reads them (1.53: the done read is gone)
 const forget = () => { Object.keys(br.cache).forEach(k => { delete br.cache[k]; }); };   // Google's cache let go: 6 hours passed, or more
 const tasksN = () => nx.rows('tasks').length;
 const writesTo = (id, from) => nx.calls.slice(from).filter(c => c.method === 'patch' && c.path === '/pages/' + id);
@@ -47,7 +48,7 @@ const p1 = first;
 nx.edit(p1, { Status: '✅ Done' }, { last_edited_time: iso(NOW - 10 * DAY) });
 forget();
 let c0 = nx.calls.length;
-let d = post({ action: 'done', days: 30 });
+let d = finishedRead();
 assert.ok(d.ok, JSON.stringify(d));
 assert.deepStrictEqual(d.done.map(x => x.at), [nx.row(p1).last_edited_time]);
 assert.ok(!writesTo(p1, c0).length && !('Completed' in nx.row(p1)), 'nothing written without the column');
@@ -62,13 +63,13 @@ assert.strictEqual(nx.calls.filter(c => c.method === 'patch' && c.path === '/dat
 forget();
 const finished = nx.row(p1).last_edited_time;
 c0 = nx.calls.length;
-d = post({ action: 'done', days: 30 });
+d = finishedRead();
 assert.deepStrictEqual(d.done.map(x => x.at), [finished]);
 assert.strictEqual(nx.row(p1).Completed, finished, 'its last edit, written in once');
 assert.strictEqual(writesTo(p1, c0).length, 1);
 nx.edit(p1, { 'Life Area': 'Sample area' }, { last_edited_time: iso(Date.now()) });   // an edit in Notion, today
 forget();
-d = post({ action: 'done', days: 30 });
+d = finishedRead();
 assert.deepStrictEqual(d.done.map(x => x.at), [finished], 'still the day it was finished');
 const yr = post({ action: 'year', from: iso(NOW - 5 * DAY), to: iso(NOW + DAY) });
 assert.ok(yr.ok && !yr.done.length, 'not counted as finished this week: ' + JSON.stringify(yr.done));

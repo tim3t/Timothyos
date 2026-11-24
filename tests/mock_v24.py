@@ -170,6 +170,7 @@ NEWS = {"cap": 0, "fail": 0, "n": 0}
 # 2.65 (bridge 1.41): the weekly Notion export's status. ?action=exportmode&cap=1&state=none|ok|old|failed|running|stalled|unscheduled[&err=code]
 # [&nowerr=code makes EXPORT NOW fail] [&finish=1 ends a run well]. Nothing real is exported here.
 EXPORT = {"cap": 0, "st": None, "now": 0, "nowerr": ""}
+BKD = {"cap": 0, "fail": "", "saves": []}   # 2.91: iPad backups to Drive (bridge 1.53), off unless bkdmode cap=1
 def exp_last(days, ok=True, err=""):
     t = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
     return {"ok": True, "at": t, "done": t, "name": "2026-11-01 03.00", "folder": "fold-1", "root": "root-1", "pages": 1234, "bytes": 5400000, "dbs": 15, "of": 16, "failed": ["Tarot Books (notion_not_shared)"], "runs": 3} if ok else {"ok": False, "at": t, "error": err}
@@ -216,7 +217,7 @@ def ses_clean(x):
     if len(x.get("topics") or []) > 20: return None
     return x
 def sesact(act, b):
-    if SES["fail"] and act != "logsessions": return {"ok": False, "error": SES["fail"]}
+    if SES["fail"] and act != "logsessions": return dict(zip(("ok", "error", "ncode"), [False] + SES["fail"].split(":", 1)))   # "notion_error:validation_error": Notion's own code too (bridge 1.53)
     if act == "logsessions": return {"ok": True, "sessions": sorted(SES["list"], key=lambda s: s["day"], reverse=True), "url": "https://www.notion.so/sessions"}
     if act == "logsessionsave":
         x = ses_clean(dict(b.get("session") or {}))
@@ -354,6 +355,7 @@ def logact(b):
         rec["held"] = bool(ins.get("hold")); rec["question"] = ins.get("question", ""); rec["scope"] = ins.get("scope", ""); rec["answer"] = ins["text"]   # 2.90: held for a session
         INSIGHTS.insert(0, rec); return {"ok": True, "insight": dict({k: rec[k] for k in ("id", "title", "url", "created")}, held=rec["held"])}
     if act == "loginsights": return {"ok": True, "insights": [{k: x[k] for k in ("id", "title", "url", "created")} for x in INSIGHTS if not x.get("held")]}
+    if act == "logpreps" and SES["fail"]: return sesact(act, b)
     if act == "logpreps": return {"ok": True, "preps": [{"id": x["id"], "title": x["title"], "question": x["question"], "scope": x["scope"], "text": x["answer"], "created": x["created"]} for x in INSIGHTS if x.get("held")]}
     if act == "logprepset":
         x = next((x for x in INSIGHTS if x["id"] == b.get("id")), None)
@@ -538,8 +540,8 @@ class H(BaseHTTPRequestHandler):
             t0 = _dt.datetime.now(ZoneInfo("America/Chicago")).date()   # the browser tests' own day, not the server's UTC one
             HOL = [(t0 + _dt.timedelta(days=3), "Veterans Day"), (t0 + _dt.timedelta(days=10), "Daylight Saving Time ends"), (t0 + _dt.timedelta(days=40), "Thanksgiving Day")]
             body = {"ok": True, "version": VER["v"], "calendar": "Holidays in United States", "holidays": [{"date": d.isoformat(), "title": t} for d, t in HOL if q["from"] <= d.isoformat() <= q["to"]]}
-        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals()}
-        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
+        elif q.get("action") == "ping": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []) + (["backup"] if BKD["cap"] else []), "calendars": cals()}
+        elif q.get("action") == "events": body = {"ok": True, "version": VER["v"], "capabilities": ["read", "create", "tasks", "dates", "done", "reviews", "reviewlog", "queue", "ask", "ledger", "log", "logpin", "logsearch", "logask", "habits", "library", "holidays", "tarot"] + (["logcode"] if CODE else []) + (["tarotbooks", "tarotsuggest"] if TB["on"] else []) + (["apiary"] if AP["on"] else []) + (["brief"] if BRIEF["cap"] else []) + (["voice"] if VOICE["cap"] else []) + ["schema"] + (["year", "shipsyear"] if ASTRO["cap"] else []) + (["inbox", "inboxsort"] if INBOX["cap"] else []) + ((["science"] + (["sciencelog"] if SCI["log"] else [])) if SCI["cap"] else []) + (["sessions", "sessionsuggest", "sessionprep"] if SES["cap"] else []) + (["profile"] if PROF["cap"] else []) + (["upkeep"] if UPK["cap"] else []) + (["news"] if NEWS["cap"] else []) + (["meals", "mealplan", "recipes", "mealimport", "mealimg"] if MEAL["cap"] else []) + (["onthisday"] if OTD["cap"] else []) + (["export"] if EXPORT["cap"] else []) + (["backup"] if BKD["cap"] else []), "calendars": cals(), "events": events(int(q["from"]), int(q["to"])) + CREATED}
         elif q.get("action") == "setversion": VER["v"] = q.get("v") or BV; body = {"ok": True, "v": VER["v"]}
         elif q.get("action") == "briefmode":
             for k in ("cap", "fail", "shape"):
@@ -569,6 +571,11 @@ class H(BaseHTTPRequestHandler):
         elif q.get("action") == "familymode":
             if "on" in q: FAMILY["on"] = int(q["on"])
             body = {"ok": True, "on": FAMILY["on"]}
+        elif q.get("action") == "bkdmode":
+            if "cap" in q: BKD["cap"] = int(q["cap"])
+            if "fail" in q: BKD["fail"] = "" if q["fail"] == "0" else q["fail"]
+            if "reset" in q: BKD["saves"].clear()
+            body = {"ok": True, "saves": BKD["saves"]}
         elif q.get("action") == "exportmode":
             if "cap" in q: EXPORT["cap"] = int(q["cap"])
             if "state" in q: EXPORT["st"] = exp_state(q["state"], q.get("err", ""))
@@ -809,6 +816,11 @@ class H(BaseHTTPRequestHandler):
                 if VOICE["slow"]: import time; time.sleep(VOICE["slow"] / 1000)
                 if VOICE["fail"]: body = {"ok": False, "error": VOICE["fail"]}
                 else: body = {"ok": True, "voice": "nova", "model": "gpt-4o-mini-tts", "clips": [SILENT_MP3 for _ in b.get("texts", [])], "est": 0.004, "spend": {"month": "2026-10", "usd": 0.0123, "calls": len(VOICE["calls"])}}
+            elif act == "backupsave" and BKD["cap"]:
+                if BKD["fail"]: body = {"ok": False, "error": BKD["fail"]}
+                else:
+                    x = b.get("backup") or {}; BKD["saves"].append(x)
+                    body = {"ok": True, "version": VER["v"], "backup": {"name": x.get("name"), "id": "bk" + str(len(BKD["saves"])), "size": len(json.dumps(x.get("file"))), "kept": min(len(BKD["saves"]), 10), "keep": 10, "folder": "https://drive.google.com/drive/folders/sample-backups"}}
             elif act == "exportnow" and EXPORT["cap"]:
                 EXPORT["now"] += 1
                 if EXPORT["nowerr"]: body = {"ok": False, "error": EXPORT["nowerr"]}

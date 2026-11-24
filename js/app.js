@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.90.1";
+  var VERSION = "2.91.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -408,7 +408,7 @@
       if (pageGone) throw err;
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error", fz = frozen(started, limit);
       var bg = document.hidden || lastHidden >= started ? " · in background" : fz ? " · app paused" : "";
-      if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
+      if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + (err.ncode ? "Notion " + err.ncode + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
       netDay(started, true, fz);
       throw err;
     });
@@ -647,7 +647,7 @@
   }
   function replyError(j) {
     var e2 = new Error((j && j.error) || "bad_response");
-    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left; e2.until = j && j.until;
+    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.ncode = j && typeof j.ncode === "string" ? j.ncode : "";   /* 2.91: Notion's own code (bridge 1.53), for the error log */ e2.spend = j && j.spend; e2.left = j && j.left; e2.until = j && j.until;
     return e2;
   }
   function isNetworkError(err) { return !!err && (err.name === "TypeError" || err.name === "AbortError"); }
@@ -1563,8 +1563,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.52.0";
-  var BRIDGE_FEATURES = [["1.52.0", "ASK THE LOG answers held for a session (SAVE FOR SESSION), dropped into a session from FROM THE LOG"], ["1.51.0", "a capture sent again days later is never made twice, and a finished task keeps the day it was finished"], ["1.50.0", "a read that reaches its row limit says so, in COPY DIAGNOSTICS and on the station"], ["1.49.0", "HABITS: Evening Walk is now Exercise (either Notion column name works)"], ["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.53.0";
+  var BRIDGE_FEATURES = [["1.53.0", "each backup also sent to Google Drive, and held answers listed before the first is saved"], ["1.52.0", "ASK THE LOG answers held for a session (SAVE FOR SESSION), dropped into a session from FROM THE LOG"], ["1.51.0", "a capture sent again days later is never made twice, and a finished task keeps the day it was finished"], ["1.50.0", "a read that reaches its row limit says so, in COPY DIAGNOSTICS and on the station"], ["1.49.0", "HABITS: Evening Walk is now Exercise (either Notion column name works)"], ["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -3317,7 +3317,6 @@
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
       b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
       br.b = b; briefSave();
-      if (canVoice()) vaLoad(b);   /* Nova's audio, ready before READ IT TO ME */
     }).catch(function (err) {
       if (err && err.spend) { state.aiSpend = err.spend; lsSet(LS_AISPEND, err.spend); }
       var msg = err && err.code === "brief_shape" ? "Claude's answer didn't come back in the briefing's shape." : describeAi(err);
@@ -3385,7 +3384,7 @@
     if (!b) return "";
     if (briefFolded(b, now)) return '<button type="button" class="br-fold" data-brief="open" aria-label="Open the morning briefing"><b>' + (today ? "" : "YESTERDAY'S ") + "MORNING BRIEFING · " + hm(new Date(b.at)) +
       "</b><span>" + esc(b.headline || b.paras[0].text) + '</span><span class="ov-more" aria-hidden="true"></span></button>';
-    if (today && canVoice() && !vaReady(b) && !va.busy && vaRetryOk()) vaLoad(b);   /* Nova's audio from this iPad, or the bridge if it's missing */
+    if (today && canVoice() && !vaReady(b)) vaKept(b);   /* Nova's audio, if this iPad already has it; the bridge is asked only on READ IT TO ME (2.91) */
     if (today && !b.typed && !sb.on && !document.hidden) { b.typed = true; briefSave(); br.typeT0 = calm() ? 0 : performance.now(); }   /* prints once, the first time it's seen */
     var segs = briefSegs(b), n = br.typeT0 ? Math.floor((performance.now() - br.typeT0) / BRIEF_TYPE_MS * briefLen(segs)) : today && !b.typed ? 0 : null;
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
@@ -3471,13 +3470,15 @@
 
   /* ---------- AI voice (2.37, bridge 1.30): the briefing read by OpenAI's Nova ---------- */
   /* When a briefing compiles, the bridge asks OpenAI for one MP3 per paragraph (Nova, Timothy's style line); they're
-     kept on this iPad (IndexedDB, today's only), so READ IT TO ME starts at once and costs nothing to replay. Tapped
-     before they've arrived, a silent clip unlocks the player inside the tap (iPadOS only lets a tap start sound) and
-     playback starts when they land. If OpenAI can't, Moira reads it on the next tap. Off in Systems. */
+     kept on this iPad (IndexedDB, today's only), so a replay starts at once and costs nothing. Since 2.91 (Timothy's
+     choice D, 24 Nov) the clips are asked for only when READ IT TO ME is tapped on this iPad, never when the briefing
+     compiles: an iPad whose briefing is only read pays nothing for Nova. On the tap a silent clip unlocks the player
+     (iPadOS only lets a tap start sound) and playback starts when the clips land (PREPARING meanwhile). If OpenAI
+     can't, Moira reads it on the next tap. Off in Systems. */
   var LS_VOICEOFF = "tos.voiceoff.v1", LS_VOICESPEND = "tos.voicespend.v1";
   var VA_SILENT = "data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA//NwwAAAAAAAAAAAAEluZm8AAAAPAAAABgAAAykAWlpaWlpaWlpaWlpaWlpaWnt7e3t7e3t7e3t7e3t7e3t7nJycnJycnJycnJycnJycnL29vb29vb29vb29vb29vb293t7e3t7e3t7e3t7e3t7e3t7/////////////////////AAAAAExhdmM2MC4zMQAAAAAAAAAAAAAAACQCowAAAAAAAAMpso+sIAAAAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxKMAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NAxKQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/80LEowAAA0gAAAAAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=";
   var VA_TIMEOUT_MS = 300000, VA_RETRY_MS = 10 * 60000;   /* OpenAI took 130 s for a whole briefing (2026-10-23); Apps Script stops at 6 min */
-  var va = { log: [], errAt: 0, at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null };
+  var va = { log: [], errAt: 0, at: "", urls: null, busy: "", err: "", el: null, i: -1, prep: false, p: null, looked: "" };
   function canVoice() { return state.caps.indexOf("voice") > -1 && !lsGet(LS_VOICEOFF); }
   /* Voice log (2.37.1): each step of asking for and playing Nova, shown in Systems, so a silent failure on the iPad can be read. */
   function vaLog(m) {
@@ -3527,6 +3528,16 @@
   function vaKey(b) { return b ? (b.id || String(b.at)) + ":" + VA_SPEECH : ""; }   /* which briefing, read by which rules, the audio belongs to */
   function vaFree() { (va.urls || []).forEach(function (u) { URL.revokeObjectURL(u); }); va.urls = null; va.at = ""; }
   function vaUse(k, blobs) { vaFree(); va.at = k; va.urls = blobs.map(function (x) { return URL.createObjectURL(x); }); }
+  /* The clips this iPad already kept for this briefing, if any: from IndexedDB only, looked for once a briefing. */
+  function vaKept(b) {
+    var k = vaKey(b);
+    if (!b || va.busy || va.looked === k) return;
+    va.looked = k;
+    vaGet().then(function (rec) {
+      if (va.busy || vaReady(b) || !rec || rec.at !== k || !rec.clips || !rec.clips.length) return;
+      vaUse(k, rec.clips); vaLog("Briefing audio from this iPad: " + rec.clips.length + " clips");
+    });
+  }
   function vaReady(b) { return !!(b && va.urls && va.at === vaKey(b)); }
   function b64Blob(s) { var bin = atob(s), a = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: "audio/mpeg" }); }
   function describeVoice(err) {
@@ -3621,7 +3632,7 @@
   function vaLine() {
     if (state.caps.indexOf("voice") < 0) return '<div class="br-voice"><small class="muted">AI voice: off. Add OPENAI_API_KEY to the Google bridge\'s Script Properties and update it to 1.30 to read the briefing in Nova.</small></div>';
     var off = !!lsGet(LS_VOICEOFF), sp = lsGet(LS_VOICESPEND), mo = ymd(new Date()).slice(0, 7);
-    return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), prepared when the briefing compiles, under 1¢ a day." +
+    return '<div class="br-voice"><small class="muted">AI voice: ' + (off ? "off; Moira reads it." : "Nova (OpenAI), made on this iPad's first READ IT TO ME of each briefing, under 1¢ a day." +
       (sp && sp.month === mo ? " About " + money(sp.usd) + " this month (estimated; the OpenAI dashboard has the exact figure)." : "")) +
       '</small> <button type="button" class="chip sm" data-brief="' + (off ? "von" : "voff") + '">' + (off ? "TURN ON" : "TURN OFF") + "</button>" +
       (off ? "" : ' <button type="button" class="chip sm" data-brief="aitest">TEST AI VOICE</button>') + "</div>" +
@@ -15539,15 +15550,18 @@
      Copies of Notion and Google data are left out (the next sync refills them), and so are pending saves and
      drafts: the Captain's Log draft never goes into a file. BACKUP waits until nothing is pending. RESTORE
      (Systems, and the link screen of a fresh install) shows what the file holds before anything is written,
-     writes only keys on BK_KEYS, then reloads. */
+     writes only keys on BK_KEYS, then reloads.
+     2.91 (bridge 1.53, Timothy's go 24 Nov): with a bridge that can, MAKE BACKUP also sends the locked file to Google
+     Drive ("iPad backups" in the export's folder, the newest 10 kept), so a backup needs no Files dialog. The bridge
+     only stores it: the passphrase never leaves the iPad. SAVE TO FILES stays for a copy on the iPad. */
   var BK_KEYS = ["tos.conn.v1", "tos.nas.v1", "tos.ha.v1", "tos.mealgot.v1", "tos.mealview.v1", "tos.arb.v1", "tos.sickview.v1", "tos.aisickbay.v1",
     "tos.pins.v1", "tos.ignore.v1", "tos.breaks.v1", "tos.place.v1", "tos.bearings.v1", "tos.log.v1", "tos.habitcfg.v1",
     "tos.upkeep.v1", "tos.upview.v1", "tos.hiverhythm.v1", "tos.newsoff.v1", "tos.hadev.v1", "tos.hagroups.v1", "tos.hascnord.v1", "tos.haroom.v1", "tos.haview.v1", "tos.engtab.v1",
     "tos.nashide.v1", "tos.nassort.v1", "tos.naspref.v1", "tos.nasdir.v1", "tos.plays.v1",
     "tos.capprefs.v1", "tos.standby.v1", "tos.start.v1", "tos.hidden.v1", "tos.bopen.v1", "tos.lrange.v1", "tos.shelf.v1", "tos.rsaved.v1", "tos.rpatterns.v1",
     "tos.aifin.v1", "tos.aitarot.v1", "tos.aiapiary.v1", "tos.logai.v1", "tos.briefoff.v1", "tos.shipyear.v1", "tos.scilineoff.v1", "tos.scilm.v1", "tos.scilmoff.v1", "tos.ressikan.v1", "tos.holo.v1", "tos.voiceoff.v1", "tos.snai.v1", "tos.sntopics.v1"];
-  var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1";
-  var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null };
+  var BK_FORMAT = "TimothyOS backup", BK_ITER = 600000, LS_BKAT = "tos.bkat.v1", LS_BKDRIVE = "tos.bkdrive.v1";
+  var bk = { p1: "", p2: "", rp: "", busy: false, out: null, msg: "", err: "", r: null, dv: null };
   function bkB64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
   function bkUnB64(s) { var b = atob(s), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
   function bkKey(pass, salt, iter) {
@@ -15590,7 +15604,32 @@
       bk.out = { name: "timothyos-backup-" + ymd(made) + "-" + p2(made.getHours()) + p2(made.getMinutes()) + ".json", text: JSON.stringify(file) };
       bk.p1 = bk.p2 = ""; lsSet(LS_BKAT, made.toISOString());
     }).catch(function () { bk.err = "This iPad couldn't lock the file. Nothing was saved."; })
-      .then(function () { bk.busy = false; render(true); });
+      .then(function () { bk.busy = false; render(true); if (bk.out && bkCanDrive()) bkDrive(); });
+  }
+  /* ---- to Google Drive through the bridge (2.91, bridge 1.53) ---- */
+  function bkCanDrive() { return !!state.conn && state.caps.indexOf("backup") > -1; }
+  var BK_DRIVE_ERR = { drive_full: "Google Drive is full. Free some space, then SEND AGAIN.", too_large: "The file is larger than the bridge takes (4 MB). SAVE TO FILES keeps it on the iPad.",
+    drive_error: "Google Drive refused the file. SEND AGAIN tries once more." };
+  function bkDriveErr(err) { var c = err && err.code; return BK_DRIVE_ERR[c] || (c === "drive_scope" || c === "drive_api_off" ? EXPORT_ERR[c] : describe(err)); }
+  function bkDrive() {
+    var o = bk.out;
+    if (!o || (bk.dv && bk.dv.busy)) return;
+    var who = (prof.me() || "").toLowerCase(), name = who ? o.name.replace(/\.json$/, "-" + who + ".json") : o.name;
+    bk.dv = { busy: true }; render(true);
+    apiPost({ action: "backupsave", backup: { name: name, file: JSON.parse(o.text) } }, 120000).then(function (j) {
+      var x = j.backup || {};
+      bk.dv = { ok: true, name: x.name || name, folder: x.folder || "", keep: x.keep || 0 };
+      lsSet(LS_BKDRIVE, { at: new Date().toISOString(), name: bk.dv.name, folder: bk.dv.folder });
+    }).catch(function (err) { bk.dv = { err: bkDriveErr(err) }; })
+      .then(function () { if (bk.out === o && state.screen === "systems") render(true); });
+  }
+  function bkDriveHtml() {
+    var d = bk.dv;
+    if (!d) return "";
+    if (d.busy) return '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn" disabled><span class="spin" aria-hidden="true"></span>SENDING TO GOOGLE DRIVE…</button></div>';
+    if (d.ok) return '<div class="ok-note">Sent to Google Drive as ' + esc(d.name) + ", in TimothyOS Notion export → iPad backups" + (d.keep ? " (the newest " + d.keep + " are kept)" : "") + ".</div>" +
+      (/^https:\/\/drive\.google\.com\//.test(d.folder) ? '<div class="btnrow" style="margin-top:8px"><a class="btn ghost" href="' + esc(d.folder) + '" target="_blank" rel="noopener">OPEN IN DRIVE</a></div>' : "");
+    return '<div class="err">Not sent to Google Drive: ' + esc(d.err) + '</div><div class="btnrow" style="margin-top:8px"><button type="button" class="btn" data-act="bkdrive">SEND AGAIN</button></div>';
   }
   /* The Share sheet (Save to Files) where the iPad offers it, else a download. A second tap, so iPadOS sees it as yours. */
   function bkSave() {
@@ -15661,11 +15700,13 @@
   function backupSection() {
     var pend = bkPending(), draftList = bkDrafts(), at = lsGet(LS_BKAT);
     var html = '<section id="sec-backup">' + phead("BACKUP AND RESTORE", at ? "LAST BACKUP " + esc(stamp(Date.parse(at))) : "NO BACKUP YET") +
-      '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>';
+      '<small class="muted">One file with everything kept only on this iPad: the bridge, NAS and Home Assistant links, ENGINEERING devices, rooms and upkeep, pins, ignored events, breaks, bearings, podcast places and the other settings. It is locked with a passphrase you choose, which is never stored. Notion and Google data are not in it (they come back on the next sync), and neither is any unsaved writing.</small>' +
+      (bkCanDrive() ? '<small class="muted">MAKE BACKUP also sends the locked file to Google Drive (TimothyOS Notion export → iPad backups, the newest 10 kept); only the passphrase opens it.' +
+        (lsGet(LS_BKDRIVE) ? " Last sent " + esc(stamp(Date.parse(lsGet(LS_BKDRIVE).at))) + "." : "") + "</small>" : "");
     if (pend) html += '<div class="err">' + pend + (pend === 1 ? " change is" : " changes are") + " still waiting to reach Notion or Google (" + esc(bkPendingList().join(", ")) + "). Back up once they've gone.</div>" +
       '<div class="btnrow" style="margin-top:8px"><button type="button" class="btn ghost" data-act="bksend">SEND NOW</button></div>';
     if (draftList.length) html += '<small class="muted">Not in a backup: ' + esc(draftList.join(", ")) + ". Save or finish it first if it matters.</small>";
-    if (bk.out) html += '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn capture" data-act="bksave">SAVE TO FILES</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
+    if (bk.out) html += bkDriveHtml() + '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn ' + (bk.dv ? "ghost" : "capture") + '" data-act="bksave">' + (bk.dv ? "A COPY TO FILES TOO" : "SAVE TO FILES") + '</button></div><small class="muted">' + esc(bk.out.name) + ". Choose Save to Files, then iCloud Drive or On My iPad.</small>";
     else html += '<label class="ov-sub" for="bkPass">PASSPHRASE (8 OR MORE CHARACTERS)</label><input type="password" id="bkPass" autocomplete="new-password" value="' + esc(bk.p1) + '">' +
       '<label class="ov-sub" for="bkPass2">THE SAME AGAIN</label><input type="password" id="bkPass2" autocomplete="new-password" value="' + esc(bk.p2) + '">' +
       '<div class="btnrow" style="margin-top:12px"><button type="button" class="btn" data-act="bkmake"' + (pend || bk.busy ? " disabled" : "") + ">" + (bk.busy ? "LOCKING…" : "MAKE BACKUP") + "</button></div>";
@@ -15678,6 +15719,7 @@
     if (a === "bkmake") { bkMake(); return true; }
     if (a === "bksend") { bkSend(); return true; }
     if (a === "bksave") { bkSave(); return true; }
+    if (a === "bkdrive") { bkDrive(); return true; }
     if (a === "bkopen") { bkOpen(); return true; }
     if (a === "bkapply") { bkApply(); return true; }
     if (a === "bkcancel") { bk.r = null; bk.err = ""; render(true); return true; }

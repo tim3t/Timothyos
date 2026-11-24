@@ -5,6 +5,9 @@
 //   wrong type; page_size outside 1 to 100 (results come in pages with has_more and next_cursor); a text piece over
 //   2,000 characters or an array over 100 elements; a wrong token (401) or Notion-Version (400); and, when a test
 //   asks, 429 rate_limited with Retry-After, or any other status.
+//   Inferred, not in Notion's docs (three notion_errors from logpreps on 23 Nov, bridge 1.52): a select filter naming an
+//   option the column doesn't have yet is refused. Only for the columns a test names in strictOptions ('log.Source'),
+//   since the other tests' databases hold none of the options the real ones have.
 //
 // The databases and their columns come from the bridge's own list (schemaSpec_ in Code.gs, the list setup checks
 // against the real Notion), so the code and that list are held to each other here, and the list to Notion by setup.
@@ -226,6 +229,9 @@ function notion(opts = {}) {
       if (op.indexOf('empty') < 0 && typeof arg !== 'string') throw invalid(at + '.' + keys[0] + '.' + op + ' should be a string.');
       return p => { const v = col.type === 'url' ? (get(p) || '') : plain(col.type, get(p));
         return { equals: v === arg, does_not_equal: v !== arg, contains: v.indexOf(arg) > -1, does_not_contain: v.indexOf(arg) < 0, starts_with: v.indexOf(arg) === 0, ends_with: v.endsWith(arg), is_empty: !v, is_not_empty: !!v }[op]; };
+    }
+    if (fam === 'select' && (op === 'equals' || op === 'does_not_equal') && (opts.strictOptions || []).indexOf(d.key + '.' + name) > -1 && !col.options.some(o => o.name === arg)) {
+      throw invalid(at + '.' + keys[0] + '.' + op + ': `' + arg + '` is not an option of ' + name + '.');
     }
     if (fam === 'select') return p => { const v = plain(col.type, get(p)); return { equals: v === arg, does_not_equal: v !== arg, is_empty: v == null, is_not_empty: v != null }[op]; };
     if (fam === 'multi_select') return p => { const v = plain(col.type, get(p)); return { contains: v.indexOf(arg) > -1, does_not_contain: v.indexOf(arg) < 0, is_empty: !v.length, is_not_empty: !!v.length }[op]; };

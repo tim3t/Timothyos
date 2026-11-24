@@ -83,7 +83,7 @@
       if (pageGone) throw err;
       var r = err && err.name === "AbortError" ? "timeout" : err && err.name === "TypeError" ? "dropped" : (err && err.code) || "error", fz = frozen(started, limit);
       var bg = document.hidden || lastHidden >= started ? " · in background" : fz ? " · app paused" : "";
-      if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
+      if (err && typeof err === "object") { err.netEntry = note(action, started, r + bg); err.errEntry = errLog("bridge", action || "?", r + bg, (err.message && err.message !== r ? err.message + " · " : "") + (err.ncode ? "Notion " + err.ncode + " · " : "") + ((Date.now() - started) / 1000).toFixed(1) + " s"); }
       netDay(started, true, fz);
       throw err;
     });
@@ -322,7 +322,7 @@
   }
   function replyError(j) {
     var e2 = new Error((j && j.error) || "bad_response");
-    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.spend = j && j.spend; e2.left = j && j.left; e2.until = j && j.until;
+    e2.code = (j && j.error) || "bad_response"; e2.detail = j && j.detail; e2.ncode = j && typeof j.ncode === "string" ? j.ncode : "";   /* 2.91: Notion's own code (bridge 1.53), for the error log */ e2.spend = j && j.spend; e2.left = j && j.left; e2.until = j && j.until;
     return e2;
   }
   function isNetworkError(err) { return !!err && (err.name === "TypeError" || err.name === "AbortError"); }

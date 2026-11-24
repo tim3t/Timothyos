@@ -5,41 +5,12 @@
 // and Notion only ever read. Invented data only.
 const vm = require('vm'); const assert = require('assert');
 const { bridge } = require('./lib/gas');
+const { drive } = require('./lib/drive');
 let clock = Date.parse('2026-11-08T09:00:00Z');
 const tick = ms => { clock += ms; };
 
-// ---- simulated Drive (only what the bridge made exists for it, as with drive.file)
-let files = {}, nid = 0, driveMode = 'ok', driveCalls = [];
-const fid = () => 'f' + (++nid);
-function drive(url, opts) {
-  const m = (opts.method || 'get').toLowerCase(); driveCalls.push(m + ' ' + url.split('?')[0]); tick(200);
-  assert.strictEqual(opts.headers.Authorization, 'Bearer oauth-token', 'the script\'s own token');
-  const res = (code, body) => ({ getResponseCode: () => code, getContentText: () => typeof body === 'string' ? body : JSON.stringify(body) });
-  if (driveMode === 'scope') return res(403, { error: { message: 'Request had insufficient authentication scopes.' } });
-  if (driveMode === 'apioff') return res(403, { error: { code: 403, message: 'Google Drive API has not been used in project 123 before or it is disabled. Enable it by visiting the console.', status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } });
-  if (driveMode === 'full' && m === 'post' && url.includes('/upload/')) return res(403, { error: { errors: [{ reason: 'storageQuotaExceeded' }] } });
-  if (m === 'post' && url.startsWith('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart')) {
-    const raw = Buffer.from(opts.payload).toString('utf8'), b = opts.contentType.split('boundary=')[1];
-    const parts = raw.split('--' + b).slice(1, 3).map(x => x.replace(/^\r\n/, '').replace(/\r\n$/, '')), meta = JSON.parse(parts[0].split('\r\n\r\n')[1]);
-    const id = fid(); files[id] = { name: meta.name, parents: meta.parents, mime: meta.mimeType, body: parts[1].split('\r\n\r\n').slice(1).join('\r\n\r\n'), trashed: false };
-    return res(200, { id, name: meta.name, size: String(Buffer.byteLength(files[id].body)) });
-  }
-  if (m === 'post' && url.startsWith('https://www.googleapis.com/drive/v3/files?')) {
-    const meta = JSON.parse(opts.payload), id = fid(); files[id] = { name: meta.name, parents: meta.parents || ['root'], mime: meta.mimeType, trashed: false }; return res(200, { id, name: meta.name });
-  }
-  const mid = /drive\/v3\/files\/([^?]+)\?(.*)$/.exec(url);
-  if (mid) {
-    const f = files[decodeURIComponent(mid[1])]; if (!f) return res(404, { error: { message: 'File not found' } });
-    if (m === 'get' && mid[2] === 'alt=media') return res(200, f.body);
-    if (m === 'get') return res(200, { id: mid[1], trashed: f.trashed });
-    if (m === 'patch') { Object.assign(f, JSON.parse(opts.payload)); return res(200, { id: mid[1] }); }
-  }
-  if (m === 'get' && url.startsWith('https://www.googleapis.com/drive/v3/files?q=')) {
-    const q = decodeURIComponent(/q=([^&]+)/.exec(url)[1]), parent = /'([^']+)' in parents/.exec(q)[1];
-    return res(200, { files: Object.keys(files).filter(id => files[id].parents.includes(parent) && !files[id].trashed && (!/folder/.test(q) || /folder/.test(files[id].mime))).map(id => ({ id, name: files[id].name })) });
-  }
-  return res(400, 'unexpected ' + m + ' ' + url);
-}
+// ---- simulated Drive (lib/drive.js: only what the bridge made exists for it, as with drive.file)
+const dv = drive({ token: 'oauth-token', onCall: () => tick(200) }), files = dv.files, fid = dv.fid;
 
 // ---- Apps Script, and Notion: Tasks (3 pages) and Captain's Log (105 pages with text, so more than one page of query
 // results); the rest not shared
@@ -47,7 +18,7 @@ let triggers = [];
 const trig = h => { const t = { h, getHandlerFunction: () => h }; return t; };
 const ScriptApp = { getOAuthToken: () => 'oauth-token', WeekDay: { SUNDAY: 'SUNDAY' }, getProjectTriggers: () => triggers.slice(), deleteTrigger: t => { triggers = triggers.filter(x => x !== t); },
   newTrigger: h => ({ timeBased: () => { const s = { h }; const c = { after: ms => { s.after = ms; return c; }, onWeekDay: d => { s.day = d; return c; }, atHour: n => { s.hour = n; return c; }, create: () => { const t = trig(h); Object.assign(t, s); triggers.push(t); return t; } }; return c; } }) };
-const br = bridge({ props: { NOTION_TOKEN: 'ntn_test', ACCESS_KEY: null }, notion: {}, globals: { ScriptApp }, fetch: (u, o) => (u.startsWith('https://www.googleapis.com') ? drive(u, o) : undefined) }), { ctx, props, nx } = br;
+const br = bridge({ props: { NOTION_TOKEN: 'ntn_test', ACCESS_KEY: null }, notion: {}, globals: { ScriptApp }, fetch: (u, o) => (u.startsWith('https://www.googleapis.com') ? dv.fetch(u, o) : undefined) }), { ctx, props, nx } = br;
 const send = ctx.UrlFetchApp.fetch;
 ctx.UrlFetchApp.fetch = (u, o) => { if (u.startsWith('https://api.notion.com/')) tick(1000); return send(u, o); };
 vm.runInContext('Date.now = function () { return __clock(); }', Object.assign(ctx, { __clock: () => clock }));
@@ -64,18 +35,18 @@ const logIds = Array.from({ length: LOGN }, (_, i) => nx.add('log', { Name: 'Sam
 [0, 1, 2].forEach(i => nx.add('tasks', { Task: 'Sample task "' + i + '", with a comma', Status: '⬜ To Do', Tags: ['a', 'b'], Done: i === 0, Hours: i ? i * 1.5 : null, Link: [REL] }, Object.assign({}, seen)));
 ctx.EXPORT.BUDGET_MS = 30000;   // about thirty Notion reads a run here, so the log takes several runs
 const post = br.call, lines = () => br.log.splice(0);
-const inFolder = (folder, name) => Object.keys(files).map(id => Object.assign({ id }, files[id])).filter(f => f.parents.includes(folder) && !f.trashed && (!name || f.name === name));
+const inFolder = dv.inFolder;
 const runTriggers = () => { let n = 0; while (triggers.some(t => t.h === 'exportContinue')) { assert.ok(++n < 40, 'finishes'); tick(60000); ctx.exportContinue(); } return n; };
 
 // ---- 1.41.1: the Drive API switched off (Google says PERMISSION_DENIED) is told apart, with Google's own words
-driveMode = 'apioff'; lines();
+dv.mode = 'apioff'; lines();
 ctx.setup();
 const offLine = lines().find(l => l.startsWith('Weekly Notion export:'));
 console.log(offLine);
 assert.ok(/NEEDS THE DRIVE API: in the script editor, Services \(\+ beside Services\) → Drive API → Add, then run setup again \(Google said: Google Drive API has not been used/.test(offLine), offLine);
 assert.strictEqual(triggers.length, 0);
 // ---- setup without the drive.file permission: says what to do, installs nothing
-driveMode = 'scope';
+dv.mode = 'scope';
 ctx.setup(); const key = props.ACCESS_KEY;
 const exLine = lines().find(l => l.startsWith('Weekly Notion export:'));
 console.log(exLine);
@@ -84,7 +55,7 @@ assert.strictEqual(post({ key, action: 'exportnow' }).error, 'drive_scope', 'EXP
 assert.strictEqual(post({ key, action: 'ping' }).export.last.error, 'drive_scope');
 
 // ---- with it: one root folder, one weekly trigger (setup again adds none)
-driveMode = 'ok'; lines(); ctx.setup(); ctx.setup();
+dv.mode = 'ok'; lines(); ctx.setup(); ctx.setup();
 console.log(lines().find(l => l.startsWith('Weekly Notion export:')));
 assert.deepStrictEqual(triggers.map(t => [t.h, t.day, t.hour]), [['exportWeekly', 'SUNDAY', 3]]);
 const root = props.EXPORT_ROOT; assert.strictEqual(files[root].name, 'TimothyOS Notion export'); assert.deepStrictEqual(files[root].parents, ['root']);
@@ -154,11 +125,11 @@ assert.ok(!dated.includes('2026-01-01 03.00'), 'the oldest gone');
 assert.ok(!files[keepMe].trashed, 'a folder that is not an export is never touched');
 
 // ---- Drive full partway: the run stops, says so, and its half-made folder goes
-driveMode = 'full'; post({ key, action: 'exportnow' }); runTriggers();
+dv.mode = 'full'; post({ key, action: 'exportnow' }); runTriggers();
 const lf = JSON.parse(props.EXPORT_LAST);
 assert.ok(lf.ok === false && lf.error === 'drive_full' && !props.EXPORT_JOB, JSON.stringify(lf));
 assert.ok(post({ key, action: 'ping' }).export.last.error === 'drive_full');
-driveMode = 'ok';
+dv.mode = 'ok';
 
 // ---- a stalled run (its trigger lost) is woken by EXPORT NOW, not started again
 post({ key, action: 'exportnow' }); triggers = triggers.filter(t => t.h !== 'exportContinue');

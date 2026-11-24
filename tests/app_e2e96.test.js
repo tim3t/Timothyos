@@ -93,8 +93,14 @@ const until = require('./lib/explain').until(10000, 150);
   await until(async () => (await txt(p, '#eyebrow')).startsWith('JOURNAL'), 5000, 'the journal');
   await until(async () => (await p.evaluate(() => [...document.querySelectorAll('#content textarea')].map(t => t.value).join(' '))).includes('Planted the garlic.'), 5000, 'that day\'s entry in the journal');
 
-  // ---- phone width: the form fits
+  // ---- 2.91 (bridge 1.53): a refused read keeps Notion's own code in the error log, for COPY DIAGNOSTICS
+  await mode('fail=notion_error:validation_error');
   await p.click('[data-sxtab="sessions"]'); await p.click('.sx-nav [data-sx="list"]'); await p.click('[data-sx="new"][data-t="solo"]'); await p.waitForSelector('.sx-form');
+  await until(async () => /logpreps[^\]]*notion_error[^\]]*Notion validation_error/.test(await p.evaluate(() => localStorage.getItem('tos.errlog.v1'))), 8000, 'Notion\'s code in the error log');
+  await mode('fail=0');
+
+  // ---- phone width: the form fits (the step before left a new one open)
+  await p.waitForSelector('.sx-form');
   await p.setViewportSize({ width: 400, height: 860 }); await p.waitForTimeout(200);
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no sideways scroll');
 
