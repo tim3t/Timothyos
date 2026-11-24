@@ -2,13 +2,12 @@
 
 Where parked work lives, so it survives a long conversation. Claude adds an item in the same change that postpones, offers or promises it, and removes it (noting the version) when it is done; Timothy can edit it too. No secrets and no private data here: this repository is public.
 
-Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of the app and the bridge. Nothing in the diagnostic or Roadmap sections is approved: each needs Timothy's go, and anything visible gets a mockup first.
+Last reviewed: 2026-11-24 (app 2.90.0, bridge 1.52.0), with Timothy. Nothing in the diagnostic or Roadmap sections is approved: each needs Timothy's go, and anything visible gets a mockup first.
 
 ## Waiting on Timothy
 
 | Item | Where | Notes |
 |---|---|---|
-| Deploy bridge 1.52.0 | Apps Script (README → Updating the Google bridge) | App 2.90's SAVE FOR SESSION and FROM THE LOG appear once it's deployed. No `setup` change needed, but running it is harmless |
 | ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
@@ -17,19 +16,13 @@ Last reviewed: 2026-11-15 (app 2.83.0, bridge 1.49.0), with a full diagnostic of
 
 ## Agreed, not started
 
-
-
-
-**At the next bridge release:** drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
+**At the next bridge release** (missed in 1.52; it should have gone with it): drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
 **Done 16 Nov (tests only, no version):** B1. Every bridge test that reaches Notion runs on one strict simulated Notion (`tests/lib/notion.js`, `tests/lib/gas.js`); `bridge_meals`, never in `run.sh` before, now runs, and `run_index.test.js` fails on any test file the suite doesn't name.
 
 ## From the diagnostic (2026-11-15), not yet agreed
 
 What the sweep found healthy: every station opens with no page error, no request blocked by the page's rules and no sideways overflow at iPad landscape, iPad portrait and phone width; no live CSS class collision on any station; lint clean; the keys that must never sync are all on the bridge's refuse list; every GitHub Action is pinned to a commit. Three full local runs of the suite passed in a row after the 15 Nov test fixes.
-
-**Data that could go wrong quietly (most worth doing)**
-
 
 **Tests that would have caught this week's bugs**
 
