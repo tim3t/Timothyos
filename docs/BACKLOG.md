@@ -8,13 +8,16 @@ Last reviewed: 2026-11-24 (app 2.90.0, bridge 1.52.0), with Timothy. Nothing in 
 
 | Item | Where | Notes |
 |---|---|---|
-| ON THIS DAY: confirm it reads cleanly | SYSTEMS → DIAGNOSTICS → COPY DIAGNOSTICS, about 30 minutes after the 1.49 deploy | The ON THIS DAY line should end "no problems". With 1.48.0 it read "tasks: notion_error; tarot: notion_error" |
 | RESSIKAN: SOLO tweak notes | After playing over a loop (2.82) | SOLO was built without a mockup, by his choice: "we can tweak after you've built it" |
 | HOLODECK: delete the converts folder | The NAS | Cleared to go once MOBILE looked clean (2.72) |
 | Link the Family calendar | Apps Script: `FAMILY_CALENDAR_ID` | Optional; read-only (bridge 1.42) |
 | First weekly export: report how it went | Google Drive, Sunday about 03:00 | Bridge 1.41 |
 
 ## Agreed, not started
+
+**Found 24 Nov in his COPY DIAGNOSTICS, proposed, waiting for his go:**
+- **F1. The export status read loops when it fails fast** (app). During the 18 Nov outage `exportstatus` was asked 8,371 times in 4 minutes: `renderBridge` and SYSTEMS' export row schedule `loadExport(false)` while the copy is missing or 3 hours old, and a failed read changes neither, so its own redraw asks again at once. Fix: after a failure, wait 10 minutes before asking unprompted (as every other read already does); a test that fails the read and counts requests.
+- **F2. `logpreps` refused by Notion** (bridge, with the next bridge release): three `notion_error`s on 23 Nov, likely before any answer was held. Inferred, not documented: Notion checks a select filter's value against the column's options (its docs say only rollup filters aren't checked), and "Session prep" isn't an option until the first answer is held. Fix: read the Source column's options first (fresh, not the 6-hour copy) and answer an empty list while it's missing; the error log keeps Notion's own code for log reads.
 
 **At the next bridge release** (missed in 1.52; it should have gone with it): drop the bridge's `done` read (unused since app 2.88, when BALANCE's last pieces left) and its mention in `docs/notes/bridge-actions.md`; correct `year_`'s comment, which still says "Read-only" (it writes Completed since 1.51).
 
