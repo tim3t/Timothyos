@@ -102,6 +102,21 @@ const row = p => txt(p, '#sec-notion').then(t => t.slice(t.indexOf('Weekly expor
   await mode('state=ok'); await p.setViewportSize({ width: 390, height: 844 }); await fresh('ok'); await systems();
   assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no sideways scroll');
 
+  // ---- 2.90.1: a status read that fails at once (the 18 Nov outage) is not asked again and again
+  await p.setViewportSize({ width: 1180, height: 900 });
+  let asked = 0;
+  await ctx.route(U + '**', rt => { const q = rt.request(); if (/exportstatus/.test(q.url() + (q.postData() || ''))) { asked++; return rt.abort('internetdisconnected'); } return rt.continue(); });   // by POST or, on this simulated bridge, GET
+  await fresh('ok'); await systems();
+  await p.click('[data-act="refresh"]');   // the bridge's abilities came from the older bridge two steps back: a sync brings the export's back
+  await until(async () => asked > 0 && /Couldn't reach the script/.test(await row(p)), 15000, 'the status asked for, and its failure shown');   // one read, with its own retries
+  const once = asked;
+  await p.waitForTimeout(1500);   // SYSTEMS redrawn with the failure: the old code asked again from each redraw
+  await p.locator('[data-screen="bridge"]:visible').first().click(); await p.waitForTimeout(1500);   // the Bridge, whose condition reads it too
+  assert.strictEqual(asked, once, 'asked ' + (asked - once) + ' more times after the failure; it used to ask again after each redraw');
+  await ctx.unroute(U + '**');
+  await systems(); await p.click('[data-act="refresh"]');   // REFRESH NOW, the Captain's own step, asks at once
+  await until(async () => /OK EXPORT NOW/.test(await row(p)), 10000, 'the status read again once the bridge answers');
+
   await b.close();
   await mode('cap=0&state=none&nowerr=0');
   console.log('errors', errs);

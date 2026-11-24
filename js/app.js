@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.90.0";
+  var VERSION = "2.90.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -874,7 +874,7 @@
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
+      if (state.screen === "systems") { toast("Synced"); exs.errAt = 0; loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
       flushInbox();
@@ -1605,16 +1605,17 @@
   /* The bridge copies every connected database (page text too) to Google Drive each Sunday; this only shows how that went
      and starts one on EXPORT NOW. Status from "exportstatus" (cheap: Script Properties), every 3 hours, and every 20 s
      on SYSTEMS while one runs. Kept as a cache (backup LEFT_OUT). */
-  var LS_EXPORT = "tos.export.v1", EXPORT_MS = 3 * 3600000, EXPORT_OLD_DAYS = 9;
-  var exs = { d: lsGet(LS_EXPORT), inflight: false, err: null, poll: 0, seq: 0 };
+  var LS_EXPORT = "tos.export.v1", EXPORT_MS = 3 * 3600000, EXPORT_OLD_DAYS = 9, EXPORT_RETRY_MS = 10 * 60000;
+  var exs = { d: lsGet(LS_EXPORT), inflight: false, err: null, errAt: 0, poll: 0, seq: 0 };
   function canExport() { return state.caps.indexOf("export") > -1; }
   function loadExport(force) {
     if (!state.conn || !canExport() || exs.inflight) return Promise.resolve();
     if (!force && exs.d && Date.now() - exs.d.fetched < EXPORT_MS) return Promise.resolve();
+    if (!force && Date.now() - exs.errAt < EXPORT_RETRY_MS) return Promise.resolve();   /* 2.90.1: a failed read waits; the redraw it causes asked again at once (8,371 times in 4 minutes, 18 Nov) */
     exs.inflight = true;
     var seq = exs.seq;   /* EXPORT NOW's answer is newer than a read already on its way: that read is dropped */
-    return api({ action: "exportstatus" }).then(function (j) { if (seq !== exs.seq) return; exs.d = { fetched: Date.now(), st: j.export || null }; exs.err = null; lsSet(LS_EXPORT, exs.d); })
-      .catch(function (err) { exs.err = describe(err); }).then(function () {
+    return api({ action: "exportstatus" }).then(function (j) { if (seq !== exs.seq) return; exs.d = { fetched: Date.now(), st: j.export || null }; exs.err = null; exs.errAt = 0; lsSet(LS_EXPORT, exs.d); })
+      .catch(function (err) { exs.err = describe(err); exs.errAt = Date.now(); }).then(function () {
         exs.inflight = false;
         if (state.screen === "systems" || state.screen === "bridge") render(true);
         exportPoll();

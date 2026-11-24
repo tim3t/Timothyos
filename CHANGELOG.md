@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.90.1 · 2026-11-24
+- **A failed export check no longer repeats itself.** When the bridge couldn't be reached, the weekly export's status (SYSTEMS → NOTION and the Bridge's condition) was asked again the moment the failure was shown, thousands of times over a few minutes (8,371 in 4 minutes during the 18 Nov outage, found in COPY DIAGNOSTICS). After a failure it now waits 10 minutes before asking on its own; **REFRESH NOW** asks at once.
+- No bridge update needed.
+
 ## 2.90.0 · 2026-11-23 (needs bridge 1.52)
 - **Bring an ASK THE LOG answer into a counseling session.** Under an answer, **SAVE FOR SESSION** holds it in Notion. When you start or edit a session, its first step shows **FROM THE LOG** with what you've held: **DROP IN** puts it into the session under **BROUGHT FROM THE LOG**, where you can trim or add to it; **NOT NOW** sets it aside for this session; **REMOVE** sends it to Notion's trash. Saving the session keeps the answer with it (in the Notion page too) and files it as an ordinary saved insight. In a saved session, the answer's dates open those journal days. Everything stays behind your log code.
 - **SESSIONS fits a phone.** A session's header now wraps at phone width; it used to make the form wider than the screen.

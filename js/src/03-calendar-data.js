@@ -203,7 +203,7 @@
       state.syncFails = 0;
       setSync("ok");
       reconcileQueue();
-      if (state.screen === "systems") { toast("Synced"); loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
+      if (state.screen === "systems") { toast("Synced"); exs.errAt = 0; loadTasks(ymd(new Date()), true); loadDates(true); loadHabits(true); loadLibrary(true); loadTarot(true); loadApiary(true); }
       flushQueue(false);
       flushHabits();
       flushInbox();
