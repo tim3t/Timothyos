@@ -112,7 +112,7 @@ var CONFIG = {
 };
 // ---------------------------------------------------------------------------
 
-var VERSION = '1.53.0';
+var VERSION = '1.54.0';
 /* 1.46: every prompt that carries his data (calendar events, tasks, Notion pages, journal or session notes, recipes, book
    passages, tool results) says once that all of it is data. Text in an event or a page can't steer Claude: it can't ask
    for a tool, a change or a secret. Only his own question is an instruction. Recipes already said so (1.40). */
@@ -437,7 +437,7 @@ function setup() {
   console.log('Notion meals and dinners: ' + mealsStatus_());
   console.log('Profile sync: ' + profileStatus_());
   try { console.log('Weekly Notion export: ' + exportSetup_()); } catch (e) { console.log('Weekly Notion export: could not check (' + e.message + ')'); }
-  console.log('Headlines: NPR National news, for the Morning Briefing (no key needed)');
+  console.log('Headlines: Politico, Politics (newest written stories), for the Morning Briefing (no key needed)');
   console.log('SCIENCE feeds: ' + sciStatus_());
   if (PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN')) {
     try {
@@ -3775,20 +3775,22 @@ function tarotSuggest_(body) {
   return { ok: true, version: VERSION, mode: mode, text: text, model: served, cost: Math.round(cost * 10000) / 10000, spend: aiSpend_() };
 }
 
-// ---- Headlines (bridge 1.37) --------------------------------------------------------
-// The Morning Briefing's NEWS: the newest items of NPR's National feed (personal, noncommercial use, as NPR's terms allow),
-// shown by the app exactly as NPR wrote them, with links; never sent to Claude. Cached 30 minutes. No key.
-var NEWS_FEED = 'https://feeds.npr.org/1003/rss.xml';
+// ---- Headlines (bridge 1.37; Politico since 1.54) ------------------------------------
+// The Morning Briefing's NEWS: the newest written stories of Politico's Politics feed (Timothy's choice, 25 Nov 2026: NPR's
+// National feed, used until 1.53, had grown too light for him), shown by the app exactly as Politico wrote them, with
+// links; never sent to Claude. Videos and podcasts in the feed are left out. Politico's home page answers scripts with a
+// bot check, so its editors' ranking isn't readable: the feed is newest first. Cached 30 minutes. No key.
+var NEWS_FEED = 'https://rss.politico.com/politics-news.xml', NEWS_SOURCE = 'POLITICO', NEWS_SKIP = /\/(video|podcasts?|audio)\//i;
 function news_() {
-  var cache = CacheService.getScriptCache(), hit = cache.get('news:1');
+  var cache = CacheService.getScriptCache(), hit = cache.get('news:2');   // 1.54: a new key, so NPR's cached copy isn't served
   if (hit) return JSON.parse(hit);
   var res;
   try { res = UrlFetchApp.fetch(NEWS_FEED, { muteHttpExceptions: true, followRedirects: true }); } catch (e) { return { ok: false, error: 'news_unavailable' }; }
   if (res.getResponseCode() !== 200) return { ok: false, error: 'news_unavailable' };
-  var items = newsItems_(res.getContentText()).slice(0, 5);
+  var items = newsItems_(res.getContentText()).filter(function (x) { return !NEWS_SKIP.test(x.link); }).slice(0, 5);
   if (!items.length) return { ok: false, error: 'news_unavailable' };
-  var out = { ok: true, version: VERSION, source: 'NPR', items: items };
-  try { cache.put('news:1', JSON.stringify(out), 1800); } catch (x) { /* fine */ }
+  var out = { ok: true, version: VERSION, source: NEWS_SOURCE, items: items };
+  try { cache.put('news:2', JSON.stringify(out), 1800); } catch (x) { /* fine */ }
   return out;
 }
 /** RSS items as {title, link, at}: plain text, entities decoded, https links only. */

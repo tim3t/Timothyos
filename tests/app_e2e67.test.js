@@ -2,7 +2,7 @@
 // Checks every so many days by season (APIARY → THIS YEAR → CHECK RHYTHM), counted from the newest check on any hive.
 // On a rest day the briefing is told the rhythm and that nothing is due, without the weather's hive window, and the
 // Bridge shows HIVE CHECK · NEXT ~date, REST. When a check is due, the window comes back (or, in winter, an outside look).
-// Upkeep that is due reaches the briefing. NEWS: the two newest NPR headlines, added after Claude's paragraphs exactly
+// Upkeep that is due reaches the briefing. NEWS: the two newest Politico headlines (NPR until bridge 1.53), added after Claude's paragraphs exactly
 // as written, with links, never sent to Claude; NO HEADLINES in SYSTEMS turns them off; a feed that fails costs nothing.
 const { chromium } = require('playwright');
 const { lane, P8105 } = require('./lib/lane');   // this lane's copy of each simulated server (run.sh)
@@ -49,15 +49,16 @@ const reset = () => Promise.all([mode('briefmode', 'cap=0&fail=0&shape=0'), mode
   assert.ok(s.ctx.includes('next due about ' + plus(30 - ago) + '. Nothing to do for the hives today.'));
   assert.ok(!/hive check (GO|HOLD)|Best window/i.test(s.ctx), 'no hive window on a rest day');
   assert.ok(/UPKEEP DUE: Sample filter \(House\), \d+ days over/.test(s.ctx) && !s.ctx.includes('Sample gutters'), 'what is due, only');
-  assert.ok(!s.ctx.includes('Sample council') && !s.ctx.includes('NPR'), 'headlines never go to Claude');
-  // NEWS: after Claude's paragraphs, as NPR wrote them, with links
+  assert.ok(!s.ctx.includes('Sample council') && !s.ctx.includes('POLITICO'), 'headlines never go to Claude');
+  // NEWS: after Claude's paragraphs, as Politico wrote them, with links
   await p.waitForSelector('#brPaper'); await p.click('#brPaper'); await p.waitForTimeout(300);
   const paper = await txt(p, '#brPaper');
-  assert.ok(paper.includes('NEWS · NPR. Sample council approves the new river crossing. Sample storm brings early snow to the plains.'), paper);
+  assert.ok(paper.includes('NEWS · POLITICO. Sample council approves the new river crossing. Sample storm brings early snow to the plains.'), paper);
   assert.ok(!paper.includes('A third sample headline'), 'two headlines');
   assert.deepStrictEqual(await p.$$eval('.br-news a', n => n.map(a => [a.textContent, a.href, a.target])), [
-    ['Sample council approves the new river crossing', 'https://www.npr.org/2026/11/02/1/sample-crossing', '_blank'],
-    ['Sample storm brings early snow to the plains', 'https://www.npr.org/2026/11/02/2/sample-snow', '_blank']]);
+    ['Sample council approves the new river crossing', 'https://www.politico.com/news/2026/11/02/sample-crossing-1', '_blank'],
+    ['Sample storm brings early snow to the plains', 'https://www.politico.com/news/2026/11/02/sample-snow-2', '_blank']]);
+  assert.strictEqual(await txt(p, '.br-news .ov-sub'), 'READ AT POLITICO');
   // the Bridge: next check, at rest
   const env = await txt(p, '.ov-envrow:has-text("HIVE CHECK")');
   assert.ok(/HIVE CHECK · NEXT ~\d\d [A-Z]{3}/.test(env) && env.includes('REST') && !env.includes('GO'), env);
@@ -90,7 +91,7 @@ const reset = () => Promise.all([mode('briefmode', 'cap=0&fail=0&shape=0'), mode
 
   // ---- NO HEADLINES; a feed that fails
   await p.click('#status'); await p.waitForSelector('[data-brief="newsoff"]');
-  assert.ok((await txt(p, '.br-newsset')).includes("NPR's National news"));
+  assert.ok((await txt(p, '.br-newsset')).includes("the two newest stories from Politico's Politics feed"), await txt(p, '.br-newsset'));
   await p.click('[data-brief="newsoff"]'); await p.waitForSelector('[data-brief="newson"]');
   const n0 = (await mode('newsmode', '')).n;
   await p.click('.elbow'); await p.waitForSelector('[data-brief="again"]'); await p.click('[data-brief="again"]');

@@ -2,6 +2,10 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.91.1 · 2026-11-25 (needs bridge 1.54)
+- **The briefing's headlines come from Politico** (Timothy, 25 Nov: NPR's had become too light). The two newest written stories from Politico's Politics feed (videos and podcasts left out) close the briefing as **NEWS · POLITICO**, with **READ AT POLITICO** links; Nova reads them as before. They are the newest, not Politico's home page picks: its home page turns scripts away. A briefing made before the change still says NPR. Until the bridge is updated, the headlines stay NPR's.
+- **Bridge 1.54:** the `news` read uses Politico's Politics RSS.
+
 ## 2.91.0 · 2026-11-24 (needs bridge 1.53)
 - **A backup goes to Google Drive by itself** (Timothy's go, 24 Nov). **SYSTEMS → BACKUP AND RESTORE → MAKE BACKUP** now sends the locked file to Google Drive (TimothyOS Notion export → iPad backups, named for this iPad, the newest 10 kept), with **OPEN IN DRIVE**: no Files dialog. The bridge only stores it; the passphrase never leaves the iPad. **A COPY TO FILES TOO** still saves one to Files. If Drive refuses, it says why, with **SEND AGAIN**.
 - **Nova reads only when asked** (choice D). A briefing no longer asks OpenAI for its audio when it compiles, so an iPad where the briefing is only read costs nothing for the voice. The first **READ IT TO ME** of each briefing makes it (**PREPARING VOICE…**, up to about two minutes for a whole briefing); after that it starts at once.

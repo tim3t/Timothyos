@@ -1,14 +1,17 @@
-// Headlines for the Morning Briefing (bridge 1.37): news reads NPR's National RSS feed (no key), keeps up to five items as
-// {title, link, at} with entities and CDATA decoded and only https links, caches them 30 minutes, and says news_unavailable
-// when the feed fails. The capability is always offered. Invented headlines.
+// Headlines for the Morning Briefing (bridge 1.37; Politico since 1.54): news reads Politico's Politics RSS feed (no key),
+// keeps up to five written stories as {title, link, at} (videos and podcasts left out) with entities and CDATA decoded
+// and only https links, caches them 30 minutes, and says news_unavailable when the feed fails. The capability is always
+// offered. Invented headlines.
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const props = {}, cache = {}; let fetches = [], reply = { code: 200, body: '' };
-const FEED = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>NPR Topics: National</title><link>https://www.npr.org/sections/national/</link>
-<item><title>Sample town &amp; county reopen the river bridge</title><description>Words.</description><pubDate>Mon, 02 Nov 2026 15:00:00 -0500</pubDate><link>https://www.npr.org/2026/11/02/1/sample-bridge</link></item>
-<item><title><![CDATA[Sample storm brings &#8216;rare&#8217; snow 🌨 to the plains]]></title><pubDate>Mon, 02 Nov 2026 14:00:00 -0500</pubDate><link>https://www.npr.org/2026/11/02/2/sample-snow</link></item>
+const FEED = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Politics</title><link>https://www.politico.com/politics</link>
+<item><title>A sample video, left out</title><link>https://www.politico.com/video/2026/11/02/sample-video-1</link></item>
+<item><title>Sample town &amp; county reopen the river bridge</title><description>Words.</description><pubDate>Mon, 02 Nov 2026 15:00:00 -0500</pubDate><link>https://www.politico.com/news/2026/11/02/sample-bridge-1</link></item>
+<item><title><![CDATA[Sample storm brings &#8216;rare&#8217; snow 🌨 to the plains]]></title><pubDate>Mon, 02 Nov 2026 14:00:00 -0500</pubDate><link>https://www.politico.com/news/2026/11/02/sample-snow-2</link></item>
 <item><title>Not https, left out</title><link>http://example.invalid/x</link></item>
-<item><title>Third sample headline</title><link>https://www.npr.org/2026/11/02/3/third</link></item>
-<item><title>Fourth</title><link>https://www.npr.org/4</link></item><item><title>Fifth</title><link>https://www.npr.org/5</link></item><item><title>Sixth</title><link>https://www.npr.org/6</link></item>
+<item><title>A sample podcast, left out</title><link>https://www.politico.com/podcasts/2026/11/02/sample-show</link></item>
+<item><title>Third sample headline</title><link>https://www.politico.com/news/2026/11/02/third-3</link></item>
+<item><title>Fourth</title><link>https://www.politico.com/news/4</link></item><item><title>Fifth</title><link>https://www.politico.com/news/5</link></item><item><title>Sixth</title><link>https://www.politico.com/news/6</link></item>
 </channel></rss>`;
 const ctx = {
   console: { log() {} },
@@ -29,12 +32,12 @@ assert.ok(get({ action: 'ping' }).capabilities.includes('news'), 'always offered
 reply = { code: 200, body: FEED };
 let j = get({ action: 'news' });
 assert.ok(j.ok, JSON.stringify(j));
-assert.strictEqual(j.source, 'NPR');
-assert.deepStrictEqual(fetches, ['https://feeds.npr.org/1003/rss.xml'], 'NPR National');
-assert.deepStrictEqual(j.items.map(x => x.title), ['Sample town & county reopen the river bridge', 'Sample storm brings ‘rare’ snow 🌨 to the plains', 'Third sample headline', 'Fourth', 'Fifth'], 'five, decoded, http left out');
-assert.strictEqual(j.items[0].link, 'https://www.npr.org/2026/11/02/1/sample-bridge');
+assert.strictEqual(j.source, 'POLITICO');
+assert.deepStrictEqual(fetches, ['https://rss.politico.com/politics-news.xml'], 'Politico, Politics');
+assert.deepStrictEqual(j.items.map(x => x.title), ['Sample town & county reopen the river bridge', 'Sample storm brings ‘rare’ snow 🌨 to the plains', 'Third sample headline', 'Fourth', 'Fifth'], 'five written stories, decoded; http, video and podcast left out');
+assert.strictEqual(j.items[0].link, 'https://www.politico.com/news/2026/11/02/sample-bridge-1');
 assert.strictEqual(j.items[0].at, 'Mon, 02 Nov 2026 15:00:00 -0500');
-assert.strictEqual(cache['news:1:ttl'], 1800, 'kept 30 minutes');
+assert.strictEqual(cache['news:2:ttl'], 1800, 'kept 30 minutes');
 // cached: no second fetch
 get({ action: 'news' }); assert.strictEqual(fetches.length, 1);
 // batched with the other reads
@@ -42,7 +45,7 @@ const b = JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify({ key, ac
 assert.ok(b.results[0].ok && b.results[0].items.length === 5, JSON.stringify(b).slice(0, 200));
 // the feed failing, or empty, or unreachable
 for (const r of [{ code: 503, body: '' }, { code: 200, body: '<rss><channel></channel></rss>' }, { throw: true }]) {
-  delete cache['news:1']; reply = r;
+  delete cache['news:2']; reply = r;
   assert.strictEqual(get({ action: 'news' }).error, 'news_unavailable', JSON.stringify(r));
 }
 // the briefing's rules: hives only when due, the routine left out, upkeep named, the news left to the app

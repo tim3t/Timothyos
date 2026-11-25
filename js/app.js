@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.91.0";
+  var VERSION = "2.91.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -1563,8 +1563,8 @@
      new version (the step that's easy to miss). BRIDGE_WANT is the bridge this app was built with (a test keeps it
      equal to Code.gs's VERSION). An older bridge puts a YELLOW item in Condition, a NEEDS YOU card in Systems naming
      what's missing with the steps, and errors an old bridge causes say so. A newer bridge is fine. */
-  var BRIDGE_WANT = "1.53.0";
-  var BRIDGE_FEATURES = [["1.53.0", "each backup also sent to Google Drive, and held answers listed before the first is saved"], ["1.52.0", "ASK THE LOG answers held for a session (SAVE FOR SESSION), dropped into a session from FROM THE LOG"], ["1.51.0", "a capture sent again days later is never made twice, and a finished task keeps the day it was finished"], ["1.50.0", "a read that reaches its row limit says so, in COPY DIAGNOSTICS and on the station"], ["1.49.0", "HABITS: Evening Walk is now Exercise (either Notion column name works)"], ["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
+  var BRIDGE_WANT = "1.54.0";
+  var BRIDGE_FEATURES = [["1.54.0", "the briefing's headlines from Politico instead of NPR"], ["1.53.0", "each backup also sent to Google Drive, and held answers listed before the first is saved"], ["1.52.0", "ASK THE LOG answers held for a session (SAVE FOR SESSION), dropped into a session from FROM THE LOG"], ["1.51.0", "a capture sent again days later is never made twice, and a finished task keeps the day it was finished"], ["1.50.0", "a read that reaches its row limit says so, in COPY DIAGNOSTICS and on the station"], ["1.49.0", "HABITS: Evening Walk is now Exercise (either Notion column name works)"], ["1.48.1", "ON THIS DAY reads your tasks and tarot (1.48.0's filters were refused by Notion)"], ["1.48.0", "ON THIS DAY on the Bridge"], ["1.47.1", "SICKBAY: the STAND ring counts the hours you stood in, as Apple does"], ["1.47.0", "SICKBAY: when each day arrived and caught up; LEDGER: take an item off the queue"], ["1.46.0", "MEALS: recipe photos kept small with the meal, and Claude told to treat your data as data"], ["1.45.0", "the Health shortcut can check what it sends, and says why a line was left out"], ["1.44.1", "SICKBAY: health days always land on the right date, and a partial day never overwrites a whole one"], ["1.44.0", "MEALS: a photo for a meal you typed in"], ["1.43.1", "the Health shortcut's notification always says what happened"], ["1.43.0", "SICKBAY: health from your watch, medicines, readings and notes"], ["1.42.0", "the Family calendar"], ["1.41.1", "clearer Drive setup messages for the export"], ["1.41.0", "the weekly Notion export, and ASK seeing your breaks"], ["1.40.0", "recipes from a link, text or photo, and COOK"], ["1.39.0", "MEALS"], ["1.38.0", "reads without the access key in the address"], ["1.37.0", "headlines, and hives mentioned only when a check is due"], ["1.36.1", "emoji kept whole in long text sent to Notion"], ["1.36.0", "profile sync between your iPads, and Upkeep in Notion"], ["1.35.0", "LOG session notes"], ["1.34.0", "SCIENCE and the Science Log"], ["1.33.0", "CAPTURE → NOTE and the INBOX"], ["1.32.0", "ASTROMETRICS tasks and queue, and the Ship's Year"], ["1.31.0", "the Notion column check"], ["1.30.0", "the AI voice (Nova)"], ["1.29.0", "the Morning Briefing"], ["1.28.0", "APIARY TRUE UP STACK"], ["1.27.0", "ASK's corrected tools"],
     ["1.26.0", "APIARY"], ["1.25.0", "the tarot books"], ["1.24.0", "TAROT"], ["1.23.0", "holidays"], ["1.22.0", "the Growth calendar"], ["1.20.0", "Log Ask"],
     ["1.17.0", "the authorization code"], ["1.16.0", "Log search"], ["1.14.0", "HABITS and LIBRARY"], ["1.10.0", "the Captain's Log"], ["1.9.0", "LEDGER"], ["1.8.0", "the farm calendar"]];
   var BRIDGE_CODE_URL = "https://raw.githubusercontent.com/tim3t/Timothyos/main/apps-script/Code.gs";
@@ -3245,13 +3245,16 @@
   var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
   var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
   function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
-  /* 2.56 (bridge 1.37): NEWS, the two newest US headlines from NPR's National feed, added by the app after Claude's
-     paragraphs exactly as NPR wrote them, with links to read on. Never sent to Claude. Off in SYSTEMS → MORNING BRIEFING. */
+  /* 2.56 (bridge 1.37): NEWS, the two newest headlines from the bridge's feed, added by the app after Claude's paragraphs
+     exactly as written, with links to read on. Never sent to Claude. Off in SYSTEMS → MORNING BRIEFING. The feed was NPR's
+     National news until bridge 1.53; since 1.54 it is Politico's Politics (Timothy, 25 Nov). The bridge names its source
+     (news.source), kept with each briefing (b.newsSrc), so one saved before the change still says NPR. */
+  function newsSrcName(s) { s = String(s || "").toUpperCase().replace(/[^A-Z ]/g, "").trim().slice(0, 20); return s || "NPR"; }
   var LS_NEWSOFF = "tos.newsoff.v1";
   function canNews() { return state.caps.indexOf("news") > -1 && !lsGet(LS_NEWSOFF); }
   function newsSetLine() {
     var on = !lsGet(LS_NEWSOFF);
-    return '<div class="br-newsset"><span>' + (state.caps.indexOf("news") < 0 ? "Headlines: need the Google bridge updated to 1.37." : "Headlines: " + (on ? "the two newest from NPR's National news, as NPR wrote them, never sent to Claude." : "off.")) + "</span>" +
+    return '<div class="br-newsset"><span>' + (state.caps.indexOf("news") < 0 ? "Headlines: need the Google bridge updated to 1.37." : "Headlines: " + (on ? (verCmp(state.bridgeVersion || "0", "1.54.0") >= 0 ? "the two newest stories from Politico's Politics feed, as Politico wrote them, never sent to Claude." : "the two newest from NPR's National news, as NPR wrote them, never sent to Claude. The Google bridge 1.54 brings Politico's instead.") : "off.")) + "</span>" +
       (state.caps.indexOf("news") < 0 ? "" : '<button type="button" class="chip sm" data-brief="' + (on ? "newsoff" : "newson") + '">' + (on ? "NO HEADLINES" : "ADD HEADLINES") + "</button>") + "</div>";
   }
   function minsOf(d) { return d.getHours() * 60 + d.getMinutes(); }
@@ -3303,16 +3306,16 @@
     /* Timothy (2.36.1): shorter, and no habits, apiary or tarot. Those parts stay out of the snapshot, and the ask asks for brevity. */
     var ctx = briefing(true).filter(function (x) { return BRIEF_SKIP.indexOf(x.k) < 0; }).map(function (x) { return x.t; }).join("\n\n");
     var skyLine = sciBrief(); if (skyLine) ctx += "\n\n" + skyLine;   /* 2.42: only what's worth knowing from SCIENCE today */
-    var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n.items || []; }, function () { return []; }) : Promise.resolve([]);   /* no headlines is no reason to fail the briefing */
+    var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n; }, function () { return {}; }) : Promise.resolve({});   /* no headlines is no reason to fail the briefing */
     return Promise.all([apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList, breaks: breakList }, 150000), newsP]).then(function (res) {
       var j = res[0];
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       var b = briefParse(j.reply);
       if (!b) throw { code: "brief_shape" };
-      var hl = res[1].filter(function (x) { return x && x.title && /^https:\/\//.test(x.link || ""); }).slice(0, 2);
+      var src = newsSrcName(res[1].source), hl = (res[1].items || []).filter(function (x) { return x && x.title && /^https:\/\//.test(x.link || ""); }).slice(0, 2);
       if (hl.length) {
-        b.news = hl.map(function (x) { return { t: String(x.title).slice(0, 200), u: String(x.link) }; });
-        b.paras.push({ label: "NEWS · NPR", text: b.news.map(function (x) { return /[.?!…]$/.test(x.t) ? x.t : x.t + "."; }).join(" ") });
+        b.news = hl.map(function (x) { return { t: String(x.title).slice(0, 200), u: String(x.link) }; }); b.newsSrc = src;
+        b.paras.push({ label: "NEWS · " + src, text: b.news.map(function (x) { return /[.?!…]$/.test(x.t) ? x.t : x.t + "."; }).join(" ") });
       }
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
       b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
@@ -3390,7 +3393,7 @@
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
       '<button type="button" class="ov-more" data-brief="fold" aria-expanded="true" aria-label="Fold the briefing to one line"></button>') +
       '<div class="br-paper" id="brPaper">' + briefHtml(segs, n) + "</div>" +
-      (b.news && b.news.length ? '<div class="br-news"><span class="ov-sub">READ AT NPR</span>' + b.news.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener noreferrer">' + esc(x.t) + "</a>"; }).join("") + "</div>" : "") +
+      (b.news && b.news.length ? '<div class="br-news"><span class="ov-sub">READ AT ' + esc(newsSrcName(b.newsSrc)) + "</span>" + b.news.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener noreferrer">' + esc(x.t) + "</a>"; }).join("") + "</div>" : "") +
       '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (va.prep ? "PREPARING VOICE…" : br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
       '<button type="button" class="btn sm ghost" data-brief="again">REFRESH</button>' +
       (today && b.fold == null && minsOf(now) < BRIEF_FOLD ? '<span class="muted">Folds to one line at 10:30, or tap −.</span>' : "") + "</div></section>";

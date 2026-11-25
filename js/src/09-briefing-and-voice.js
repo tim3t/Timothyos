@@ -10,13 +10,16 @@
   var BRIEF_FROM = 6 * 60, BRIEF_FOLD = 10 * 60 + 30, BRIEF_TYPE_MS = 5000, BRIEF_WAIT_MS = 60000, BRIEF_RETRY_MS = 10 * 60000;
   var br = { b: lsGet(LS_BRIEF), busy: false, err: "", errAt: 0, t0: 0, ci: 0, typeT0: 0, raf: 0, say: -1, speaking: false, waitFrom: 0, showOld: false };
   function canBrief() { return state.caps.indexOf("brief") > -1 && !lsGet(LS_BRIEFOFF); }
-  /* 2.56 (bridge 1.37): NEWS, the two newest US headlines from NPR's National feed, added by the app after Claude's
-     paragraphs exactly as NPR wrote them, with links to read on. Never sent to Claude. Off in SYSTEMS → MORNING BRIEFING. */
+  /* 2.56 (bridge 1.37): NEWS, the two newest headlines from the bridge's feed, added by the app after Claude's paragraphs
+     exactly as written, with links to read on. Never sent to Claude. Off in SYSTEMS → MORNING BRIEFING. The feed was NPR's
+     National news until bridge 1.53; since 1.54 it is Politico's Politics (Timothy, 25 Nov). The bridge names its source
+     (news.source), kept with each briefing (b.newsSrc), so one saved before the change still says NPR. */
+  function newsSrcName(s) { s = String(s || "").toUpperCase().replace(/[^A-Z ]/g, "").trim().slice(0, 20); return s || "NPR"; }
   var LS_NEWSOFF = "tos.newsoff.v1";
   function canNews() { return state.caps.indexOf("news") > -1 && !lsGet(LS_NEWSOFF); }
   function newsSetLine() {
     var on = !lsGet(LS_NEWSOFF);
-    return '<div class="br-newsset"><span>' + (state.caps.indexOf("news") < 0 ? "Headlines: need the Google bridge updated to 1.37." : "Headlines: " + (on ? "the two newest from NPR's National news, as NPR wrote them, never sent to Claude." : "off.")) + "</span>" +
+    return '<div class="br-newsset"><span>' + (state.caps.indexOf("news") < 0 ? "Headlines: need the Google bridge updated to 1.37." : "Headlines: " + (on ? (verCmp(state.bridgeVersion || "0", "1.54.0") >= 0 ? "the two newest stories from Politico's Politics feed, as Politico wrote them, never sent to Claude." : "the two newest from NPR's National news, as NPR wrote them, never sent to Claude. The Google bridge 1.54 brings Politico's instead.") : "off.")) + "</span>" +
       (state.caps.indexOf("news") < 0 ? "" : '<button type="button" class="chip sm" data-brief="' + (on ? "newsoff" : "newson") + '">' + (on ? "NO HEADLINES" : "ADD HEADLINES") + "</button>") + "</div>";
   }
   function minsOf(d) { return d.getHours() * 60 + d.getMinutes(); }
@@ -68,16 +71,16 @@
     /* Timothy (2.36.1): shorter, and no habits, apiary or tarot. Those parts stay out of the snapshot, and the ask asks for brevity. */
     var ctx = briefing(true).filter(function (x) { return BRIEF_SKIP.indexOf(x.k) < 0; }).map(function (x) { return x.t; }).join("\n\n");
     var skyLine = sciBrief(); if (skyLine) ctx += "\n\n" + skyLine;   /* 2.42: only what's worth knowing from SCIENCE today */
-    var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n.items || []; }, function () { return []; }) : Promise.resolve([]);   /* no headlines is no reason to fail the briefing */
+    var newsP = canNews() ? api({ action: "news" }).then(function (n) { return n; }, function () { return {}; }) : Promise.resolve({});   /* no headlines is no reason to fail the briefing */
     return Promise.all([apiPost({ action: "ask", cid: newCid(), mode: "brief", messages: [{ role: "user", text: BRIEF_ASK }], context: ctx, ignore: ignoreList, breaks: breakList }, 150000), newsP]).then(function (res) {
       var j = res[0];
       if (j.spend) { state.aiSpend = j.spend; lsSet(LS_AISPEND, j.spend); }
       var b = briefParse(j.reply);
       if (!b) throw { code: "brief_shape" };
-      var hl = res[1].filter(function (x) { return x && x.title && /^https:\/\//.test(x.link || ""); }).slice(0, 2);
+      var src = newsSrcName(res[1].source), hl = (res[1].items || []).filter(function (x) { return x && x.title && /^https:\/\//.test(x.link || ""); }).slice(0, 2);
       if (hl.length) {
-        b.news = hl.map(function (x) { return { t: String(x.title).slice(0, 200), u: String(x.link) }; });
-        b.paras.push({ label: "NEWS · NPR", text: b.news.map(function (x) { return /[.?!…]$/.test(x.t) ? x.t : x.t + "."; }).join(" ") });
+        b.news = hl.map(function (x) { return { t: String(x.title).slice(0, 200), u: String(x.link) }; }); b.newsSrc = src;
+        b.paras.push({ label: "NEWS · " + src, text: b.news.map(function (x) { return /[.?!…]$/.test(x.t) ? x.t : x.t + "."; }).join(" ") });
       }
       /* asked for after 10:30 (REFRESH, COMPILE NOW, COMPUTER), it opens; a refresh keeps the fold you chose */
       b.id = newCid(); b.day = today; b.at = Date.now(); b.model = j.model || ""; b.cost = j.cost || 0; b.typed = false; b.fold = asked && minsOf(now) >= BRIEF_FOLD ? false : prev ? prev.fold : null;
@@ -155,7 +158,7 @@
     return '<section class="br">' + briefHead("COMPILED " + hm(new Date(b.at)) + " · " + modelName(b.model) + " · " + money(b.cost),
       '<button type="button" class="ov-more" data-brief="fold" aria-expanded="true" aria-label="Fold the briefing to one line"></button>') +
       '<div class="br-paper" id="brPaper">' + briefHtml(segs, n) + "</div>" +
-      (b.news && b.news.length ? '<div class="br-news"><span class="ov-sub">READ AT NPR</span>' + b.news.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener noreferrer">' + esc(x.t) + "</a>"; }).join("") + "</div>" : "") +
+      (b.news && b.news.length ? '<div class="br-news"><span class="ov-sub">READ AT ' + esc(newsSrcName(b.newsSrc)) + "</span>" + b.news.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener noreferrer">' + esc(x.t) + "</a>"; }).join("") + "</div>" : "") +
       '<div class="btnrow br-tools"><button type="button" class="btn sm br-say" data-brief="say" aria-pressed="' + br.speaking + '"><span class="br-bars" aria-hidden="true"><i></i><i></i><i></i></span>' + (va.prep ? "PREPARING VOICE…" : br.speaking ? "STOP READING" : "READ IT TO ME") + "</button>" +
       '<button type="button" class="btn sm ghost" data-brief="again">REFRESH</button>' +
       (today && b.fold == null && minsOf(now) < BRIEF_FOLD ? '<span class="muted">Folds to one line at 10:30, or tap −.</span>' : "") + "</div></section>";

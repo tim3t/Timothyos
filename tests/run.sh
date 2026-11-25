@@ -188,7 +188,7 @@ LANES=(
 #   app_e2e72      MEALS (2.59): TONIGHT on the Bridge and TODAY (record, undo, something else), PLAN (nights, cards, groceries, ticks, extras, PRINT, SHARE, PLAN MY WEEK), meals (new, retire, remove), LOG (fill in, rotation), SYSTEMS, phone
 #   app_e2e73      RECIPES AND COOK (2.60): + FROM A RECIPE by link, text and photo into the editor to review; saved with the recipe and photo; ASK and COMPUTER routes; COOK (ticks, steps, A+, screen kept on, no recipe yet)
 #   app_e2e68      SHEETS: portrait page pinned while a sheet is open; taps land on ADD and SET PRIORITIES; let go where it was
-#   app_e2e67      BRIEFING: hive rhythm (rest day, due, the APIARY editor), upkeep due, NPR headlines with links, off, a failed feed
+#   app_e2e67      BRIEFING: hive rhythm (rest day, due, the APIARY editor), upkeep due, Politico headlines with links, off, a failed feed
 #   app_e2e66      EMOJI: captured whole, kept on the Loom, the minute redraw waits while you write
 #   app_e2e65      PROFILE SYNC: two iPads (HUB, MOBILE), name, turn on, nothing secret sent, join with MERGE, SYNC NOW, a row kept local, AUDIO picked up, Upkeep in Notion, pause, missing channel folder asked once
 #   app_e2e34      GROWTH: renamed area, Growth calendar linked: Today, Horizon, Balance, Capture, Review

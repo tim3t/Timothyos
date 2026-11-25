@@ -178,9 +178,9 @@ def exp_state(name, err):
     run = lambda stalled: {"since": dt.datetime.now(dt.timezone.utc).isoformat(), "db": "Captain's Log", "n": 5, "of": 16, "pages": 230, "stalled": stalled}
     last = None if name in ("none", "unscheduled") else exp_last(15) if name == "old" else exp_last(0, False, err or "drive_scope") if name == "failed" else exp_last(2)
     return {"weekly": name != "unscheduled", "keep": 12, "last": last, "running": run(name == "stalled") if name in ("running", "stalled") else None}   # 2.56: headlines for the briefing (bridge 1.37), off unless newsmode cap=1
-NEWS_ITEMS = [{"title": "Sample council approves the new river crossing", "link": "https://www.npr.org/2026/11/02/1/sample-crossing", "at": "Mon, 02 Nov 2026 15:00:00 -0500"},
-              {"title": "Sample storm brings early snow to the plains", "link": "https://www.npr.org/2026/11/02/2/sample-snow", "at": "Mon, 02 Nov 2026 14:00:00 -0500"},
-              {"title": "A third sample headline", "link": "https://www.npr.org/2026/11/02/3/third", "at": "Mon, 02 Nov 2026 13:00:00 -0500"}]
+NEWS_ITEMS = [{"title": "Sample council approves the new river crossing", "link": "https://www.politico.com/news/2026/11/02/sample-crossing-1", "at": "Mon, 02 Nov 2026 15:00:00 -0500"},
+              {"title": "Sample storm brings early snow to the plains", "link": "https://www.politico.com/news/2026/11/02/sample-snow-2", "at": "Mon, 02 Nov 2026 14:00:00 -0500"},
+              {"title": "A third sample headline", "link": "https://www.politico.com/news/2026/11/02/third-3", "at": "Mon, 02 Nov 2026 13:00:00 -0500"}]
 def prof_put(items):
     ch = 0
     for k, it in items.items():
@@ -567,7 +567,7 @@ class H(BaseHTTPRequestHandler):
             body = {"ok": True, "n": NEWS["n"]}
         elif q.get("action") == "news" and NEWS["cap"]:
             NEWS["n"] += 1
-            body = {"ok": False, "error": "news_unavailable"} if NEWS["fail"] else {"ok": True, "version": VER["v"], "source": "NPR", "items": NEWS_ITEMS}
+            body = {"ok": False, "error": "news_unavailable"} if NEWS["fail"] else {"ok": True, "version": VER["v"], "source": "POLITICO", "items": NEWS_ITEMS}
         elif q.get("action") == "familymode":
             if "on" in q: FAMILY["on"] = int(q["on"])
             body = {"ok": True, "on": FAMILY["on"]}

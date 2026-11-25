@@ -955,7 +955,7 @@ Tap **STANDBY** at the right end of the top bar any time, or let it start after 
 ### Morning Briefing: hives and headlines
 
 - **Hives:** the briefing, ASK and the weekly summary know your check rhythm: every 10 days April to September, 21 in March, October and November, and only an outside look about monthly in winter, counted from your newest check in APIARY. Change the days in **APIARY → THIS YEAR → CHECK RHYTHM**. The hive window (GO or HOLD) shows only when a check is due; otherwise the Bridge shows the next check date.
-- **Headlines:** the two newest US stories from NPR's National news close the briefing, exactly as NPR wrote them, with links to read on. Claude never sees them. **SYSTEMS → MORNING BRIEFING → NO HEADLINES** turns them off. Needs bridge 1.37.
+- **Headlines:** the two newest stories from Politico's Politics feed close the briefing (videos and podcasts left out), exactly as Politico wrote them, with links to read on. They are Politico's newest, not its home page's top picks (its home page can't be read by a script). Claude never sees them. **SYSTEMS → MORNING BRIEFING → NO HEADLINES** turns them off.
 
 ### SYSTEMS
 
