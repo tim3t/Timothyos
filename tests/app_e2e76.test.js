@@ -42,14 +42,17 @@ const K = 'k'.repeat(64);
     assert.ok(moved >= 0 && moved <= 3 * 30, w + 'x' + h + ': the page only follows the new lines down: ' + JSON.stringify([at0, at1]));
     // the caret mid-screen: typing and Enter leave the page where it is
     const box = await (await p.$('.cl-text')).boundingBox();
-    await p.mouse.click(box.x + 200, Math.max(box.y, 0) + Math.round(h / 3)); await p.waitForTimeout(100);
+    const tap = [box.x + 200, Math.max(box.y, 0) + Math.round(h / 3)];
+    await p.mouse.click(tap[0], tap[1]); await p.waitForTimeout(100);
+    const focus = await p.evaluate(([x, y]) => { const a = document.activeElement, t = document.elementFromPoint(x, y); return { ok: !!a && a.classList.contains('cl-text'), had: a ? a.tagName + '#' + a.id + '.' + a.className : 'none', under: t ? t.tagName + '#' + t.id + '.' + t.className : 'none' }; }, tap);
+    assert.ok(focus.ok, w + 'x' + h + ': the tap mid-text put the caret in the editor (26 Nov: once the editor kept its long height after Control+A and typing; a tap that missed would explain it): ' + JSON.stringify(focus));
     const at2 = await where();
     for (const key of ['x', 'Enter', 'y']) { await p.keyboard.press(key); await p.waitForTimeout(60); }
     const at3 = await where();
     assert.strictEqual(w < 860 ? at3.y : at3.c, w < 860 ? at2.y : at2.c, w + 'x' + h + ': mid-text, the page doesn\'t move: ' + JSON.stringify([at2, at3]));
     // deleting shrinks the editor to fit again
     await p.keyboard.press('Control+a'); await p.keyboard.type('Short now.'); await p.waitForTimeout(100);
-    assert.strictEqual((await where()).ta, 320, 'back to its least height');
+    assert.strictEqual((await where()).ta, 320, w + 'x' + h + ': back to its least height, holding ' + JSON.stringify((await p.inputValue('.cl-text')).slice(0, 40)));
     assert.strictEqual(await p.locator('.cl-text').count(), 1, 'one editor (the measuring copy is .cl-mirror)');
     assert.ok(await p.$eval('.cl-mirror', m => getComputedStyle(m).visibility === 'hidden' && m.getAttribute('aria-hidden') === 'true' && getComputedStyle(m).position === 'absolute'), 'the measuring copy is hidden and out of the page flow');
     await ctx.close();

@@ -17,6 +17,7 @@ const tick = async (p, ms) => { for (let t = 0; t < ms; t += 1000) { await p.clo
 
 (async () => {
   await fetch(R + '/__hareset'); await vac('on=1&state=docked&err=none&batt=84');
+  await fetch(R + '/__haopt?slow=sensor.sample_robo_battery');   // the battery answers last (on CI the card was drawn before it, and stayed so for 30 s)
   const b = await chromium.launch(); const errs = [];
   const ctx = await b.newContext({ viewport: { width: 1180, height: 900 }, timezoneId: 'America/Chicago', serviceWorkers: 'block' });
   await lane(ctx);
@@ -47,6 +48,7 @@ const tick = async (p, ms) => { for (let t = 0; t < ms; t += 1000) { await p.clo
   const on = async sel => !(await p.isDisabled(sel));
   await until(async () => /DOCKED Charging BATTERY 84%/.test(await card()), 10000, 'the card, docked');
   assert.ok((await txt(p, '.ec-vacs')).startsWith('CLEANING'));
+  await fetch(R + '/__haopt?slow=');
   assert.deepStrictEqual([await on('[data-havac="start"]'), await on('[data-havac="pause"]'), await on('[data-havac="dock"]'), await on('[data-havac="locate"]')], [true, false, false, true], 'docked: START and LOCATE');
 
   // ---- START, PAUSE (then RESUME), DOCK, LOCATE: each sends its service

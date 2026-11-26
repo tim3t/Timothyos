@@ -177,7 +177,7 @@ HA = {
 }
 HACFG = {"nightly": {"id": "nightly", "alias": "Nightly Routine", "trigger": [{"platform": "time", "at": "02:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.barn_porch"}}]}}   # 2.64: automations' configs by id; "nightly" is Timothy's own, never Bridge's
 HA["automation.nightly"]["attributes"]["id"] = "nightly"
-HAOPT = {"admin": True, "delete": False, "hang": []}   # hang: entity ids (or "all") whose reads never answer, as after a power cut (2.89.1); tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
+HAOPT = {"admin": True, "delete": False, "hang": [], "slow": []}   # hang: entity ids (or "all") whose reads never answer, as after a power cut (2.89.1); tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
 VAC = {   # 2.92: a simulated Roborock (invented), only while a test asks for it (/__havac?on=1), so other tests' lists stay as they were
     "vacuum.sample_robo": {"state": "docked", "attributes": {"friendly_name": "Sample Robo", "fan_speed": "balanced"}},
     "sensor.sample_robo_battery": {"state": "84", "attributes": {"friendly_name": "Sample Robo Battery", "unit_of_measurement": "%", "device_class": "battery"}},
@@ -228,6 +228,7 @@ class H(BaseHTTPRequestHandler):
         api = path[3:]
         if method == "GET" and any(api in ("/api/states/" + h, "/api/states") or (h == "all" and api.startswith("/api/")) for h in HAOPT["hang"]):
             time.sleep(25); return   # never answered in time: the app's own limit is 15 s
+        if method == "GET" and any(api == "/api/states/" + h for h in HAOPT["slow"]): time.sleep(1.5)   # 2.92: answers late, as on a busy Home Assistant (CI found a card drawn before its sensors)
         m = re.match(r"^/api/config/automation/config/([A-Za-z0-9_]+)$", api)
         if m:   # 2.64: Home Assistant's automation editor API (admin only)
             if not HAOPT["admin"]: return self.send_json(401, {"message": "Unauthorized"})
@@ -321,7 +322,7 @@ class H(BaseHTTPRequestHandler):
             HA["climate.main_floor"]["state"] = "heat"; HA["climate.main_floor"]["attributes"]["temperature"] = 68
             for c in [c for c in HACFG if c != "nightly"]: del HACFG[c]
             for e in [e for e in HA if e.startswith("automation.") and e != "automation.nightly"]: del HA[e]
-            HAOPT.update(admin=True, delete=False, hang=[])
+            HAOPT.update(admin=True, delete=False, hang=[], slow=[])
             STATS["calls"] = []; return self.send_json(200, {})
         if path == "/__havac":   # tests: ?on=1|0 adds or removes the sample vacuum; ?state=&err=&batt= set what it reports
             if "on" in q:
@@ -337,6 +338,7 @@ class H(BaseHTTPRequestHandler):
                 if k in q: HAOPT[k] = q[k][0] == "1"
             hq = parse_qs(u.query, keep_blank_values=True)   # "hang=" (empty) clears it
             if "hang" in hq: HAOPT["hang"] = [x for x in hq["hang"][0].split(",") if x]
+            if "slow" in hq: HAOPT["slow"] = [x for x in hq["slow"][0].split(",") if x]
             return self.send_json(200, HAOPT)
         if path == "/__hacfg":   # tests: what Home Assistant holds (and ?id=&alias= edits one as the Home Assistant app would: a motion trigger)
             if "id" in q:

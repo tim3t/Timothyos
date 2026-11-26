@@ -8449,8 +8449,7 @@
     eng.inflight = true; eng.inflightAt = Date.now();
     var fails = {}, first = null;
     if (eng.unit === undefined && devs.some(function (d) { return haDomain(d.id) === "climate"; })) { eng.unit = null; haFetch("/api/config").then(function (j) { eng.unit = (j && j.unit_system && j.unit_system.temperature) || "°"; haRepaint(); }, function () { eng.unit = undefined; }); }
-    vacSibRead(devs);   /* 2.92: a vacuum's battery and error sensors, beside it */
-    Promise.all(devs.map(function (d) {
+    Promise.all([vacSibRead(devs)].concat(devs.map(function (d) {
       return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) {
         if (eng.dragging === d.id || Date.now() - ((hq[d.id] && hq[d.id].last) || 0) < 1500) return;   /* a change of yours is still on its way */
         eng.states[d.id] = s;
@@ -8459,7 +8458,7 @@
         if (e.code === "unauthorized") throw e;
         fails[d.id] = e.code; if (!first) first = e;   /* one device that doesn't answer no longer blanks the rest */
       });
-    })).then(function () {
+    }))).then(function () {   /* 2.92: a vacuum's battery and error sensors too, so its card is drawn whole */
       var n = Object.keys(fails).length;
       eng.err = n ? { code: first.code, msg: haErrText(first) + (n < devs.length ? " (" + n + " of " + devs.length + " devices)" : "") } : null;
       if (n) errLog("engineering", "device read", first.code, n + " of " + devs.length + " devices");
@@ -8721,11 +8720,10 @@
     var pick = function (list) { return list.filter(function (x) { return have[x]; })[0] || null; };
     return { batt: pick(["sensor." + base + "_battery", "sensor." + base + "_battery_level"]), err: pick(["sensor." + base + "_vacuum_error", "sensor." + base + "_error"]) };
   }
-  function vacSibRead(devs) {
-    devs.forEach(function (d) {
-      if (!d.sib) return;
-      [d.sib.batt, d.sib.err].filter(Boolean).forEach(function (sid) { haFetch("/api/states/" + encodeURIComponent(sid)).then(function (x) { eng.states[sid] = x; }, function () { /* its card says what it can without it */ }); });
-    });
+  function vacSibRead(devs) {   /* resolves once every answer is in (a failure too: the card says what it can without it) */
+    var ids = [];
+    devs.forEach(function (d) { if (d.sib) [d.sib.batt, d.sib.err].filter(Boolean).forEach(function (sid) { ids.push(sid); }); });
+    return Promise.all(ids.map(function (sid) { return haFetch("/api/states/" + encodeURIComponent(sid)).then(function (x) { eng.states[sid] = x; }, function () { /* left as it was */ }); }));
   }
   function vacBatt(d) {
     var s = eng.states[d.id], a = (s && s.attributes) || {}, b = typeof a.battery_level === "number" ? a.battery_level : null;
@@ -8779,9 +8777,8 @@
     if (!vs.length || state.screen !== "bridge" || document.hidden || Date.now() - vacAt < VAC_MS) return;
     vacAt = Date.now();
     var was = JSON.stringify(vacConditions());
-    vacSibRead(vs);
-    Promise.all(vs.map(function (d) { return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (x) { eng.states[d.id] = x; }, function () { /* tried again in 2 minutes */ }); }))
-      .then(function () { setTimeout(function () { if (state.screen === "bridge" && JSON.stringify(vacConditions()) !== was) render(true); }, 400); });   /* the error sensor's answer too */
+    Promise.all([vacSibRead(vs)].concat(vs.map(function (d) { return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (x) { eng.states[d.id] = x; }, function () { /* tried again in 2 minutes */ }); })))
+      .then(function () { if (state.screen === "bridge" && JSON.stringify(vacConditions()) !== was) render(true); });   /* with the error sensor's answer, so the reason is right */
   }
   setInterval(vacPoll, 30000);
   /* A thermostat: target with + and −, the room's temperature and humidity, and its modes. */
