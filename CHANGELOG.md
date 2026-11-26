@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.92.0 · 2026-11-26
+- **Robot vacuums in ENGINEERING** (Timothy's Roborock; mockup approved 26 Nov). **+ ADD DEVICE** now lists vacuums. A vacuum shows under a new **CLEANING** section: what it's doing in large letters (green while cleaning, apricot returning, yellow paused, red for a problem with its reason), its battery (yellow under 30%, red under 15%), and **START** (**RESUME** when paused), **PAUSE**, **DOCK** and **LOCATE**. A thin line moves along the card while it cleans. LIST view shows it as one row.
+- **"Vacuum needs you" on the Bridge.** While the Bridge is open, the vacuum's state is checked every 2 minutes; a problem (stuck, a jammed brush) puts a yellow line in the Condition with the reason, and tapping it opens ENGINEERING. It clears once the vacuum cleans or docks again.
+- No bridge update needed.
+
 ## 2.91.1 · 2026-11-25 (needs bridge 1.54)
 - **The briefing's headlines come from Politico** (Timothy, 25 Nov: NPR's had become too light). The two newest written stories from Politico's Politics feed (videos and podcasts left out) close the briefing as **NEWS · POLITICO**, with **READ AT POLITICO** links; Nova reads them as before. They are the newest, not Politico's home page picks: its home page turns scripts away. A briefing made before the change still says NPR. Until the bridge is updated, the headlines stay NPR's.
 - **Bridge 1.54:** the `news` read uses Politico's Politics RSS.

@@ -270,6 +270,7 @@
     if (c.act === "plan") return function () { openPlan(parseYmd(today)); };
     if (c.act === "review") return function () { go("review", defaultReviewWeek()); };
     if (c.act === "engineering") return function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); };
+    if (c.act === "engcontrols") return function () { eng.tab = "controls"; lsSet(LS_ENGTAB, "controls"); go("engineering"); };
     if (c.act === "systems") return function () { state.fixFocus = c.fix || null; go("systems"); };
     return null;
   }

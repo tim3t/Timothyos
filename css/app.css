@@ -2124,6 +2124,27 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 .ec-clim .cl-step { display: grid; gap: 10px; }
 .ec-clim .cl-step button { width: 64px; height: 64px; border-radius: 32px; border: 2px solid var(--line); background: var(--panel-2); color: var(--fg); font-family: var(--display); font-size: 30px; line-height: 1; }
 .ec-clim .cl-step button:active { background: var(--chrome-d); color: var(--ink); }
+/* 2.92: a vacuum under CLEANING (state large and coloured, battery, four buttons; a moving line while it cleans) */
+.ec-vac { --vc: var(--fg); position: relative; display: grid; gap: 12px; background: var(--panel); border-radius: 0 28px 28px 0; border-left: 10px solid var(--vc); padding: 16px 64px 18px 18px; overflow: hidden; }
+.ec-vac.dead { background-image: var(--hatch); opacity: .6; }
+.ec-vac .rm { font-family: var(--display); font-size: 13px; letter-spacing: .16em; color: var(--dim); }
+.ec-vst { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+.ec-vw { font-family: var(--display); font-weight: 600; font-size: clamp(40px, 5vw, 56px); line-height: 1; letter-spacing: .02em; color: var(--vc); }
+.ec-vwhy { font-size: var(--t-body); color: var(--fg); }
+.ec-vbat { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.ec-vbat i { height: 12px; border-radius: 6px; background: var(--line); overflow: hidden; }
+.ec-vbat b { display: block; height: 100%; border-radius: 6px; background: var(--bc); }
+.ec-vpc { font-family: var(--display); font-size: 19px; letter-spacing: .06em; color: var(--bc); white-space: nowrap; }
+.ec-vbtns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-right: -46px; }
+.ec-vb { min-height: 52px; border: 0; border-radius: 26px; background: var(--panel-2); color: var(--fg); font-family: var(--display); font-size: 16px; letter-spacing: .14em; }
+.ec-vb.go { background: var(--ok); color: var(--ink); }
+.ec-vb.dock { background: var(--chrome-b); color: var(--ink); }
+.ec-vb:disabled { opacity: .35; }
+.ec-vb:not(:disabled):active { transform: scale(.97); }
+.ec-vsweep { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: linear-gradient(90deg, transparent, var(--ok), transparent) no-repeat; background-size: 40% 100%; animation: ecSweep 1.8s linear infinite; }
+@keyframes ecSweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .ec-vsweep { animation: none; background: var(--ok); opacity: .5; } }
+@media (max-width: 600px) { .ec-vbtns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1060px) { .ec-cols { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---------- Apiary (2.31): the yard, a hive, its checks. One unit (--u) scales the whole stack. ---------- */

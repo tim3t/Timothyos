@@ -178,6 +178,11 @@ HA = {
 HACFG = {"nightly": {"id": "nightly", "alias": "Nightly Routine", "trigger": [{"platform": "time", "at": "02:00:00"}], "action": [{"service": "light.turn_off", "target": {"entity_id": "light.barn_porch"}}]}}   # 2.64: automations' configs by id; "nightly" is Timothy's own, never Bridge's
 HA["automation.nightly"]["attributes"]["id"] = "nightly"
 HAOPT = {"admin": True, "delete": False, "hang": []}   # hang: entity ids (or "all") whose reads never answer, as after a power cut (2.89.1); tests: a non-admin token; the relay letting DELETE through (README's Caddyfile before 2.64 didn't)
+VAC = {   # 2.92: a simulated Roborock (invented), only while a test asks for it (/__havac?on=1), so other tests' lists stay as they were
+    "vacuum.sample_robo": {"state": "docked", "attributes": {"friendly_name": "Sample Robo", "fan_speed": "balanced"}},
+    "sensor.sample_robo_battery": {"state": "84", "attributes": {"friendly_name": "Sample Robo Battery", "unit_of_measurement": "%", "device_class": "battery"}},
+    "sensor.sample_robo_vacuum_error": {"state": "none", "attributes": {"friendly_name": "Sample Robo Vacuum error"}},
+}
 def ha_slug(alias): return "automation." + re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")
 def ha_state(eid):
     v = HA[eid]; return {"entity_id": eid, "state": v["state"], "attributes": v["attributes"], "last_changed": "2026-10-15T12:00:00+00:00"}
@@ -262,6 +267,15 @@ class H(BaseHTTPRequestHandler):
             if eid not in HA or eid.split(".")[0] != m.group(1): return self.send_json(400, {"message": "bad entity"})
             HA[eid]["state"] = "off" if HA[eid]["state"] == "on" else "on"; STATS["toggles"] += 1
             return self.send_json(200, [ha_state(eid)])
+        m = re.match(r"^/api/services/vacuum/(start|pause|return_to_base|locate)$", api)
+        if method == "POST" and m:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            eid = body.get("entity_id")
+            if eid not in HA or not eid.startswith("vacuum."): return self.send_json(400, {"message": "bad entity"})
+            STATS["calls"].append({"svc": "vacuum." + m.group(1), **body})
+            nxt = {"start": "cleaning", "pause": "paused", "return_to_base": "returning"}.get(m.group(1))
+            if nxt: HA[eid]["state"] = nxt; HA["sensor.sample_robo_vacuum_error"]["state"] = "none"
+            return self.send_json(200, [ha_state(eid)])
         m = re.match(r"^/api/services/climate/(set_temperature|set_hvac_mode)$", api)
         if method == "POST" and m:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -309,6 +323,15 @@ class H(BaseHTTPRequestHandler):
             for e in [e for e in HA if e.startswith("automation.") and e != "automation.nightly"]: del HA[e]
             HAOPT.update(admin=True, delete=False, hang=[])
             STATS["calls"] = []; return self.send_json(200, {})
+        if path == "/__havac":   # tests: ?on=1|0 adds or removes the sample vacuum; ?state=&err=&batt= set what it reports
+            if "on" in q:
+                for e in VAC:
+                    if q["on"][0] == "1": HA[e] = json.loads(json.dumps(VAC[e]))
+                    else: HA.pop(e, None)
+            if "state" in q and "vacuum.sample_robo" in HA: HA["vacuum.sample_robo"]["state"] = q["state"][0]
+            if "err" in q and "sensor.sample_robo_vacuum_error" in HA: HA["sensor.sample_robo_vacuum_error"]["state"] = q["err"][0]
+            if "batt" in q and "sensor.sample_robo_battery" in HA: HA["sensor.sample_robo_battery"]["state"] = q["batt"][0]
+            return self.send_json(200, {e: HA[e]["state"] for e in VAC if e in HA})
         if path == "/__haopt":   # tests: ?admin=0|1&delete=0|1
             for k in ("admin", "delete"):
                 if k in q: HAOPT[k] = q[k][0] == "1"

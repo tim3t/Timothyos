@@ -67,6 +67,7 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    items.push.apply(items, vacConditions());   /* 2.92: a vacuum reporting a problem (read every 2 minutes while the Bridge is open) */
     items.push.apply(items, skConditions(now));   /* SICKBAY (2.74): no health data for two days; resting heart rate up two mornings */
     var upOver = upkeepOverdue(today);
     if (upOver.length) items.push({ lvl: "warn", ic: "▲", txt: upOver.length === 1 ? "Upkeep overdue" : upOver.length + " upkeep items overdue", sub: upOver.slice(0, 3).map(function (u) { return esc(u.name) + (u.cat ? " (" + esc(u.cat) + ")" : ""); }).join(" · ") + (upOver.length > 3 ? " · …" : ""), act: "engineering", go: "UPKEEP" });

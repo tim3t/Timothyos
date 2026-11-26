@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.91.1";
+  var VERSION = "2.92.0";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -2855,6 +2855,7 @@
         items.push({ lvl: "warn", ic: "◆", txt: n === 0 ? "Key date today" : n === 1 ? "Key date tomorrow" : "Key date in " + n + " days", sub: esc(o.d.title) + " · " + dLabel(parseYmd(o.s)), kd: o.id, go: "DETAILS" });
       });
     }
+    items.push.apply(items, vacConditions());   /* 2.92: a vacuum reporting a problem (read every 2 minutes while the Bridge is open) */
     items.push.apply(items, skConditions(now));   /* SICKBAY (2.74): no health data for two days; resting heart rate up two mornings */
     var upOver = upkeepOverdue(today);
     if (upOver.length) items.push({ lvl: "warn", ic: "▲", txt: upOver.length === 1 ? "Upkeep overdue" : upOver.length + " upkeep items overdue", sub: upOver.slice(0, 3).map(function (u) { return esc(u.name) + (u.cat ? " (" + esc(u.cat) + ")" : ""); }).join(" · ") + (upOver.length > 3 ? " · …" : ""), act: "engineering", go: "UPKEEP" });
@@ -6938,6 +6939,7 @@
     if (c.act === "plan") return function () { openPlan(parseYmd(today)); };
     if (c.act === "review") return function () { go("review", defaultReviewWeek()); };
     if (c.act === "engineering") return function () { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); };
+    if (c.act === "engcontrols") return function () { eng.tab = "controls"; lsSet(LS_ENGTAB, "controls"); go("engineering"); };
     if (c.act === "systems") return function () { state.fixFocus = c.fix || null; go("systems"); };
     return null;
   }
@@ -8383,7 +8385,7 @@
   var LS_UPKEEP = "tos.upkeep.v1";    /* [{ id, name, cat, every, unit, last, lastRead, read }] */
   var LS_ENGTAB = "tos.engtab.v1";
   var HA_TOGGLE = ["switch", "light", "fan", "input_boolean"];
-  var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor", "climate"]);
+  var HA_SHOW = HA_TOGGLE.concat(["sensor", "binary_sensor", "climate", "vacuum"]);
   var UNITS = [["days", "DAYS"], ["weeks", "WEEKS"], ["months", "MONTHS"], ["years", "YEARS"], ["miles", "MILES"], ["hours", "HOURS"]];
   var eng = { tab: lsGet(LS_ENGTAB) === "upkeep" ? "upkeep" : "controls", states: {}, fail: {}, err: null, at: 0, inflight: false, inflightAt: 0, pick: null, arm: null, armAt: 0, sheetKind: null, sheetId: null, sheetMode: "hs", dragging: null };
   function haConf() { var c = lsGet(LS_HA); return c && c.url && c.token ? c : null; }
@@ -8447,6 +8449,7 @@
     eng.inflight = true; eng.inflightAt = Date.now();
     var fails = {}, first = null;
     if (eng.unit === undefined && devs.some(function (d) { return haDomain(d.id) === "climate"; })) { eng.unit = null; haFetch("/api/config").then(function (j) { eng.unit = (j && j.unit_system && j.unit_system.temperature) || "°"; haRepaint(); }, function () { eng.unit = undefined; }); }
+    vacSibRead(devs);   /* 2.92: a vacuum's battery and error sensors, beside it */
     Promise.all(devs.map(function (d) {
       return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) {
         if (eng.dragging === d.id || Date.now() - ((hq[d.id] && hq[d.id].last) || 0) < 1500) return;   /* a change of yours is still on its way */
@@ -8474,13 +8477,13 @@
   function capsOf(id, s) {
     var dom = haDomain(id), a = (s && s.attributes) || {}, m = a.supported_color_modes || [];
     var col = dom === "light" && m.some(function (x) { return ["hs", "xy", "rgb", "rgbw", "rgbww"].indexOf(x) > -1; }), ct = dom === "light" && m.indexOf("color_temp") > -1;
-    return { sw: HA_TOGGLE.indexOf(dom) > -1, clim: dom === "climate", b: dom === "light" && (col || ct || m.indexOf("brightness") > -1 || m.indexOf("white") > -1), col: col, ct: ct,
+    return { sw: HA_TOGGLE.indexOf(dom) > -1, clim: dom === "climate", vac: dom === "vacuum", b: dom === "light" && (col || ct || m.indexOf("brightness") > -1 || m.indexOf("white") > -1), col: col, ct: ct,
       kmin: a.min_color_temp_kelvin || 2000, kmax: a.max_color_temp_kelvin || 6500, fx: a.effect_list && a.effect_list.length ? a.effect_list.slice(0, 12) : null };
   }
   function devCaps(d) { var s = eng.states[d.id]; return s && !s.missing ? capsOf(d.id, s) : d.caps || capsOf(d.id, null); }
-  function capsWords(c) { return c.clim ? "thermostat" : !c.sw ? "reading" : [c.col ? "color" : "", c.ct ? "white" : "", c.b ? "brightness" : "", !c.b ? "on and off" : ""].filter(Boolean).join(", "); }
-  function bestStyle(c) { return c.clim ? "climate" : !c.sw ? "reading" : c.col || c.ct ? "color" : c.b ? "dimmer" : "toggle"; }
-  function styleOf(d) { var c = devCaps(d); if (c.clim) return "climate"; var st = HA_STYLES.filter(function (x) { return x[0] === d.style; })[0]; return st && st[3](c) ? d.style : bestStyle(c); }
+  function capsWords(c) { return c.vac ? "vacuum" : c.clim ? "thermostat" : !c.sw ? "reading" : [c.col ? "color" : "", c.ct ? "white" : "", c.b ? "brightness" : "", !c.b ? "on and off" : ""].filter(Boolean).join(", "); }
+  function bestStyle(c) { return c.vac ? "vacuum" : c.clim ? "climate" : !c.sw ? "reading" : c.col || c.ct ? "color" : c.b ? "dimmer" : "toggle"; }
+  function styleOf(d) { var c = devCaps(d); if (c.vac) return "vacuum"; if (c.clim) return "climate"; var st = HA_STYLES.filter(function (x) { return x[0] === d.style; })[0]; return st && st[3](c) ? d.style : bestStyle(c); }
   function haGroups() { return lsGet(LS_HAGROUPS) || []; }
   function haGroupOf(d) { return haGroups().some(function (g) { return g.id === d.g; }) ? d.g : null; }
   function saveDev(id, patch) { lsSet(LS_HADEV, haDevices().map(function (d) { return d.id === id ? Object.assign({}, d, patch) : d; })); }
@@ -8507,6 +8510,7 @@
     if (s.missing) return "NOT FOUND";
     if (s.state === "unavailable") return "OFFLINE";
     var c = devCaps(d), a = s.attributes || {};
+    if (c.vac) { var vb = vacBatt(d); return vacLook(s.state).w + (vb != null ? " · " + vb + "%" : ""); }
     if (!c.sw) return haDomain(d.id) === "binary_sensor" ? String(s.state).toUpperCase() : s.state + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
     if (s.state !== "on") return "OFF";
     var p = pctOf(s);
@@ -8656,17 +8660,18 @@
      rooms as chips (ALL, each room that has some, OTHER for the rest; remembered in tos.haroom.v1),
      CLIMATE and SENSORS on the right. Each tile carries its room. Doors and scenes are for later. */
   function haRoomName(d) { var g = haGroups().filter(function (x) { return x.id === d.g; })[0]; return g ? g.nm : ""; }
-  function haKind(d) { var c = devCaps(d); return c.clim ? "climate" : c.sw ? "light" : "sensor"; }
+  function haKind(d) { var c = devCaps(d); return c.vac ? "vacuum" : c.clim ? "climate" : c.sw ? "light" : "sensor"; }
   function haControlsHtml(view) {
     if (!haConf()) return '<div class="stubbox"><span class="pill">SETUP</span><span>Controls talk to Home Assistant. Add its address and a token under <b>HOME ASSISTANT</b> in Systems. Steps are in the README under <b>Home Assistant</b>.</span></div>' +
       '<div class="btnrow"><button type="button" class="btn" data-eng="systems">OPEN SYSTEMS</button></div>';
     var devs = haDevices();
     haLoad(false);
     if (!devs.length) return '<div class="empty">No devices yet. Tap <b>+ ADD DEVICE</b> to pick one from Home Assistant. Only the devices you add appear here.</div>';
-    var lights = devs.filter(function (d) { return haKind(d) === "light"; }), clim = devs.filter(function (d) { return haKind(d) === "climate"; }), sens = devs.filter(function (d) { return haKind(d) === "sensor"; });
+    var lights = devs.filter(function (d) { return haKind(d) === "light"; }), clim = devs.filter(function (d) { return haKind(d) === "climate"; }), sens = devs.filter(function (d) { return haKind(d) === "sensor"; }),
+      vacs = devs.filter(function (d) { return haKind(d) === "vacuum"; });
     var html = eng.err ? '<div class="err">' + esc(eng.err.msg) + "</div>" : "";
     if (scnSw().length) html += scnBarHtml();   /* 2.64: SCENES above the lights */
-    html += '<div class="ec-cols' + (lights.length && (clim.length || sens.length) ? "" : " one") + '">';
+    html += '<div class="ec-cols' + (lights.length && (clim.length || sens.length || vacs.length) ? "" : " one") + '">';
     if (lights.length) {
       var rooms = haGroups(), used = rooms.filter(function (g) { return lights.some(function (d) { return d.g === g.id; }); }), loose = lights.some(function (d) { return !haGroupOf(d); });
       var room = lsGet(LS_HAROOM) || "all";
@@ -8685,9 +8690,10 @@
       }
       html += "</section>";
     }
-    if (clim.length || sens.length) {
+    if (clim.length || sens.length || vacs.length) {
       html += '<div class="ec-side">';
       if (clim.length) html += '<section class="ec-sec">' + phead("CLIMATE", clim.length > 1 ? clim.length + " ZONES" : "", "chrome-d") + clim.map(haClimateHtml).join("") + "</section>";
+      if (vacs.length) html += '<section class="ec-sec ec-vacs">' + phead("CLEANING", "", "ok") + (view === "list" ? '<div class="hr-rows">' + vacs.map(haRowHtml).join("") + "</div>" : vacs.map(haVacHtml).join("")) + "</section>";
       if (sens.length) {
         html += '<section class="ec-sec ec-sens">' + phead("SENSORS", "", "chrome-c");
         if (view === "list") html += '<div class="hr-rows">' + sens.map(haRowHtml).join("") + "</div>";
@@ -8702,6 +8708,82 @@
     }
     return html + '</div><small class="muted">Updates every 30 seconds while this screen is open. Rooms, card styles and the view are kept on this iPad.</small>';
   }
+  /* ---- A vacuum (2.92, D84; Timothy's go on the mockup, 26 Nov) ----
+     Its state large and coloured, its battery, START (RESUME when paused) / PAUSE / DOCK / LOCATE. Battery comes from the
+     vacuum's own battery_level, else from its battery sensor; a problem's reason from its error sensor. Both sensors are
+     found by name when it's added (Roborock's: sensor.<name>_battery, sensor.<name>_vacuum_error) and read with it. */
+  var VAC_LOOK = { cleaning: ["CLEANING", "ok"], docked: ["DOCKED", ""], paused: ["PAUSED", "warn"], returning: ["RETURNING", "chrome-d"], idle: ["IDLE", ""], error: ["PROBLEM", "bad"] };
+  var VAC_DO = { start: "start", pause: "pause", dock: "return_to_base", locate: "locate" };
+  function vacLook(st) { var l = VAC_LOOK[st]; return l ? { w: l[0], c: l[1] } : { w: String(st || "…").toUpperCase().replace(/_/g, " "), c: "" }; }
+  function vacSibs(id, all) {
+    var base = String(id).replace(/^vacuum\./, ""), have = {};
+    (all || []).forEach(function (x) { have[x.entity_id] = true; });
+    var pick = function (list) { return list.filter(function (x) { return have[x]; })[0] || null; };
+    return { batt: pick(["sensor." + base + "_battery", "sensor." + base + "_battery_level"]), err: pick(["sensor." + base + "_vacuum_error", "sensor." + base + "_error"]) };
+  }
+  function vacSibRead(devs) {
+    devs.forEach(function (d) {
+      if (!d.sib) return;
+      [d.sib.batt, d.sib.err].filter(Boolean).forEach(function (sid) { haFetch("/api/states/" + encodeURIComponent(sid)).then(function (x) { eng.states[sid] = x; }, function () { /* its card says what it can without it */ }); });
+    });
+  }
+  function vacBatt(d) {
+    var s = eng.states[d.id], a = (s && s.attributes) || {}, b = typeof a.battery_level === "number" ? a.battery_level : null;
+    var bs = d.sib && d.sib.batt && eng.states[d.sib.batt];
+    if (b == null && bs && isFinite(parseFloat(bs.state))) b = parseFloat(bs.state);
+    return b == null ? null : Math.max(0, Math.min(100, Math.round(b)));
+  }
+  function vacWhy(d) {
+    var es = d.sib && d.sib.err && eng.states[d.sib.err], v = es && String(es.state || "");
+    if (v && !/^(none|ok|no_error|unknown|unavailable)$/i.test(v)) { v = v.replace(/_/g, " "); return v.charAt(0).toUpperCase() + v.slice(1); }
+    var a = (eng.states[d.id] || {}).attributes || {};
+    return typeof a.error === "string" && a.error ? a.error : "Needs attention";
+  }
+  function vacSub(d, s) {
+    var at = s.last_changed ? sinceLabel(new Date(s.last_changed)) : "", b = vacBatt(d);
+    return { docked: b != null && b < 100 ? "Charging" : "On its dock", cleaning: "Cleaning" + (at ? " since " + at : ""), paused: "Paused" + (at ? " since " + at : "") + " · RESUME carries on",
+      returning: "On its way to the dock", idle: "Off its dock, waiting", error: vacWhy(d) }[s.state] || "";
+  }
+  function haVacHtml(d) {
+    var s = eng.states[d.id], dead = isDead(s), rm = haRoomName(d), st = s && !dead ? s.state : "";
+    var L = dead ? { w: haStateTxt(d, s), c: "" } : vacLook(st), b = dead ? null : vacBatt(d), bc = b == null ? "" : b < 15 ? "bad" : b < 30 ? "warn" : "ok";
+    var can = { start: !dead && st !== "cleaning", pause: !dead && (st === "cleaning" || st === "returning"), dock: !dead && st !== "docked" && st !== "returning", locate: !dead };
+    var btn = function (k, label, cls) { return '<button type="button" class="ec-vb' + (cls ? " " + cls : "") + '" data-havac="' + k + '" data-dev="' + esc(d.id) + '"' + (can[k] ? "" : " disabled") + ">" + label + "</button>"; };
+    return '<div class="ec-vac' + (dead && s ? " dead" : "") + '" data-vac="' + esc(d.id) + '"' + (L.c ? ' style="--vc: var(--' + L.c + ')"' : "") + '><span class="rm">' + esc(((rm ? rm + " · " : "") + d.name).toUpperCase()) + "</span>" +
+      '<div class="ec-vst"><span class="ec-vw">' + esc(L.w) + "</span>" + (dead ? "" : '<span class="ec-vwhy">' + esc(vacSub(d, s)) + "</span>") + "</div>" +
+      (b != null ? '<div class="ec-vbat" style="--bc: var(--' + bc + ')"><span class="ov-sub">BATTERY</span><i><b style="width:' + b + '%"></b></i><span class="ec-vpc tnum">' + b + "%</span></div>" : "") +
+      '<div class="ec-vbtns">' + btn("start", st === "paused" ? "RESUME" : "START", "go") + btn("pause", "PAUSE") + btn("dock", "DOCK", "dock") + btn("locate", "LOCATE") + "</div>" +
+      (st === "cleaning" ? '<span class="ec-vsweep" aria-hidden="true"></span>' : "") + haMore(d) + "</div>";
+  }
+  function haVac(id, what) {
+    var s = eng.states[id], svc = VAC_DO[what];
+    if (!svc) return;
+    var next = { start: "cleaning", pause: "paused", dock: "returning" }[what];
+    if (s && !s.missing && next) { s.state = next; s.last_changed = new Date().toISOString(); hq[id] = hq[id] || { data: {}, last: 0, t: 0, rr: 0 }; hq[id].last = Date.now(); haRepaint(); }   /* shown at once, confirmed by a re-read */
+    var d = haDevices().filter(function (x) { return x.id === id; })[0];
+    haFetch("/api/services/vacuum/" + svc, { method: "POST", body: { entity_id: id } })
+      .then(function () { if (what === "locate") toast((d ? d.name : "The vacuum") + " is beeping"); setTimeout(function () { haLoad(true); }, 1600); })
+      .catch(function (e) { toast("Not sent: " + haErrText(e)); haLoad(true); });
+  }
+  /* The Bridge's Condition (2.92): a vacuum reporting a problem. While the Bridge is open its state (and its error
+     sensor) is read every 2 minutes, from a timer, never from drawing; the line goes once it cleans or docks again. */
+  var VAC_MS = 120000, vacAt = 0;
+  function vacDevs() { return haConf() ? haDevices().filter(function (d) { return haDomain(d.id) === "vacuum"; }) : []; }
+  function vacConditions() {
+    return vacDevs().filter(function (d) { var s = eng.states[d.id]; return s && !s.missing && s.state === "error"; }).map(function (d) {
+      return { lvl: "warn", ic: "▲", txt: "Vacuum needs you", sub: esc(d.name) + ": " + esc(vacWhy(d)), act: "engcontrols", go: "ENGINEERING" };
+    });
+  }
+  function vacPoll() {
+    var vs = vacDevs();
+    if (!vs.length || state.screen !== "bridge" || document.hidden || Date.now() - vacAt < VAC_MS) return;
+    vacAt = Date.now();
+    var was = JSON.stringify(vacConditions());
+    vacSibRead(vs);
+    Promise.all(vs.map(function (d) { return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (x) { eng.states[d.id] = x; }, function () { /* tried again in 2 minutes */ }); }))
+      .then(function () { setTimeout(function () { if (state.screen === "bridge" && JSON.stringify(vacConditions()) !== was) render(true); }, 400); });   /* the error sensor's answer too */
+  }
+  setInterval(vacPoll, 30000);
   /* A thermostat: target with + and −, the room's temperature and humidity, and its modes. */
   var HA_HVAC = { heat: "HEAT", cool: "COOL", heat_cool: "AUTO", auto: "AUTO", off: "OFF" };
   function haClimateHtml(d) {
@@ -8876,7 +8958,7 @@
       '<div class="sfoot btnrow"><button type="button" class="btn ghost" id="detailClose">CLOSE</button></div>');
     haFetch("/api/states").then(function (all) {
       eng.pick.list = (all || []).filter(function (s) { return HA_SHOW.indexOf(haDomain(s.entity_id)) > -1; }).map(function (s) {
-        return { id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id, state: s.state, caps: capsOf(s.entity_id, s) };
+        return { id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id, state: s.state, caps: capsOf(s.entity_id, s), sib: haDomain(s.entity_id) === "vacuum" ? vacSibs(s.entity_id, all) : null };
       }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     }).catch(function (e) { eng.pick.err = haErrText(e); }).then(paintPick);
   }
@@ -8892,10 +8974,11 @@
       return '<div class="ha-hit"><span><b>' + esc(d.name) + "</b><small>" + esc(d.id) + " · " + esc(String(d.state).toUpperCase()) + " · " + esc(capsWords(d.caps)) + "</small></span>" +
         (added ? '<span class="pill ok">ADDED</span>' : '<button type="button" class="btn sm" data-hapick="' + esc(d.id) + '">NEXT</button>') + "</div>";
     }).join("") : '<div class="empty">Nothing matches.</div>') + (hits.length > 60 ? '<div class="muted">' + (hits.length - 60) + " more. Narrow the search.</div>" : "") +
-      '<small class="muted">' + p.list.length + " switches, lights and sensors in Home Assistant.</small>";
+      '<small class="muted">' + p.list.length + " switches, lights, sensors and vacuums in Home Assistant.</small>";
   }
   function stylePickHtml(c, cur) {
     if (c.clim) return '<small class="muted">Shown as a thermostat under CLIMATE: target temperature, + and −, and its modes.</small>';
+    if (c.vac) return '<small class="muted">Shown under CLEANING: its state, battery, START, PAUSE, DOCK and LOCATE.</small>';
     return '<div class="hp-styles">' + HA_STYLES.map(function (x) {
       var ok = x[3](c);
       return '<button type="button" class="hp-style" data-hastyle="' + x[0] + '" aria-pressed="' + (cur === x[0]) + '"' + (ok ? "" : " disabled") + '><span class="pv pv-' + x[0] + '" aria-hidden="true">' + (x[0] === "reading" ? "61.4°" : "") + "</span><b>" + x[1] + "</b><small>" + (ok ? x[2] : "Not for this device") + "</small></button>";
@@ -9122,6 +9205,7 @@
     if (d.haroom) { lsSet(LS_HAROOM, d.haroom); render(true); return true; }
     if (d.haclim) { haClimStep(d.dev, +d.haclim); return true; }
     if (d.hahvac) { haHvac(d.dev, d.hahvac); return true; }
+    if (d.havac) { haVac(d.dev, d.havac); return true; }
     if (d.haalloff) { haAllOff(d.haalloff); return true; }
     return false;
   }
@@ -9131,7 +9215,7 @@
     if (d.hapick) {
       var it = p && p.list && p.list.filter(function (x) { return x.id === d.hapick; })[0];
       if (!it) return true;
-      p.d = { id: it.id, name: it.name, caps: it.caps, style: bestStyle(it.caps), g: null };
+      p.d = { id: it.id, name: it.name, caps: it.caps, style: bestStyle(it.caps), g: null, sib: it.sib || null };
       paintAddStep2(); return true;
     }
     if (d.hastyle) {
@@ -9154,7 +9238,7 @@
     }
     if (d.haaddgo) {
       var nd = p.d, devs = haDevices().filter(function (x) { return x.id !== nd.id; });
-      devs.push({ id: nd.id, name: nd.name, style: nd.style, g: nd.g, caps: nd.caps }); lsSet(LS_HADEV, devs);
+      devs.push(Object.assign({ id: nd.id, name: nd.name, style: nd.style, g: nd.g, caps: nd.caps }, nd.sib ? { sib: nd.sib } : {})); lsSet(LS_HADEV, devs);
       if ((lsGet(LS_HAROOM) || "all") !== "all") lsSet(LS_HAROOM, nd.g || "_none");   /* show where it landed */
       eng.at = 0; closeDetail(); toast("Added: " + nd.name); render(true); return true;
     }
@@ -9278,6 +9362,7 @@
       render(true); return true;
     }
     if (a === "engineering") { eng.tab = "upkeep"; lsSet(LS_ENGTAB, "upkeep"); go("engineering"); return true; }
+    if (a === "engcontrols") { eng.tab = "controls"; lsSet(LS_ENGTAB, "controls"); go("engineering"); return true; }   /* 2.92: the vacuum's Condition line */
     return false;
   }
 

@@ -132,7 +132,7 @@ LANES=(
   "log-storage-1|RELAY_PORT=8110 PORT_8103=8103 PORT_8105=8119|app_e2e26.test.js app_e2e27.test.js app_e2e28.test.js app_e2e29.test.js app_e2e30.test.js"
   "log-storage-2|RELAY_PORT=8127 PORT_8103=8120 PORT_8105=8121|app_e2e31.test.js app_e2e32.test.js app_e2e33.test.js app_e2e82.test.js app_e2e83.test.js"
   "calendars|-|app_e2e.test.js app_e2e6.test.js app_e2e9.test.js app_e2e10.test.js app_e2e11.test.js app_e2e12.test.js"
-  "growth-engineering-1|RELAY_PORT=8111 PORT_8104=8104 PORT_8105=8116|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e95.test.js app_e2e56.test.js"
+  "growth-engineering-1|RELAY_PORT=8111 PORT_8104=8104 PORT_8105=8116|app_e2e34.test.js app_e2e35.test.js app_e2e36.test.js app_e2e37.test.js app_e2e95.test.js app_e2e98.test.js app_e2e56.test.js"
   "growth-engineering-2|RELAY_PORT=8126 PORT_8104=8117 PORT_8105=8118|app_e2e57.test.js app_e2e59.test.js app_e2e60.test.js app_e2e61.test.js app_e2e62.test.js"
   "growth-engineering-3|RELAY_PORT=8130 PORT_8104=8128 PORT_8105=8129|app_e2e63.test.js app_e2e64.test.js app_e2e69.test.js app_e2e70.test.js app_e2e74.test.js app_e2e79.test.js"
   "bridge-sync|-|app_e2e13.test.js app_e2e14.test.js app_e2e15.test.js"
@@ -196,6 +196,7 @@ LANES=(
 #   app_e2e36      BREAKS: whole-title breaks shown despite ignored Out of office, never counted as work
 #   app_e2e37      ENGINEERING: Home Assistant through the relay, toggles, sensors, UPKEEP, CONDITION
 #   app_e2e95      ENGINEERING after a power cut: a 15 s limit per request, NO ANSWER, SAVE AND TEST reads again
+#   app_e2e98      A VACUUM (2.92): added with its battery and error sensors, CLEANING card, START/PAUSE/RESUME/DOCK/LOCATE, low battery, a problem, LIST, the Bridge's Condition
 #   app_e2e96      LOG: an ASK THE LOG answer held for a session, dropped into one, filed once saved
 #   app_e2e97      BACKUP TO GOOGLE DRIVE (2.91, bridge 1.53): MAKE BACKUP sends the locked file by itself, OPEN IN DRIVE, a copy to Files, Drive refusing and SEND AGAIN, older bridge
 #   app_e2e84      SICKBAY (2.74, bridge 1.43; 2.80, bridge 1.47; mock_sickbay :8106): readiness, rings and GOALS, latest-value tiles, chart bars that open days, DAYS (arrived, partial, waiting, missed, stamps, no weight), Condition, SLEEP, RECORDS, SYSTEMS, narrow
