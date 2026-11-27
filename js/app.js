@@ -38,7 +38,7 @@
 })(function (DEEP) {
   "use strict";
 
-  var VERSION = "2.92.0";
+  var VERSION = "2.92.1";
   var LS_CONN = "tos.conn.v1";
   var LS_CACHE = "tos.cache.v1";
   var LS_CAPPED = "tos.capped.v1";   /* 2.85 (A3): reads that stopped at their row limit */
@@ -8449,7 +8449,7 @@
     eng.inflight = true; eng.inflightAt = Date.now();
     var fails = {}, first = null;
     if (eng.unit === undefined && devs.some(function (d) { return haDomain(d.id) === "climate"; })) { eng.unit = null; haFetch("/api/config").then(function (j) { eng.unit = (j && j.unit_system && j.unit_system.temperature) || "°"; haRepaint(); }, function () { eng.unit = undefined; }); }
-    Promise.all([vacSibRead(devs)].concat(devs.map(function (d) {
+    Promise.all([vacFind(devs).then(function () { return vacSibRead(haDevices()); })].concat(devs.map(function (d) {
       return haFetch("/api/states/" + encodeURIComponent(d.id)).then(function (s) {
         if (eng.dragging === d.id || Date.now() - ((hq[d.id] && hq[d.id].last) || 0) < 1500) return;   /* a change of yours is still on its way */
         eng.states[d.id] = s;
@@ -8510,7 +8510,7 @@
     if (s.state === "unavailable") return "OFFLINE";
     var c = devCaps(d), a = s.attributes || {};
     if (c.vac) { var vb = vacBatt(d); return vacLook(s.state).w + (vb != null ? " · " + vb + "%" : ""); }
-    if (!c.sw) return haDomain(d.id) === "binary_sensor" ? String(s.state).toUpperCase() : s.state + (a.unit_of_measurement ? " " + a.unit_of_measurement : "");
+    if (!c.sw) { if (haDomain(d.id) === "binary_sensor") return String(s.state).toUpperCase(); var rv = haReadVal(s); return rv.v + (rv.u ? " " + rv.u : ""); }
     if (s.state !== "on") return "OFF";
     var p = pctOf(s);
     return "ON" + (c.b && p != null ? " · " + p + "%" : "") + (c.col && /^(hs|xy|rgb)/.test(a.color_mode || "") ? " · COLOR" : c.ct && a.color_mode === "color_temp" && a.color_temp_kelvin ? " · " + a.color_temp_kelvin + " K" : "");
@@ -8666,7 +8666,7 @@
     var devs = haDevices();
     haLoad(false);
     if (!devs.length) return '<div class="empty">No devices yet. Tap <b>+ ADD DEVICE</b> to pick one from Home Assistant. Only the devices you add appear here.</div>';
-    var lights = devs.filter(function (d) { return haKind(d) === "light"; }), clim = devs.filter(function (d) { return haKind(d) === "climate"; }), sens = devs.filter(function (d) { return haKind(d) === "sensor"; }),
+    var lights = devs.filter(function (d) { return haKind(d) === "light"; }), clim = devs.filter(function (d) { return haKind(d) === "climate"; }), own = vacOwned(), sens = devs.filter(function (d) { return haKind(d) === "sensor" && !own[d.id]; }),   /* 2.92.1: not twice */
       vacs = devs.filter(function (d) { return haKind(d) === "vacuum"; });
     var html = eng.err ? '<div class="err">' + esc(eng.err.msg) + "</div>" : "";
     if (scnSw().length) html += scnBarHtml();   /* 2.64: SCENES above the lights */
@@ -8707,6 +8707,28 @@
     }
     return html + '</div><small class="muted">Updates every 30 seconds while this screen is open. Rooms, card styles and the view are kept on this iPad.</small>';
   }
+  /* ---- Readings, as people say them (2.92.1) ----
+     Home Assistant sends a date and time as "2026-11-26T22:27:59+00:00" (UTC) and a duration in whatever unit the
+     device chose. haReadVal gives { v, u, ts }: a time in this iPad's own zone (TODAY 17:27, YESTERDAY 08:10, 24 NOV 17:27),
+     a duration in minutes or hours, m² as M², anything else as it came. */
+  var HA_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+  function haWhen(iso) {
+    var t = new Date(iso), d = ymd(t), now = new Date(), y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    return (d === ymd(now) ? "TODAY " : d === ymd(y) ? "YESTERDAY " : shortDay(d).toUpperCase() + " ") + hm(t);
+  }
+  function haDur(n, unit) {   /* to minutes, then said as MIN or H */
+    var m = unit === "s" ? n / 60 : unit === "h" ? n * 60 : unit === "d" ? n * 1440 : n;
+    if (m < 1) return "UNDER 1 MIN";
+    if (m < 60) return Math.round(m) + " MIN";
+    var h = Math.floor(m / 60), r = Math.round(m - h * 60);
+    return h >= 10 || !r ? Math.round(m / 60) + " H" : h + " H " + r + " MIN";
+  }
+  function haReadVal(s) {
+    var a = (s && s.attributes) || {}, st = String(s ? s.state : ""), u = a.unit_of_measurement || "";
+    if ((a.device_class === "timestamp" || HA_ISO.test(st)) && !isNaN(Date.parse(st))) return { v: haWhen(st), u: "", ts: true };
+    if (/^(s|min|h|d)$/.test(u) && isFinite(parseFloat(st))) return { v: haDur(parseFloat(st), u), u: "" };
+    return { v: st, u: u === "m²" || u === "m2" ? "M²" : u };
+  }
   /* ---- A vacuum (2.92, D84; Timothy's go on the mockup, 26 Nov) ----
      Its state large and coloured, its battery, START (RESUME when paused) / PAUSE / DOCK / LOCATE. Battery comes from the
      vacuum's own battery_level, else from its battery sensor; a problem's reason from its error sensor. Both sensors are
@@ -8718,11 +8740,64 @@
     var base = String(id).replace(/^vacuum\./, ""), have = {};
     (all || []).forEach(function (x) { have[x.entity_id] = true; });
     var pick = function (list) { return list.filter(function (x) { return have[x]; })[0] || null; };
-    return { batt: pick(["sensor." + base + "_battery", "sensor." + base + "_battery_level"]), err: pick(["sensor." + base + "_vacuum_error", "sensor." + base + "_error"]) };
+    var out = { batt: pick(["sensor." + base + "_battery", "sensor." + base + "_battery_level"]), err: pick(["sensor." + base + "_vacuum_error", "sensor." + base + "_error"]) };
+    /* 2.92.1: every reading of its own (Roborock names them sensor.<name>_<reading>), for SHOW ON THIS CARD */
+    out.all = (all || []).map(function (x) { return x.entity_id; }).filter(function (e) { return /^(sensor|binary_sensor)\./.test(e) && e.split(".")[1].indexOf(base + "_") === 0 && e !== out.batt && e !== out.err; }).sort();
+    return out;
+  }
+  /* What the card shows until you choose: last clean end, cleaning time, area cleaned, and the part with least life left. */
+  var VAC_SUGGEST = ["_last_clean_end", "_cleaning_time", "_cleaning_area"], VAC_WEAR = /_(filter|main_brush|side_brush|sensor)_time_left$/, VAC_WEARID = "wear";
+  function vacSuggest(sib) {
+    var all = (sib && sib.all) || [], out = [];
+    VAC_SUGGEST.forEach(function (end) { var hit = all.filter(function (e) { return e.slice(-end.length) === end; })[0]; if (hit) out.push(hit); });
+    if (all.some(function (e) { return VAC_WEAR.test(e); })) out.push(VAC_WEARID);
+    return out;
+  }
+  function vacShown(d) { return d.sib ? (Array.isArray(d.show) ? d.show : vacSuggest(d.sib)) : []; }
+  /* Readings shown inside a vacuum's card leave SENSORS. */
+  function vacOwned() { var o = {}; haDevices().forEach(function (d) { if (haDomain(d.id) === "vacuum") vacShown(d).forEach(function (e) { o[e] = true; }); }); return o; }
+  /* A vacuum added before 2.92.1 has no list of its readings: found once, from the whole list of states, with its read. */
+  function vacFind(devs) {
+    var need = devs.filter(function (d) { return haDomain(d.id) === "vacuum" && (!d.sib || !d.sib.all); });
+    if (!need.length || eng.vacFinding) return Promise.resolve();
+    eng.vacFinding = true;
+    return haFetch("/api/states").then(function (all) {
+      need.forEach(function (d) { saveDev(d.id, { sib: vacSibs(d.id, all) }); });
+    }, function () { /* next read tries again */ }).then(function () { eng.vacFinding = false; });
+  }
+  function vacLabel(d, e) {
+    var s = eng.states[e], nm = String((s && s.attributes && s.attributes.friendly_name) || e.split(".")[1].replace(/_/g, " "));
+    var lead = String(d.name || "").toLowerCase();
+    if (lead && nm.toLowerCase().indexOf(lead) === 0) nm = nm.slice(lead.length).trim();
+    return nm.toUpperCase();
+  }
+  /* One line of the card: label and value; a time left reads FILTER · 82 H LEFT. The "wear" line is the part with least life left. */
+  function vacLine(d, e) {
+    if (e === VAC_WEARID) {
+      var best = null;
+      ((d.sib && d.sib.all) || []).filter(function (x) { return VAC_WEAR.test(x); }).forEach(function (x) {
+        var s = eng.states[x], a = (s && s.attributes) || {}, n = s ? parseFloat(s.state) : NaN, u = a.unit_of_measurement || "h";
+        if (!isFinite(n)) return;
+        var mins = u === "s" ? n / 60 : u === "min" ? n : u === "d" ? n * 1440 : n * 60;
+        if (!best || mins < best.mins) best = { e: x, mins: mins };
+      });
+      return best ? vacLine(d, best.e) : null;
+    }
+    var s = eng.states[e];
+    if (!s || s.missing || s.state === "unavailable" || s.state === "unknown") return null;
+    var lab = vacLabel(d, e), rv = haReadVal(s), left = / TIME LEFT$/.test(lab);
+    if (left) lab = lab.replace(/ TIME LEFT$/, "");
+    var v = rv.ts || isFinite(parseFloat(rv.v)) ? rv.v : String(rv.v).replace(/_/g, " ").toUpperCase();   /* a word Home Assistant keeps in code form (charging, main_brush_jammed) reads as words */
+    return { k: lab, v: v + (rv.u ? " " + rv.u : "") + (left ? " LEFT" : "") };
   }
   function vacSibRead(devs) {   /* resolves once every answer is in (a failure too: the card says what it can without it) */
     var ids = [];
-    devs.forEach(function (d) { if (d.sib) [d.sib.batt, d.sib.err].filter(Boolean).forEach(function (sid) { ids.push(sid); }); });
+    devs.forEach(function (d) {
+      if (!d.sib) return;
+      var sh = vacShown(d), want = [d.sib.batt, d.sib.err].concat(sh.filter(function (e) { return e !== VAC_WEARID; }));
+      if (sh.indexOf(VAC_WEARID) > -1) want = want.concat((d.sib.all || []).filter(function (x) { return VAC_WEAR.test(x); }));
+      want.filter(Boolean).forEach(function (sid) { if (ids.indexOf(sid) < 0) ids.push(sid); });
+    });
     return Promise.all(ids.map(function (sid) { return haFetch("/api/states/" + encodeURIComponent(sid)).then(function (x) { eng.states[sid] = x; }, function () { /* left as it was */ }); }));
   }
   function vacBatt(d) {
@@ -8750,8 +8825,34 @@
     return '<div class="ec-vac' + (dead && s ? " dead" : "") + '" data-vac="' + esc(d.id) + '"' + (L.c ? ' style="--vc: var(--' + L.c + ')"' : "") + '><span class="rm">' + esc(((rm ? rm + " · " : "") + d.name).toUpperCase()) + "</span>" +
       '<div class="ec-vst"><span class="ec-vw">' + esc(L.w) + "</span>" + (dead ? "" : '<span class="ec-vwhy">' + esc(vacSub(d, s)) + "</span>") + "</div>" +
       (b != null ? '<div class="ec-vbat" style="--bc: var(--' + bc + ')"><span class="ov-sub">BATTERY</span><i><b style="width:' + b + '%"></b></i><span class="ec-vpc tnum">' + b + "%</span></div>" : "") +
+      vacReadsHtml(d, dead) +
       '<div class="ec-vbtns">' + btn("start", st === "paused" ? "RESUME" : "START", "go") + btn("pause", "PAUSE") + btn("dock", "DOCK", "dock") + btn("locate", "LOCATE") + "</div>" +
       (st === "cleaning" ? '<span class="ec-vsweep" aria-hidden="true"></span>' : "") + haMore(d) + "</div>";
+  }
+  function vacReadsHtml(d, dead) {
+    if (dead) return "";
+    var lines = vacShown(d).map(function (e) { return vacLine(d, e); }).filter(Boolean);
+    return lines.length ? '<dl class="ec-vreads">' + lines.map(function (l) { return "<div><dt>" + esc(l.k) + '</dt><dd class="tnum">' + esc(l.v) + "</dd></div>"; }).join("") + "</dl>" : "";
+  }
+  /* SHOW ON THIS CARD, in the vacuum's ⋯ sheet: each of its readings with its value now, ticked or not. */
+  function vacShowHtml(d) {
+    var h = '<hr class="hp-split"><div class="hp-sec"><span class="ov-sub">SHOW ON THIS CARD</span>';
+    if (!d.sib || !d.sib.all) return h + '<small class="muted">Looking for its readings in Home Assistant…</small></div>';
+    var sh = vacShown(d), opts = (d.sib.all.some(function (x) { return VAC_WEAR.test(x); }) ? [VAC_WEARID] : []).concat(d.sib.all);
+    if (!opts.length) return h + '<small class="muted">Home Assistant has no readings named for this vacuum.</small></div>';
+    return h + '<div class="ec-vshow">' + opts.map(function (e) {
+      var l = e === VAC_WEARID ? vacLine(d, e) : vacLine(d, e) || { k: vacLabel(d, e), v: "" };
+      var name = e === VAC_WEARID ? "PART WITH LEAST LIFE LEFT" : l.k;
+      return '<button type="button" class="chip ec-vopt" data-havshow="' + esc(e) + '" aria-pressed="' + (sh.indexOf(e) > -1) + '"><b>' + esc(name) + "</b>" + (l && l.v ? "<small>" + esc(e === VAC_WEARID ? l.k + " · " + l.v : l.v) + "</small>" : "") + "</button>";
+    }).join("") + '</div><small class="muted">Ticked readings show on its card under CLEANING, and leave SENSORS. Kept with your devices (PROFILE SYNC shares them).</small></div>';
+  }
+  function vacShowToggle(id, e) {
+    var d = haDevices().filter(function (x) { return x.id === id; })[0]; if (!d) return;
+    var sh = vacShown(d).slice(), i = sh.indexOf(e);
+    if (i > -1) sh.splice(i, 1); else sh.push(e);
+    saveDev(id, { show: sh });
+    paintDevSheet(); render(true);
+    vacSibRead(haDevices().filter(function (x) { return x.id === id; })).then(haRepaint);   /* a newly ticked reading is read now, from the tap */
   }
   function haVac(id, what) {
     var s = eng.states[id], svc = VAC_DO[what];
@@ -8822,8 +8923,8 @@
     var since = s && s.last_changed && !dead ? " · SINCE " + esc(sinceLabel(new Date(s.last_changed))) : "";
     var cls = "hc hc-" + st + (on ? " on" : "") + (dead && s ? " dead" : "");
     if (st === "reading") {
-      var a = (s && s.attributes) || {};
-      return '<div class="' + cls + '"><div class="hc-main ro">' + haNm(d) + '<span class="val tnum">' + esc(dead ? txt : s.state) + (a.unit_of_measurement && !dead ? "<small> " + esc(a.unit_of_measurement) + "</small>" : "") +
+      var rv = dead ? null : haReadVal(s);   /* 2.92.1: a date and time reads TODAY 17:27, not as Home Assistant sends it */
+      return '<div class="' + cls + (rv && rv.ts ? " hc-ts" : "") + '"><div class="hc-main ro">' + haNm(d) + '<span class="val tnum">' + esc(dead ? txt : rv.v) + (rv && rv.u ? "<small> " + esc(rv.u) + "</small>" : "") +
         '</span><span class="sub">READING' + since + "</span></div>" + haMore(d) + "</div>";
     }
     if (st === "color") return '<div class="' + cls + '" style="--lc: ' + (lc || "var(--panel-2)") + '"><button type="button" class="hc-main" data-hadev="' + esc(d.id) + '"><span class="bulb" aria-hidden="true"></span>' + haNm(d) + '<span class="sub">' + esc(txt) + "</span></button>" + haMore(d) +
@@ -9110,6 +9211,7 @@
   var HA_PRESETS = [["WARM", "ct", 2700], ["DAYLIGHT", "ct", 5000], ["POND BLUE", "hs", 205, 62], ["EVENING", "hs", 28, 80], ["FOREST", "hs", 130, 55], ["NIGHT RED", "hs", 0, 95]];
   function openDevSheet(id) {
     var d = haDevices().filter(function (x) { return x.id === id; })[0]; if (!d) return;
+    if (haDomain(id) === "vacuum" && (!d.sib || !d.sib.all)) vacFind([d]).then(function () { if (eng.sheetId === id) paintDevSheet(); });   /* from the tap: its readings for SHOW ON THIS CARD */
     var s = eng.states[id], a = (s && s.attributes) || {}, c = devCaps(d);
     eng.sheetKind = "dev"; eng.sheetId = id; eng.arm = null;
     eng.sheetMode = c.col && (a.color_mode !== "color_temp" || !c.ct) ? "hs" : "ct";
@@ -9141,6 +9243,7 @@
         if (c.fx) h += '<div class="hp-sec"><span class="ov-sub">EFFECT</span><div class="chips">' + c.fx.map(function (f) { return '<button type="button" class="chip sm" data-hafx="' + esc(f) + '" aria-pressed="' + (a.effect === f) + '">' + esc(String(f).toUpperCase()) + "</button>"; }).join("") + "</div></div>";
       }
     }
+    if (c.vac) h += vacShowHtml(d);   /* 2.92.1: its readings, on its card */
     h += '<hr class="hp-split"><div class="hp-sec"><span class="ov-sub">CARD STYLE · ON THIS IPAD</span>' + stylePickHtml(c, styleOf(d)) + "</div>";
     h += '<div class="hp-sec"><span class="ov-sub">ROOM · ON THIS IPAD</span>' + groupChipsHtml(haGroupOf(d)) + "</div></div>";
     h += '<div class="sfoot btnrow"><button type="button" class="btn ghost" data-harm="' + esc(d.id) + '">' + (eng.arm === "rm" && Date.now() - eng.armAt < 4000 ? "TAP AGAIN TO REMOVE" : "REMOVE FROM SCREEN") + '</button><button type="button" class="btn" id="detailClose">DONE</button></div>';
@@ -9209,6 +9312,7 @@
   function haSheetClick(b) {
     var d = b.dataset, p = eng.pick;
     if (d.hatoggle) { haToggle(d.hatoggle); return true; }
+    if (d.havshow) { vacShowToggle(eng.sheetId, d.havshow); return true; }
     if (d.hapick) {
       var it = p && p.list && p.list.filter(function (x) { return x.id === d.hapick; })[0];
       if (!it) return true;

@@ -28,7 +28,7 @@ const tick = async (p, ms) => { for (let t = 0; t < ms; t += 1000) { await p.clo
     localStorage.clear(); localStorage.setItem('tos.conn.v1', JSON.stringify({ url: 'http://127.0.0.1:' + port + '/macros/s/test/exec', key: k }));
     localStorage.setItem('tos.nas.v1', JSON.stringify({ url: r, token: 'relay-test-token' }));
     localStorage.setItem('tos.ha.v1', JSON.stringify({ url: r + '/ha', token: 'ha-test-token' }));
-    localStorage.setItem('tos.hadev.v1', JSON.stringify([{ id: 'sensor.pond_water_temp', name: 'Pond Water Temp' }]));
+    localStorage.setItem('tos.hadev.v1', JSON.stringify([{ id: 'sensor.pond_water_temp', name: 'Pond Water Temp' }, { id: 'sensor.sample_robo_last_clean_end', name: 'Sample Robo Last clean end' }]));   // added on its own, as Timothy had
     localStorage.setItem('tos.hascnchk.v1', JSON.stringify({ at: Date.now(), res: 'ready' }));
     localStorage.setItem('tos.pins.v1', JSON.stringify(['today', 'engineering'])); localStorage.setItem('tos.start.v1', '"bridge"');
   }, [K, R, P8104]);
@@ -43,11 +43,30 @@ const tick = async (p, ms) => { for (let t = 0; t < ms; t += 1000) { await p.clo
   assert.ok((await txt(p, '#detailSheet')).includes('Shown under CLEANING'), 'no card styles to pick');
   await p.click('[data-haaddgo]');
   const dev = (await p.evaluate(() => JSON.parse(localStorage.getItem('tos.hadev.v1')))).find(d => d.id === 'vacuum.sample_robo');
-  assert.deepStrictEqual(dev.sib, { batt: 'sensor.sample_robo_battery', err: 'sensor.sample_robo_vacuum_error' });
+  assert.deepStrictEqual([dev.sib.batt, dev.sib.err], ['sensor.sample_robo_battery', 'sensor.sample_robo_vacuum_error']);
+  assert.deepStrictEqual(dev.sib.all, ['sensor.sample_robo_cleaning_area', 'sensor.sample_robo_cleaning_time', 'sensor.sample_robo_filter_time_left', 'sensor.sample_robo_last_clean_end',
+    'sensor.sample_robo_main_brush_time_left', 'sensor.sample_robo_side_brush_time_left', 'sensor.sample_robo_status'], 'its own readings, for SHOW ON THIS CARD');
   const card = () => txt(p, '.ec-vac');
   const on = async sel => !(await p.isDisabled(sel));
   await until(async () => /DOCKED Charging BATTERY 84%/.test(await card()), 10000, 'the card, docked');
   assert.ok((await txt(p, '.ec-vacs')).startsWith('CLEANING'));
+
+  // ---- 2.92.1: its readings in its card (the suggested set), said plainly; the one added on its own leaves SENSORS
+  const reads = () => p.$$eval('.ec-vreads > div', n => n.map(x => x.innerText.replace(/\s+/g, ' ').trim()));
+  await until(async () => (await reads()).length === 4, 10000, 'the readings in the card');
+  assert.deepStrictEqual(await reads(), ['LAST CLEAN END TODAY 08:27', 'CLEANING TIME 42 MIN', 'CLEANING AREA 34.5 M²', 'FILTER 82 H LEFT'], 'local time; seconds as minutes; the part with least life left');
+  const sensors = () => txt(p, '.ec-sens');
+  assert.ok(!(await sensors()).includes('LAST CLEAN'), 'not twice: ' + await sensors());
+  // SHOW ON THIS CARD: untick it and it's back in SENSORS, as a time; tick another
+  await p.click('.ec-vac .hc-more'); await p.waitForSelector('[data-havshow]');
+  assert.deepStrictEqual(await p.$$eval('[data-havshow][aria-pressed="true"]', n => n.map(x => x.dataset.havshow)), ['wear', 'sensor.sample_robo_cleaning_area', 'sensor.sample_robo_cleaning_time', 'sensor.sample_robo_last_clean_end']);
+  assert.ok((await txt(p, '[data-havshow="wear"]')).includes('PART WITH LEAST LIFE LEFT FILTER · 82 H LEFT'), await txt(p, '[data-havshow="wear"]'));
+  await p.click('[data-havshow="sensor.sample_robo_last_clean_end"]');
+  await p.click('[data-havshow="sensor.sample_robo_status"]');
+  await until(async () => (await reads()).join(' | ') === 'CLEANING TIME 42 MIN | CLEANING AREA 34.5 M² | FILTER 82 H LEFT | STATUS CHARGING', 8000, 'the chosen readings');
+  await p.click('#detailClose');
+  assert.ok((await sensors()).includes('SAMPLE ROBO LAST CLEAN END TODAY 08:27'), 'back in SENSORS, as a time: ' + await sensors());
+  assert.ok(await p.evaluate(() => { const v = document.querySelector('.ec-sens .hc-ts .val'); return v && v.scrollWidth <= v.parentElement.clientWidth + 1; }), 'and fits its card');
   await fetch(R + '/__haopt?slow=');
   assert.deepStrictEqual([await on('[data-havac="start"]'), await on('[data-havac="pause"]'), await on('[data-havac="dock"]'), await on('[data-havac="locate"]')], [true, false, false, true], 'docked: START and LOCATE');
 
@@ -77,6 +96,12 @@ const tick = async (p, ms) => { for (let t = 0; t < ms; t += 1000) { await p.clo
   await p.click('[data-haview="list"]');
   assert.ok((await txt(p, '.ec-vacs')).includes('Sample Robo PROBLEM · 12%'), await txt(p, '.ec-vacs'));
   await p.click('[data-haview="cards"]');
+
+  // ---- a vacuum added on 2.92.0, before its readings were listed: they're found once, with its next read
+  await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tos.hadev.v1')); l.forEach(d => { if (d.id === 'vacuum.sample_robo') { d.sib = { batt: d.sib.batt, err: d.sib.err }; delete d.show; } }); localStorage.setItem('tos.hadev.v1', JSON.stringify(l)); });
+  await p.click('[data-screen="today"].nav'); await p.click('[data-screen="engineering"].nav');
+  await until(async () => (await reads()).length === 4, 10000, 'its readings found');
+  assert.ok(!(await sensors()).includes('LAST CLEAN'));
 
   // ---- the Bridge: "Vacuum needs you" while it reports a problem, read every 2 minutes; gone once it docks
   await p.click('.elbow'); await p.waitForSelector('#content .rb-alerts');

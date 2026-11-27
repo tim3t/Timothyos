@@ -2,6 +2,11 @@
 
 A heading ending in **(needs bridge 1.N)** means that version's new features need the Google bridge updated to at least 1.N (README → Updating the Google bridge); everything else in it works with the bridge you have. Bridge changes are listed under each version as **Bridge 1.N**.
 
+## 2.92.1 · 2026-11-27
+- **The vacuum's readings live in its card** (Timothy, 27 Nov). Its **⋯** sheet has **SHOW ON THIS CARD**: every reading Home Assistant has for it (Roborock's, found by name), each with its value now. Ticked ones show under the battery (to start: last clean end, cleaning time, area cleaned, and the part with least life left, such as FILTER 82 H LEFT) and leave SENSORS, so a reading added on its own no longer shows twice.
+- **A date and time reads plainly.** A reading such as Last clean end showed as Home Assistant sends it (2026-11-26T22:27:59+00:00, in UTC, too wide for its card). It now reads TODAY 17:27, YESTERDAY 08:10 or 24 NOV 17:27, in the iPad's time. Durations read in minutes or hours, and m² as M².
+- No bridge update needed.
+
 ## 2.92.0 · 2026-11-26
 - **Robot vacuums in ENGINEERING** (Timothy's Roborock; mockup approved 26 Nov). **+ ADD DEVICE** now lists vacuums. A vacuum shows under a new **CLEANING** section: what it's doing in large letters (green while cleaning, apricot returning, yellow paused, red for a problem with its reason), its battery (yellow under 30%, red under 15%), and **START** (**RESUME** when paused), **PAUSE**, **DOCK** and **LOCATE**. A thin line moves along the card while it cleans. LIST view shows it as one row.
 - **"Vacuum needs you" on the Bridge.** While the Bridge is open, the vacuum's state is checked every 2 minutes; a problem (stuck, a jammed brush) puts a yellow line in the Condition with the reason, and tapping it opens ENGINEERING. It clears once the vacuum cleans or docks again.

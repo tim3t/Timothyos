@@ -182,6 +182,14 @@ VAC = {   # 2.92: a simulated Roborock (invented), only while a test asks for it
     "vacuum.sample_robo": {"state": "docked", "attributes": {"friendly_name": "Sample Robo", "fan_speed": "balanced"}},
     "sensor.sample_robo_battery": {"state": "84", "attributes": {"friendly_name": "Sample Robo Battery", "unit_of_measurement": "%", "device_class": "battery"}},
     "sensor.sample_robo_vacuum_error": {"state": "none", "attributes": {"friendly_name": "Sample Robo Vacuum error"}},
+    # 2.92.1: its readings, named as Roborock names them (invented values)
+    "sensor.sample_robo_last_clean_end": {"state": "2026-11-26T14:27:59+00:00", "attributes": {"friendly_name": "Sample Robo Last clean end", "device_class": "timestamp"}},
+    "sensor.sample_robo_cleaning_time": {"state": "2520", "attributes": {"friendly_name": "Sample Robo Cleaning time", "unit_of_measurement": "s", "device_class": "duration"}},
+    "sensor.sample_robo_cleaning_area": {"state": "34.5", "attributes": {"friendly_name": "Sample Robo Cleaning area", "unit_of_measurement": "m²"}},
+    "sensor.sample_robo_filter_time_left": {"state": "82", "attributes": {"friendly_name": "Sample Robo Filter time left", "unit_of_measurement": "h", "device_class": "duration"}},
+    "sensor.sample_robo_main_brush_time_left": {"state": "210", "attributes": {"friendly_name": "Sample Robo Main brush time left", "unit_of_measurement": "h", "device_class": "duration"}},
+    "sensor.sample_robo_side_brush_time_left": {"state": "95", "attributes": {"friendly_name": "Sample Robo Side brush time left", "unit_of_measurement": "h", "device_class": "duration"}},
+    "sensor.sample_robo_status": {"state": "charging", "attributes": {"friendly_name": "Sample Robo Status"}},
 }
 def ha_slug(alias): return "automation." + re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")
 def ha_state(eid):

@@ -2145,6 +2145,17 @@ body.nas-pad-min .content { padding-bottom: 72px; }
 @keyframes ecSweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 @media (prefers-reduced-motion: reduce) { .ec-vsweep { animation: none; background: var(--ok); opacity: .5; } }
 @media (max-width: 600px) { .ec-vbtns { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* 2.92.1: the vacuum's own readings in its card (SHOW ON THIS CARD), and a date and time as a reading */
+.ec-vreads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; margin: 0 -46px 0 0; }
+.ec-vreads div { display: grid; gap: 2px; min-width: 0; border-top: 1px solid var(--line); padding-top: 8px; }
+.ec-vreads dt { font-family: var(--display); font-size: var(--t-label); letter-spacing: .16em; color: var(--dim); }
+.ec-vreads dd { margin: 0; font-family: var(--display); font-size: 22px; letter-spacing: .06em; color: var(--fg); overflow-wrap: anywhere; }
+@media (max-width: 600px) { .ec-vreads { grid-template-columns: minmax(0, 1fr); } }
+.ec-vshow { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.ec-vopt { display: grid; justify-items: start; gap: 2px; min-height: 52px; height: auto; padding: 8px 14px; text-align: left; border-radius: 18px; }
+.ec-vopt small { font-family: var(--body); font-size: 14px; letter-spacing: 0; color: var(--dim); }
+.ec-vopt[aria-pressed="true"] small { color: inherit; }
+.hc-ts .hc-main .val { font-size: 30px; white-space: normal; }
 @media (max-width: 1060px) { .ec-cols { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---------- Apiary (2.31): the yard, a hive, its checks. One unit (--u) scales the whole stack. ---------- */
